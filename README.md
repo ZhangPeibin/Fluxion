@@ -222,9 +222,31 @@ Dijkstra。
 - 不做 split routing（多路径拆分留 v2）。
 - 公开 HTTP 无鉴权 → 至少加简单限流。
 
-## 里程碑
+## 开发计划
 
-见 [docs/PLAN.md](docs/PLAN.md)（教学版，含学习目标与检查点）。
+开发优先：先用 mock 打通端到端，再换真实数据源。教学版里程碑（含学习目标与检查点）见
+[docs/PLAN.md](docs/PLAN.md)。
+
+### M1 · 离线引擎（不依赖网络）
+
+- 领域模型 + 多重图（`Pool.coins`、平行边、有序对展开）
+- `QuoteSource` trait + mock 实现（V2 常数积、固定汇率）
+- K-best DP 多跳路由 + 简单路径 + 流动性惩罚
+- 单元测试：直接询价、多跳择优、负权/套环反例
+- 验收：`cargo test` 全绿
+
+### M2 · 接真实数据（需 RPC + Graph）
+
+- 池子发现：subgraph 分页 + 过滤 + JSON 落盘
+- 真实适配器：V2 → V3 → Curve
+- 热池 multicall 刷新 + 冷池懒加载
+- 验收：真实 RPC 上单跳、多跳报价正确
+
+### M3 · 服务化
+
+- axum `/quote` + `/health` + 错误映射 + 限流
+- 集成测试（anvil fork）+ tracing
+- 验收：`curl /quote` 拿到正确报价
 
 ## 测试
 
