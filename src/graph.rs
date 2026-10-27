@@ -107,4 +107,21 @@ mod tests {
         assert_eq!(g.pool_count(), 2);
         assert_eq!(g.out_edge_indices(a).len(), 2);
     }
+
+    #[test]
+    fn three_coin_pool_yields_six_directed_edges() {
+        let a = Address::with_last_byte(1);
+        let b = Address::with_last_byte(2);
+        let c = Address::with_last_byte(3);
+        let mut g = Graph::new();
+        g.add_pool(Pool {
+            kind: crate::model::PoolKind::Curve,
+            address: Address::with_last_byte(30),
+            coins: vec![a, b, c],
+        });
+        assert_eq!(g.edge_count(), 6);
+        assert_eq!(g.out_edge_indices(a).len(), 2);
+        assert_eq!(g.out_edge_indices(b).len(), 2);
+        assert_eq!(g.out_edge_indices(c).len(), 2);
+    }
 }

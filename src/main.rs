@@ -52,15 +52,29 @@ async fn main() {
     let request = QuoteRequest {
         token_in: eth,
         token_out: usdc,
-        amount_in: U256::from(1u64),
+        amount_in: U256::from(100u64),
         max_hops: Some(3),
         amount_out_min: None,
     };
-
     let route = router::route(&graph, &source, &request).await.unwrap();
     let hop = &route.hops[0];
-    println!("amount_in  = {}", request.amount_in);
-    println!("amount_out = {}", route.amount_out);
-    println!("pool       = {}", hop.pool.address);
-    println!("hops       = {}", route.hops.len());
+    println!("direct ETH -> USDC:");
+    println!("  amount_out = {}", route.amount_out);
+    println!("  pool       = {}", hop.pool.address);
+    println!("  hops       = {}", route.hops.len());
+
+    let multi = QuoteRequest {
+        token_in: eth,
+        token_out: wbtc,
+        amount_in: U256::from(100u64),
+        max_hops: Some(3),
+        amount_out_min: None,
+    };
+    let route = router::route(&graph, &source, &multi).await.unwrap();
+    println!("multi-hop ETH -> WBTC:");
+    println!("  amount_out = {}", route.amount_out);
+    println!("  hops       = {}", route.hops.len());
+    for (k, h) in route.hops.iter().enumerate() {
+        println!("    {}: pool {}", k, h.pool.address);
+    }
 }

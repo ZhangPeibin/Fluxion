@@ -1,0 +1,33 @@
+# Fluxion configuration example. Copy to `config.yaml` and adjust.
+# Missing keys fall back to the defaults shown here. Unknown keys are rejected.
+
+# Third-party RPC endpoint (not secret).
+rpc_url: "https://eth.drpc.org"
+
+# Official Graph decentralized-network subgraph IDs.
+uniswap_v2_subgraph_id: "EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu"
+uniswap_v3_subgraph_id: "5zvR82QoaXYFyDEKLZ9t6v9adJpt2hBgBrcrva9LjeiT"
+
+# Curve AddressProvider; the registry is resolved from it.
+curve_address_provider: "0x0000000022D53366457F9d5E68Ec105046FC4383"
+
+# Platforms to consider.
+enabled_platforms:
+  - uniswap-v2
+  - uniswap-v3
+  - curve
+
+# Routing.
+max_hops: 3          # max edges in a route
+top_k: 4             # candidate paths refined with live quotes
+slippage_penalty_lambda: 0.0   # liquidity penalty coefficient
+
+# Pool filtering.
+min_liquidity: 50000       # static lower bound (USD-ish)
+min_volume_24h: 0          # 24h volume floor
+min_pool_age_days: 0       # minimum pool age in days
+reserve_ratio_k: 10        # skip edges where reserve_in < k * amount_in
+token_allowlist: []        # optional token addresses to restrict the universe
+
+# State refresh (hot-pool set).
+refresh_interval_secs: 3
