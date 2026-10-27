@@ -33,7 +33,7 @@
 | **P4 刷新缓存** | 热池 multicall + 懒加载 | Multicall3 原理、热/冷池、TTL、RPC 限流 | 说明为何不全量刷新 |
 | **P5 路由（重点）** | K-best DP + 简单路径 + 精算 | 为何 `-ln(rate)` 有负权→弃 Dijkstra、Bellman-Ford、K-best DP、简单路径、流动性惩罚 | 白板推一遍 Bellman-Ford 松弛过程 |
 | **P6 服务** | axum `/quote` + 错误+限流 | axum handler、状态共享、错误→HTTP 映射 | 讲清一次请求的完整数据流 |
-| **P7 测试观测** | mock 单测 + anvil fork + tracing | 测试策略、fork 测试、日志 | 写一个漏路径的反例测试 |
+| **P7 测试观测** | mock 单测 + 主网 RPC 测试 + 固定区块 fixture + tracing | 测试策略、主网 RPC 只读测试、fixture 确定性、日志 | 写一个漏路径的反例测试 |
 
 ## 核心概念清单（逐个讲透）
 

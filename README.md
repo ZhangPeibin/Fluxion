@@ -245,13 +245,14 @@ Dijkstra。
 ### M3 · 服务化
 
 - axum `/quote` + `/health` + 错误映射 + 限流
-- 集成测试（anvil fork）+ tracing
+- 集成测试（直连主网 RPC）+ tracing
 - 验收：`curl /quote` 拿到正确报价
 
 ## 测试
 
 - 单元：mock `QuoteSource` 构造含负权/套环的小多重图，断言最优路径。
-- 集成：`anvil` fork 主网，跑真实 V2/V3/Curve 询价。
+- 集成：直连主网 RPC（只读）跑真实 V2/V3/Curve 询价；V2 适配器另用固定区块
+  `getReserves()` fixture 做不联网的确定性测试。
 
 ## 已定决策
 
