@@ -54,6 +54,7 @@ async fn main() {
         max_hops: config.max_hops,
         top_k: config.top_k,
         lambda: config.slippage_penalty_lambda,
+        reserve_ratio_k: config.reserve_ratio_k,
     });
 
     let req = QuoteRequest {

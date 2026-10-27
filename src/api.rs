@@ -14,6 +14,7 @@ use crate::error::QuoteError;
 use crate::graph::Graph;
 use crate::model::{Hop, QuoteRequest, Route};
 use crate::router::Router;
+use crate::rpc::RpcClient;
 use crate::source::QuoteSource;
 
 #[derive(Debug, Deserialize)]
@@ -77,6 +78,7 @@ pub struct AppState {
     pub source: Arc<dyn QuoteSource + Send + Sync>,
     pub router: Router,
     pub limiter: RateLimiter,
+    pub rpc: Option<RpcClient>,
 }
 
 pub enum ApiError {
@@ -184,10 +186,27 @@ async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok" }))
 }
 
+async fn ready(State(state): State<Arc<AppState>>) -> (StatusCode, Json<serde_json::Value>) {
+    match &state.rpc {
+        Some(rpc) => {
+            let check = tokio::time::timeout(Duration::from_secs(3), rpc.block_number()).await;
+            match check {
+                Ok(Ok(_)) => (StatusCode::OK, Json(json!({ "status": "ready" }))),
+                _ => (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(json!({ "status": "not ready" })),
+                ),
+            }
+        }
+        None => (StatusCode::OK, Json(json!({ "status": "ready" }))),
+    }
+}
+
 pub fn app(state: Arc<AppState>) -> AxumRouter {
     AxumRouter::new()
         .route("/quote", post(quote))
         .route("/health", get(health))
+        .route("/ready", get(ready))
         .with_state(state)
 }
 
@@ -227,6 +246,7 @@ mod tests {
             source: Arc::new(source),
             router: Router::default(),
             limiter: RateLimiter::new(1000, Duration::from_secs(1)),
+            rpc: None,
         })
     }
 
@@ -272,6 +292,21 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn ready_returns_ok_without_rpc() {
+        let app = app(mock_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
                     .body(Body::empty())
                     .unwrap(),
             )

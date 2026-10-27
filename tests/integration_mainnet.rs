@@ -52,6 +52,7 @@ async fn end_to_end_multi_hop_v2_v3_curve() {
         max_hops: 3,
         top_k: 4,
         lambda: 0.0,
+        reserve_ratio_k: 0,
     });
 
     // WETH -> DAI: WETH->USDC (V2/V3) then USDC->DAI (Curve 3pool).

@@ -88,6 +88,24 @@ fn parse_address(s: &str) -> Result<Address, DiscoveryError> {
         .map_err(|_| DiscoveryError::Address(s.to_string()))
 }
 
+/// Build the GraphQL `where` filter: liquidity floor plus optional volume and
+/// pool-age floors. `volumeUSD` is all-time volume, used as an activity proxy.
+fn discovery_where(config: &Config, tvl_field: &str) -> String {
+    let mut parts = vec![format!("{tvl_field}_gt: \"{}\"", config.min_liquidity)];
+    if config.min_volume_24h > 0 {
+        parts.push(format!("volumeUSD_gt: \"{}\"", config.min_volume_24h));
+    }
+    if config.min_pool_age_days > 0 {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let cutoff = now.saturating_sub(config.min_pool_age_days.saturating_mul(86_400));
+        parts.push(format!("createdAtTimestamp_lt: \"{cutoff}\""));
+    }
+    parts.join(", ")
+}
+
 /// Discover Uniswap V2 pairs from the subgraph, filtered by a liquidity
 /// threshold and an optional token allowlist.
 pub async fn discover_v2(
@@ -101,13 +119,13 @@ pub async fn discover_v2(
     );
 
     let allow = allowlist(config);
+    let where_clause = discovery_where(config, "reserveUSD");
     let mut skip = 0usize;
     let mut pools: Vec<Pool> = Vec::new();
 
     loop {
         let query = format!(
-            r#"{{ pairs(first: 200, skip: {skip}, orderBy: reserveUSD, orderDirection: desc, where: {{ reserveUSD_gt: "{}" }}) {{ id token0 {{ id }} token1 {{ id }} }} }}"#,
-            config.min_liquidity
+            r#"{{ pairs(first: 200, skip: {skip}, orderBy: reserveUSD, orderDirection: desc, where: {{ {where_clause} }}) {{ id token0 {{ id }} token1 {{ id }} }} }}"#
         );
         let resp: serde_json::Value = client
             .post(&url)
@@ -189,13 +207,13 @@ pub async fn discover_v3(
     );
 
     let allow = allowlist(config);
+    let where_clause = discovery_where(config, "totalValueLockedUSD");
     let mut skip = 0usize;
     let mut pools: Vec<Pool> = Vec::new();
 
     loop {
         let query = format!(
-            r#"{{ pools(first: 200, skip: {skip}, orderBy: volumeUSD, orderDirection: desc, where: {{ totalValueLockedUSD_gt: "{}" }}) {{ id token0 {{ id }} token1 {{ id }} feeTier }} }}"#,
-            config.min_liquidity
+            r#"{{ pools(first: 200, skip: {skip}, orderBy: volumeUSD, orderDirection: desc, where: {{ {where_clause} }}) {{ id token0 {{ id }} token1 {{ id }} feeTier }} }}"#
         );
         let resp: serde_json::Value = client
             .post(&url)

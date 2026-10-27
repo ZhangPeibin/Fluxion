@@ -12,6 +12,8 @@ pub enum ConfigError {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
+    pub host: String,
+    pub port: u16,
     pub rpc_url: String,
     pub uniswap_v2_subgraph_id: String,
     pub uniswap_v3_subgraph_id: String,
@@ -32,6 +34,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            host: "127.0.0.1".to_string(),
+            port: 8080,
             rpc_url: "https://eth.drpc.org".to_string(),
             uniswap_v2_subgraph_id: "EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu".to_string(),
             uniswap_v3_subgraph_id: "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV".to_string(),

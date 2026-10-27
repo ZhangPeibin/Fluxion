@@ -15,6 +15,7 @@ pub struct RouterConfig {
     pub max_hops: usize,
     pub top_k: usize,
     pub lambda: f64,
+    pub reserve_ratio_k: u128,
 }
 
 impl Default for RouterConfig {
@@ -23,6 +24,7 @@ impl Default for RouterConfig {
             max_hops: 3,
             top_k: 4,
             lambda: 0.0,
+            reserve_ratio_k: 0,
         }
     }
 }
@@ -90,7 +92,10 @@ impl Router {
         // Coarse stage: cached mid-price + liquidity penalty give each edge a
         // weight. Computed with bounded concurrency so live RPC doesn't stall.
         let penalty_on = self.config.lambda != 0.0;
-        let amount_f = u256_to_f64(request.amount_in);
+        let ratio_k = U256::from(self.config.reserve_ratio_k);
+        let need_reserve = penalty_on || ratio_k > U256::ZERO;
+        let amount_in = request.amount_in;
+        let amount_f = u256_to_f64(amount_in);
         let lambda = self.config.lambda;
         let edge_weights: Vec<(usize, f64)> = stream::iter(0..graph.edge_count())
             .map(|idx| async move {
@@ -99,12 +104,20 @@ impl Router {
                 let weight = match source.mid_price(pool, edge.i, edge.j).await {
                     Ok(rate) if rate > 0.0 && rate.is_finite() => {
                         let mut w = -rate.ln() + fee_penalty(pool.kind);
-                        if penalty_on {
-                            match source.reserve_in(pool, edge.i).await {
-                                Ok(reserve) if !reserve.is_zero() => {
-                                    w += lambda * (amount_f / u256_to_f64(reserve));
-                                }
+                        if need_reserve {
+                            let reserve = match source.reserve_in(pool, edge.i).await {
+                                Ok(reserve) if !reserve.is_zero() => reserve,
                                 _ => return (idx, f64::INFINITY),
+                            };
+                            // Skip edges too shallow for this amount.
+                            if ratio_k > U256::ZERO {
+                                let threshold = amount_in.checked_mul(ratio_k).unwrap_or(U256::MAX);
+                                if reserve < threshold {
+                                    return (idx, f64::INFINITY);
+                                }
+                            }
+                            if penalty_on {
+                                w += lambda * (amount_f / u256_to_f64(reserve));
                             }
                         }
                         w

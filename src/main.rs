@@ -35,9 +35,11 @@ async fn main() {
         max_hops: config.max_hops,
         top_k: config.top_k,
         lambda: config.slippage_penalty_lambda,
+        reserve_ratio_k: config.reserve_ratio_k,
     });
 
-    let (graph, cached, refresher) = build_universe(&config).await;
+    let rpc = RpcClient::new(config.rpc_url.clone());
+    let (graph, cached, refresher) = build_universe(&config, rpc.clone()).await;
 
     // Warm the coarse-stage mid-price cache once so the first request is fast.
     let edges: Vec<(Pool, usize, usize)> = (0..graph.edge_count())
@@ -73,10 +75,13 @@ async fn main() {
         source: cached,
         router,
         limiter: RateLimiter::new(1000, Duration::from_secs(1)),
+        rpc: Some(rpc),
     });
 
     let app = api::app(state);
-    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 8080));
+    let addr: std::net::SocketAddr = format!("{}:{}", config.host, config.port)
+        .parse()
+        .expect("invalid host/port in config");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     tracing::info!("listening on http://{addr}");
     println!("listening on http://{addr}");
@@ -101,7 +106,18 @@ async fn warm_all(cached: &Arc<CachingSource>, edges: &[(Pool, usize, usize)]) {
     while set.join_next().await.is_some() {}
 }
 
-async fn build_universe(config: &Config) -> (Graph, Arc<CachingSource>, Option<Arc<StateCache>>) {
+fn platform_enabled(config: &Config, name: &str) -> bool {
+    config.enabled_platforms.is_empty()
+        || config
+            .enabled_platforms
+            .iter()
+            .any(|p| p.eq_ignore_ascii_case(name))
+}
+
+async fn build_universe(
+    config: &Config,
+    rpc: RpcClient,
+) -> (Graph, Arc<CachingSource>, Option<Arc<StateCache>>) {
     let ttl = Duration::from_secs(config.refresh_interval_secs.max(1));
 
     let Some(key) = std::env::var("GRAPH_API_KEY").ok() else {
@@ -110,27 +126,32 @@ async fn build_universe(config: &Config) -> (Graph, Arc<CachingSource>, Option<A
     };
 
     let mut pools: Vec<Pool> = Vec::new();
-    let rpc = RpcClient::new(config.rpc_url.clone());
-    match discovery::discover_v2(config, &key).await {
-        Ok(p) => {
-            tracing::info!(count = p.len(), "discovered v2 pools");
-            pools.extend(p);
+    if platform_enabled(config, "uniswap-v2") {
+        match discovery::discover_v2(config, &key).await {
+            Ok(p) => {
+                tracing::info!(count = p.len(), "discovered v2 pools");
+                pools.extend(p);
+            }
+            Err(e) => tracing::warn!(error = %e, "v2 discovery failed"),
         }
-        Err(e) => tracing::warn!(error = %e, "v2 discovery failed"),
     }
-    match discovery::discover_v3(config, &key).await {
-        Ok(p) => {
-            tracing::info!(count = p.len(), "discovered v3 pools");
-            pools.extend(p);
+    if platform_enabled(config, "uniswap-v3") {
+        match discovery::discover_v3(config, &key).await {
+            Ok(p) => {
+                tracing::info!(count = p.len(), "discovered v3 pools");
+                pools.extend(p);
+            }
+            Err(e) => tracing::warn!(error = %e, "v3 discovery failed"),
         }
-        Err(e) => tracing::warn!(error = %e, "v3 discovery failed"),
     }
-    match discovery::discover_curve(config, &rpc).await {
-        Ok(p) => {
-            tracing::info!(count = p.len(), "discovered curve pools");
-            pools.extend(p);
+    if platform_enabled(config, "curve") {
+        match discovery::discover_curve(config, &rpc).await {
+            Ok(p) => {
+                tracing::info!(count = p.len(), "discovered curve pools");
+                pools.extend(p);
+            }
+            Err(e) => tracing::warn!(error = %e, "curve discovery failed"),
         }
-        Err(e) => tracing::warn!(error = %e, "curve discovery failed"),
     }
 
     if pools.is_empty() {

@@ -1,6 +1,10 @@
 # Fluxion configuration example. Copy to `config.yaml` and adjust.
 # Missing keys fall back to the defaults shown here. Unknown keys are rejected.
 
+# HTTP server bind address.
+host: "127.0.0.1"
+port: 8080
+
 # Third-party RPC endpoint (not secret).
 rpc_url: "https://eth.drpc.org"
 
