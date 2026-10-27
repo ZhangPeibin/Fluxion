@@ -201,6 +201,7 @@ cargo test -- --ignored          # 真实主网集成测试（只读 eth_call）
 
 ## 相关文档
 
+- `docs/ARCHITECTURE.md`：**详细架构设计文档**（数据流、模块、缓存三层、路由算法、RPC、API、并发、限制）。
 - `docs/PLAN.md`：教学版里程碑（含学习目标与检查点）。
 - `docs/0X-*.md`：逐阶段学习笔记。
 - `AGENTS.md`：仓库工程约定（构建/测试命令、模块边界、约束）。
