@@ -1,5 +1,7 @@
 # Fluxion
 
+[English](README.en.md) | 中文
+
 Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `token_out` / `amount_in`，
 在 Uniswap V2 / V3 / Curve 构成的**有向多重图**上搜索最优路由（支持多跳），返回最优
 `amount_out` 与完整路径（exact-in）。
@@ -201,7 +203,9 @@ cargo test -- --ignored          # 真实主网集成测试（只读 eth_call）
 
 ## 相关文档
 
-- `docs/ARCHITECTURE.md`：**详细架构设计文档**（数据流、模块、缓存三层、路由算法、RPC、API、并发、限制）。
+- `docs/ARCHITECTURE.md`：**详细架构设计文档**（数据流、模块、缓存三层、路由算法、RPC、API、并发、限制）。英文版：`docs/ARCHITECTURE.en.md`。
+- `docs/REQUEST-TRACE.md`：**一次 `/quote` 请求的逐函数调用栈**。
 - `docs/PLAN.md`：教学版里程碑（含学习目标与检查点）。
 - `docs/0X-*.md`：逐阶段学习笔记。
 - `AGENTS.md`：仓库工程约定（构建/测试命令、模块边界、约束）。
+- 英文 README：`README.en.md`。

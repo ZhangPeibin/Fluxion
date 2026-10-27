@@ -1,7 +1,11 @@
 # Fluxion 架构设计文档
 
+[English](ARCHITECTURE.en.md) | 中文
+
 > 本文讲清楚 Fluxion **怎么运转**：从启动、发现池子、构建多重图、预热价格快照，到处理
 > 一次 `/quote` 请求的完整数据流，以及缓存/RPC/并发的组织方式。
+>
+> 逐函数调用栈见 [`REQUEST-TRACE.md`](REQUEST-TRACE.md)。
 >
 > 面向：想读懂或修改本项目的人。代码即真相（`src/`），本文是导航图。
 
