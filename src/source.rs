@@ -22,7 +22,7 @@ pub trait QuoteSource {
     async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, QuoteError>;
 }
 
-fn constant_product_out(
+pub(crate) fn constant_product_out(
     reserve_in: U256,
     reserve_out: U256,
     amount_in: U256,
@@ -46,7 +46,7 @@ fn constant_product_out(
     Ok(num / den)
 }
 
-fn ratio(out: U256, input: U256) -> f64 {
+pub(crate) fn ratio(out: U256, input: U256) -> f64 {
     if input.is_zero() {
         return f64::INFINITY;
     }
