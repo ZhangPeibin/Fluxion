@@ -34,7 +34,7 @@ impl Default for Config {
         Self {
             rpc_url: "https://eth.drpc.org".to_string(),
             uniswap_v2_subgraph_id: "EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu".to_string(),
-            uniswap_v3_subgraph_id: "5zvR82QoaXYFyDEKLZ9t6v9adJpt2hBgBrcrva9LjeiT".to_string(),
+            uniswap_v3_subgraph_id: "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV".to_string(),
             curve_address_provider: "0x0000000022D53366457F9d5E68Ec105046FC4383".to_string(),
             enabled_platforms: vec![
                 "uniswap-v2".to_string(),

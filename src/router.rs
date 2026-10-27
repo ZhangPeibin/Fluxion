@@ -160,42 +160,55 @@ impl Router {
         candidates.sort_by(|a, b| a.cost.partial_cmp(&b.cost).unwrap_or(Ordering::Equal));
         candidates.truncate(self.config.top_k.max(1));
 
-        // Refine stage: chain the exact amount_out along each candidate path.
-        let mut best: Option<Route> = None;
-        for cand in candidates {
+        // Always consider direct routes: coarse mid-price can misrank thin or
+        // mispriced pools and crowd the obvious best route out of the top-K.
+        for &eidx in graph.out_edge_indices(request.token_in) {
+            let edge = graph.edge(eidx);
+            if graph.pool(edge.pool_idx).coins[edge.j] == request.token_out
+                && !candidates
+                    .iter()
+                    .any(|c| c.edges.len() == 1 && c.edges[0] == eidx)
+            {
+                candidates.push(Candidate {
+                    cost: 0.0,
+                    edges: vec![eidx],
+                    visited: vec![request.token_in, request.token_out],
+                });
+            }
+        }
+
+        // Refine stage: chain the exact amount_out along each candidate path,
+        // refining all candidates concurrently to hide RPC latency.
+        let refine = candidates.iter().map(|cand| async move {
             let mut amount_in = request.amount_in;
             let mut hops = Vec::with_capacity(cand.edges.len());
-            let mut ok = true;
             for &eidx in &cand.edges {
                 let edge = graph.edge(eidx);
                 let pool = graph.pool(edge.pool_idx);
-                match source.amount_out(pool, edge.i, edge.j, amount_in).await {
-                    Ok(out) => {
-                        hops.push(Hop {
-                            pool: pool.clone(),
-                            i: edge.i,
-                            j: edge.j,
-                            token_in: pool.coins[edge.i],
-                            token_out: pool.coins[edge.j],
-                            amount_in,
-                            amount_out: out,
-                        });
-                        amount_in = out;
-                    }
-                    Err(_) => {
-                        ok = false;
-                        break;
-                    }
-                }
+                let out = source.amount_out(pool, edge.i, edge.j, amount_in).await?;
+                hops.push(Hop {
+                    pool: pool.clone(),
+                    i: edge.i,
+                    j: edge.j,
+                    token_in: pool.coins[edge.i],
+                    token_out: pool.coins[edge.j],
+                    amount_in,
+                    amount_out: out,
+                });
+                amount_in = out;
             }
-            if !ok {
-                continue;
-            }
-            let route = Route {
+            Ok::<Route, QuoteError>(Route {
                 hops,
                 amount_out: amount_in,
                 price_impact_bps: 0,
-            };
+            })
+        });
+        let mut best: Option<Route> = None;
+        for route in futures::future::join_all(refine)
+            .await
+            .into_iter()
+            .flatten()
+        {
             if best
                 .as_ref()
                 .is_none_or(|r| route.amount_out > r.amount_out)

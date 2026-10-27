@@ -6,6 +6,43 @@ use thiserror::Error;
 use crate::config::Config;
 use crate::model::{Pool, PoolKind};
 
+/// Built-in major-token allowlist used when the config leaves `token_allowlist`
+/// empty. Pools must have BOTH tokens in the allowlist, which keeps the graph
+/// small and avoids junk/thin pools poisoning prices.
+const DEFAULT_ALLOWLIST: &[&str] = &[
+    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", // WETH
+    "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", // WBTC
+    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", // USDC
+    "0xdac17f958d2ee523a2206206994597c13d831ec7", // USDT
+    "0x6b175474e89094c44da98b954eedeac495271d0f", // DAI
+    "0xdc035d45d973e3ec169d2276ddab16f1e407384f", // USDS
+    "0xae7ab96520de3a18e5e111b5eaab095312d7fe84", // stETH
+    "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0", // wstETH
+    "0x514910771af9ca656af840dff83e8264ecf986ca", // LINK
+    "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", // UNI
+    "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9", // AAVE
+    "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2", // MKR
+    "0xd533a949740bb3306d119cc777fa900ba034cd52", // CRV
+    "0x5a98fcbea516cf06857215779fd812ca3bef1b32", // LDO
+];
+
+fn allowlist(config: &Config) -> Vec<String> {
+    if config.token_allowlist.is_empty() {
+        DEFAULT_ALLOWLIST.iter().map(|s| s.to_string()).collect()
+    } else {
+        config
+            .token_allowlist
+            .iter()
+            .map(|s| s.to_lowercase())
+            .collect()
+    }
+}
+
+fn both_allowed(allow: &[String], token0: &str, token1: &str) -> bool {
+    allow.iter().any(|a| a.eq_ignore_ascii_case(token0))
+        && allow.iter().any(|a| a.eq_ignore_ascii_case(token1))
+}
+
 #[derive(Debug, Error)]
 pub enum DiscoveryError {
     #[error("subgraph request failed: {0}")]
@@ -60,6 +97,7 @@ pub async fn discover_v2(
         config.uniswap_v2_subgraph_id
     );
 
+    let allow = allowlist(config);
     let mut skip = 0usize;
     let mut pools: Vec<Pool> = Vec::new();
 
@@ -97,12 +135,7 @@ pub async fn discover_v2(
             if address.is_empty() || token0.is_empty() || token1.is_empty() {
                 continue;
             }
-            if !config.token_allowlist.is_empty()
-                && !config
-                    .token_allowlist
-                    .iter()
-                    .any(|a| a.eq_ignore_ascii_case(&token0) || a.eq_ignore_ascii_case(&token1))
-            {
+            if !both_allowed(&allow, &token0, &token1) {
                 continue;
             }
             pools.push(
@@ -152,12 +185,13 @@ pub async fn discover_v3(
         config.uniswap_v3_subgraph_id
     );
 
+    let allow = allowlist(config);
     let mut skip = 0usize;
     let mut pools: Vec<Pool> = Vec::new();
 
     loop {
         let query = format!(
-            r#"{{ pools(first: 200, skip: {skip}, orderBy: totalValueLockedUSD, orderDirection: desc, where: {{ totalValueLockedUSD_gt: "{}" }}) {{ id token0 {{ id }} token1 {{ id }} feeTier }} }}"#,
+            r#"{{ pools(first: 200, skip: {skip}, orderBy: volumeUSD, orderDirection: desc, where: {{ totalValueLockedUSD_gt: "{}" }}) {{ id token0 {{ id }} token1 {{ id }} feeTier }} }}"#,
             config.min_liquidity
         );
         let resp: serde_json::Value = client
@@ -191,6 +225,9 @@ pub async fn discover_v3(
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
             if address.is_empty() || token0.is_empty() || token1.is_empty() || fee == 0 {
+                continue;
+            }
+            if !both_allowed(&allow, &token0, &token1) {
                 continue;
             }
             pools.push(Pool {
