@@ -22,18 +22,29 @@ Rust project (edition 2024). Async runtime: tokio (`#[tokio::main]`); the app ow
 
 Commands (from repo root):
 - Build: `cargo build`
-- Run: `cargo run`
-- Test: `cargo test`
-- Lint: `cargo clippy`
+- Run server: `cargo run` (needs `.env` with `GRAPH_API_KEY` for real data; falls back to mock otherwise)
+- Unit tests: `cargo test`
+- Mainnet integration tests (network, read-only): `cargo test -- --ignored`
+- Lint: `cargo clippy --all-targets`
 - Format: `cargo fmt`
-- Run a teaching example: `cargo run --example <name>` (see `examples/`)
+- Run an example: `cargo run --example <name>` (e.g. `quote_mainnet`)
 
-Architecture and plan (source of truth, link rather than duplicate):
-- `README.md` — full v1 technical design: module layout, data model, routing, API.
-- `docs/PLAN.md` — learning-oriented milestones (P0–P7) with checkpoints.
-- `docs/0X-*.md` — per-stage learning notes.
+Architecture and docs (source of truth, link rather than duplicate):
+- `README.md` — what it does, API, architecture, config, known limitations.
+- `docs/PLAN.md` — learning-oriented milestones; `docs/0X-*.md` — learning notes.
+
+Modules (`src/`): `model`, `graph`, `discovery`, `source`, `adapters`, `state`, `rpc`,
+`router`, `api`, `config`, `util`, `main`.
 
 Project-specific constraints:
-- This is also a learning project. Prefer explaining concepts and keeping code readable; each stage has a checkpoint in `docs/PLAN.md`. The learner must understand code before moving on.
-- Dependencies are added incrementally per phase (alloy at P3, axum at P6); do not pre-add future-phase dependencies.
-- Intended modules (`model`, `graph`, `discovery`, `source`, `state`, `router`, `api`) are described in `README.md`; only `src/main.rs` exists today — do not assume the others exist.
+- Chain interaction uses **raw JSON-RPC via `reqwest`** with hand-written ABI encode/decode;
+  only `alloy-primitives` (U256/Address) is used from alloy. Do not reintroduce the full `alloy` stack.
+- Config is YAML (`config.yaml`, see `config.example.yaml`). Secrets (`GRAPH_API_KEY`) live in a
+  **gitignored `.env`** — never commit them or put them in YAML/README/docs.
+- Data sources: The Graph decentralized-network subgraph IDs for V2/V3 + Curve main stableswap
+  registry (`AddressProvider.get_registry()`). Crypto/factory/metapool Curve registries are not yet covered.
+- A default major-token allowlist filters the graph; keep both-token (pool) filtering to avoid
+  junk/thin pools.
+- This is also a learning project (readable code, explanations), but development is currently
+  prioritized over teaching.
+

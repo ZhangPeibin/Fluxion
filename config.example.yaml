@@ -24,6 +24,7 @@ enabled_platforms:
 # Routing.
 max_hops: 3          # max edges in a route
 top_k: 8             # candidate paths refined with live quotes
+max_pools: 100       # cap discovered pools per platform
 slippage_penalty_lambda: 0.0   # liquidity penalty coefficient
 
 # Pool filtering.
