@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use alloy_primitives::{Address, U256};
+use futures::stream::{self, StreamExt};
 
 use crate::error::QuoteError;
 use crate::graph::Graph;
@@ -85,29 +86,45 @@ impl Router {
 
         let max_hops = request.max_hops.unwrap_or(self.config.max_hops).max(1);
 
-        // Coarse stage: cached mid-price + liquidity penalty give each edge a weight.
-        let mut weights = vec![0.0f64; graph.edge_count()];
+        let __t0 = std::time::Instant::now();
+        // Coarse stage: cached mid-price + liquidity penalty give each edge a
+        // weight. Computed with bounded concurrency so live RPC doesn't stall.
         let penalty_on = self.config.lambda != 0.0;
-        for (idx, w) in weights.iter_mut().enumerate() {
-            let edge = graph.edge(idx);
-            let pool = graph.pool(edge.pool_idx);
-            let rate = source.mid_price(pool, edge.i, edge.j).await?;
-            if rate <= 0.0 || !rate.is_finite() {
-                *w = f64::INFINITY;
-                continue;
-            }
-            let mut weight = -rate.ln() + fee_penalty(pool.kind);
-            if penalty_on {
-                let reserve = source.reserve_in(pool, edge.i).await?;
-                if reserve.is_zero() {
-                    *w = f64::INFINITY;
-                    continue;
-                }
-                weight +=
-                    self.config.lambda * (u256_to_f64(request.amount_in) / u256_to_f64(reserve));
-            }
-            *w = weight;
+        let amount_f = u256_to_f64(request.amount_in);
+        let lambda = self.config.lambda;
+        let edge_weights: Vec<(usize, f64)> = stream::iter(0..graph.edge_count())
+            .map(|idx| async move {
+                let edge = graph.edge(idx);
+                let pool = graph.pool(edge.pool_idx);
+                let weight = match source.mid_price(pool, edge.i, edge.j).await {
+                    Ok(rate) if rate > 0.0 && rate.is_finite() => {
+                        let mut w = -rate.ln() + fee_penalty(pool.kind);
+                        if penalty_on {
+                            match source.reserve_in(pool, edge.i).await {
+                                Ok(reserve) if !reserve.is_zero() => {
+                                    w += lambda * (amount_f / u256_to_f64(reserve));
+                                }
+                                _ => return (idx, f64::INFINITY),
+                            }
+                        }
+                        w
+                    }
+                    _ => f64::INFINITY,
+                };
+                (idx, weight)
+            })
+            .buffer_unordered(16)
+            .collect()
+            .await;
+        let mut weights = vec![0.0f64; graph.edge_count()];
+        for (idx, w) in edge_weights {
+            weights[idx] = w;
         }
+        tracing::debug!(
+            coarse_ms = __t0.elapsed().as_millis() as u64,
+            edges = graph.edge_count(),
+            "coarse done"
+        );
 
         // K-best DP over (hop, token) with a simple-path constraint.
         let mut prev: HashMap<Address, Vec<Candidate>> = HashMap::new();
@@ -216,6 +233,11 @@ impl Router {
                 best = Some(route);
             }
         }
+        tracing::debug!(
+            refine_ms = __t0.elapsed().as_millis() as u64,
+            candidates = candidates.len(),
+            "refine done"
+        );
 
         let mut route = best.ok_or(QuoteError::NoPath)?;
         route.price_impact_bps = self.price_impact_bps(source, request, &route).await;

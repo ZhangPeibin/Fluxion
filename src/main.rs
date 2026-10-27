@@ -110,6 +110,7 @@ async fn build_universe(config: &Config) -> (Graph, Arc<CachingSource>, Option<A
     };
 
     let mut pools: Vec<Pool> = Vec::new();
+    let rpc = RpcClient::new(config.rpc_url.clone());
     match discovery::discover_v2(config, &key).await {
         Ok(p) => {
             tracing::info!(count = p.len(), "discovered v2 pools");
@@ -124,7 +125,13 @@ async fn build_universe(config: &Config) -> (Graph, Arc<CachingSource>, Option<A
         }
         Err(e) => tracing::warn!(error = %e, "v3 discovery failed"),
     }
-    pools.extend(discovery::discover_curve(config));
+    match discovery::discover_curve(config, &rpc).await {
+        Ok(p) => {
+            tracing::info!(count = p.len(), "discovered curve pools");
+            pools.extend(p);
+        }
+        Err(e) => tracing::warn!(error = %e, "curve discovery failed"),
+    }
 
     if pools.is_empty() {
         tracing::warn!("no pools discovered — serving the mock universe");
@@ -136,7 +143,6 @@ async fn build_universe(config: &Config) -> (Graph, Arc<CachingSource>, Option<A
         graph.add_pool(pool.clone());
     }
 
-    let rpc = RpcClient::new(config.rpc_url.clone());
     let state = Arc::new(StateCache::new(rpc.clone(), ttl));
     let dispatcher = Dispatcher::new(
         Box::new(UniswapV2::new(state.clone())),

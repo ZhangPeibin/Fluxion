@@ -49,7 +49,7 @@ impl Default for Config {
             min_pool_age_days: 0,
             reserve_ratio_k: 10,
             slippage_penalty_lambda: 0.0,
-            refresh_interval_secs: 12,
+            refresh_interval_secs: 30,
             token_allowlist: Vec::new(),
         }
     }

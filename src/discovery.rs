@@ -1,10 +1,13 @@
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
+use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
 
 use crate::config::Config;
 use crate::model::{Pool, PoolKind};
+use crate::rpc::RpcClient;
+use crate::util::{u256_to_usize, u256_word};
 
 /// Built-in major-token allowlist used when the config leaves `token_allowlist`
 /// empty. Pools must have BOTH tokens in the allowlist, which keeps the graph
@@ -250,23 +253,100 @@ pub async fn discover_v3(
     Ok(pools)
 }
 
-const CURVE_3POOL: &str = "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7";
-const DAI: &str = "0x6B175474E89094C44Da98b954EedeAC495271d0F";
-const USDC: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
-const USDT: &str = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
+const CURVE_GET_REGISTRY: &str = "a262904b";
+const CURVE_POOL_COUNT: &str = "956aae3a";
+const CURVE_POOL_LIST: &str = "3a1d5d8e";
+const CURVE_COINS: &str = "c6610657";
+const CURVE_GET_DY: &str = "5e0d443f";
+const CURVE_REGISTRY_BATCH: usize = 16;
 
-/// Known Curve pools. Registry-based discovery (AddressProvider -> registry ->
-/// pool_list) is deferred; this returns a fixed, well-known 3pool.
-pub fn discover_curve(_config: &Config) -> Vec<Pool> {
-    vec![Pool {
-        kind: PoolKind::Curve,
-        address: CURVE_3POOL.parse().unwrap(),
-        coins: vec![
-            DAI.parse().unwrap(),
-            USDC.parse().unwrap(),
-            USDT.parse().unwrap(),
-        ],
-    }]
+fn addr_from_word(data: &[u8]) -> Result<Address, DiscoveryError> {
+    if data.len() < 20 {
+        return Err(DiscoveryError::Address("short word".to_string()));
+    }
+    Ok(Address::from_slice(&data[data.len() - 20..]))
+}
+
+/// Discover Curve stableswap pools via the registry:
+/// AddressProvider.get_registry() -> pool_count/pool_list -> coins(i).
+/// Only pools whose every coin is in the allowlist are kept.
+pub async fn discover_curve(config: &Config, rpc: &RpcClient) -> Result<Vec<Pool>, DiscoveryError> {
+    let allow = allowlist(config);
+    let provider: Address = config
+        .curve_address_provider
+        .parse()
+        .map_err(|_| DiscoveryError::Address(config.curve_address_provider.clone()))?;
+
+    let reg_data = rpc
+        .eth_call(provider, CURVE_GET_REGISTRY)
+        .await
+        .map_err(|e| DiscoveryError::Request(e.to_string()))?;
+    let registry = addr_from_word(&reg_data)?;
+
+    let count_data = rpc
+        .eth_call(registry, CURVE_POOL_COUNT)
+        .await
+        .map_err(|e| DiscoveryError::Request(e.to_string()))?;
+    if count_data.len() < 32 {
+        return Ok(Vec::new());
+    }
+    let count = u256_to_usize(U256::from_be_slice(&count_data[0..32])).min(config.max_pools);
+
+    let results: Vec<(Address, Vec<Address>)> = stream::iter(0..count)
+        .map(|i| {
+            let rpc = rpc.clone();
+            async move {
+                let data = format!("{CURVE_POOL_LIST}{}", u256_word(U256::from(i)));
+                let pool = addr_from_word(&rpc.eth_call(registry, &data).await.ok()?).ok()?;
+                let mut coins = Vec::new();
+                for j in 0..4usize {
+                    let cd = format!("{CURVE_COINS}{}", u256_word(U256::from(j)));
+                    match rpc.eth_call(pool, &cd).await {
+                        Ok(d) if d.len() >= 32 => match addr_from_word(&d) {
+                            Ok(coin) => coins.push(coin),
+                            Err(_) => break,
+                        },
+                        _ => break,
+                    }
+                }
+                if coins.len() < 2 {
+                    return None;
+                }
+                // Validate that our adapter can quote this pool; skip pools
+                // whose get_dy signature/behaviour we don't support.
+                let probe = format!(
+                    "{CURVE_GET_DY}{}{}{}",
+                    u256_word(U256::ZERO),
+                    u256_word(U256::from(1u64)),
+                    u256_word(U256::from(1_000_000u64))
+                );
+                if rpc.eth_call(pool, &probe).await.is_err() {
+                    return None;
+                }
+                Some((pool, coins))
+            }
+        })
+        .buffer_unordered(CURVE_REGISTRY_BATCH)
+        .filter_map(|x| async move { x })
+        .collect()
+        .await;
+
+    let mut pools = Vec::new();
+    for (address, coins) in results {
+        let all_allowed = coins.iter().all(|coin| {
+            let s = format!("{coin:#x}");
+            allow.iter().any(|a| a.eq_ignore_ascii_case(&s))
+        });
+        if !all_allowed {
+            continue;
+        }
+        pools.push(Pool {
+            kind: PoolKind::Curve,
+            address,
+            coins,
+        });
+    }
+    Ok(pools)
 }
 
 #[cfg(test)]
