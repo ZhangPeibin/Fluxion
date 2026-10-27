@@ -1,5 +1,7 @@
 # 一次 `/quote` 请求的逐函数调用栈
 
+[English](REQUEST-TRACE.en.md) | 中文
+
 > 目标：把**一次询价**从 HTTP 入口到返回结果，按函数调用顺序拆开，看清每一层在做什么、
 > 读写了什么数据、打了哪些 RPC。配合 `docs/ARCHITECTURE.md` 阅读。
 

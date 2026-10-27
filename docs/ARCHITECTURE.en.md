@@ -6,7 +6,7 @@ English | [中文](ARCHITECTURE.md)
 > multigraph, warming a price snapshot, and the full data flow of a `/quote` request —
 > including how caches, RPC, and concurrency are organized.
 >
-> Function-by-function trace: [`REQUEST-TRACE.md`](REQUEST-TRACE.md).
+> Function-by-function trace: [`REQUEST-TRACE.en.md`](REQUEST-TRACE.en.md).
 >
 > Audience: anyone who wants to read or modify this project. The code (`src/`) is the
 > source of truth; this is the map.
@@ -485,4 +485,4 @@ slowest live quote). Example: `2331667580` (~2331.67 USDC, price impact ~5bps).
 
 ---
 
-See also: [`REQUEST-TRACE.md`](REQUEST-TRACE.md) (function-by-function trace of one `/quote`).
+See also: [`REQUEST-TRACE.en.md`](REQUEST-TRACE.en.md) (function-by-function trace of one `/quote`).

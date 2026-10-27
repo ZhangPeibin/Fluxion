@@ -208,6 +208,6 @@ cargo test -- --ignored          # real mainnet integration tests (read-only eth
 
 - [`docs/ARCHITECTURE.en.md`](docs/ARCHITECTURE.en.md): **detailed architecture** (data flow, modules,
   the three cache layers, routing, RPC, API, concurrency, limitations).
-- [`docs/REQUEST-TRACE.md`](docs/REQUEST-TRACE.md): a function-by-function trace of one `/quote` (Chinese).
+- [`docs/REQUEST-TRACE.en.md`](docs/REQUEST-TRACE.en.md): a function-by-function trace of one `/quote` (Chinese: `docs/REQUEST-TRACE.md`).
 - `docs/PLAN.md`: learning milestones; `docs/0X-*.md`: per-stage notes.
 - `AGENTS.md`: repository engineering conventions.
