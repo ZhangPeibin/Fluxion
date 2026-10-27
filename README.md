@@ -9,16 +9,18 @@ Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `tok
 ## 快速开始
 
 ```bash
-# 1) 凭据（gitignored）
+# 1) 密钥（gitignored）—— .env 只放 GRAPH_API_KEY
 cp .env.example .env
 #   编辑 .env，填入 GRAPH_API_KEY（The Graph Studio 免费创建）
 
-# 2) 配置（可选；缺省用内置默认）
+# 2) 配置（可选；缺省用内置默认）—— RPC/阈值/平台/host 等都在这里
 cp config.example.yaml config.yaml
 
 # 3) 运行（默认监听 127.0.0.1:8080）
 cargo run
 ```
+
+> 分工：**`.env` 只放密钥**（`GRAPH_API_KEY`）；**其余所有配置走 `config.yaml`**。
 
 启动时会从 subgraph / 链上注册表发现池子、预热 mid-price 缓存，然后开始服务。
 （没有 `GRAPH_API_KEY` 时会退回到内置的 mock universe，便于离线开发。）
