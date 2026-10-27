@@ -6,6 +6,7 @@ use fluxion::adapters::{RpcV2Reserves, UniswapV2};
 use fluxion::graph::Graph;
 use fluxion::model::{Pool, PoolKind, QuoteRequest};
 use fluxion::router::Router;
+use fluxion::rpc::RpcClient;
 
 fn addr(s: &str) -> Address {
     s.parse().unwrap()
@@ -32,9 +33,9 @@ async fn real_v2_quote_against_mainnet() {
         coins: vec![addr(USDT), addr(WETH)],
     });
 
-    let source = UniswapV2::new(Arc::new(RpcV2Reserves::new(
+    let source = UniswapV2::new(Arc::new(RpcV2Reserves::new(RpcClient::new(
         "https://eth.drpc.org".to_string(),
-    )));
+    ))));
     let router = Router::default();
 
     let req = QuoteRequest {

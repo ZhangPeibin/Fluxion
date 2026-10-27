@@ -2,12 +2,19 @@ use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
 use async_trait::async_trait;
-use serde_json::json;
 
 use crate::error::QuoteError;
-use crate::model::Pool;
+use crate::model::{Pool, PoolKind};
+use crate::rpc::RpcClient;
 use crate::source::{QuoteSource, constant_product_out, ratio};
-use crate::util::hex_decode;
+use crate::util::{pad_address, u32_word, u256_to_f64, u256_word};
+
+const GET_RESERVES: &str = "0902f1ac";
+const SLOT0: &str = "3850c7bd";
+const QUOTE_EXACT_INPUT_SINGLE: &str = "c6a5026a";
+const GET_DY: &str = "5e0d443f";
+
+const QUOTER_V2: &str = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
 
 /// Decode the raw ABI return of `getReserves()` (uint112 reserve0, uint112
 /// reserve1, uint32 blockTimestampLast) into the two reserves. The return is
@@ -27,48 +34,21 @@ pub trait V2Reserves: Send + Sync {
     async fn get_reserves(&self, pool: Address) -> Result<[U256; 2], QuoteError>;
 }
 
-/// Reads reserves over raw JSON-RPC (`eth_call getReserves`).
+/// Reads V2 reserves over raw JSON-RPC (`eth_call getReserves`).
 pub struct RpcV2Reserves {
-    client: reqwest::Client,
-    rpc_url: String,
+    rpc: RpcClient,
 }
 
 impl RpcV2Reserves {
-    pub fn new(rpc_url: String) -> Self {
-        Self {
-            client: reqwest::Client::new(),
-            rpc_url,
-        }
+    pub fn new(rpc: RpcClient) -> Self {
+        Self { rpc }
     }
 }
 
 #[async_trait]
 impl V2Reserves for RpcV2Reserves {
     async fn get_reserves(&self, pool: Address) -> Result<[U256; 2], QuoteError> {
-        let body = json!({
-            "jsonrpc": "2.0",
-            "method": "eth_call",
-            "params": [{ "to": format!("{pool:#x}"), "data": "0x0902f1ac" }, "latest"],
-            "id": 1
-        });
-        let resp: serde_json::Value = self
-            .client
-            .post(&self.rpc_url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| QuoteError::RpcError(e.to_string()))?
-            .json()
-            .await
-            .map_err(|e| QuoteError::RpcError(e.to_string()))?;
-        if let Some(err) = resp.get("error") {
-            return Err(QuoteError::RpcError(err.to_string()));
-        }
-        let result = resp
-            .get("result")
-            .and_then(|r| r.as_str())
-            .ok_or_else(|| QuoteError::RpcError("missing result".to_string()))?;
-        let data = hex_decode(result).map_err(QuoteError::RpcError)?;
+        let data = self.rpc.eth_call(pool, GET_RESERVES).await?;
         decode_reserves(&data)
     }
 }
@@ -121,9 +101,193 @@ impl QuoteSource for UniswapV2 {
     }
 }
 
+/// Uniswap V3 quotes via `QuoterV2.quoteExactInputSingle`.
+pub struct UniswapV3 {
+    rpc: RpcClient,
+}
+
+impl UniswapV3 {
+    pub fn new(rpc: RpcClient) -> Self {
+        Self { rpc }
+    }
+
+    fn fee(pool: &Pool) -> Result<u32, QuoteError> {
+        match pool.kind {
+            PoolKind::UniswapV3 { fee } => Ok(fee),
+            _ => Err(QuoteError::UnknownPool),
+        }
+    }
+
+    async fn quote_exact_input_single(
+        &self,
+        token_in: Address,
+        token_out: Address,
+        amount_in: U256,
+        fee: u32,
+    ) -> Result<U256, QuoteError> {
+        let data = format!(
+            "{QUOTE_EXACT_INPUT_SINGLE}{}{}{}{}{}",
+            pad_address(token_in),
+            pad_address(token_out),
+            u256_word(amount_in),
+            u32_word(fee),
+            "0".repeat(64), // sqrtPriceLimitX96 = 0 -> contract uses MIN/MAX
+        );
+        let out = self.rpc.eth_call(quoter_v2(), &data).await?;
+        if out.len() < 32 {
+            return Err(QuoteError::RpcError("short quote result".to_string()));
+        }
+        Ok(U256::from_be_slice(&out[0..32]))
+    }
+}
+
+#[async_trait]
+impl QuoteSource for UniswapV3 {
+    async fn amount_out(
+        &self,
+        pool: &Pool,
+        i: usize,
+        j: usize,
+        amount_in: U256,
+    ) -> Result<U256, QuoteError> {
+        let fee = Self::fee(pool)?;
+        let (token_in, token_out) = match (i, j) {
+            (0, 1) => (pool.coins[0], pool.coins[1]),
+            (1, 0) => (pool.coins[1], pool.coins[0]),
+            _ => return Err(QuoteError::UnknownPool),
+        };
+        self.quote_exact_input_single(token_in, token_out, amount_in, fee)
+            .await
+    }
+
+    async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
+        let out = self.rpc.eth_call(pool.address, SLOT0).await?;
+        if out.len() < 32 {
+            return Err(QuoteError::RpcError("short slot0 result".to_string()));
+        }
+        let sqrt = u256_to_f64(U256::from_be_slice(&out[0..32]));
+        let q = 79228162514264337593543950336.0_f64; // 2^96
+        let price = (sqrt / q) * (sqrt / q); // token1 per token0
+        Ok(match (i, j) {
+            (0, 1) => price,
+            (1, 0) => 1.0 / price,
+            _ => return Err(QuoteError::UnknownPool),
+        })
+    }
+
+    async fn reserve_in(&self, _pool: &Pool, _i: usize) -> Result<U256, QuoteError> {
+        Ok(U256::MAX)
+    }
+}
+
+/// Curve classic stableswap quotes via `get_dy(int128,int128,uint256)`.
+pub struct Curve {
+    rpc: RpcClient,
+}
+
+impl Curve {
+    pub fn new(rpc: RpcClient) -> Self {
+        Self { rpc }
+    }
+
+    async fn get_dy(&self, pool: &Pool, i: usize, j: usize, dx: U256) -> Result<U256, QuoteError> {
+        let data = format!(
+            "{GET_DY}{}{}{}",
+            u256_word(U256::from(i)),
+            u256_word(U256::from(j)),
+            u256_word(dx)
+        );
+        let out = self.rpc.eth_call(pool.address, &data).await?;
+        if out.len() < 32 {
+            return Err(QuoteError::RpcError("short get_dy result".to_string()));
+        }
+        Ok(U256::from_be_slice(&out[0..32]))
+    }
+}
+
+#[async_trait]
+impl QuoteSource for Curve {
+    async fn amount_out(
+        &self,
+        pool: &Pool,
+        i: usize,
+        j: usize,
+        amount_in: U256,
+    ) -> Result<U256, QuoteError> {
+        if i == j || i >= pool.coins.len() || j >= pool.coins.len() {
+            return Err(QuoteError::UnknownPool);
+        }
+        self.get_dy(pool, i, j, amount_in).await
+    }
+
+    async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
+        // Approximate spot price with a tiny amount.
+        let dx = U256::from(1_000_000u64);
+        let dy = self.get_dy(pool, i, j, dx).await?;
+        Ok(u256_to_f64(dy) / u256_to_f64(dx))
+    }
+
+    async fn reserve_in(&self, _pool: &Pool, _i: usize) -> Result<U256, QuoteError> {
+        Ok(U256::MAX)
+    }
+}
+
+/// Dispatches quoting to the right adapter based on the pool kind.
+pub struct Dispatcher {
+    v2: Box<dyn QuoteSource + Send + Sync>,
+    v3: Option<Box<dyn QuoteSource + Send + Sync>>,
+    curve: Option<Box<dyn QuoteSource + Send + Sync>>,
+}
+
+impl Dispatcher {
+    pub fn new(
+        v2: Box<dyn QuoteSource + Send + Sync>,
+        v3: Option<Box<dyn QuoteSource + Send + Sync>>,
+        curve: Option<Box<dyn QuoteSource + Send + Sync>>,
+    ) -> Self {
+        Self { v2, v3, curve }
+    }
+
+    fn source(&self, kind: PoolKind) -> Result<&(dyn QuoteSource + Send + Sync), QuoteError> {
+        match kind {
+            PoolKind::UniswapV2 => Ok(self.v2.as_ref()),
+            PoolKind::UniswapV3 { .. } => self.v3.as_deref().ok_or(QuoteError::UnknownPool),
+            PoolKind::Curve => self.curve.as_deref().ok_or(QuoteError::UnknownPool),
+        }
+    }
+}
+
+#[async_trait]
+impl QuoteSource for Dispatcher {
+    async fn amount_out(
+        &self,
+        pool: &Pool,
+        i: usize,
+        j: usize,
+        amount_in: U256,
+    ) -> Result<U256, QuoteError> {
+        self.source(pool.kind)?
+            .amount_out(pool, i, j, amount_in)
+            .await
+    }
+
+    async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
+        self.source(pool.kind)?.mid_price(pool, i, j).await
+    }
+
+    async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, QuoteError> {
+        self.source(pool.kind)?.reserve_in(pool, i).await
+    }
+}
+
+fn quoter_v2() -> Address {
+    QUOTER_V2.parse().unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::util::hex_decode;
 
     fn fixture_pool() -> Pool {
         Pool {

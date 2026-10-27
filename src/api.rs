@@ -170,6 +170,13 @@ async fn quote(
         .router
         .route(&state.graph, state.source.as_ref(), &request)
         .await?;
+    tracing::info!(
+        token_in = %request.token_in,
+        token_out = %request.token_out,
+        amount_out = %route.amount_out,
+        hops = route.hops.len(),
+        "quote resolved"
+    );
     Ok(Json(route_to_dto(route)))
 }
 

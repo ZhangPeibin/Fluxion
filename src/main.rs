@@ -13,7 +13,14 @@ use fluxion::source::MockV2;
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
+        .init();
+
     let config = Config::from_file("config.yaml").unwrap_or_default();
+    tracing::info!(max_hops = config.max_hops, "loaded config");
 
     let router = Router::new(RouterConfig {
         max_hops: config.max_hops,
@@ -34,6 +41,7 @@ async fn main() {
     let app = api::app(state);
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 8080));
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    tracing::info!("listening on http://{addr}");
     println!("listening on http://{addr}");
     axum::serve(listener, app).await.unwrap();
 }
