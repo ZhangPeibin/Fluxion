@@ -94,3 +94,25 @@ async fn real_curve_3pool_quote() {
         .unwrap();
     assert!(out > U256::ZERO);
 }
+
+#[tokio::test]
+#[ignore]
+async fn real_curve_crypto_pool_quote() {
+    // tricrypto2 (USDT/WBTC/WETH) uses get_dy(uint256,uint256,uint256).
+    let curve = Curve::new(RpcClient::new(RPC.to_string()));
+    let pool = Pool {
+        kind: PoolKind::Curve,
+        address: addr("0xD51a44d3FaE010294C616388b506AcdA1bfAAE46"),
+        coins: vec![
+            addr("0xdAC17F958D2ee523a2206206994597C13D831ec7"), // USDT
+            addr("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"), // WBTC
+            addr(WETH),
+        ],
+    };
+    // 100,000 USDT -> WBTC
+    let out = curve
+        .amount_out(&pool, 0, 1, U256::from(100_000_000_000u64))
+        .await
+        .unwrap();
+    assert!(out > U256::ZERO);
+}

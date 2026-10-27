@@ -275,7 +275,8 @@ const CURVE_GET_REGISTRY: &str = "a262904b";
 const CURVE_POOL_COUNT: &str = "956aae3a";
 const CURVE_POOL_LIST: &str = "3a1d5d8e";
 const CURVE_COINS: &str = "c6610657";
-const CURVE_GET_DY: &str = "5e0d443f";
+const CURVE_GET_DY_INT128: &str = "5e0d443f";
+const CURVE_GET_DY_U256: &str = "556d6e9f";
 const CURVE_REGISTRY_BATCH: usize = 16;
 
 fn addr_from_word(data: &[u8]) -> Result<Address, DiscoveryError> {
@@ -330,15 +331,22 @@ pub async fn discover_curve(config: &Config, rpc: &RpcClient) -> Result<Vec<Pool
                 if coins.len() < 2 {
                     return None;
                 }
-                // Validate that our adapter can quote this pool; skip pools
-                // whose get_dy signature/behaviour we don't support.
-                let probe = format!(
-                    "{CURVE_GET_DY}{}{}{}",
-                    u256_word(U256::ZERO),
-                    u256_word(U256::from(1u64)),
-                    u256_word(U256::from(1_000_000u64))
-                );
-                if rpc.eth_call(pool, &probe).await.is_err() {
+                // Validate that our adapter can quote this pool, accepting
+                // either get_dy(int128,...) or get_dy(uint256,...).
+                let mut quoteable = false;
+                for selector in [CURVE_GET_DY_INT128, CURVE_GET_DY_U256] {
+                    let probe = format!(
+                        "{selector}{}{}{}",
+                        u256_word(U256::ZERO),
+                        u256_word(U256::from(1u64)),
+                        u256_word(U256::from(1_000_000u64))
+                    );
+                    if rpc.eth_call(pool, &probe).await.is_ok() {
+                        quoteable = true;
+                        break;
+                    }
+                }
+                if !quoteable {
                     return None;
                 }
                 Some((pool, coins))

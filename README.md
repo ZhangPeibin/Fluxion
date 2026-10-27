@@ -189,8 +189,9 @@ cargo test -- --ignored          # 真实主网集成测试（只读 eth_call）
 
 - 仅 Ethereum 主网；exact-in；单条最优路径（不做 split routing，留 v2）。
 - 原生 ETH 不支持（仅 ERC-20 / WETH；wrap/unwrap 由上游处理）。
-- Curve 目前只覆盖**主 stableswap 注册表**；crypto（tricrypto）/ factory / metapool
-  注册表尚未纳入。
+- Curve 适配器同时支持 stableswap（`get_dy(int128,…)`）与 crypto（`get_dy(uint256,…)`）；
+  但**池子发现**仍只覆盖主 stableswap 注册表，crypto(tricrypto) / factory / metapool
+  的注册表枚举尚未纳入。
 - 依赖公共 RPC 时可能遇到限流；粗选基于内存**价格快照**同步计算（O(边数) 但无 RPC），
   延迟主要由**精算**（对候选路径的链上真实报价）决定（约 0.5–1s，取决于 RPC）。
 - fee-on-transfer / rebasing token 报价会失真 → 白名单排除。

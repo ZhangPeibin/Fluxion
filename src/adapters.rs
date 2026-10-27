@@ -14,7 +14,8 @@ use crate::util::{pad_address, u32_word, u256_to_f64, u256_word};
 const GET_RESERVES: &str = "0902f1ac";
 const SLOT0: &str = "3850c7bd";
 const QUOTE_EXACT_INPUT_SINGLE: &str = "c6a5026a";
-const GET_DY: &str = "5e0d443f";
+const GET_DY_INT128: &str = "5e0d443f";
+const GET_DY_U256: &str = "556d6e9f";
 
 const QUOTER_V2: &str = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
 
@@ -193,17 +194,22 @@ impl Curve {
     }
 
     async fn get_dy(&self, pool: &Pool, i: usize, j: usize, dx: U256) -> Result<U256, QuoteError> {
-        let data = format!(
-            "{GET_DY}{}{}{}",
-            u256_word(U256::from(i)),
-            u256_word(U256::from(j)),
-            u256_word(dx)
-        );
-        let out = self.rpc.eth_call(pool.address, &data).await?;
-        if out.len() < 32 {
-            return Err(QuoteError::RpcError("short get_dy result".to_string()));
+        // Classic stableswap uses int128 indices; crypto pools use uint256.
+        let mut last = QuoteError::RpcError("get_dy failed".to_string());
+        for selector in [GET_DY_INT128, GET_DY_U256] {
+            let data = format!(
+                "{selector}{}{}{}",
+                u256_word(U256::from(i)),
+                u256_word(U256::from(j)),
+                u256_word(dx)
+            );
+            match self.rpc.eth_call(pool.address, &data).await {
+                Ok(out) if out.len() >= 32 => return Ok(U256::from_be_slice(&out[0..32])),
+                Ok(_) => last = QuoteError::RpcError("short get_dy result".to_string()),
+                Err(e) => last = e,
+            }
         }
-        Ok(U256::from_be_slice(&out[0..32]))
+        Err(last)
     }
 }
 
