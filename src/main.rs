@@ -50,7 +50,7 @@ async fn main() {
         .collect();
     tracing::info!(edges = edges.len(), "warming mid-price cache");
     warm_all(&cached, &edges).await;
-    tracing::info!("warm-up complete");
+    tracing::info!(cached = cached.cached_count(), "warm-up complete");
 
     // Background: refresh the hot-pool set and keep mid-prices warm.
     {
@@ -89,7 +89,7 @@ async fn main() {
 }
 
 async fn warm_all(cached: &Arc<CachingSource>, edges: &[(Pool, usize, usize)]) {
-    let sem = Arc::new(tokio::sync::Semaphore::new(16));
+    let sem = Arc::new(tokio::sync::Semaphore::new(8));
     let mut set = tokio::task::JoinSet::new();
     for (pool, i, j) in edges {
         let Ok(permit) = sem.clone().acquire_owned().await else {

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use alloy_primitives::Address;
 use serde_json::{Value, json};
 
@@ -23,20 +25,33 @@ impl RpcClient {
     }
 
     async fn post(&self, body: Value) -> Result<Value, QuoteError> {
-        let resp: Value = self
-            .http
-            .post(&self.url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| QuoteError::RpcError(e.to_string()))?
-            .json()
-            .await
-            .map_err(|e| QuoteError::RpcError(e.to_string()))?;
-        if let Some(err) = resp.get("error") {
-            return Err(QuoteError::RpcError(err.to_string()));
+        let mut last = String::from("unknown rpc error");
+        for attempt in 0..3u32 {
+            let result = self.http.post(&self.url).json(&body).send().await;
+            match result {
+                Ok(resp) => match resp.json::<Value>().await {
+                    Ok(value) => {
+                        if let Some(err) = value.get("error") {
+                            let msg = err.to_string();
+                            let transient = msg.contains("429")
+                                || msg.to_lowercase().contains("rate")
+                                || msg.to_lowercase().contains("too many");
+                            if transient {
+                                last = msg;
+                            } else {
+                                return Err(QuoteError::RpcError(msg));
+                            }
+                        } else {
+                            return Ok(value);
+                        }
+                    }
+                    Err(e) => last = e.to_string(),
+                },
+                Err(e) => last = e.to_string(),
+            }
+            tokio::time::sleep(Duration::from_millis(100 * u64::from(attempt + 1))).await;
         }
-        Ok(resp)
+        Err(QuoteError::RpcError(last))
     }
 
     pub async fn eth_call(&self, to: Address, data: &str) -> Result<Vec<u8>, QuoteError> {

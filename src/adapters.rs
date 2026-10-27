@@ -312,6 +312,11 @@ impl CachingSource {
     pub async fn warm(&self, pool: &Pool, i: usize, j: usize) {
         let _ = self.mid_price(pool, i, j).await;
     }
+
+    /// Number of mid-prices currently cached (for diagnostics).
+    pub fn cached_count(&self) -> usize {
+        self.prices.lock().unwrap().len()
+    }
 }
 
 #[async_trait]
