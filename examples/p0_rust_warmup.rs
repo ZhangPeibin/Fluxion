@@ -45,23 +45,39 @@ impl QuoteSource for FixedRate {
 }
 
 // 5) 一个接收 trait object 的函数（&dyn QuoteSource）
-async fn query(source: &dyn QuoteSource, token_in: &Token, amount_in: u128) -> Result<u128, Box<dyn Error>> {
+async fn query(
+    source: &dyn QuoteSource,
+    token_in: &Token,
+    amount_in: u128,
+) -> Result<u128, Box<dyn Error>> {
     source.amount_out(token_in, amount_in).await
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let amount_in: u128 = 1000;
-    let eth = Token { symbol: "ETH".to_string(), decimals: 18 };
-    println!("询价 {amount_in} 个 {} ({} 位小数):", eth.symbol, eth.decimals);
+    let eth = Token {
+        symbol: "ETH".to_string(),
+        decimals: 18,
+    };
+    println!(
+        "询价 {amount_in} 个 {} ({} 位小数):",
+        eth.symbol, eth.decimals
+    );
 
     // 直接传具体类型
-    let v2 = UniswapV2 { reserve_in: 1_000_000, reserve_out: 3_000_000 };
+    let v2 = UniswapV2 {
+        reserve_in: 1_000_000,
+        reserve_out: 3_000_000,
+    };
     let out = query(&v2, &eth, amount_in).await?;
     println!("V2 单跳 amount_out = {out}");
     // 把不同实现放进同一个 Vec —— 必须 Box<dyn QuoteSource>
     let sources: Vec<Box<dyn QuoteSource>> = vec![
-        Box::new(UniswapV2 { reserve_in: 1_000_000, reserve_out: 3_000_000 }),
+        Box::new(UniswapV2 {
+            reserve_in: 1_000_000,
+            reserve_out: 3_000_000,
+        }),
         Box::new(FixedRate { rate: 2 }),
     ];
 
