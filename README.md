@@ -191,8 +191,8 @@ cargo test -- --ignored          # 真实主网集成测试（只读 eth_call）
 - 原生 ETH 不支持（仅 ERC-20 / WETH；wrap/unwrap 由上游处理）。
 - Curve 目前只覆盖**主 stableswap 注册表**；crypto（tricrypto）/ factory / metapool
   注册表尚未纳入。
-- 依赖公共 RPC 时可能遇到限流；粗选仍是「每请求遍历全部边」（已并行 + 缓存，但
-  `max_pools` 越大越慢）。
+- 依赖公共 RPC 时可能遇到限流；粗选基于内存**价格快照**同步计算（O(边数) 但无 RPC），
+  延迟主要由**精算**（对候选路径的链上真实报价）决定（约 0.5–1s，取决于 RPC）。
 - fee-on-transfer / rebasing token 报价会失真 → 白名单排除。
 - 公开 HTTP 无鉴权，仅简单限流。
 

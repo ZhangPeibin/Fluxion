@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use alloy_primitives::{Address, U256};
 use futures::stream::{self, StreamExt};
@@ -54,8 +55,58 @@ struct Candidate {
     visited: Vec<Address>,
 }
 
+/// Per-edge coarse data: mid-price and input reserve, indexed by edge id.
+#[derive(Clone, Copy)]
+pub struct EdgePrice {
+    pub mid_price: f64,
+    pub reserve_in: U256,
+}
+
+/// A precomputed snapshot of all edge prices so path search is synchronous.
+pub struct PriceSnapshot {
+    per_edge: Vec<EdgePrice>,
+}
+
+impl PriceSnapshot {
+    pub async fn build(graph: &Graph, source: &(dyn QuoteSource + Send + Sync)) -> Self {
+        let pairs: Vec<(usize, EdgePrice)> = stream::iter(0..graph.edge_count())
+            .map(|idx| async move {
+                let edge = graph.edge(idx);
+                let pool = graph.pool(edge.pool_idx);
+                let mid_price = source
+                    .mid_price(pool, edge.i, edge.j)
+                    .await
+                    .unwrap_or(f64::NAN);
+                let reserve_in = source.reserve_in(pool, edge.i).await.unwrap_or(U256::ZERO);
+                (
+                    idx,
+                    EdgePrice {
+                        mid_price,
+                        reserve_in,
+                    },
+                )
+            })
+            .buffer_unordered(16)
+            .collect()
+            .await;
+        let mut per_edge = vec![
+            EdgePrice {
+                mid_price: f64::NAN,
+                reserve_in: U256::ZERO,
+            };
+            graph.edge_count()
+        ];
+        for (idx, ep) in pairs {
+            per_edge[idx] = ep;
+        }
+        Self { per_edge }
+    }
+}
+
+#[derive(Clone)]
 pub struct Router {
     config: RouterConfig,
+    snapshot: Arc<RwLock<Option<Arc<PriceSnapshot>>>>,
 }
 
 impl Default for Router {
@@ -66,7 +117,15 @@ impl Default for Router {
 
 impl Router {
     pub fn new(config: RouterConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            snapshot: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    /// Install a precomputed price snapshot (rebuilt periodically).
+    pub fn set_snapshot(&self, snapshot: Arc<PriceSnapshot>) {
+        *self.snapshot.write().unwrap() = Some(snapshot);
     }
 
     pub async fn route(
@@ -88,50 +147,47 @@ impl Router {
 
         let max_hops = request.max_hops.unwrap_or(self.config.max_hops).max(1);
 
+        // Use the precomputed snapshot if installed; otherwise build one.
+        let installed = { self.snapshot.read().unwrap().clone() };
+        let snapshot = match installed {
+            Some(s) => s,
+            None => Arc::new(PriceSnapshot::build(graph, source).await),
+        };
+
         let __t0 = std::time::Instant::now();
-        // Coarse stage: cached mid-price + liquidity penalty give each edge a
-        // weight. Computed with bounded concurrency so live RPC doesn't stall.
+        // Coarse stage: read the snapshot (synchronous) to weight each edge.
         let penalty_on = self.config.lambda != 0.0;
         let ratio_k = U256::from(self.config.reserve_ratio_k);
         let need_reserve = penalty_on || ratio_k > U256::ZERO;
         let amount_in = request.amount_in;
         let amount_f = u256_to_f64(amount_in);
         let lambda = self.config.lambda;
-        let edge_weights: Vec<(usize, f64)> = stream::iter(0..graph.edge_count())
-            .map(|idx| async move {
-                let edge = graph.edge(idx);
-                let pool = graph.pool(edge.pool_idx);
-                let weight = match source.mid_price(pool, edge.i, edge.j).await {
-                    Ok(rate) if rate > 0.0 && rate.is_finite() => {
-                        let mut w = -rate.ln() + fee_penalty(pool.kind);
-                        if need_reserve {
-                            let reserve = match source.reserve_in(pool, edge.i).await {
-                                Ok(reserve) if !reserve.is_zero() => reserve,
-                                _ => return (idx, f64::INFINITY),
-                            };
-                            // Skip edges too shallow for this amount.
-                            if ratio_k > U256::ZERO {
-                                let threshold = amount_in.checked_mul(ratio_k).unwrap_or(U256::MAX);
-                                if reserve < threshold {
-                                    return (idx, f64::INFINITY);
-                                }
-                            }
-                            if penalty_on {
-                                w += lambda * (amount_f / u256_to_f64(reserve));
-                            }
-                        }
-                        w
-                    }
-                    _ => f64::INFINITY,
-                };
-                (idx, weight)
-            })
-            .buffer_unordered(16)
-            .collect()
-            .await;
         let mut weights = vec![0.0f64; graph.edge_count()];
-        for (idx, w) in edge_weights {
-            weights[idx] = w;
+        for (idx, w) in weights.iter_mut().enumerate() {
+            let ep = &snapshot.per_edge[idx];
+            if ep.mid_price <= 0.0 || !ep.mid_price.is_finite() {
+                *w = f64::INFINITY;
+                continue;
+            }
+            let pool = graph.pool(graph.edge(idx).pool_idx);
+            let mut weight = -ep.mid_price.ln() + fee_penalty(pool.kind);
+            if need_reserve {
+                if ep.reserve_in.is_zero() {
+                    *w = f64::INFINITY;
+                    continue;
+                }
+                if ratio_k > U256::ZERO {
+                    let threshold = amount_in.checked_mul(ratio_k).unwrap_or(U256::MAX);
+                    if ep.reserve_in < threshold {
+                        *w = f64::INFINITY;
+                        continue;
+                    }
+                }
+                if penalty_on {
+                    weight += lambda * (amount_f / u256_to_f64(ep.reserve_in));
+                }
+            }
+            *w = weight;
         }
         tracing::debug!(
             coarse_ms = __t0.elapsed().as_millis() as u64,

@@ -10,7 +10,7 @@ use fluxion::config::Config;
 use fluxion::discovery;
 use fluxion::graph::Graph;
 use fluxion::model::{Pool, PoolKind};
-use fluxion::router::{Router, RouterConfig};
+use fluxion::router::{PriceSnapshot, Router, RouterConfig};
 use fluxion::rpc::RpcClient;
 use fluxion::source::MockV2;
 use fluxion::state::StateCache;
@@ -41,21 +41,17 @@ async fn main() {
     let rpc = RpcClient::new(config.rpc_url.clone());
     let (graph, cached, refresher) = build_universe(&config, rpc.clone()).await;
 
-    // Warm the coarse-stage mid-price cache once so the first request is fast.
-    let edges: Vec<(Pool, usize, usize)> = (0..graph.edge_count())
-        .map(|idx| {
-            let e = graph.edge(idx);
-            (graph.pool(e.pool_idx).clone(), e.i, e.j)
-        })
-        .collect();
-    tracing::info!(edges = edges.len(), "warming mid-price cache");
-    warm_all(&cached, &edges).await;
-    tracing::info!(cached = cached.cached_count(), "warm-up complete");
+    // Build the initial coarse-stage price snapshot.
+    tracing::info!(edges = graph.edge_count(), "building price snapshot");
+    let snapshot = PriceSnapshot::build(&graph, cached.as_ref()).await;
+    router.set_snapshot(Arc::new(snapshot));
+    tracing::info!("snapshot ready");
 
-    // Background: refresh the hot-pool set and keep mid-prices warm.
+    // Background: refresh V2 reserves and rebuild the price snapshot.
     {
+        let bg_router = router.clone();
+        let bg_graph = graph.clone();
         let bg_cached = cached.clone();
-        let bg_edges = edges;
         let interval = Duration::from_secs(config.refresh_interval_secs.max(1));
         tokio::spawn(async move {
             loop {
@@ -65,7 +61,8 @@ async fn main() {
                 {
                     tracing::warn!(error = %e, "hot-pool refresh failed");
                 }
-                warm_all(&bg_cached, &bg_edges).await;
+                let snap = PriceSnapshot::build(&bg_graph, bg_cached.as_ref()).await;
+                bg_router.set_snapshot(Arc::new(snap));
             }
         });
     }
@@ -86,24 +83,6 @@ async fn main() {
     tracing::info!("listening on http://{addr}");
     println!("listening on http://{addr}");
     axum::serve(listener, app).await.unwrap();
-}
-
-async fn warm_all(cached: &Arc<CachingSource>, edges: &[(Pool, usize, usize)]) {
-    let sem = Arc::new(tokio::sync::Semaphore::new(8));
-    let mut set = tokio::task::JoinSet::new();
-    for (pool, i, j) in edges {
-        let Ok(permit) = sem.clone().acquire_owned().await else {
-            break;
-        };
-        let worker = cached.clone();
-        let pool = pool.clone();
-        let (i, j) = (*i, *j);
-        set.spawn(async move {
-            let _permit = permit;
-            worker.warm(&pool, i, j).await;
-        });
-    }
-    while set.join_next().await.is_some() {}
 }
 
 fn platform_enabled(config: &Config, name: &str) -> bool {
