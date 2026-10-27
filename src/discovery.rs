@@ -115,6 +115,10 @@ pub async fn discover_v2(
             );
         }
 
+        if pools.len() >= config.max_pools {
+            pools.truncate(config.max_pools);
+            break;
+        }
         if pairs.len() < 200 {
             break;
         }
@@ -196,6 +200,10 @@ pub async fn discover_v3(
             });
         }
 
+        if pools.len() >= config.max_pools {
+            pools.truncate(config.max_pools);
+            break;
+        }
         if arr.len() < 200 {
             break;
         }

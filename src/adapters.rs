@@ -1,4 +1,6 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use alloy_primitives::{Address, U256};
 use async_trait::async_trait;
@@ -282,6 +284,83 @@ impl QuoteSource for Dispatcher {
 
 fn quoter_v2() -> Address {
     QUOTER_V2.parse().unwrap()
+}
+
+/// Caches coarse-stage mid-prices (per pool direction) with a TTL so the
+/// router's path search does not hit RPC for every edge on every request.
+type PriceCache = Mutex<HashMap<(Address, usize, usize), (f64, Instant)>>;
+type ReserveCache = Mutex<HashMap<(Address, usize), (U256, Instant)>>;
+
+pub struct CachingSource {
+    inner: Box<dyn QuoteSource + Send + Sync>,
+    ttl: Duration,
+    prices: PriceCache,
+    reserves: ReserveCache,
+}
+
+impl CachingSource {
+    pub fn new(inner: Box<dyn QuoteSource + Send + Sync>, ttl: Duration) -> Self {
+        Self {
+            inner,
+            ttl,
+            prices: Mutex::new(HashMap::new()),
+            reserves: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Pre-populates the mid-price cache for a pool direction.
+    pub async fn warm(&self, pool: &Pool, i: usize, j: usize) {
+        let _ = self.mid_price(pool, i, j).await;
+    }
+}
+
+#[async_trait]
+impl QuoteSource for CachingSource {
+    async fn amount_out(
+        &self,
+        pool: &Pool,
+        i: usize,
+        j: usize,
+        amount_in: U256,
+    ) -> Result<U256, QuoteError> {
+        self.inner.amount_out(pool, i, j, amount_in).await
+    }
+
+    async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
+        let key = (pool.address, i, j);
+        {
+            let prices = self.prices.lock().unwrap();
+            if let Some((price, at)) = prices.get(&key)
+                && at.elapsed() < self.ttl
+            {
+                return Ok(*price);
+            }
+        }
+        let price = self.inner.mid_price(pool, i, j).await?;
+        self.prices
+            .lock()
+            .unwrap()
+            .insert(key, (price, Instant::now()));
+        Ok(price)
+    }
+
+    async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, QuoteError> {
+        let key = (pool.address, i);
+        {
+            let reserves = self.reserves.lock().unwrap();
+            if let Some((value, at)) = reserves.get(&key)
+                && at.elapsed() < self.ttl
+            {
+                return Ok(*value);
+            }
+        }
+        let value = self.inner.reserve_in(pool, i).await?;
+        self.reserves
+            .lock()
+            .unwrap()
+            .insert(key, (value, Instant::now()));
+        Ok(value)
+    }
 }
 
 #[cfg(test)]

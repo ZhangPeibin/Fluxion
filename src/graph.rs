@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 
 use crate::model::{Edge, Pool};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Graph {
     tokens: HashMap<Address, usize>,
     token_addrs: Vec<Address>,

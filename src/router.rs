@@ -5,7 +5,7 @@ use alloy_primitives::{Address, U256};
 
 use crate::error::QuoteError;
 use crate::graph::Graph;
-use crate::model::{Hop, QuoteRequest, Route};
+use crate::model::{Hop, PoolKind, QuoteRequest, Route};
 use crate::source::QuoteSource;
 use crate::util::u256_to_f64;
 
@@ -31,6 +31,17 @@ pub fn edge_weight(rate: f64, reserve_in: U256, amount_in: U256, lambda: f64) ->
         return f64::INFINITY;
     }
     -rate.ln() + lambda * (u256_to_f64(amount_in) / u256_to_f64(reserve_in))
+}
+
+/// Approximate a swap's fee as a cost so multi-hop routes don't win on
+/// mid-price alone (each extra hop pays another fee).
+fn fee_penalty(kind: PoolKind) -> f64 {
+    let frac = match kind {
+        PoolKind::UniswapV2 => 0.003,
+        PoolKind::UniswapV3 { fee } => fee as f64 / 1_000_000.0,
+        PoolKind::Curve => 0.0004,
+    };
+    -(1.0 - frac).ln()
 }
 
 #[derive(Clone)]
@@ -76,12 +87,26 @@ impl Router {
 
         // Coarse stage: cached mid-price + liquidity penalty give each edge a weight.
         let mut weights = vec![0.0f64; graph.edge_count()];
+        let penalty_on = self.config.lambda != 0.0;
         for (idx, w) in weights.iter_mut().enumerate() {
             let edge = graph.edge(idx);
             let pool = graph.pool(edge.pool_idx);
             let rate = source.mid_price(pool, edge.i, edge.j).await?;
-            let reserve = source.reserve_in(pool, edge.i).await?;
-            *w = edge_weight(rate, reserve, request.amount_in, self.config.lambda);
+            if rate <= 0.0 || !rate.is_finite() {
+                *w = f64::INFINITY;
+                continue;
+            }
+            let mut weight = -rate.ln() + fee_penalty(pool.kind);
+            if penalty_on {
+                let reserve = source.reserve_in(pool, edge.i).await?;
+                if reserve.is_zero() {
+                    *w = f64::INFINITY;
+                    continue;
+                }
+                weight +=
+                    self.config.lambda * (u256_to_f64(request.amount_in) / u256_to_f64(reserve));
+            }
+            *w = weight;
         }
 
         // K-best DP over (hop, token) with a simple-path constraint.

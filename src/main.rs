@@ -4,12 +4,16 @@ use std::time::Duration;
 
 use alloy_primitives::{Address, U256};
 
+use fluxion::adapters::{CachingSource, Curve, Dispatcher, UniswapV2, UniswapV3};
 use fluxion::api::{self, AppState, RateLimiter};
 use fluxion::config::Config;
+use fluxion::discovery;
 use fluxion::graph::Graph;
 use fluxion::model::{Pool, PoolKind};
 use fluxion::router::{Router, RouterConfig};
+use fluxion::rpc::RpcClient;
 use fluxion::source::MockV2;
+use fluxion::state::StateCache;
 
 #[tokio::main]
 async fn main() {
@@ -18,9 +22,14 @@ async fn main() {
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
+    dotenvy::dotenv().ok();
 
     let config = Config::from_file("config.yaml").unwrap_or_default();
-    tracing::info!(max_hops = config.max_hops, "loaded config");
+    tracing::info!(
+        max_hops = config.max_hops,
+        max_pools = config.max_pools,
+        "loaded config"
+    );
 
     let router = Router::new(RouterConfig {
         max_hops: config.max_hops,
@@ -28,12 +37,40 @@ async fn main() {
         lambda: config.slippage_penalty_lambda,
     });
 
-    // TODO(#7): replace the mock universe with real subgraph discovery + adapters.
-    let (graph, source) = mock_universe();
+    let (graph, cached, refresher) = build_universe(&config).await;
+
+    // Warm the coarse-stage mid-price cache once so the first request is fast.
+    let edges: Vec<(Pool, usize, usize)> = (0..graph.edge_count())
+        .map(|idx| {
+            let e = graph.edge(idx);
+            (graph.pool(e.pool_idx).clone(), e.i, e.j)
+        })
+        .collect();
+    tracing::info!(edges = edges.len(), "warming mid-price cache");
+    warm_all(&cached, &edges).await;
+    tracing::info!("warm-up complete");
+
+    // Background: refresh the hot-pool set and keep mid-prices warm.
+    {
+        let bg_cached = cached.clone();
+        let bg_edges = edges;
+        let interval = Duration::from_secs(config.refresh_interval_secs.max(1));
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(interval).await;
+                if let Some(state) = &refresher
+                    && let Err(e) = state.refresh_hot().await
+                {
+                    tracing::warn!(error = %e, "hot-pool refresh failed");
+                }
+                warm_all(&bg_cached, &bg_edges).await;
+            }
+        });
+    }
 
     let state = Arc::new(AppState {
         graph,
-        source: Box::new(source),
+        source: cached,
         router,
         limiter: RateLimiter::new(1000, Duration::from_secs(1)),
     });
@@ -46,7 +83,71 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-fn mock_universe() -> (Graph, MockV2) {
+async fn warm_all(cached: &Arc<CachingSource>, edges: &[(Pool, usize, usize)]) {
+    let sem = Arc::new(tokio::sync::Semaphore::new(16));
+    let mut set = tokio::task::JoinSet::new();
+    for (pool, i, j) in edges {
+        let Ok(permit) = sem.clone().acquire_owned().await else {
+            break;
+        };
+        let worker = cached.clone();
+        let pool = pool.clone();
+        let (i, j) = (*i, *j);
+        set.spawn(async move {
+            let _permit = permit;
+            worker.warm(&pool, i, j).await;
+        });
+    }
+    while set.join_next().await.is_some() {}
+}
+
+async fn build_universe(config: &Config) -> (Graph, Arc<CachingSource>, Option<Arc<StateCache>>) {
+    let ttl = Duration::from_secs(config.refresh_interval_secs.max(1));
+
+    let Some(key) = std::env::var("GRAPH_API_KEY").ok() else {
+        tracing::warn!("GRAPH_API_KEY not set — serving the mock universe");
+        return mock_universe(ttl);
+    };
+
+    let mut pools: Vec<Pool> = Vec::new();
+    match discovery::discover_v2(config, &key).await {
+        Ok(p) => {
+            tracing::info!(count = p.len(), "discovered v2 pools");
+            pools.extend(p);
+        }
+        Err(e) => tracing::warn!(error = %e, "v2 discovery failed"),
+    }
+    match discovery::discover_v3(config, &key).await {
+        Ok(p) => {
+            tracing::info!(count = p.len(), "discovered v3 pools");
+            pools.extend(p);
+        }
+        Err(e) => tracing::warn!(error = %e, "v3 discovery failed"),
+    }
+    pools.extend(discovery::discover_curve(config));
+
+    if pools.is_empty() {
+        tracing::warn!("no pools discovered — serving the mock universe");
+        return mock_universe(ttl);
+    }
+
+    let mut graph = Graph::new();
+    for pool in &pools {
+        graph.add_pool(pool.clone());
+    }
+
+    let rpc = RpcClient::new(config.rpc_url.clone());
+    let state = Arc::new(StateCache::new(rpc.clone(), ttl));
+    let dispatcher = Dispatcher::new(
+        Box::new(UniswapV2::new(state.clone())),
+        Some(Box::new(UniswapV3::new(rpc.clone()))),
+        Some(Box::new(Curve::new(rpc))),
+    );
+    let cached = Arc::new(CachingSource::new(Box::new(dispatcher), ttl));
+    (graph, cached, Some(state))
+}
+
+fn mock_universe(ttl: Duration) -> (Graph, Arc<CachingSource>, Option<Arc<StateCache>>) {
     let eth = Address::with_last_byte(1);
     let usdc = Address::with_last_byte(2);
     let wbtc = Address::with_last_byte(3);
@@ -75,5 +176,6 @@ fn mock_universe() -> (Graph, MockV2) {
     reserves.insert(a, [U256::from(1000u64), U256::from(3_000_000u64)]);
     reserves.insert(b, [U256::from(500u64), U256::from(2_000_000u64)]);
     reserves.insert(c, [U256::from(1_000_000u64), U256::from(40u64)]);
-    (graph, MockV2::new(reserves))
+    let cached = Arc::new(CachingSource::new(Box::new(MockV2::new(reserves)), ttl));
+    (graph, cached, None)
 }

@@ -19,6 +19,7 @@ pub struct Config {
     pub enabled_platforms: Vec<String>,
     pub max_hops: usize,
     pub top_k: usize,
+    pub max_pools: usize,
     pub min_liquidity: u128,
     pub min_volume_24h: u128,
     pub min_pool_age_days: u64,
@@ -41,13 +42,14 @@ impl Default for Config {
                 "curve".to_string(),
             ],
             max_hops: 3,
-            top_k: 4,
+            top_k: 8,
+            max_pools: 100,
             min_liquidity: 50_000,
             min_volume_24h: 0,
             min_pool_age_days: 0,
             reserve_ratio_k: 10,
             slippage_penalty_lambda: 0.0,
-            refresh_interval_secs: 3,
+            refresh_interval_secs: 12,
             token_allowlist: Vec::new(),
         }
     }
@@ -68,7 +70,7 @@ mod tests {
     fn empty_yaml_uses_defaults() {
         let c: Config = serde_yaml::from_str("{}").unwrap();
         assert_eq!(c.max_hops, 3);
-        assert_eq!(c.top_k, 4);
+        assert_eq!(c.top_k, 8);
         assert_eq!(c.rpc_url, "https://eth.drpc.org");
         assert_eq!(c.reserve_ratio_k, 10);
     }

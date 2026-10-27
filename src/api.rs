@@ -74,7 +74,7 @@ impl RateLimiter {
 
 pub struct AppState {
     pub graph: Graph,
-    pub source: Box<dyn QuoteSource + Send + Sync>,
+    pub source: Arc<dyn QuoteSource + Send + Sync>,
     pub router: Router,
     pub limiter: RateLimiter,
 }
@@ -224,7 +224,7 @@ mod tests {
         let source = MockV2::new(reserves);
         Arc::new(AppState {
             graph: g,
-            source: Box::new(source),
+            source: Arc::new(source),
             router: Router::default(),
             limiter: RateLimiter::new(1000, Duration::from_secs(1)),
         })

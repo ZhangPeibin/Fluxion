@@ -19,7 +19,7 @@ enabled_platforms:
 
 # Routing.
 max_hops: 3          # max edges in a route
-top_k: 4             # candidate paths refined with live quotes
+top_k: 8             # candidate paths refined with live quotes
 slippage_penalty_lambda: 0.0   # liquidity penalty coefficient
 
 # Pool filtering.
@@ -29,5 +29,5 @@ min_pool_age_days: 0       # minimum pool age in days
 reserve_ratio_k: 10        # skip edges where reserve_in < k * amount_in
 token_allowlist: []        # optional token addresses to restrict the universe
 
-# State refresh (hot-pool set).
-refresh_interval_secs: 3
+# State refresh (hot-pool set) and mid-price cache TTL.
+refresh_interval_secs: 12
