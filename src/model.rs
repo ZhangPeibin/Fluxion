@@ -14,6 +14,16 @@ pub enum PoolKind {
     Curve,
 }
 
+impl PoolKind {
+    pub fn name(&self) -> &'static str {
+        match self {
+            PoolKind::UniswapV2 => "uniswap-v2",
+            PoolKind::UniswapV3 { .. } => "uniswap-v3",
+            PoolKind::Curve => "curve",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Pool {
     pub kind: PoolKind,
@@ -43,6 +53,7 @@ pub struct Hop {
 pub struct Route {
     pub hops: Vec<Hop>,
     pub amount_out: U256,
+    pub price_impact_bps: i64,
 }
 
 #[derive(Debug, Clone)]

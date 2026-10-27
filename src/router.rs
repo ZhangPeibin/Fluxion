@@ -58,13 +58,14 @@ impl Router {
     pub async fn route(
         &self,
         graph: &Graph,
-        source: &dyn QuoteSource,
+        source: &(dyn QuoteSource + Send + Sync),
         request: &QuoteRequest,
     ) -> Result<Route, QuoteError> {
         if request.token_in == request.token_out {
             return Ok(Route {
                 hops: Vec::new(),
                 amount_out: request.amount_in,
+                price_impact_bps: 0,
             });
         }
         if request.amount_in.is_zero() {
@@ -168,6 +169,7 @@ impl Router {
             let route = Route {
                 hops,
                 amount_out: amount_in,
+                price_impact_bps: 0,
             };
             if best
                 .as_ref()
@@ -177,13 +179,43 @@ impl Router {
             }
         }
 
-        best.ok_or(QuoteError::NoPath)
+        let mut route = best.ok_or(QuoteError::NoPath)?;
+        route.price_impact_bps = self.price_impact_bps(source, request, &route).await;
+        if let Some(min) = request.amount_out_min
+            && route.amount_out < min
+        {
+            return Err(QuoteError::AmountOutBelowMin);
+        }
+        Ok(route)
+    }
+
+    async fn price_impact_bps(
+        &self,
+        source: &(dyn QuoteSource + Send + Sync),
+        request: &QuoteRequest,
+        route: &Route,
+    ) -> i64 {
+        let mut mid_rate = 1.0f64;
+        for hop in &route.hops {
+            if let Ok(rate) = source.mid_price(&hop.pool, hop.i, hop.j).await
+                && rate > 0.0
+                && rate.is_finite()
+            {
+                mid_rate *= rate;
+            }
+        }
+        if mid_rate <= 0.0 || !mid_rate.is_finite() {
+            return 0;
+        }
+        let exec_rate = u256_to_f64(route.amount_out) / u256_to_f64(request.amount_in);
+        let impact = 1.0 - exec_rate / mid_rate;
+        (impact * 10_000.0).round() as i64
     }
 }
 
 pub async fn route(
     graph: &Graph,
-    source: &dyn QuoteSource,
+    source: &(dyn QuoteSource + Send + Sync),
     request: &QuoteRequest,
 ) -> Result<Route, QuoteError> {
     Router::default().route(graph, source, request).await
@@ -345,6 +377,26 @@ mod tests {
         let deep = edge_weight(rate, U256::from(1000u64), amount, lambda);
         let shallow = edge_weight(rate, U256::from(10u64), amount, lambda);
         assert!(deep < shallow);
+    }
+
+    #[tokio::test]
+    async fn amount_out_min_rejects_low_output() {
+        let (g, a, b) = graph_with_two_parallel_pools();
+        let mut reserves = HashMap::new();
+        reserves.insert(a, [U256::from(1000u64), U256::from(5_000_000u64)]);
+        reserves.insert(b, [U256::from(500u64), U256::from(2_000_000u64)]);
+        let source = MockV2::new(reserves);
+        let req = QuoteRequest {
+            token_in: eth(),
+            token_out: usdc(),
+            amount_in: U256::from(100u64),
+            max_hops: Some(3),
+            amount_out_min: Some(U256::from(1_000_000u64)),
+        };
+        assert_eq!(
+            route(&g, &source, &req).await,
+            Err(QuoteError::AmountOutBelowMin)
+        );
     }
 
     #[tokio::test]

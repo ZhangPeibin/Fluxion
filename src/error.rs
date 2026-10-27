@@ -12,4 +12,8 @@ pub enum QuoteError {
     UnknownPool,
     #[error("arithmetic overflow")]
     Overflow,
+    #[error("amount out below minimum")]
+    AmountOutBelowMin,
+    #[error("rpc error: {0}")]
+    RpcError(String),
 }

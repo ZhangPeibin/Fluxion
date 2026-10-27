@@ -1,80 +1,71 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
 
 use alloy_primitives::{Address, U256};
 
+use fluxion::api::{self, AppState, RateLimiter};
+use fluxion::config::Config;
 use fluxion::graph::Graph;
-use fluxion::model::{Pool, PoolKind, QuoteRequest};
-use fluxion::router;
+use fluxion::model::{Pool, PoolKind};
+use fluxion::router::{Router, RouterConfig};
 use fluxion::source::MockV2;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() {
+    let config = Config::from_file("config.yaml").unwrap_or_default();
+
+    let router = Router::new(RouterConfig {
+        max_hops: config.max_hops,
+        top_k: config.top_k,
+        lambda: config.slippage_penalty_lambda,
+    });
+
+    // TODO(#7): replace the mock universe with real subgraph discovery + adapters.
+    let (graph, source) = mock_universe();
+
+    let state = Arc::new(AppState {
+        graph,
+        source: Box::new(source),
+        router,
+        limiter: RateLimiter::new(1000, Duration::from_secs(1)),
+    });
+
+    let app = api::app(state);
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 8080));
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    println!("listening on http://{addr}");
+    axum::serve(listener, app).await.unwrap();
+}
+
+fn mock_universe() -> (Graph, MockV2) {
     let eth = Address::with_last_byte(1);
     let usdc = Address::with_last_byte(2);
     let wbtc = Address::with_last_byte(3);
 
     let mut graph = Graph::new();
-
-    let pool_a = Pool {
+    let a = Address::with_last_byte(10);
+    let b = Address::with_last_byte(11);
+    let c = Address::with_last_byte(12);
+    graph.add_pool(Pool {
         kind: PoolKind::UniswapV2,
-        address: Address::with_last_byte(10),
+        address: a,
         coins: vec![eth, usdc],
-    };
-    let pool_b = Pool {
+    });
+    graph.add_pool(Pool {
         kind: PoolKind::UniswapV2,
-        address: Address::with_last_byte(11),
+        address: b,
         coins: vec![eth, usdc],
-    };
-    let pool_c = Pool {
+    });
+    graph.add_pool(Pool {
         kind: PoolKind::UniswapV2,
-        address: Address::with_last_byte(12),
+        address: c,
         coins: vec![usdc, wbtc],
-    };
-    graph.add_pool(pool_a.clone());
-    graph.add_pool(pool_b.clone());
-    graph.add_pool(pool_c.clone());
+    });
 
     let mut reserves = HashMap::new();
-    reserves.insert(
-        pool_a.address,
-        [U256::from(1000u64), U256::from(3_000_000u64)],
-    );
-    reserves.insert(
-        pool_b.address,
-        [U256::from(500u64), U256::from(2_000_000u64)],
-    );
-    reserves.insert(
-        pool_c.address,
-        [U256::from(1_000_000u64), U256::from(40u64)],
-    );
-    let source = MockV2::new(reserves);
-
-    let request = QuoteRequest {
-        token_in: eth,
-        token_out: usdc,
-        amount_in: U256::from(100u64),
-        max_hops: Some(3),
-        amount_out_min: None,
-    };
-    let route = router::route(&graph, &source, &request).await.unwrap();
-    let hop = &route.hops[0];
-    println!("direct ETH -> USDC:");
-    println!("  amount_out = {}", route.amount_out);
-    println!("  pool       = {}", hop.pool.address);
-    println!("  hops       = {}", route.hops.len());
-
-    let multi = QuoteRequest {
-        token_in: eth,
-        token_out: wbtc,
-        amount_in: U256::from(100u64),
-        max_hops: Some(3),
-        amount_out_min: None,
-    };
-    let route = router::route(&graph, &source, &multi).await.unwrap();
-    println!("multi-hop ETH -> WBTC:");
-    println!("  amount_out = {}", route.amount_out);
-    println!("  hops       = {}", route.hops.len());
-    for (k, h) in route.hops.iter().enumerate() {
-        println!("    {}: pool {}", k, h.pool.address);
-    }
+    reserves.insert(a, [U256::from(1000u64), U256::from(3_000_000u64)]);
+    reserves.insert(b, [U256::from(500u64), U256::from(2_000_000u64)]);
+    reserves.insert(c, [U256::from(1_000_000u64), U256::from(40u64)]);
+    (graph, MockV2::new(reserves))
 }
