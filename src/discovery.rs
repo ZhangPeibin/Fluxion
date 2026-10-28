@@ -307,6 +307,7 @@ async fn discover_registry(
     registry: Address,
     max_pools: usize,
     rpc: &RpcClient,
+    known: &HashMap<Address, Pool>,
 ) -> Vec<(Address, Vec<Address>)> {
     let count_data = match rpc.eth_call(registry, CURVE_POOL_COUNT).await {
         Ok(d) => d,
@@ -323,6 +324,9 @@ async fn discover_registry(
             async move {
                 let data = format!("{CURVE_POOL_LIST}{}", u256_word(U256::from(i)));
                 let pool = addr_from_word(&rpc.eth_call(registry, &data).await.ok()?).ok()?;
+                if known.contains_key(&pool) {
+                    return None;
+                }
                 let mut coins = Vec::new();
                 for j in 0..4usize {
                     let cd = format!("{CURVE_COINS}{}", u256_word(U256::from(j)));
@@ -378,7 +382,7 @@ pub async fn discover_curve(config: &Config, rpc: &RpcClient) -> Result<Vec<Pool
         let Ok(Some(registry)) = curve_registry(provider, id, rpc).await else {
             continue;
         };
-        for (address, coins) in discover_registry(registry, config.max_pools, rpc).await {
+        for (address, coins) in discover_registry(registry, config.max_pools, rpc, &by_addr).await {
             let all_allowed = coins.iter().all(|coin| {
                 let s = format!("{coin:#x}");
                 allow.iter().any(|a| a.eq_ignore_ascii_case(&s))
