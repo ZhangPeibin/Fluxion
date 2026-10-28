@@ -36,3 +36,6 @@ token_allowlist: []        # empty = built-in major-token list (WETH/WBTC/USDC/U
 
 # State refresh (hot-pool set) and mid-price cache TTL.
 refresh_interval_secs: 30
+
+# Per-request timeout for /quote (milliseconds).
+request_timeout_ms: 5000

@@ -365,7 +365,7 @@ flowchart TD
 - **`config.yaml`（由 `config.example.yaml` 复制）**：所有其他设置；缺省用 `config.rs` 默认值。
 - 关键项：`host/port`、`rpc_url`、V2/V3 subgraph ID、`curve_address_provider`、
   `enabled_platforms`、`max_hops/top_k/max_pools`、`min_liquidity/min_volume_24h/min_pool_age_days`、
-  `reserve_ratio_k`、`slippage_penalty_lambda`、`refresh_interval_secs`、`token_allowlist`。
+  `reserve_ratio_k`、`slippage_penalty_lambda`、`refresh_interval_secs`、`request_timeout_ms`、`token_allowlist`。
 
 ---
 

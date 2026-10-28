@@ -176,6 +176,7 @@ src/
 | `reserve_ratio_k` | shallow-pool threshold `reserve_in ≥ k·amount_in` | 10 |
 | `slippage_penalty_lambda` | liquidity penalty coefficient | 0.0 |
 | `refresh_interval_secs` | refresh interval / mid-price TTL | 30 |
+| `request_timeout_ms` | per-request timeout (ms) | 5000 |
 | `token_allowlist` | override the default major-token allowlist | empty (built-in) |
 
 `GRAPH_API_KEY` lives **only in the gitignored `.env`** — never committed.

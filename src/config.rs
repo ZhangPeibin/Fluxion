@@ -28,6 +28,7 @@ pub struct Config {
     pub reserve_ratio_k: u128,
     pub slippage_penalty_lambda: f64,
     pub refresh_interval_secs: u64,
+    pub request_timeout_ms: u64,
     pub token_allowlist: Vec<String>,
 }
 
@@ -54,6 +55,7 @@ impl Default for Config {
             reserve_ratio_k: 10,
             slippage_penalty_lambda: 0.0,
             refresh_interval_secs: 30,
+            request_timeout_ms: 5000,
             token_allowlist: Vec::new(),
         }
     }

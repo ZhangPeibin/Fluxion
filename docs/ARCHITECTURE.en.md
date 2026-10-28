@@ -375,7 +375,7 @@ distributed (fine for self-hosting).
 - **`config.yaml` (copy of `config.example.yaml`)**: all other settings; defaults in `config.rs`.
 - Key fields: `host/port`, `rpc_url`, V2/V3 subgraph IDs, `curve_address_provider`,
   `enabled_platforms`, `max_hops/top_k/max_pools`, `min_liquidity/min_volume_24h/min_pool_age_days`,
-  `reserve_ratio_k`, `slippage_penalty_lambda`, `refresh_interval_secs`, `token_allowlist`.
+  `reserve_ratio_k`, `slippage_penalty_lambda`, `refresh_interval_secs`, `request_timeout_ms`, `token_allowlist`.
 
 ---
 

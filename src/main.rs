@@ -73,6 +73,7 @@ async fn main() {
         router,
         limiter: RateLimiter::new(1000, Duration::from_secs(1)),
         rpc: Some(rpc),
+        request_timeout: Duration::from_millis(config.request_timeout_ms.max(1)),
     });
 
     let app = api::app(state);

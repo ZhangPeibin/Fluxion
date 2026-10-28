@@ -79,12 +79,14 @@ pub struct AppState {
     pub router: Router,
     pub limiter: RateLimiter,
     pub rpc: Option<RpcClient>,
+    pub request_timeout: Duration,
 }
 
 pub enum ApiError {
     Quote(QuoteError),
     BadRequest(String),
     RateLimited,
+    Timeout,
 }
 
 impl From<QuoteError> for ApiError {
@@ -97,6 +99,7 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, code, message) = match self {
             ApiError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "RateLimited", None),
+            ApiError::Timeout => (StatusCode::GATEWAY_TIMEOUT, "Timeout", None),
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "InvalidRequest", Some(msg)),
             ApiError::Quote(e) => match e {
                 QuoteError::NoPath => (StatusCode::NOT_FOUND, "NoPathFound", None),
@@ -168,10 +171,17 @@ async fn quote(
         amount_out_min: req.amount_out_min.as_deref().map(parse_u256).transpose()?,
     };
 
-    let route = state
-        .router
-        .route(&state.graph, state.source.as_ref(), &request)
-        .await?;
+    let route = match tokio::time::timeout(
+        state.request_timeout,
+        state
+            .router
+            .route(&state.graph, state.source.as_ref(), &request),
+    )
+    .await
+    {
+        Ok(result) => result?,
+        Err(_) => return Err(ApiError::Timeout),
+    };
     tracing::info!(
         token_in = %request.token_in,
         token_out = %request.token_out,
@@ -247,6 +257,7 @@ mod tests {
             router: Router::default(),
             limiter: RateLimiter::new(1000, Duration::from_secs(1)),
             rpc: None,
+            request_timeout: Duration::from_secs(5),
         })
     }
 

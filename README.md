@@ -173,6 +173,7 @@ src/
 | `reserve_ratio_k` | 动态浅池阈值 `reserve_in ≥ k·amount_in` | 10 |
 | `slippage_penalty_lambda` | 流动性惩罚系数 | 0.0 |
 | `refresh_interval_secs` | 刷新间隔 / mid-price TTL | 30 |
+| `request_timeout_ms` | 单请求超时（毫秒） | 5000 |
 | `token_allowlist` | 覆盖默认主流币白名单 | 空（用内置） |
 
 `GRAPH_API_KEY` 只放在 **gitignored 的 `.env`** 里，不进版本库。
