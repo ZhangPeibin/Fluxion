@@ -170,7 +170,7 @@ struct Graph {
 |---|---|---|
 | Uniswap V2 | The Graph V2 subgraph（分页 200/页） | `reserveUSD_gt`，另可 `volumeUSD_gt`、`createdAtTimestamp_lt` |
 | Uniswap V3 | The Graph V3 subgraph（分页） | **按 `volumeUSD` 排序**（按 TVL 会冒出垃圾池），`totalValueLockedUSD_gt` 等 |
-| Curve | 主 stableswap 注册表：`AddressProvider.get_registry()` → `pool_count/pool_list` → `coins(i)` | 每个池用一次 `get_dy` 探测"可报"，且所有币在白名单 |
+| Curve | 多个注册表：`AddressProvider.get_address(id)`（`curve_registry_ids`，默认 0=主 stableswap、5=crypto）→ `pool_count/pool_list` → `coins(i)` | 每个池用一次 `get_dy` 探测"可报"，且所有币在白名单 |
 
 **过滤策略**
 - **默认主流币白名单**（内置 ~14 个：WETH/WBTC/USDC/USDT/DAI/USDS/stETH/wstETH/LINK/UNI/
@@ -363,7 +363,7 @@ flowchart TD
 
 - **`.env`（gitignored）**：**只放 `GRAPH_API_KEY`**。
 - **`config.yaml`（由 `config.example.yaml` 复制）**：所有其他设置；缺省用 `config.rs` 默认值。
-- 关键项：`host/port`、`rpc_url`、V2/V3 subgraph ID、`curve_address_provider`、
+- 关键项：`host/port`、`rpc_url`、V2/V3 subgraph ID、`curve_address_provider`、`curve_registry_ids`、
   `enabled_platforms`、`max_hops/top_k/max_pools`、`min_liquidity/min_volume_24h/min_pool_age_days`、
   `reserve_ratio_k`、`slippage_penalty_lambda`、`refresh_interval_secs`、`request_timeout_ms`、`token_allowlist`。
 
@@ -412,9 +412,9 @@ live 报价拖住）。返回示例：`2331667580`（≈2331.67 USDC，price imp
 
 1. **延迟 ~0.8s、受公共 RPC 波动**：瓶颈在精算（最慢一次 live 报价）。
 2. **新鲜度不一致**：精算时 V2 用 ≤TTL 的缓存储备，V3/Curve 实时。
-3. **Curve 覆盖**：适配器支持 stableswap(int128) 与 crypto(uint256) 的 `get_dy`，但**自动发现**
-   只覆盖主 stableswap 注册表；crypto/factory/metapool 注册表枚举未做；metapool 的
-   `get_dy_underlying` 未用；原生 ETH 池不支持。
+3. **Curve 覆盖**：适配器支持 stableswap(int128) 与 crypto(uint256) 的 `get_dy`；**发现**默认覆盖
+   主 stableswap + crypto 注册表（`curve_registry_ids: [0,5]`）；factory/metapool 可加 `7`(MetaRegistry)
+   纳入但很慢；metapool 的 `get_dy_underlying` 未用；原生 ETH 池不支持。
 4. **粗选是启发式**：top-k 之外的真最优可能被漏（直连兜底缓解）；`price_impact_bps` 为近似。
 5. **浅池保护只对 V2**（V3/Curve 的 reserve_in=MAX）。
 6. **无单请求超时**；**无 metrics/优雅关闭**；限流是全局内存窗口。

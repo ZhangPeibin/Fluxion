@@ -139,9 +139,9 @@ src/
 - **Uniswap V2**：V2 subgraph，按 `reserveUSD` 排序、分页。
 - **Uniswap V3**：V3 subgraph，按 `volumeUSD` 排序、分页（注意：按 TVL 排序会先冒出
   TVL 虚高的垃圾池）。
-- **Curve**：主 stableswap 注册表
-  `AddressProvider.get_registry() → pool_count()/pool_list(i) → coins(i)`，
-  并用一次 `get_dy` 探测验证「我们的适配器能报价」。
+- **Curve**：通过 `AddressProvider.get_address(id)` 枚举多个注册表（`curve_registry_ids`，
+  默认 `[0, 5]` = 主 stableswap + crypto；`7` = MetaRegistry 覆盖全部含 factory/metapool，较慢），
+  每个注册表 `pool_count() → pool_list(i) → coins(i)`，并用一次 `get_dy` 探测验证可报。
 - **过滤**：`min_liquidity`、`min_volume_24h`、`min_pool_age_days`；以及**默认主流币
   白名单**（V2/V3 要求池子两币都在白名单；Curve 要求所有币都在）。白名单可用
   `token_allowlist` 覆盖。
@@ -165,6 +165,7 @@ src/
 | `rpc_url` | 第三方 RPC | `https://eth.drpc.org` |
 | `uniswap_v2_subgraph_id` / `uniswap_v3_subgraph_id` | The Graph 去中心化网络部署 ID | 见示例 |
 | `curve_address_provider` | Curve AddressProvider | `0x0000…4383` |
+| `curve_registry_ids` | 枚举的 Curve 注册表 id（0=主 stableswap，5=crypto，7=MetaRegistry 全部） | `[0, 5]` |
 | `enabled_platforms` | 启用的平台 | v2/v3/curve |
 | `max_hops` / `top_k` / `max_pools` | 路由与规模 | 3 / 8 / 100 |
 | `min_liquidity` | 流动性下限（USD 量级） | 50000 |
@@ -195,8 +196,8 @@ cargo test -- --ignored          # 真实主网集成测试（只读 eth_call）
 - 仅 Ethereum 主网；exact-in；单条最优路径（不做 split routing，留 v2）。
 - 原生 ETH 不支持（仅 ERC-20 / WETH；wrap/unwrap 由上游处理）。
 - Curve 适配器同时支持 stableswap（`get_dy(int128,…)`）与 crypto（`get_dy(uint256,…)`）；
-  但**池子发现**仍只覆盖主 stableswap 注册表，crypto(tricrypto) / factory / metapool
-  的注册表枚举尚未纳入。
+  **发现**默认覆盖主 stableswap + crypto 注册表（`curve_registry_ids: [0, 5]`）；
+  factory/metapool 可通过把 `7`（MetaRegistry）加入 `curve_registry_ids` 纳入，但会显著变慢。
 - 依赖公共 RPC 时可能遇到限流；粗选基于内存**价格快照**同步计算（O(边数) 但无 RPC），
   延迟主要由**精算**（对候选路径的链上真实报价）决定（约 0.5–1s，取决于 RPC）。
 - fee-on-transfer / rebasing token 报价会失真 → 白名单排除。

@@ -141,9 +141,10 @@ src/
 - **Uniswap V2**: V2 subgraph, ordered by `reserveUSD`, paginated.
 - **Uniswap V3**: V3 subgraph, ordered by `volumeUSD`, paginated (ordering by TVL surfaces
   inflated junk pools first).
-- **Curve**: main stableswap registry
-  `AddressProvider.get_registry() → pool_count()/pool_list(i) → coins(i)`, validating each pool with
-  one `get_dy` probe ("our adapter can quote it").
+- **Curve**: enumerate multiple registries via `AddressProvider.get_address(id)`
+  (`curve_registry_ids`, default `[0, 5]` = main stableswap + crypto; `7` = MetaRegistry covering
+  all incl. factory/metapool, slower), each `pool_count() → pool_list(i) → coins(i)`, validating
+  each pool with one `get_dy` probe.
 - **Filtering**: `min_liquidity`, `min_volume_24h`, `min_pool_age_days`; plus a **default
   major-token allowlist** (V2/V3 require both coins; Curve requires all coins). Override via
   `token_allowlist`.
@@ -168,6 +169,7 @@ src/
 | `rpc_url` | third-party RPC | `https://eth.drpc.org` |
 | `uniswap_v2_subgraph_id` / `uniswap_v3_subgraph_id` | The Graph decentralized-network IDs | see example |
 | `curve_address_provider` | Curve AddressProvider | `0x0000…4383` |
+| `curve_registry_ids` | Curve registries to enumerate (0=main stableswap, 5=crypto, 7=MetaRegistry all) | `[0, 5]` |
 | `enabled_platforms` | enabled platforms | v2/v3/curve |
 | `max_hops` / `top_k` / `max_pools` | routing & scale | 3 / 8 / 100 |
 | `min_liquidity` | liquidity floor (USD-ish) | 50000 |
@@ -197,9 +199,10 @@ cargo test -- --ignored          # real mainnet integration tests (read-only eth
 
 - Ethereum mainnet only; exact-in; single best path (no split routing, deferred to v2).
 - Native ETH unsupported (ERC-20 / WETH only; wrap/unwrap is the caller's job).
-- The Curve adapter supports both stableswap (`get_dy(int128,…)`) and crypto (`get_dy(uint256,…)`),
-  but **discovery** still only covers the main stableswap registry; crypto(tricrypto)/factory/
-  metapool registry enumeration is not yet included.
+- The Curve adapter supports both stableswap (`get_dy(int128,…)`) and crypto (`get_dy(uint256,…)`);
+  **discovery** covers the main stableswap + crypto registries by default (`curve_registry_ids: [0, 5]`);
+  factory/metapool can be included by adding `7` (MetaRegistry) to `curve_registry_ids`, at a
+  significant startup cost.
 - Public RPC may rate-limit; coarse uses an in-memory **price snapshot** (O(edges) but no RPC), so
   latency is dominated by **refine** (real on-chain quotes for candidates, ~0.5–1s depending on RPC).
 - fee-on-transfer / rebasing tokens quote inaccurately → excluded via the allowlist.

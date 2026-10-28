@@ -2,6 +2,7 @@ use alloy_primitives::{Address, U256};
 use futures::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
 use thiserror::Error;
 
 use crate::config::Config;
@@ -271,7 +272,7 @@ pub async fn discover_v3(
     Ok(pools)
 }
 
-const CURVE_GET_REGISTRY: &str = "a262904b";
+const CURVE_GET_ADDRESS: &str = "493f4f74";
 const CURVE_POOL_COUNT: &str = "956aae3a";
 const CURVE_POOL_LIST: &str = "3a1d5d8e";
 const CURVE_COINS: &str = "c6610657";
@@ -286,32 +287,37 @@ fn addr_from_word(data: &[u8]) -> Result<Address, DiscoveryError> {
     Ok(Address::from_slice(&data[data.len() - 20..]))
 }
 
-/// Discover Curve stableswap pools via the registry:
-/// AddressProvider.get_registry() -> pool_count/pool_list -> coins(i).
-/// Only pools whose every coin is in the allowlist are kept.
-pub async fn discover_curve(config: &Config, rpc: &RpcClient) -> Result<Vec<Pool>, DiscoveryError> {
-    let allow = allowlist(config);
-    let provider: Address = config
-        .curve_address_provider
-        .parse()
-        .map_err(|_| DiscoveryError::Address(config.curve_address_provider.clone()))?;
-
-    let reg_data = rpc
-        .eth_call(provider, CURVE_GET_REGISTRY)
+/// Resolve a registry address from the AddressProvider by id (`None` if zero).
+async fn curve_registry(
+    provider: Address,
+    id: u64,
+    rpc: &RpcClient,
+) -> Result<Option<Address>, DiscoveryError> {
+    let data = format!("{CURVE_GET_ADDRESS}{}", u256_word(U256::from(id)));
+    let out = rpc
+        .eth_call(provider, &data)
         .await
         .map_err(|e| DiscoveryError::Request(e.to_string()))?;
-    let registry = addr_from_word(&reg_data)?;
+    let addr = addr_from_word(&out)?;
+    Ok((addr != Address::ZERO).then_some(addr))
+}
 
-    let count_data = rpc
-        .eth_call(registry, CURVE_POOL_COUNT)
-        .await
-        .map_err(|e| DiscoveryError::Request(e.to_string()))?;
+/// Enumerate one registry: `pool_count` / `pool_list(i)` -> `coins` -> `get_dy` probe.
+async fn discover_registry(
+    registry: Address,
+    max_pools: usize,
+    rpc: &RpcClient,
+) -> Vec<(Address, Vec<Address>)> {
+    let count_data = match rpc.eth_call(registry, CURVE_POOL_COUNT).await {
+        Ok(d) => d,
+        Err(_) => return Vec::new(),
+    };
     if count_data.len() < 32 {
-        return Ok(Vec::new());
+        return Vec::new();
     }
-    let count = u256_to_usize(U256::from_be_slice(&count_data[0..32])).min(config.max_pools);
+    let count = u256_to_usize(U256::from_be_slice(&count_data[0..32])).min(max_pools);
 
-    let results: Vec<(Address, Vec<Address>)> = stream::iter(0..count)
+    stream::iter(0..count)
         .map(|i| {
             let rpc = rpc.clone();
             async move {
@@ -331,8 +337,7 @@ pub async fn discover_curve(config: &Config, rpc: &RpcClient) -> Result<Vec<Pool
                 if coins.len() < 2 {
                     return None;
                 }
-                // Validate that our adapter can quote this pool, accepting
-                // either get_dy(int128,...) or get_dy(uint256,...).
+                // Accept get_dy(int128,...) or get_dy(uint256,...).
                 let mut quoteable = false;
                 for selector in [CURVE_GET_DY_INT128, CURVE_GET_DY_U256] {
                     let probe = format!(
@@ -355,24 +360,39 @@ pub async fn discover_curve(config: &Config, rpc: &RpcClient) -> Result<Vec<Pool
         .buffer_unordered(CURVE_REGISTRY_BATCH)
         .filter_map(|x| async move { x })
         .collect()
-        .await;
+        .await
+}
 
-    let mut pools = Vec::new();
-    for (address, coins) in results {
-        let all_allowed = coins.iter().all(|coin| {
-            let s = format!("{coin:#x}");
-            allow.iter().any(|a| a.eq_ignore_ascii_case(&s))
-        });
-        if !all_allowed {
+/// Discover Curve pools across the main stableswap, crypto, and MetaRegistry
+/// (AddressProvider ids 0/5/7), dedup by address, keeping only pools whose coins
+/// are all allowlisted.
+pub async fn discover_curve(config: &Config, rpc: &RpcClient) -> Result<Vec<Pool>, DiscoveryError> {
+    let allow = allowlist(config);
+    let provider: Address = config
+        .curve_address_provider
+        .parse()
+        .map_err(|_| DiscoveryError::Address(config.curve_address_provider.clone()))?;
+
+    let mut by_addr: HashMap<Address, Pool> = HashMap::new();
+    for &id in &config.curve_registry_ids {
+        let Ok(Some(registry)) = curve_registry(provider, id, rpc).await else {
             continue;
+        };
+        for (address, coins) in discover_registry(registry, config.max_pools, rpc).await {
+            let all_allowed = coins.iter().all(|coin| {
+                let s = format!("{coin:#x}");
+                allow.iter().any(|a| a.eq_ignore_ascii_case(&s))
+            });
+            if all_allowed {
+                by_addr.entry(address).or_insert(Pool {
+                    kind: PoolKind::Curve,
+                    address,
+                    coins,
+                });
+            }
         }
-        pools.push(Pool {
-            kind: PoolKind::Curve,
-            address,
-            coins,
-        });
     }
-    Ok(pools)
+    Ok(by_addr.into_values().collect())
 }
 
 #[cfg(test)]

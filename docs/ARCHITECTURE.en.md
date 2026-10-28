@@ -176,7 +176,7 @@ Three sources are collected into a `Vec<Pool>`:
 |---|---|---|
 | Uniswap V2 | The Graph V2 subgraph (paginate 200/page) | `reserveUSD_gt`, optional `volumeUSD_gt`, `createdAtTimestamp_lt` |
 | Uniswap V3 | The Graph V3 subgraph (paginate) | **order by `volumeUSD`** (TVL ordering surfaces junk), `totalValueLockedUSD_gt`, ... |
-| Curve | Main stableswap registry: `AddressProvider.get_registry()` → `pool_count/pool_list` → `coins(i)` | validate each pool with one `get_dy` probe; every coin must be allowlisted |
+| Curve | Multiple registries: `AddressProvider.get_address(id)` (`curve_registry_ids`, default 0=main stableswap, 5=crypto) → `pool_count/pool_list` → `coins(i)` | validate each pool with one `get_dy` probe; every coin must be allowlisted |
 
 **Filtering**
 - **Default major-token allowlist** (~14 built-in: WETH/WBTC/USDC/USDT/DAI/USDS/stETH/wstETH/
@@ -373,7 +373,7 @@ distributed (fine for self-hosting).
 
 - **`.env` (gitignored)**: **only `GRAPH_API_KEY`**.
 - **`config.yaml` (copy of `config.example.yaml`)**: all other settings; defaults in `config.rs`.
-- Key fields: `host/port`, `rpc_url`, V2/V3 subgraph IDs, `curve_address_provider`,
+- Key fields: `host/port`, `rpc_url`, V2/V3 subgraph IDs, `curve_address_provider`, `curve_registry_ids`,
   `enabled_platforms`, `max_hops/top_k/max_pools`, `min_liquidity/min_volume_24h/min_pool_age_days`,
   `reserve_ratio_k`, `slippage_penalty_lambda`, `refresh_interval_secs`, `request_timeout_ms`, `token_allowlist`.
 
@@ -427,9 +427,9 @@ slowest live quote). Example: `2331667580` (~2331.67 USDC, price impact ~5bps).
 1. **Latency ~0.8s, subject to public RPC variance**: dominated by refine (the slowest live quote).
 2. **Inconsistent freshness**: refine uses ≤TTL cached reserves for V2, but live for V3/Curve.
 3. **Curve coverage**: the adapter supports both stableswap (int128) and crypto (uint256)
-   `get_dy`, but **discovery** only covers the main stableswap registry; crypto/factory/metapool
-   registry enumeration is not done; metapool `get_dy_underlying` is unused; native-ETH pools are
-   unsupported.
+   `get_dy`; **discovery** covers main stableswap + crypto registries by default
+   (`curve_registry_ids: [0,5]`); factory/metapool can be added via `7` (MetaRegistry) but is slow;
+   metapool `get_dy_underlying` is unused; native-ETH pools are unsupported.
 4. **Coarse is heuristic**: the true best outside top-k may be missed (direct fallback mitigates);
    `price_impact_bps` is approximate.
 5. **Shallow-pool guard only applies to V2** (V3/Curve `reserve_in=MAX`).

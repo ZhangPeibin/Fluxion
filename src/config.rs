@@ -18,6 +18,7 @@ pub struct Config {
     pub uniswap_v2_subgraph_id: String,
     pub uniswap_v3_subgraph_id: String,
     pub curve_address_provider: String,
+    pub curve_registry_ids: Vec<u64>,
     pub enabled_platforms: Vec<String>,
     pub max_hops: usize,
     pub top_k: usize,
@@ -41,6 +42,7 @@ impl Default for Config {
             uniswap_v2_subgraph_id: "EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu".to_string(),
             uniswap_v3_subgraph_id: "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV".to_string(),
             curve_address_provider: "0x0000000022D53366457F9d5E68Ec105046FC4383".to_string(),
+            curve_registry_ids: vec![0, 5],
             enabled_platforms: vec![
                 "uniswap-v2".to_string(),
                 "uniswap-v3".to_string(),

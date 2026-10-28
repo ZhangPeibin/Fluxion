@@ -14,6 +14,9 @@ uniswap_v3_subgraph_id: "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
 
 # Curve AddressProvider; the registry is resolved from it.
 curve_address_provider: "0x0000000022D53366457F9d5E68Ec105046FC4383"
+# Registry ids to enumerate: 0 = main stableswap, 5 = crypto (tricrypto),
+# 7 = MetaRegistry (all pools incl. factory/metapool; much slower).
+curve_registry_ids: [0, 5]
 
 # Platforms to consider.
 enabled_platforms:
