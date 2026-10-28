@@ -390,6 +390,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn price_snapshot_builds_per_edge() {
+        let (g, a, b) = graph_with_two_parallel_pools();
+        let mut reserves = HashMap::new();
+        reserves.insert(a, [U256::from(1000u64), U256::from(3000u64)]);
+        reserves.insert(b, [U256::from(1000u64), U256::from(4000u64)]);
+        let source = MockV2::new(reserves);
+        let snap = PriceSnapshot::build(&g, &source).await;
+        assert_eq!(snap.per_edge.len(), g.edge_count());
+        assert!(
+            snap.per_edge
+                .iter()
+                .all(|e| e.mid_price.is_finite() && e.mid_price > 0.0)
+        );
+    }
+
+    #[tokio::test]
     async fn picks_best_of_parallel_edges() {
         let (g, a, b) = graph_with_two_parallel_pools();
         let mut reserves = HashMap::new();

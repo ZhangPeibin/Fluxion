@@ -395,6 +395,27 @@ mod tests {
     }
 
     #[test]
+    fn both_allowed_requires_both_tokens() {
+        let allow = vec!["0xaaa".to_string(), "0xbbb".to_string()];
+        assert!(both_allowed(&allow, "0xAAA", "0xbbb"));
+        assert!(!both_allowed(&allow, "0xaaa", "0xccc"));
+    }
+
+    #[test]
+    fn discovery_where_includes_optional_filters() {
+        let cfg = Config {
+            min_liquidity: 1000,
+            min_volume_24h: 5,
+            min_pool_age_days: 3,
+            ..Default::default()
+        };
+        let w = discovery_where(&cfg, "reserveUSD");
+        assert!(w.contains("reserveUSD_gt"));
+        assert!(w.contains("volumeUSD_gt"));
+        assert!(w.contains("createdAtTimestamp_lt"));
+    }
+
+    #[test]
     fn cache_round_trips() {
         let dir = std::env::temp_dir();
         let path = dir.join(format!("fluxion-pools-{}.json", std::process::id()));
