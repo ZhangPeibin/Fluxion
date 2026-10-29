@@ -134,7 +134,8 @@ npm run dev
 
 - 渲染全部 token（节点）与有向池跳（边）；节点优先显示常见 token 符号（USDC/WETH/…，未知 token
   回退为短地址），边标注平台 + pool（默认关闭，可在侧栏打开），平行边按方向和序号弯折区分。
-- 平台图例兼作筛选器，并显示各平台边数。
+- 平台图例兼作筛选器，并显示各平台边数；另有 token 搜索（淡出无关节点/边）与最小流动性
+  （raw reserve）过滤。
 - 悬停显示完整地址、pool、platform、`mid_price`、`reserve`；点击节点/边打开详情面板（含 Etherscan 链接）。
 - From/To 可点击节点或直接输入地址，金额默认填入 **1 个整 token**（按 token decimals 换算为 raw units，
   也可手动改成任意 raw 数值）；调用 `POST /quote` 后高亮最优路由、
@@ -201,7 +202,7 @@ ui/              独立 Web viewer（React + Vite + vis-network；只读 /graph 
   默认 `[0, 5]` = 主 stableswap + crypto；`7` = MetaRegistry 覆盖全部含 factory/metapool，较慢），
   每个注册表 `pool_count() → pool_list(i) → coins(i)`，并用一次 `get_dy` 探测验证可报。
 - **过滤**：`min_liquidity`、`min_volume_24h`、`min_pool_age_days`；以及**默认主流币
-  白名单**（V2/V3 要求池子两币都在白名单；Curve 要求所有币都在）。白名单可用
+  白名单（约 50 个）**（V2/V3 要求池子两币都在白名单；Curve 要求所有币都在）。白名单可用
   `token_allowlist` 覆盖。
 - `max_pools` 限制每类平台的池子数，控制图规模与 RPC 压力。
 
