@@ -14,9 +14,39 @@ export const PLATFORM_LABELS = {
 
 const FALLBACK_COLOR = "#8b949e";
 
+// Symbols for the built-in major-token allowlist (and other common mainnet
+// tokens). Unknown tokens fall back to their short address.
+const TOKEN_SYMBOLS = {
+  "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": "WETH",
+  "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": "WBTC",
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": "USDC",
+  "0xdac17f958d2ee523a2206206994597c13d831ec7": "USDT",
+  "0x6b175474e89094c44da98b954eedeac495271d0f": "DAI",
+  "0xdc035d45d973e3ec169d2276ddab16f1e407384f": "USDS",
+  "0xae7ab96520de3a18e5e111b5eaab095312d7fe84": "stETH",
+  "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0": "wstETH",
+  "0x514910771af9ca656af840dff83e8264ecf986ca": "LINK",
+  "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984": "UNI",
+  "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": "AAVE",
+  "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2": "MKR",
+  "0xd533a949740bb3306d119cc777fa900ba034cd52": "CRV",
+  "0x5a98fcbea516cf06857215779fd812ca3bef1b32": "LDO",
+};
+
 const DEFAULT_NODE_COLOR = { background: "#58a6ff", border: "#1f6feb" };
 const SOURCE_NODE_COLOR = { background: "#2ea043", border: "#3fb950" };
 const TARGET_NODE_COLOR = { background: "#da3633", border: "#f85149" };
+
+export function tokenSymbol(address) {
+  if (typeof address !== "string") {
+    return null;
+  }
+  return TOKEN_SYMBOLS[address.toLowerCase()] ?? null;
+}
+
+export function tokenLabel(address) {
+  return tokenSymbol(address) ?? shortAddress(address);
+}
 
 export function shortAddress(address) {
   if (typeof address !== "string" || address.length < 12) {
@@ -39,7 +69,7 @@ export function edgeKey(pool, i, j) {
 
 function edgeTooltip(edge) {
   return [
-    `${shortAddress(edge.from)} → ${shortAddress(edge.to)}`,
+    `${tokenLabel(edge.from)} → ${tokenLabel(edge.to)}`,
     `pool ${edge.pool}`,
     `platform ${edge.platform}`,
     edge.mid_price === undefined ? null : `mid price ${edge.mid_price}`,
@@ -56,10 +86,10 @@ function edgeTooltip(edge) {
 export function liquidityWidth(reserve) {
   const value = Number(reserve);
   if (!Number.isFinite(value) || value <= 0) {
-    return 1;
+    return 0.8;
   }
-  const width = 0.8 + Math.log10(value + 1) * 0.25;
-  return Math.min(4, Math.max(0.8, width));
+  const width = 0.6 + Math.log10(value + 1) * 0.16;
+  return Math.min(2, Math.max(0.6, width));
 }
 
 function hexToRgba(hex, alpha) {
@@ -92,7 +122,7 @@ function validPrice(edge) {
  * recoloured to show the selection.
  */
 export function syncGraphData(nodes, edges, graph, options = {}) {
-  const { enabledPlatforms, tokenIn, tokenOut, routeEdgeIds } = options;
+  const { enabledPlatforms, tokenIn, tokenOut, routeEdgeIds, showEdgeLabels } = options;
   if (!graph) {
     return;
   }
@@ -117,10 +147,11 @@ export function syncGraphData(nodes, edges, graph, options = {}) {
     } else if (targetId && tokenId === targetId) {
       color = TARGET_NODE_COLOR;
     }
+    const symbol = tokenSymbol(token);
     nodes.update({
       id: token,
-      label: shortAddress(token),
-      title: `${token}\n${degrees.get(token) ?? 0} directed edges`,
+      label: symbol ?? shortAddress(token),
+      title: `${symbol ? `${symbol} (${token})` : token}\n${degrees.get(token) ?? 0} directed edges`,
       color,
     });
   }
@@ -163,11 +194,11 @@ export function syncGraphData(nodes, edges, graph, options = {}) {
     let fontColor = platformColor;
     let shadow = { enabled: false };
     if (highlighted) {
-      width = Math.max(4, width + 1.5);
+      width = Math.max(2.6, width + 0.4);
       alpha = 1;
-      shadow = { enabled: true, color: platformColor, size: 8 };
+      shadow = { enabled: true, color: platformColor, size: 5 };
     } else if (dimmed) {
-      width = Math.max(0.5, width * 0.5);
+      width = Math.max(0.4, width * 0.5);
       alpha = 0.12;
       fontColor = "rgba(230, 237, 243, 0.2)";
     }
@@ -177,7 +208,7 @@ export function syncGraphData(nodes, edges, graph, options = {}) {
       id,
       from: edge.from,
       to: edge.to,
-      label: `${edge.platform} ${shortAddress(edge.pool)}`,
+      label: showEdgeLabels ? `${edge.platform} ${shortAddress(edge.pool)}` : "",
       title: edgeTooltip(edge),
       color: { color, highlight: platformColor, hover: platformColor },
       font: { color: fontColor },

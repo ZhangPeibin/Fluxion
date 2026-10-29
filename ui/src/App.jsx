@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DataSet, Network } from "vis-network/standalone";
 
-import { PLATFORM_COLORS, PLATFORM_LABELS, edgeKey, shortAddress, syncGraphData } from "./graph.js";
+import {
+  PLATFORM_COLORS,
+  PLATFORM_LABELS,
+  edgeKey,
+  shortAddress,
+  syncGraphData,
+  tokenLabel,
+  tokenSymbol,
+} from "./graph.js";
 
 const DEFAULT_REFRESH_SECONDS = 5;
 const ALL_PLATFORMS = Object.keys(PLATFORM_COLORS);
@@ -14,14 +22,14 @@ const ETHERSCAN_ADDRESS = "https://etherscan.io/address/";
 const NETWORK_OPTIONS = {
   nodes: {
     shape: "dot",
-    size: 10,
+    size: 11,
     color: { background: "#58a6ff", border: "#1f6feb" },
-    font: { size: 12, color: "#e6edf3" },
+    font: { size: 13, color: "#e6edf3" },
   },
   edges: {
     arrows: { to: { enabled: true, scaleFactor: 0.6 } },
-    width: 1.2,
-    font: { size: 9, strokeWidth: 0 },
+    width: 1,
+    font: { size: 8, strokeWidth: 0 },
   },
   physics: {
     stabilization: { iterations: 200 },
@@ -36,6 +44,7 @@ function GraphCanvas({
   tokenIn,
   tokenOut,
   routeEdgeIds,
+  showEdgeLabels,
   onNodeClick,
   onEdgeClick,
 }) {
@@ -84,8 +93,9 @@ function GraphCanvas({
       tokenIn,
       tokenOut,
       routeEdgeIds,
+      showEdgeLabels,
     });
-  }, [graph, enabledPlatforms, tokenIn, tokenOut, routeEdgeIds]);
+  }, [graph, enabledPlatforms, tokenIn, tokenOut, routeEdgeIds, showEdgeLabels]);
 
   return <div className="canvas" ref={containerRef} />;
 }
@@ -96,6 +106,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [refreshSeconds, setRefreshSeconds] = useState(DEFAULT_REFRESH_SECONDS);
   const [enabled, setEnabled] = useState(INITIAL_ENABLED);
+  const [showEdgeLabels, setShowEdgeLabels] = useState(false);
 
   const [tokenIn, setTokenIn] = useState("");
   const [tokenOut, setTokenOut] = useState("");
@@ -363,7 +374,7 @@ export default function App() {
                   {quote.path.map((hop) => (
                     <li key={edgeKey(hop.pool, hop.i, hop.j)}>
                       <span className="hop-tokens">
-                        {shortAddress(hop.token_in)} → {shortAddress(hop.token_out)}
+                        {tokenLabel(hop.token_in)} → {tokenLabel(hop.token_out)}
                       </span>
                       <span className="hop-meta">
                         {hop.platform} · {shortAddress(hop.pool)}
@@ -392,6 +403,10 @@ export default function App() {
             {details.kind === "node" ? (
               <dl className="details-list">
                 <div>
+                  <dt>Token</dt>
+                  <dd>{tokenSymbol(details.address) ?? "Unknown token"}</dd>
+                </div>
+                <div>
                   <dt>Address</dt>
                   <dd className="mono">{details.address}</dd>
                 </div>
@@ -416,11 +431,15 @@ export default function App() {
               <dl className="details-list">
                 <div>
                   <dt>From</dt>
-                  <dd className="mono">{selectedEdge.from}</dd>
+                  <dd className="mono">
+                    {tokenLabel(selectedEdge.from)} · {selectedEdge.from}
+                  </dd>
                 </div>
                 <div>
                   <dt>To</dt>
-                  <dd className="mono">{selectedEdge.to}</dd>
+                  <dd className="mono">
+                    {tokenLabel(selectedEdge.to)} · {selectedEdge.to}
+                  </dd>
                 </div>
                 <div>
                   <dt>Platform</dt>
@@ -477,6 +496,14 @@ export default function App() {
               <span className="legend-count">{platformCounts[platform] ?? 0}</span>
             </label>
           ))}
+          <label className="legend-item">
+            <input
+              type="checkbox"
+              checked={showEdgeLabels}
+              onChange={(event) => setShowEdgeLabels(event.target.checked)}
+            />
+            <span>Edge labels</span>
+          </label>
         </div>
       </aside>
       <GraphCanvas
@@ -485,6 +512,7 @@ export default function App() {
         tokenIn={tokenIn}
         tokenOut={tokenOut}
         routeEdgeIds={routeEdgeIds}
+        showEdgeLabels={showEdgeLabels}
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}
       />
