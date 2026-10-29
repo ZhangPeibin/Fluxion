@@ -4,6 +4,7 @@ import { DataSet, Network } from "vis-network/standalone";
 import {
   PLATFORM_COLORS,
   PLATFORM_LABELS,
+  defaultAmountForToken,
   edgeKey,
   shortAddress,
   syncGraphData,
@@ -18,6 +19,9 @@ const INITIAL_ENABLED = Object.fromEntries(ALL_PLATFORMS.map((platform) => [plat
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const AMOUNT_PATTERN = /^\d+$/;
 const ETHERSCAN_ADDRESS = "https://etherscan.io/address/";
+const QUOTE_ERROR_MESSAGES = {
+  NoPathFound: "NoPathFound — no route for this amount; try a larger amount or other tokens",
+};
 
 const NETWORK_OPTIONS = {
   nodes: {
@@ -112,6 +116,7 @@ export default function App() {
   const [tokenOut, setTokenOut] = useState("");
   const [activeField, setActiveField] = useState("in");
   const [amount, setAmount] = useState("1");
+  const [amountTouched, setAmountTouched] = useState(false);
   const [quote, setQuote] = useState(null);
   const [quoteError, setQuoteError] = useState(null);
   const [quoting, setQuoting] = useState(false);
@@ -226,7 +231,7 @@ export default function App() {
         if (!response.ok) {
           const detail =
             payload?.message ?? payload?.error ?? `${response.status} ${response.statusText}`;
-          throw new Error(detail);
+          throw new Error(QUOTE_ERROR_MESSAGES[detail] ?? detail);
         }
         setQuote(payload);
         setQuoteError(null);
@@ -260,10 +265,17 @@ export default function App() {
     }
   }
 
+  function updateTokenIn(value) {
+    setTokenIn(value);
+    if (!amountTouched) {
+      setAmount(defaultAmountForToken(value));
+    }
+  }
+
   function handleNodeClick(token) {
     setDetails({ kind: "node", address: token });
     if (activeField === "in") {
-      setTokenIn(token);
+      updateTokenIn(token);
       if (!tokenOut) {
         setActiveField("out");
       }
@@ -323,7 +335,7 @@ export default function App() {
             <input
               className="route-input"
               value={tokenIn}
-              onChange={(event) => setTokenIn(event.target.value)}
+              onChange={(event) => updateTokenIn(event.target.value)}
               onFocus={() => setActiveField("in")}
               placeholder="0x… token address"
               spellCheck={false}
@@ -345,13 +357,19 @@ export default function App() {
             <input
               className="route-input"
               value={amount}
-              onChange={(event) => setAmount(event.target.value)}
+              onChange={(event) => {
+                setAmount(event.target.value);
+                setAmountTouched(true);
+              }}
               placeholder="1"
               inputMode="numeric"
               spellCheck={false}
             />
           </label>
-          <p className="hint">Click a node to fill the focused field.</p>
+          <p className="hint">
+            Click a node to fill the focused field. Amount defaults to one whole token in raw units
+            (e.g. 1e18 for an 18-decimal token).
+          </p>
 
           {quoting && <p className="status">Quoting…</p>}
           {quoteError && <p className="error">Quote failed: {quoteError}</p>}
