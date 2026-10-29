@@ -68,6 +68,11 @@ pub struct PriceSnapshot {
 }
 
 impl PriceSnapshot {
+    /// Read-only per-edge prices, indexed by edge id.
+    pub fn edge_prices(&self) -> &[EdgePrice] {
+        &self.per_edge
+    }
+
     pub async fn build(graph: &Graph, source: &(dyn QuoteSource + Send + Sync)) -> Self {
         let pairs: Vec<(usize, EdgePrice)> = stream::iter(0..graph.edge_count())
             .map(|idx| async move {
@@ -126,6 +131,12 @@ impl Router {
     /// Install a precomputed price snapshot (rebuilt periodically).
     pub fn set_snapshot(&self, snapshot: Arc<PriceSnapshot>) {
         *self.snapshot.write().unwrap() = Some(snapshot);
+    }
+
+    /// Cloned handle to the currently installed snapshot, if any. Read-only and
+    /// side-effect free: never builds a fresh snapshot.
+    pub fn snapshot(&self) -> Option<Arc<PriceSnapshot>> {
+        self.snapshot.read().unwrap().clone()
     }
 
     pub async fn route(

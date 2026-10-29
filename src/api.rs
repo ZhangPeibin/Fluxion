@@ -47,6 +47,28 @@ pub struct QuoteResponseDto {
     pub path: Vec<HopDto>,
 }
 
+/// A directed pool hop in the routing multigraph. Price fields are omitted when
+/// no snapshot (or no value for this edge) is available.
+#[derive(Debug, Serialize)]
+pub struct GraphEdgeDto {
+    pub from: String,
+    pub to: String,
+    pub platform: String,
+    pub pool: String,
+    pub i: usize,
+    pub j: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mid_price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reserve: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GraphResponseDto {
+    pub tokens: Vec<String>,
+    pub edges: Vec<GraphEdgeDto>,
+}
+
 pub struct RateLimiter {
     max_requests: u64,
     window: Duration,
@@ -192,6 +214,41 @@ async fn quote(
     Ok(Json(route_to_dto(route)))
 }
 
+async fn graph(State(state): State<Arc<AppState>>) -> Json<GraphResponseDto> {
+    let snapshot = state.router.snapshot();
+    let tokens = state
+        .graph
+        .tokens()
+        .iter()
+        .map(|token| token.to_string())
+        .collect();
+    let mut edges = Vec::with_capacity(state.graph.edge_count());
+    for idx in 0..state.graph.edge_count() {
+        let edge = state.graph.edge(idx);
+        let pool = state.graph.pool(edge.pool_idx);
+        let price = snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.edge_prices().get(idx));
+        let mid_price = price
+            .map(|p| p.mid_price)
+            .filter(|mid_price| mid_price.is_finite() && *mid_price > 0.0);
+        let reserve = price
+            .map(|p| p.reserve_in)
+            .filter(|reserve| !reserve.is_zero());
+        edges.push(GraphEdgeDto {
+            from: pool.coins[edge.i].to_string(),
+            to: pool.coins[edge.j].to_string(),
+            platform: pool.kind.name().to_string(),
+            pool: pool.address.to_string(),
+            i: edge.i,
+            j: edge.j,
+            mid_price,
+            reserve: reserve.map(|reserve| reserve.to_string()),
+        });
+    }
+    Json(GraphResponseDto { tokens, edges })
+}
+
 async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok" }))
 }
@@ -215,6 +272,7 @@ async fn ready(State(state): State<Arc<AppState>>) -> (StatusCode, Json<serde_js
 pub fn app(state: Arc<AppState>) -> AxumRouter {
     AxumRouter::new()
         .route("/quote", post(quote))
+        .route("/graph", get(graph))
         .route("/health", get(health))
         .route("/ready", get(ready))
         .with_state(state)
@@ -224,6 +282,7 @@ pub fn app(state: Arc<AppState>) -> AxumRouter {
 mod tests {
     use super::*;
     use crate::model::{Pool, PoolKind};
+    use crate::router::PriceSnapshot;
     use crate::source::MockV2;
     use alloy_primitives::Address;
     use axum::body::{Body, to_bytes};
@@ -324,6 +383,88 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn graph_endpoint_returns_edges_without_snapshot() {
+        let app = app(mock_state());
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/graph")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+        let tokens: Vec<&str> = v["tokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t.as_str().unwrap())
+            .collect();
+        assert_eq!(tokens.len(), 2);
+        assert!(tokens.contains(&Address::with_last_byte(1).to_string().as_str()));
+        assert!(tokens.contains(&Address::with_last_byte(2).to_string().as_str()));
+
+        let edges = v["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 4);
+        for edge in edges {
+            assert_eq!(edge["platform"], "uniswap-v2");
+            assert!(edge["pool"].is_string());
+            assert!(edge["from"].is_string());
+            assert!(edge["to"].is_string());
+            assert!(edge["i"].is_u64());
+            assert!(edge["j"].is_u64());
+            assert!(edge.get("mid_price").is_none());
+            assert!(edge.get("reserve").is_none());
+        }
+
+        // Read-only: a quote still works after inspecting the graph.
+        let resp = app
+            .oneshot(post_body(json!({
+                "token_in": Address::with_last_byte(1).to_string(),
+                "token_out": Address::with_last_byte(2).to_string(),
+                "amount_in": "100"
+            })))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn graph_endpoint_includes_prices_from_snapshot() {
+        let state = mock_state();
+        let snapshot = PriceSnapshot::build(&state.graph, state.source.as_ref()).await;
+        state.router.set_snapshot(Arc::new(snapshot));
+        let app = app(state);
+
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .uri("/graph")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+
+        let edges = v["edges"].as_array().unwrap();
+        assert_eq!(edges.len(), 4);
+        for edge in edges {
+            let mid_price = edge["mid_price"].as_f64().unwrap();
+            assert!(mid_price.is_finite() && mid_price > 0.0);
+            let reserve: u128 = edge["reserve"].as_str().unwrap().parse().unwrap();
+            assert!(reserve > 0);
+        }
     }
 
     #[tokio::test]
