@@ -44,6 +44,11 @@ impl Graph {
         }
     }
 
+    /// Unique tokens in insertion order, for read-only graph inspection.
+    pub fn tokens(&self) -> &[Address] {
+        &self.token_addrs
+    }
+
     pub fn out_edge_indices(&self, token: Address) -> &[usize] {
         match self
             .tokens
