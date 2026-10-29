@@ -140,7 +140,8 @@ strips the `/api` prefix, so the browser stays same-origin and the service needs
 - The platform legend doubles as a filter and shows each platform's edge count.
 - Hover shows full address, pool, platform, `mid_price`, `reserve`; click a node/edge for a detail
   panel with an Etherscan link.
-- Pick From/To by clicking nodes or typing addresses; amount defaults to `1` raw unit. `POST /quote`
+- Pick From/To by clicking nodes or typing addresses; the amount defaults to **one whole token**
+  (raw units derived from the token's decimals) and can be edited to any raw value. `POST /quote`
   highlights the best route, dims the rest, and shows `amount_out`, `price_impact_bps` and per-hop
   details.
 - Periodic refresh (default 5s, configurable) updates data in place, preserving node positions,

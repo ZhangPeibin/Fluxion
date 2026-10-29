@@ -136,7 +136,8 @@ npm run dev
   回退为短地址），边标注平台 + pool（默认关闭，可在侧栏打开），平行边按方向和序号弯折区分。
 - 平台图例兼作筛选器，并显示各平台边数。
 - 悬停显示完整地址、pool、platform、`mid_price`、`reserve`；点击节点/边打开详情面板（含 Etherscan 链接）。
-- From/To 可点击节点或直接输入地址，金额默认 `1` raw unit；调用 `POST /quote` 后高亮最优路由、
+- From/To 可点击节点或直接输入地址，金额默认填入 **1 个整 token**（按 token decimals 换算为 raw units，
+  也可手动改成任意 raw 数值）；调用 `POST /quote` 后高亮最优路由、
   其余边淡出，并显示 `amount_out`、`price_impact_bps` 与逐跳明细。
 - 定时刷新（默认 5s，可调）；增量更新数据，保留节点位置、选择与路由高亮。
 

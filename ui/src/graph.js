@@ -33,6 +33,12 @@ const TOKEN_SYMBOLS = {
   "0x5a98fcbea516cf06857215779fd812ca3bef1b32": "LDO",
 };
 
+const TOKEN_DECIMALS = {
+  "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": 8,
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": 6,
+  "0xdac17f958d2ee523a2206206994597c13d831ec7": 6,
+};
+
 const DEFAULT_NODE_COLOR = { background: "#58a6ff", border: "#1f6feb" };
 const SOURCE_NODE_COLOR = { background: "#2ea043", border: "#3fb950" };
 const TARGET_NODE_COLOR = { background: "#da3633", border: "#f85149" };
@@ -42,6 +48,21 @@ export function tokenSymbol(address) {
     return null;
   }
   return TOKEN_SYMBOLS[address.toLowerCase()] ?? null;
+}
+
+export function tokenDecimals(address) {
+  if (typeof address !== "string") {
+    return 18;
+  }
+  return TOKEN_DECIMALS[address.toLowerCase()] ?? 18;
+}
+
+/** Raw-unit amount for one whole token (the UI's default input). */
+export function defaultAmountForToken(address) {
+  if (typeof address !== "string" || address.trim() === "") {
+    return "";
+  }
+  return (10n ** BigInt(tokenDecimals(address))).toString();
 }
 
 export function tokenLabel(address) {
