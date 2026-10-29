@@ -134,8 +134,9 @@ npm run dev
 Open <http://localhost:5173>. The Vite dev server proxies `/api` to `http://localhost:8080` and
 strips the `/api` prefix, so the browser stays same-origin and the service needs no CORS.
 
-- Renders every token (node) and directed pool hop (edge); edges are labelled with platform + pool,
-  and parallel edges are separated by direction and index.
+- Renders every token (node) and directed pool hop (edge); nodes prefer known token symbols
+  (USDC/WETH/…, unknown tokens fall back to short addresses). Edge labels (platform + pool) are off
+  by default and can be enabled in the sidebar; parallel edges are separated by direction and index.
 - The platform legend doubles as a filter and shows each platform's edge count.
 - Hover shows full address, pool, platform, `mid_price`, `reserve`; click a node/edge for a detail
   panel with an Etherscan link.
@@ -145,8 +146,10 @@ strips the `/api` prefix, so the browser stays same-origin and the service needs
 - Periodic refresh (default 5s, configurable) updates data in place, preserving node positions,
   selection and route highlight.
 
-> Production packaging is deferred: v1 supports the two-process dev setup above only. `npm run build`
-> emits static assets, but the service does not serve or deploy them yet.
+> Node symbols come from the built-in mainnet token table in `ui/src/graph.js` (covering the default
+> allowlist); add entries there for custom tokens. Production packaging is deferred: v1 supports the
+> two-process dev setup above only. `npm run build` emits static assets, but the service does not
+> serve or deploy them yet.
 
 ## Architecture
 
