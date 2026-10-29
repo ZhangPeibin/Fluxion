@@ -39,6 +39,7 @@ export function edgeKey(pool, i, j) {
 
 function edgeTooltip(edge) {
   return [
+    `${shortAddress(edge.from)} → ${shortAddress(edge.to)}`,
     `pool ${edge.pool}`,
     `platform ${edge.platform}`,
     edge.mid_price === undefined ? null : `mid price ${edge.mid_price}`,
@@ -103,6 +104,11 @@ export function syncGraphData(nodes, edges, graph, options = {}) {
   }
   const sourceId = typeof tokenIn === "string" ? tokenIn.toLowerCase() : null;
   const targetId = typeof tokenOut === "string" ? tokenOut.toLowerCase() : null;
+  const degrees = new Map();
+  for (const edge of graph.edges ?? []) {
+    degrees.set(edge.from, (degrees.get(edge.from) ?? 0) + 1);
+    degrees.set(edge.to, (degrees.get(edge.to) ?? 0) + 1);
+  }
   for (const token of tokenIds) {
     const tokenId = token.toLowerCase();
     let color = DEFAULT_NODE_COLOR;
@@ -111,7 +117,12 @@ export function syncGraphData(nodes, edges, graph, options = {}) {
     } else if (targetId && tokenId === targetId) {
       color = TARGET_NODE_COLOR;
     }
-    nodes.update({ id: token, label: shortAddress(token), title: token, color });
+    nodes.update({
+      id: token,
+      label: shortAddress(token),
+      title: `${token}\n${degrees.get(token) ?? 0} directed edges`,
+      color,
+    });
   }
 
   const edgeIds = new Set();

@@ -9,6 +9,7 @@ const INITIAL_ENABLED = Object.fromEntries(ALL_PLATFORMS.map((platform) => [plat
 
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const AMOUNT_PATTERN = /^\d+$/;
+const ETHERSCAN_ADDRESS = "https://etherscan.io/address/";
 
 const NETWORK_OPTIONS = {
   nodes: {
@@ -29,11 +30,20 @@ const NETWORK_OPTIONS = {
   interaction: { hover: true, tooltipDelay: 120 },
 };
 
-function GraphCanvas({ graph, enabledPlatforms, tokenIn, tokenOut, routeEdgeIds, onNodeClick }) {
+function GraphCanvas({
+  graph,
+  enabledPlatforms,
+  tokenIn,
+  tokenOut,
+  routeEdgeIds,
+  onNodeClick,
+  onEdgeClick,
+}) {
   const containerRef = useRef(null);
   const nodesRef = useRef(null);
   const edgesRef = useRef(null);
   const onNodeClickRef = useRef(onNodeClick);
+  const onEdgeClickRef = useRef(onEdgeClick);
 
   if (!nodesRef.current) {
     nodesRef.current = new DataSet();
@@ -44,6 +54,7 @@ function GraphCanvas({ graph, enabledPlatforms, tokenIn, tokenOut, routeEdgeIds,
 
   useEffect(() => {
     onNodeClickRef.current = onNodeClick;
+    onEdgeClickRef.current = onEdgeClick;
   });
 
   useEffect(() => {
@@ -55,6 +66,8 @@ function GraphCanvas({ graph, enabledPlatforms, tokenIn, tokenOut, routeEdgeIds,
     network.on("click", (params) => {
       if (params.nodes.length === 1) {
         onNodeClickRef.current?.(params.nodes[0]);
+      } else if (params.edges.length === 1) {
+        onEdgeClickRef.current?.(params.edges[0]);
       }
     });
     // The topology is static at runtime; freezing physics after the initial
@@ -91,11 +104,37 @@ export default function App() {
   const [quote, setQuote] = useState(null);
   const [quoteError, setQuoteError] = useState(null);
   const [quoting, setQuoting] = useState(false);
+  const [details, setDetails] = useState(null);
 
   const enabledPlatforms = useMemo(
     () => new Set(ALL_PLATFORMS.filter((platform) => enabled[platform])),
     [enabled],
   );
+
+  const platformCounts = useMemo(() => {
+    const counts = Object.fromEntries(ALL_PLATFORMS.map((platform) => [platform, 0]));
+    for (const edge of graph?.edges ?? []) {
+      counts[edge.platform] = (counts[edge.platform] ?? 0) + 1;
+    }
+    return counts;
+  }, [graph]);
+
+  const edgesById = useMemo(() => {
+    const index = new Map();
+    for (const edge of graph?.edges ?? []) {
+      index.set(edgeKey(edge.pool, edge.i, edge.j), edge);
+    }
+    return index;
+  }, [graph]);
+
+  const nodeDegrees = useMemo(() => {
+    const degrees = new Map();
+    for (const edge of graph?.edges ?? []) {
+      degrees.set(edge.from, (degrees.get(edge.from) ?? 0) + 1);
+      degrees.set(edge.to, (degrees.get(edge.to) ?? 0) + 1);
+    }
+    return degrees;
+  }, [graph]);
 
   const routeEdgeIds = useMemo(
     () => new Set((quote?.path ?? []).map((hop) => edgeKey(hop.pool, hop.i, hop.j))),
@@ -211,6 +250,7 @@ export default function App() {
   }
 
   function handleNodeClick(token) {
+    setDetails({ kind: "node", address: token });
     if (activeField === "in") {
       setTokenIn(token);
       if (!tokenOut) {
@@ -221,8 +261,13 @@ export default function App() {
     }
   }
 
+  function handleEdgeClick(edgeId) {
+    setDetails({ kind: "edge", id: edgeId });
+  }
+
   const tokenCount = graph?.tokens?.length ?? 0;
   const edgeCount = graph?.edges?.length ?? 0;
+  const selectedEdge = details?.kind === "edge" ? edgesById.get(details.id) : null;
 
   return (
     <div className="app">
@@ -331,6 +376,93 @@ export default function App() {
           )}
         </div>
 
+        {details && (
+          <div className="details">
+            <div className="details-header">
+              <h2>{details.kind === "node" ? "Token details" : "Edge details"}</h2>
+              <button
+                type="button"
+                className="close"
+                onClick={() => setDetails(null)}
+                aria-label="Close details"
+              >
+                ×
+              </button>
+            </div>
+            {details.kind === "node" ? (
+              <dl className="details-list">
+                <div>
+                  <dt>Address</dt>
+                  <dd className="mono">{details.address}</dd>
+                </div>
+                <div>
+                  <dt>Directed edges</dt>
+                  <dd>{nodeDegrees.get(details.address) ?? 0}</dd>
+                </div>
+                <div>
+                  <dt>Explorer</dt>
+                  <dd>
+                    <a
+                      href={`${ETHERSCAN_ADDRESS}${details.address}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Etherscan
+                    </a>
+                  </dd>
+                </div>
+              </dl>
+            ) : selectedEdge ? (
+              <dl className="details-list">
+                <div>
+                  <dt>From</dt>
+                  <dd className="mono">{selectedEdge.from}</dd>
+                </div>
+                <div>
+                  <dt>To</dt>
+                  <dd className="mono">{selectedEdge.to}</dd>
+                </div>
+                <div>
+                  <dt>Platform</dt>
+                  <dd>{selectedEdge.platform}</dd>
+                </div>
+                <div>
+                  <dt>Pool</dt>
+                  <dd className="mono">{selectedEdge.pool}</dd>
+                </div>
+                <div>
+                  <dt>Coin indices</dt>
+                  <dd>
+                    {selectedEdge.i} → {selectedEdge.j}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Mid price</dt>
+                  <dd>{selectedEdge.mid_price ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>Reserve</dt>
+                  <dd className="mono">{selectedEdge.reserve ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>Explorer</dt>
+                  <dd>
+                    <a
+                      href={`${ETHERSCAN_ADDRESS}${selectedEdge.pool}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Etherscan
+                    </a>
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="status">This edge is no longer in the graph.</p>
+            )}
+          </div>
+        )}
+
         <div className="legend">
           <h2>Platforms</h2>
           {ALL_PLATFORMS.map((platform) => (
@@ -342,6 +474,7 @@ export default function App() {
               />
               <span className="swatch" style={{ background: PLATFORM_COLORS[platform] }} />
               <span>{PLATFORM_LABELS[platform] ?? platform}</span>
+              <span className="legend-count">{platformCounts[platform] ?? 0}</span>
             </label>
           ))}
         </div>
@@ -353,6 +486,7 @@ export default function App() {
         tokenOut={tokenOut}
         routeEdgeIds={routeEdgeIds}
         onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
       />
     </div>
   );
