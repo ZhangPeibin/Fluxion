@@ -137,7 +137,8 @@ strips the `/api` prefix, so the browser stays same-origin and the service needs
 - Renders every token (node) and directed pool hop (edge); nodes prefer known token symbols
   (USDC/WETH/…, unknown tokens fall back to short addresses). Edge labels (platform + pool) are off
   by default and can be enabled in the sidebar; parallel edges are separated by direction and index.
-- The platform legend doubles as a filter and shows each platform's edge count.
+- The platform legend doubles as a filter and shows each platform's edge count; there is also a
+  token search (dims unrelated nodes/edges) and a minimum-liquidity (raw reserve) filter.
 - Hover shows full address, pool, platform, `mid_price`, `reserve`; click a node/edge for a detail
   panel with an Etherscan link.
 - Pick From/To by clicking nodes or typing addresses; the amount defaults to **one whole token**
@@ -211,8 +212,8 @@ ui/              standalone web viewer (React + Vite + vis-network; read-only /g
   all incl. factory/metapool, slower), each `pool_count() → pool_list(i) → coins(i)`, validating
   each pool with one `get_dy` probe.
 - **Filtering**: `min_liquidity`, `min_volume_24h`, `min_pool_age_days`; plus a **default
-  major-token allowlist** (V2/V3 require both coins; Curve requires all coins). Override via
-  `token_allowlist`.
+  major-token allowlist (~50 tokens)** (V2/V3 require both coins; Curve requires all coins).
+  Override via `token_allowlist`.
 - `max_pools` caps per-platform pool count to bound graph size and RPC cost.
 
 ## Routing algorithm

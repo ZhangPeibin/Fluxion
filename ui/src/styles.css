@@ -114,6 +114,10 @@ body {
   margin-top: 24px;
 }
 
+.filters {
+  margin-top: 24px;
+}
+
 .field {
   display: flex;
   flex-direction: column;

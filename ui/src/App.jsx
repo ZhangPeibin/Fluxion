@@ -49,6 +49,8 @@ function GraphCanvas({
   tokenOut,
   routeEdgeIds,
   showEdgeLabels,
+  searchQuery,
+  minLiquidity,
   onNodeClick,
   onEdgeClick,
 }) {
@@ -98,8 +100,19 @@ function GraphCanvas({
       tokenOut,
       routeEdgeIds,
       showEdgeLabels,
+      searchQuery,
+      minLiquidity,
     });
-  }, [graph, enabledPlatforms, tokenIn, tokenOut, routeEdgeIds, showEdgeLabels]);
+  }, [
+    graph,
+    enabledPlatforms,
+    tokenIn,
+    tokenOut,
+    routeEdgeIds,
+    showEdgeLabels,
+    searchQuery,
+    minLiquidity,
+  ]);
 
   return <div className="canvas" ref={containerRef} />;
 }
@@ -111,6 +124,8 @@ export default function App() {
   const [refreshSeconds, setRefreshSeconds] = useState(DEFAULT_REFRESH_SECONDS);
   const [enabled, setEnabled] = useState(INITIAL_ENABLED);
   const [showEdgeLabels, setShowEdgeLabels] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [minLiquidity, setMinLiquidity] = useState("");
 
   const [tokenIn, setTokenIn] = useState("");
   const [tokenOut, setTokenOut] = useState("");
@@ -405,6 +420,35 @@ export default function App() {
           )}
         </div>
 
+        <div className="filters">
+          <h2>Filters</h2>
+          <label className="field">
+            <span>Token search</span>
+            <input
+              className="route-input"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="symbol or 0x… address"
+              spellCheck={false}
+            />
+          </label>
+          <label className="field">
+            <span>Min liquidity (raw reserve)</span>
+            <input
+              className="route-input"
+              value={minLiquidity}
+              onChange={(event) => setMinLiquidity(event.target.value)}
+              placeholder="0 = show all"
+              inputMode="numeric"
+              spellCheck={false}
+            />
+          </label>
+          <p className="hint">
+            Search dims tokens that do not match. Min reserve hides thinner V2/Curve edges (V3
+            reports max reserve).
+          </p>
+        </div>
+
         {details && (
           <div className="details">
             <div className="details-header">
@@ -531,6 +575,8 @@ export default function App() {
         tokenOut={tokenOut}
         routeEdgeIds={routeEdgeIds}
         showEdgeLabels={showEdgeLabels}
+        searchQuery={searchQuery}
+        minLiquidity={minLiquidity}
         onNodeClick={handleNodeClick}
         onEdgeClick={handleEdgeClick}
       />
