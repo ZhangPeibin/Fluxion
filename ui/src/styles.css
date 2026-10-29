@@ -187,6 +187,83 @@ body {
   color: #8b949e;
 }
 
+.legend-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: #8b949e;
+}
+
+.details {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #21262d;
+}
+
+.details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.details-header h2 {
+  margin: 0;
+}
+
+.close {
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: #8b949e;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: #e6edf3;
+}
+
+.details-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.details-list div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.details-list dt {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8b949e;
+}
+
+.details-list dd {
+  margin: 0;
+  font-size: 12px;
+  color: #c9d1d9;
+  word-break: break-all;
+}
+
+.details-list .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.details-list a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+
+.details-list a:hover {
+  text-decoration: underline;
+}
+
 .swatch {
   width: 12px;
   height: 12px;
