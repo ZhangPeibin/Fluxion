@@ -79,6 +79,33 @@ Response (`200`):
 }
 ```
 
+### `GET /graph`
+
+Read-only export of the current routing multigraph for the web viewer and other tools:
+
+```json
+{
+  "tokens": ["0xA0b8...", "0xC02a..."],
+  "edges": [
+    {
+      "from": "0xC02a...",
+      "to": "0xA0b8...",
+      "platform": "uniswap-v3",
+      "pool": "0xE055...",
+      "i": 1,
+      "j": 0,
+      "mid_price": 2318.7,
+      "reserve": "1234567890123456789"
+    }
+  ]
+}
+```
+
+- Each edge is a **directed pool hop**; `i` / `j` are the coin indices inside the pool.
+- `mid_price` / `reserve` come from the current price snapshot; when no snapshot (or no value for
+  that edge) is available those fields are **omitted** rather than erroring.
+- Read-only: it never rebuilds a snapshot, never consumes the rate limit, and does not affect `/quote`.
+
 ### `GET /health` / `GET /ready`
 
 - `/health`: process liveness.
@@ -88,6 +115,38 @@ Response (`200`):
 
 `QuoteError` → HTTP status: `NoPathFound`(404), `AmountOutBelowMin`/`InsufficientLiquidity`/
 `Overflow`(422), `ZeroAmount`(400), `PoolNotFound`(404), `RpcError`(502), rate-limited(429).
+
+## Graph viewer (web)
+
+`ui/` is a standalone React + Vite + vis-network frontend that polls `GET /graph` read-only to
+render the whole multigraph and preview routes.
+
+```bash
+# terminal 1: service (default :8080)
+cargo run
+
+# terminal 2: frontend (default :5173); install deps once
+cd ui
+npm install
+npm run dev
+```
+
+Open <http://localhost:5173>. The Vite dev server proxies `/api` to `http://localhost:8080` and
+strips the `/api` prefix, so the browser stays same-origin and the service needs no CORS.
+
+- Renders every token (node) and directed pool hop (edge); edges are labelled with platform + pool,
+  and parallel edges are separated by direction and index.
+- The platform legend doubles as a filter and shows each platform's edge count.
+- Hover shows full address, pool, platform, `mid_price`, `reserve`; click a node/edge for a detail
+  panel with an Etherscan link.
+- Pick From/To by clicking nodes or typing addresses; amount defaults to `1` raw unit. `POST /quote`
+  highlights the best route, dims the rest, and shows `amount_out`, `price_impact_bps` and per-hop
+  details.
+- Periodic refresh (default 5s, configurable) updates data in place, preserving node positions,
+  selection and route highlight.
+
+> Production packaging is deferred: v1 supports the two-process dev setup above only. `npm run build`
+> emits static assets, but the service does not serve or deploy them yet.
 
 ## Architecture
 
@@ -121,10 +180,12 @@ src/
   state.rs       StateCache: V2 reserve TTL cache + Multicall3 hot-pool refresh
   rpc.rs         raw JSON-RPC client (429/transient retry with backoff)
   router.rs      K-best DP coarse + parallel refine + price impact
-  api.rs         axum (/quote, /health, /ready), error mapping, rate limiting
+  api.rs         axum (/quote, /graph, /health, /ready), error mapping, rate limiting
   config.rs      YAML config
   util.rs        ABI encoding, hex, numeric conversion
   main.rs        entry: discover → build graph → warm snapshot → serve
+
+ui/              standalone web viewer (React + Vite + vis-network; read-only /graph + /quote)
 ```
 
 ## Data model
@@ -188,6 +249,8 @@ src/
 ```bash
 cargo test                       # unit tests (offline)
 cargo test -- --ignored          # real mainnet integration tests (read-only eth_call)
+
+cd ui && npm install && npm run build   # frontend build
 ```
 
 - Unit: mock `QuoteSource` multigraph, routing optimality, negative-weight/simple-path, encoding stability.

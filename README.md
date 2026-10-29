@@ -78,6 +78,32 @@ curl -s -X POST localhost:8080/quote \
 }
 ```
 
+### `GET /graph`
+
+只读地导出当前路由多重图，供 Web viewer 等外部工具使用：
+
+```json
+{
+  "tokens": ["0xA0b8...", "0xC02a..."],
+  "edges": [
+    {
+      "from": "0xC02a...",
+      "to": "0xA0b8...",
+      "platform": "uniswap-v3",
+      "pool": "0xE055...",
+      "i": 1,
+      "j": 0,
+      "mid_price": 2318.7,
+      "reserve": "1234567890123456789"
+    }
+  ]
+}
+```
+
+- 每条边是一个**有向池跳**；`i` / `j` 是池内币索引。
+- `mid_price` / `reserve` 来自当前价格快照；没有快照或该边数据不可用时**省略这两个字段**（不报错）。
+- 只读：不触发新快照、不消耗限流额度，也不影响 `/quote`。
+
 ### `GET /health` / `GET /ready`
 
 - `/health`：进程存活。
@@ -87,6 +113,33 @@ curl -s -X POST localhost:8080/quote \
 
 `QuoteError` → HTTP 状态：`NoPathFound`(404)、`AmountOutBelowMin`/`InsufficientLiquidity`/
 `Overflow`(422)、`ZeroAmount`(400)、`PoolNotFound`(404)、`RpcError`(502)、限流(429)。
+
+## 图可视化（Web viewer）
+
+`ui/` 是一个独立的 React + Vite + vis-network 前端，只读地轮询 `GET /graph` 查看整张多重图，
+并可试算路由。
+
+```bash
+# 终端 1：服务（默认 :8080）
+cargo run
+
+# 终端 2：前端（默认 :5173）；首次需安装依赖
+cd ui
+npm install
+npm run dev
+```
+
+打开 <http://localhost:5173>。Vite dev server 把 `/api` 代理到 `http://localhost:8080` 并去掉
+`/api` 前缀，浏览器保持同源，服务端无需 CORS。
+
+- 渲染全部 token（节点）与有向池跳（边）；边标注平台 + pool，平行边按方向和序号弯折区分。
+- 平台图例兼作筛选器，并显示各平台边数。
+- 悬停显示完整地址、pool、platform、`mid_price`、`reserve`；点击节点/边打开详情面板（含 Etherscan 链接）。
+- From/To 可点击节点或直接输入地址，金额默认 `1` raw unit；调用 `POST /quote` 后高亮最优路由、
+  其余边淡出，并显示 `amount_out`、`price_impact_bps` 与逐跳明细。
+- 定时刷新（默认 5s，可调）；增量更新数据，保留节点位置、选择与路由高亮。
+
+> 生产打包暂缓：v1 只支持上述双进程开发模式。`npm run build` 会产出静态资源，但尚未由服务托管或部署。
 
 ## 架构
 
@@ -119,10 +172,12 @@ src/
   state.rs       StateCache：V2 储备 TTL 缓存 + Multicall3 热池刷新
   rpc.rs         原始 JSON-RPC 客户端（含 429/瞬时错误重试退避）
   router.rs      K-best DP 粗选 + 并行精算 + 价格冲击
-  api.rs         axum（/quote、/health、/ready）、错误映射、限流
+  api.rs         axum（/quote、/graph、/health、/ready）、错误映射、限流
   config.rs      YAML 配置
   util.rs        ABI 编码、hex、数值转换
   main.rs        入口：发现 → 建图 → 预热 → 服务
+
+ui/              独立 Web viewer（React + Vite + vis-network；只读 /graph + /quote）
 ```
 
 ## 数据模型
@@ -184,6 +239,8 @@ src/
 ```bash
 cargo test                       # 单元测试（离线）
 cargo test -- --ignored          # 真实主网集成测试（只读 eth_call）
+
+cd ui && npm install && npm run build   # 前端构建
 ```
 
 - 单元：mock `QuoteSource` 的多重图、路由择优、负权/简单路径、编码稳定性。
