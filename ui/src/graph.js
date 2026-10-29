@@ -14,6 +14,10 @@ export const PLATFORM_LABELS = {
 
 const FALLBACK_COLOR = "#8b949e";
 
+const DEFAULT_NODE_COLOR = { background: "#58a6ff", border: "#1f6feb" };
+const SOURCE_NODE_COLOR = { background: "#2ea043", border: "#3fb950" };
+const TARGET_NODE_COLOR = { background: "#da3633", border: "#f85149" };
+
 export function shortAddress(address) {
   if (typeof address !== "string" || address.length < 12) {
     return String(address);
@@ -22,7 +26,15 @@ export function shortAddress(address) {
 }
 
 function edgeId(edge) {
-  return `${edge.pool}:${edge.i}:${edge.j}`;
+  return edgeKey(edge.pool, edge.i, edge.j);
+}
+
+/**
+ * Stable identity for a directed pool hop, shared by graph edges and quote
+ * hops so the best route can be matched back onto the drawn edges.
+ */
+export function edgeKey(pool, i, j) {
+  return `${String(pool).toLowerCase()}:${i}:${j}`;
 }
 
 function edgeTooltip(edge) {
@@ -73,8 +85,13 @@ function validPrice(edge) {
  * rebuilding the network. Edges keep the platform colour and are weighted by
  * liquidity (width); opacity encodes mid-price competitiveness within the same
  * direction. Edges are hidden when their platform is filtered out.
+ *
+ * When `routeEdgeIds` is a non-empty set (the best route from `/quote`), those
+ * hops are emphasised and every other edge is dimmed. Source/target tokens are
+ * recoloured to show the selection.
  */
-export function syncGraphData(nodes, edges, graph, enabledPlatforms) {
+export function syncGraphData(nodes, edges, graph, options = {}) {
+  const { enabledPlatforms, tokenIn, tokenOut, routeEdgeIds } = options;
   if (!graph) {
     return;
   }
@@ -84,8 +101,17 @@ export function syncGraphData(nodes, edges, graph, enabledPlatforms) {
   if (staleNodes.length > 0) {
     nodes.remove(staleNodes);
   }
+  const sourceId = typeof tokenIn === "string" ? tokenIn.toLowerCase() : null;
+  const targetId = typeof tokenOut === "string" ? tokenOut.toLowerCase() : null;
   for (const token of tokenIds) {
-    nodes.update({ id: token, label: shortAddress(token), title: token });
+    const tokenId = token.toLowerCase();
+    let color = DEFAULT_NODE_COLOR;
+    if (sourceId && tokenId === sourceId) {
+      color = SOURCE_NODE_COLOR;
+    } else if (targetId && tokenId === targetId) {
+      color = TARGET_NODE_COLOR;
+    }
+    nodes.update({ id: token, label: shortAddress(token), title: token, color });
   }
 
   const edgeIds = new Set();
@@ -115,9 +141,26 @@ export function syncGraphData(nodes, edges, graph, enabledPlatforms) {
     const price = validPrice(edge);
     const bestPrice = bestPrices.get(key) ?? 0;
     const priceRatio = price !== null && bestPrice > 0 ? Math.min(1, price / bestPrice) : null;
-    const alpha = priceRatio === null ? 1 : 0.4 + 0.6 * priceRatio;
-    const color = hexToRgba(platformColor, alpha);
     const reverse = edge.from > edge.to;
+
+    const hasRoute = routeEdgeIds instanceof Set && routeEdgeIds.size > 0;
+    const highlighted = hasRoute && routeEdgeIds.has(id);
+    const dimmed = hasRoute && !highlighted;
+
+    let width = liquidityWidth(edge.reserve);
+    let alpha = priceRatio === null ? 1 : 0.4 + 0.6 * priceRatio;
+    let fontColor = platformColor;
+    let shadow = { enabled: false };
+    if (highlighted) {
+      width = Math.max(4, width + 1.5);
+      alpha = 1;
+      shadow = { enabled: true, color: platformColor, size: 8 };
+    } else if (dimmed) {
+      width = Math.max(0.5, width * 0.5);
+      alpha = 0.12;
+      fontColor = "rgba(230, 237, 243, 0.2)";
+    }
+    const color = hexToRgba(platformColor, alpha);
 
     edges.update({
       id,
@@ -126,8 +169,9 @@ export function syncGraphData(nodes, edges, graph, enabledPlatforms) {
       label: `${edge.platform} ${shortAddress(edge.pool)}`,
       title: edgeTooltip(edge),
       color: { color, highlight: platformColor, hover: platformColor },
-      font: { color: platformColor },
-      width: liquidityWidth(edge.reserve),
+      font: { color: fontColor },
+      width,
+      shadow,
       hidden: enabledPlatforms ? !enabledPlatforms.has(edge.platform) : false,
       smooth: {
         enabled: true,

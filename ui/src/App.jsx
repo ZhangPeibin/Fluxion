@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DataSet, Network } from "vis-network/standalone";
 
-import { PLATFORM_COLORS, PLATFORM_LABELS, syncGraphData } from "./graph.js";
+import { PLATFORM_COLORS, PLATFORM_LABELS, edgeKey, shortAddress, syncGraphData } from "./graph.js";
 
 const DEFAULT_REFRESH_SECONDS = 5;
 const ALL_PLATFORMS = Object.keys(PLATFORM_COLORS);
 const INITIAL_ENABLED = Object.fromEntries(ALL_PLATFORMS.map((platform) => [platform, true]));
+
+const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
+const AMOUNT_PATTERN = /^\d+$/;
 
 const NETWORK_OPTIONS = {
   nodes: {
@@ -26,10 +29,11 @@ const NETWORK_OPTIONS = {
   interaction: { hover: true, tooltipDelay: 120 },
 };
 
-function GraphCanvas({ graph, enabledPlatforms }) {
+function GraphCanvas({ graph, enabledPlatforms, tokenIn, tokenOut, routeEdgeIds, onNodeClick }) {
   const containerRef = useRef(null);
   const nodesRef = useRef(null);
   const edgesRef = useRef(null);
+  const onNodeClickRef = useRef(onNodeClick);
 
   if (!nodesRef.current) {
     nodesRef.current = new DataSet();
@@ -39,11 +43,20 @@ function GraphCanvas({ graph, enabledPlatforms }) {
   }
 
   useEffect(() => {
+    onNodeClickRef.current = onNodeClick;
+  });
+
+  useEffect(() => {
     const network = new Network(
       containerRef.current,
       { nodes: nodesRef.current, edges: edgesRef.current },
       NETWORK_OPTIONS,
     );
+    network.on("click", (params) => {
+      if (params.nodes.length === 1) {
+        onNodeClickRef.current?.(params.nodes[0]);
+      }
+    });
     // The topology is static at runtime; freezing physics after the initial
     // layout keeps node positions (and the camera) stable across refreshes.
     network.once("stabilizationIterationsDone", () => {
@@ -53,8 +66,13 @@ function GraphCanvas({ graph, enabledPlatforms }) {
   }, []);
 
   useEffect(() => {
-    syncGraphData(nodesRef.current, edgesRef.current, graph, enabledPlatforms);
-  }, [graph, enabledPlatforms]);
+    syncGraphData(nodesRef.current, edgesRef.current, graph, {
+      enabledPlatforms,
+      tokenIn,
+      tokenOut,
+      routeEdgeIds,
+    });
+  }, [graph, enabledPlatforms, tokenIn, tokenOut, routeEdgeIds]);
 
   return <div className="canvas" ref={containerRef} />;
 }
@@ -66,9 +84,22 @@ export default function App() {
   const [refreshSeconds, setRefreshSeconds] = useState(DEFAULT_REFRESH_SECONDS);
   const [enabled, setEnabled] = useState(INITIAL_ENABLED);
 
+  const [tokenIn, setTokenIn] = useState("");
+  const [tokenOut, setTokenOut] = useState("");
+  const [activeField, setActiveField] = useState("in");
+  const [amount, setAmount] = useState("1");
+  const [quote, setQuote] = useState(null);
+  const [quoteError, setQuoteError] = useState(null);
+  const [quoting, setQuoting] = useState(false);
+
   const enabledPlatforms = useMemo(
     () => new Set(ALL_PLATFORMS.filter((platform) => enabled[platform])),
     [enabled],
+  );
+
+  const routeEdgeIds = useMemo(
+    () => new Set((quote?.path ?? []).map((hop) => edgeKey(hop.pool, hop.i, hop.j))),
+    [quote],
   );
 
   useEffect(() => {
@@ -111,6 +142,63 @@ export default function App() {
     };
   }, [refreshSeconds]);
 
+  const trimmedIn = tokenIn.trim();
+  const trimmedOut = tokenOut.trim();
+  const trimmedAmount = amount.trim();
+
+  useEffect(() => {
+    if (
+      !ADDRESS_PATTERN.test(trimmedIn) ||
+      !ADDRESS_PATTERN.test(trimmedOut) ||
+      !AMOUNT_PATTERN.test(trimmedAmount)
+    ) {
+      setQuote(null);
+      setQuoteError(null);
+      setQuoting(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setQuoting(true);
+      try {
+        const response = await fetch("/api/quote", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            token_in: trimmedIn,
+            token_out: trimmedOut,
+            amount_in: trimmedAmount,
+          }),
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          const detail =
+            payload?.message ?? payload?.error ?? `${response.status} ${response.statusText}`;
+          throw new Error(detail);
+        }
+        setQuote(payload);
+        setQuoteError(null);
+      } catch (err) {
+        if (err.name === "AbortError") {
+          return;
+        }
+        setQuote(null);
+        setQuoteError(err.message);
+      } finally {
+        if (!controller.signal.aborted) {
+          setQuoting(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [trimmedIn, trimmedOut, trimmedAmount]);
+
   function togglePlatform(platform) {
     setEnabled((current) => ({ ...current, [platform]: !current[platform] }));
   }
@@ -119,6 +207,17 @@ export default function App() {
     const next = Number(event.target.value);
     if (Number.isInteger(next) && next >= 1) {
       setRefreshSeconds(Math.min(next, 3600));
+    }
+  }
+
+  function handleNodeClick(token) {
+    if (activeField === "in") {
+      setTokenIn(token);
+      if (!tokenOut) {
+        setActiveField("out");
+      }
+    } else {
+      setTokenOut(token);
     }
   }
 
@@ -161,6 +260,77 @@ export default function App() {
           </span>
         </label>
 
+        <div className="route">
+          <h2>Route</h2>
+          <label className="field">
+            <span>From</span>
+            <input
+              className="route-input"
+              value={tokenIn}
+              onChange={(event) => setTokenIn(event.target.value)}
+              onFocus={() => setActiveField("in")}
+              placeholder="0x… token address"
+              spellCheck={false}
+            />
+          </label>
+          <label className="field">
+            <span>To</span>
+            <input
+              className="route-input"
+              value={tokenOut}
+              onChange={(event) => setTokenOut(event.target.value)}
+              onFocus={() => setActiveField("out")}
+              placeholder="0x… token address"
+              spellCheck={false}
+            />
+          </label>
+          <label className="field">
+            <span>Amount (raw units)</span>
+            <input
+              className="route-input"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              placeholder="1"
+              inputMode="numeric"
+              spellCheck={false}
+            />
+          </label>
+          <p className="hint">Click a node to fill the focused field.</p>
+
+          {quoting && <p className="status">Quoting…</p>}
+          {quoteError && <p className="error">Quote failed: {quoteError}</p>}
+          {quote && (
+            <div className="route-result">
+              <dl className="quote-metrics">
+                <div>
+                  <dt>Amount out</dt>
+                  <dd>{quote.amount_out}</dd>
+                </div>
+                <div>
+                  <dt>Price impact</dt>
+                  <dd>{quote.price_impact_bps} bps</dd>
+                </div>
+              </dl>
+              {quote.path.length === 0 ? (
+                <p className="status">Input and output are the same token.</p>
+              ) : (
+                <ol className="hops">
+                  {quote.path.map((hop) => (
+                    <li key={edgeKey(hop.pool, hop.i, hop.j)}>
+                      <span className="hop-tokens">
+                        {shortAddress(hop.token_in)} → {shortAddress(hop.token_out)}
+                      </span>
+                      <span className="hop-meta">
+                        {hop.platform} · {shortAddress(hop.pool)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="legend">
           <h2>Platforms</h2>
           {ALL_PLATFORMS.map((platform) => (
@@ -176,7 +346,14 @@ export default function App() {
           ))}
         </div>
       </aside>
-      <GraphCanvas graph={graph} enabledPlatforms={enabledPlatforms} />
+      <GraphCanvas
+        graph={graph}
+        enabledPlatforms={enabledPlatforms}
+        tokenIn={tokenIn}
+        tokenOut={tokenOut}
+        routeEdgeIds={routeEdgeIds}
+        onNodeClick={handleNodeClick}
+      />
     </div>
   );
 }
