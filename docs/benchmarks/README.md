@@ -1,5 +1,37 @@
 # Quote benchmarks
 
+## Latest: single / two-pool / multi-pool / ParaSwap (2 Nov 2026)
+
+Run without an HTTP server:
+
+```bash
+cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
+  --out docs/benchmarks/multi-pool-run.md
+```
+
+- [90-row four-way report](2026-11-02-multi-pool-vs-paraswap.md) /
+  [raw JSON with full routes, replay and costs](2026-11-02-multi-pool-vs-paraswap.json)
+- [Chinese analysis](2026-11-02-multi-pool-analysis.md) / [HTTP and algorithm](../MULTI-POOL.md)
+- [Earlier six-row pilot](2026-11-02-multi-shib-initial.md) / [JSON](2026-11-02-multi-shib-initial.json)
+  (different time/source state; not a paired before/after control).
+
+All modes succeeded on 90/90. Within ±50 bps of ParaSwap: single **85/90**, two-pool **87/90**,
+multi-pool **88/90**. Multi-pool improved 13 outputs over two-pool and reduced none. All six SHIB
+rows improved; the large buy gap fell from −1.8821% / −0.8294% to **−0.1697%**. Two DAI→WETH
+rows remain more than 0.5% behind. Multi-pool p50/p95 was **4727/6496 ms** versus ParaSwap
+**363/575 ms** (debug/public RPC; gross output excludes gas).
+
+Each row pins local single/two/multi pricing to the available external reported block or head;
+range 26325701–26325776, hashes verified at completion. This does not force the raw external API
+to use consistent same-block state. Separate SHIB allocation replays supported 5/6 rows; one
+`pancakeswapv3` case is explicitly unsupported. The allowlisted diagnostic filters then renormalizes
+weights; it does not expand the production graph or represent an external re-optimization.
+
+JSON records source/config/corpus, per-row block/hash, full plans, external routes, unsupported
+cases, and separate context/optimizer/replay timing. Candidate p50/p95 includes its baseline and
+extra search; it excludes universe preparation, external HTTP and diagnostic replay. Row RPC counts
+include setup, both optimizers and replay, so are not the cost of one production multi-pool request.
+
 ## Fixed-block two-pool experiment (#30)
 
 This is an internal single-route vs split comparison, distinct from the live aggregator runs below.
@@ -13,8 +45,8 @@ Use `--focus SHIB`, `--block NUMBER` and `--help` for targeted runs and search-b
 
 At block 26325207: 90 successful, 35 split wins, 55 baseline selections, no output decrease.
 Large SHIB buy/sell improvements: 1.0723% / 0.4812% over the existing single route. Total p50/p95
-3451/4697 ms; additional quote-phase RPC 3727. Gas/actual execution are excluded. This phase does
-not change the HTTP/Viewer contract; [implementation details](../SPLIT-ROUTING.md).
+3451/4697 ms; additional quote-phase RPC 3727. Gas/actual execution are excluded. That historical
+phase did not change HTTP/Viewer; the latest multi-pool implementation does. [Two-pool details](../SPLIT-ROUTING.md).
 
 ## Live aggregator comparison
 
@@ -98,7 +130,7 @@ raw inputs that were approximately USD-sized when authored. No gas, execution or
 The competitors can support additional venues, conversions and split routes. 1inch/0x are skipped,
 not failed, when their keys are absent. Their live integrations have not been verified without keys.
 
-## Latest paired run: protocol conversions + ShibaSwap (2 Nov 2026)
+## Historical paired run: protocol conversions + ShibaSwap (2 Nov 2026)
 
 See [Chinese analysis](2026-11-02-quote-quality-analysis.md), [full tables](2026-11-02-quote-quality.md),
 and [raw JSON](2026-11-02-quote-quality.json).

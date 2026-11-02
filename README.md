@@ -4,15 +4,48 @@
 
 Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `token_out` / `amount_in`，
 将 Uniswap V2 / V3、Curve、ShibaSwap V2 的池子和可配置的协议转换统一建成**有向多重图**，
-搜索多跳候选，精算后返回候选中输出最大的单条路径（exact-in）。首个协议转换适配器支持 stETH↔wstETH。
+搜索多跳候选并精算（exact-in）；默认返回最佳单路径，`split=true` 可在独立直连池间拆单。
+首个协议转换适配器支持 stETH↔wstETH。
 
 > 开源、自托管：下载后用一份 YAML 配置 + 你自己的 RPC / Graph key 跑起来。
 
-## 两池拆单实验（#30）
+## 最新 Benchmark：单路径 / 两池 / 多池 / ParaSwap
+
+**同轮 90 组四方报价全部成功，多池 88/90（97.8%）与 ParaSwap 的输出差距在 ±0.5% 内。**
+
+| 指标 | 单路径 | 两池 | 多池 |
+|---|---:|---:|---:|
+| 与 ParaSwap 的输出差距中位数 | −0.001389% | −0.000960% | −0.000960% |
+| 输出差距等权均值 | −0.095714% | −0.050302% | **−0.037133%** |
+| 差距在 ±0.5% 内 | 85/90 | 87/90 | **88/90** |
+| 完整计算延迟 p50/p95 | 1364/2012 ms | 3523/5358 ms | 4727/6496 ms |
+
+多池比两池 **13 组输出增加、77 组相同、0 组减少**。SHIB 六组全部增加；大额 WETH→SHIB
+相对 ParaSwap 从单路径 **−1.8821%**、两池 **−0.8294%** 缩至多池 **−0.1697%**，
+分配为 70% ShibaSwap + 15% Uniswap V2 + 15% Uniswap V3。大额 SHIB→WETH 的多池差距为
+**−0.1355%**。仍有两组 DAI→WETH 落后超过 0.5%。
+
+本地各模式每行固定同一区块，区块范围 **26325701–26325776**，结束时校验哈希。
+ParaSwap 原始报价可能含缓存/混合区块状态；SHIB 另做同区块分配重估，5/6 支持，1 组
+`pancakeswapv3` 未支持。BONE 路径仅用于覆盖诊断，未加入生产白名单。
+这是公共 RPC、debug 构建的毛输出实验，不含 gas 或实际成交；ParaSwap 延迟 p50/p95 为 363/575 ms。
+
+```bash
+# 无需启动 HTTP 服务：同轮比较，并保存外部路径与 SHIB 回放
+cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
+  --out docs/benchmarks/multi-pool-run.md
+```
+
+[90 组四方结果](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.md) ·
+[原始路径与成本](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.json) ·
+[结果与剩余差距分析](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
+[多池算法与 HTTP 协议](docs/MULTI-POOL.md)
+
+## 历史：两池拆单实验（#30）
 
 新增 `SplitOptimizer` 与固定区块实验 CLI，自动比较“两个独立直连池拆单”和原有最佳单路径；
 只在毛输出更多时替换，相等或搜索预算耗尽时保留已得到的最佳完整方案。原单路径可以包含多跳与协议转换。
-本阶段交付库和实验，HTTP `/quote` 与 Viewer 仍使用现有单路径协议。
+该历史版本交付库和实验；当前 HTTP `/quote` 与 Viewer 已接入上面的可选多池协议。
 
 固定区块 **26325207** 的 90 组实验：**35 组选拆单，55 组保留原路径，0 组输出退化**。
 大额 WETH→SHIB 比单路径多 **1.0723%**；80 亿 SHIB→WETH 多 **0.4812%**。
@@ -30,7 +63,7 @@ cargo run --bin split_bench -- --focus SHIB --block 26325207
 [结果与参数校准分析](docs/benchmarks/2026-11-02-split-analysis.md) ·
 [算法、预算与保证边界](docs/SPLIT-ROUTING.md)
 
-## Benchmark：主网报价对比（2026-11-02）
+## 历史 Benchmark：协议转换与 ShibaSwap（2026-11-02）
 
 **90 组报价全部成功，84/90 组与 ParaSwap 的输出差距在 ±0.5% 内。**
 
@@ -38,7 +71,7 @@ cargo run --bin split_bench -- --focus SHIB --block 26325207
 对照实例关闭协议转换和 ShibaSwap；新实例开启 stETH↔wstETH 转换、ShibaSwap V2 和候选能力分组。
 差距为 `(本地输出 − ParaSwap 输出) / ParaSwap 输出`，负数表示少换到代币。
 
-| 指标 | 关闭新能力的对照 | 当前实现 |
+| 指标 | 关闭新能力的对照 | 当时的单路径实现 |
 |---|---:|---:|
 | 报价成功 | 90/90 | **90/90** |
 | 输出金额中位差距 | −0.0148% | **−0.0070%** |
@@ -56,7 +89,7 @@ cargo run --bin split_bench -- --focus SHIB --block 26325207
 | 80 亿 SHIB → WETH | 14.30898 WETH | **15.82713 WETH** | 15.96768 WETH | **−10.388% → −0.880%** |
 
 15 个 stETH 相关样本、6 个 SHIB 样本的输出均高于同轮对照。当前 SHIB 的剩余差距涉及
-对手的多池拆单和 BONE 中间路径；本项目仍返回单路径。候选增加带来成本，p50 延迟约增加 15%。
+对手的多池拆单和 BONE 中间路径；当时本项目仅返回单路径。候选增加带来成本，p50 延迟约增加 15%。
 
 实验使用 Ethereum 主网区块范围 **26324635–26324658**、本地 debug 构建与公共 RPC；
 ParaSwap 本轮延迟 p50/p95 为 351/436 ms。报价不固定在同一区块，不含 gas 或实际成交；
@@ -116,7 +149,10 @@ curl -s -X POST localhost:8080/quote \
 
 - 金额均为**十进制字符串**（`U256`）。
 - `max_hops` 可选，指**边数**（默认取配置）；每次 swap、wrap、unwrap 都计一跳。
-- `amount_out_min` 可选，结果低于它时返回 `AmountOutBelowMin`。
+- `amount_out_min` 可选，所选总输出低于它时返回 `AmountOutBelowMin`。
+- `split` 可选，默认 `false`，旧请求保留下面的单路径响应。
+- `split=true` 时可传 `split_max_branches`（至少 2，且不能超过服务配置上限，默认 4）；
+  不开启拆单时传分支上限返回 400。
 
 响应（`200`）：
 
@@ -141,6 +177,14 @@ curl -s -X POST localhost:8080/quote \
 
 - `operation` 为 `swap` / `wrap` / `unwrap`；转换步骤的 `pool` 字段指 wrapper 合约地址。
 - 返回的是报价和逐跳信息，不包含交易 calldata，也不会发送交易。
+
+**可选多池模式：** 在同一个请求中增加 `"split": true`。响应另含 `plan_kind`、
+`allocations`、`baseline_amount_out`、`search`；真实主网请求含 `quote_block`，全部精算固定在该区块。
+每个 allocation 有 `amount_in`、`amount_out`、`input_share_percent` 和自己的顺序 `path`。
+并行分支不会拼成顺序路径：多分支时顶层 `path` 为空，`amount_out` 是各分支输出之和。
+保留原单路径时仍有一个 100% allocation；搜索预算耗尽保留最佳完整方案。
+新选择的拆单/直连方案尚未计算聚合价格冲击，`price_impact_bps` 为 `null`。
+完整字段和预算语义见 [多池接口说明](docs/MULTI-POOL.md)。
 
 ### `GET /graph`
 
@@ -212,7 +256,9 @@ npm run dev
 - 悬停显示完整地址、pool、platform、`mid_price`、`reserve`；点击节点/边打开详情面板（含 Etherscan 链接）。
 - From/To 可点击节点或直接输入地址，金额默认填入 **1 个整 token**（按 token decimals 换算为 raw units，
   也可手动改成任意 raw 数值）；调用 `POST /quote` 后高亮最优路由、
-  其余边淡出，并显示 `amount_out`、`price_impact_bps` 与逐跳明细。
+   其余边淡出，并显示 `amount_out`、`price_impact_bps` 与逐跳明细。
+- 默认勾选 Multi-pool routing，可切回单路径；多池显示分支比例、输入/输出和报价区块，
+  同时高亮所有分支，未计算的聚合价格冲击显示为 “—”。
 - 定时刷新（默认 5s，可调）；增量更新数据，保留节点位置、选择与路由高亮。
 
 > 节点符号来自 `ui/src/graph.js` 的内置主网 token 表（覆盖默认 allowlist）；自定义 token 可自行补充。
@@ -237,6 +283,7 @@ Graph：token 为节点，AMM swap 与协议转换为有向边
         ▼
 axum HTTP 服务
   POST /quote → Router → 快照粗选 → 分组 K-best DP → 候选精算 → 单条最佳路径
+    split=true → 固定区块精算 → 两池细化 / 多池分配 DP → 最佳完整方案
   GET /graph  → 读取拓扑与已安装快照
   GET /info   → 模式、配置与图规模
 
@@ -254,6 +301,8 @@ axum HTTP 服务
    原有 AMM、含协议转换、含 ShibaSwap、两者都有；各跳数的候选都保留到精算。
 3. **精算**：候选之间最多并发 16 条，每条路径内部按顺序传递实际输出金额；单条候选失败不影响其他候选。
 4. **择优**：以精算的 `amount_out` 最大者为结果，计算价格冲击并检查 `amount_out_min`。
+5. **可选拆单**：保留单路径，先两池细化，再对最多四个独立直连池做离散分配 DP，
+   整数余数精确重报价；只在总输出严格增加时替换。默认 256 次附加报价、8 秒搜索预算。
 
 这仍是有界启发式搜索：分组避免新能力被其他路径全部挤掉，但不保证全市场的全局最优。
 
@@ -279,7 +328,9 @@ axum HTTP 服务
 | `CachingSource` | 粗选 mid-price 与 reserve | 批量预热或按需读取；TTL 为两个刷新间隔的较大值 |
 | `PriceSnapshot` | 与图边索引对齐的只读价格向量 | 默认每轮等待 120 秒后重建，完成后替换共享快照 |
 
-V2 精算可能使用短 TTL 缓存，其他精算读取实时链上状态；整条路径不是同一区块的执行模拟。
+默认单路径的 V2 精算可能使用短 TTL 缓存，其他精算读取实时状态。
+`split=true` 的主网请求另建固定 `quote_block` 的定价缓存，不混入其他区块；粗选仍可使用旧快照。
+报价不等于实际执行整条方案的交易模拟。
 
 技术栈：
 
@@ -304,7 +355,8 @@ src/
   state.rs       StateCache：V2 储备 TTL 缓存 + Multicall3 热池刷新
   rpc.rs         原始 JSON-RPC 客户端（含 429/瞬时错误重试退避）
   router.rs      快照、四类候选 K-best DP、有界精算与价格冲击
-  split.rs       两池粗搜/细化、单路径兜底、输入守恒与搜索预算（实验库）
+  split.rs       两池细化 / 多池分配 DP、单路径兜底、输入守恒与搜索预算
+  reference.rs   ParaSwap 报价与同区块分配回放（覆盖诊断，不扩展生产图）
   universe.rs    服务与实验共享的池发现、报价源装配和批量预热
   api.rs         /quote、/graph、/health、/ready；DTO、错误映射与限流
   error.rs       共享报价错误类型
@@ -313,7 +365,7 @@ src/
   main.rs        启动装配、/info、后台刷新与 HTTP 服务
   bin/
     bench.rs     配对基准；聚合器对比、完整路径、JSON / Markdown 报告
-    split_bench.rs 固定区块单路径/两池拆单实验与调用成本报告
+    split_bench.rs 固定区块单路径/两池/多池/ParaSwap 比较与调用成本报告
     graph.rs     从运行实例导出 Mermaid / HTML
 
 config.example.yaml           全部配置示例
@@ -389,7 +441,8 @@ docs/benchmarks/               基准方法、原始路径数据与结果分析
 | `slippage_penalty_lambda` | 流动性惩罚系数 | 0.0 |
 | `refresh_interval_secs` | 热池储备刷新间隔与储备 TTL；近 5 分钟访问过的池才是热池 | 30 |
 | `snapshot_refresh_secs` | 全量价格快照重建间隔 | 120 |
-| `request_timeout_ms` | 单请求超时（毫秒） | 5000 |
+| `request_timeout_ms` | 单请求超时（毫秒） | 10000 |
+| `split` | 可选拆单的服务预算；请求仍需 `split=true` | 4 分支 / 4 候选池 / 20 段 / 256 次 / 8000 ms |
 | `token_allowlist` | 覆盖内置主流币白名单 | 空（使用内置） |
 
 `GRAPH_API_KEY` 只放在 **gitignored 的 `.env`** 里，不进版本库。
@@ -424,7 +477,7 @@ ParaSwap 无需密钥；1inch/0x 可通过 `.env` 中的 `ONEINCH_API_KEY` / `ZE
 JSON 保留逐跳路径、对手拆单比例和池信息。详细实现见 [报价质量改进](docs/QUOTE-QUALITY.md)。
 
 最新结果直接展示在本文前部的 **Benchmark** 章节；完整逐行数据见
-[90 组配对报告](docs/benchmarks/2026-11-02-quote-quality.md)。
+[90 组四方报告](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.md)。
 
 ## 测试
 
@@ -442,11 +495,13 @@ cd ui && npm install && npm run build   # 前端构建
   端到端多跳（V2/V3 + Curve）、subgraph 发现。V2 适配器另有**固定区块 `getReserves`
   fixture** 做不联网的确定性测试。
 - 新增固定区块主网核对：wstETH 往返舍入、ShibaSwap 发现与部署 Router 的输出一致性。
+- 多池：四池优于两池、整数余数/溢出/相等、预算回退、HTTP 兼容/区块固定/超时/min 输出、mock 离线，
+  以及主网每个分支独立精算后总额一致性。
 
 ## 边界与限制
 
-- 仅 Ethereum 主网；exact-in；返回已精算候选中输出最大的单条路径，不做拆单，不保证全市场最优。
-- 上述单路径限制针对 HTTP 服务；`split_bench` 提供两池实验，尚未定义正式多分支服务协议。
+- 仅 Ethereum 主网；exact-in；默认单路径，可选独立直连 AMM 池拆单；不保证全市场最优。
+- 多池分配有候选、网格和调用预算限制；不支持任意多跳分支拆单或共享池状态联动。
 - 原生 ETH 不支持；ETH↔WETH 包装由调用方处理。stETH↔wstETH 是独立的、已支持的协议转换。
 - Curve 适配器同时支持 stableswap（`get_dy(int128,…)`）与 crypto（`get_dy(uint256,…)`）；
   **发现**默认覆盖主 stableswap + crypto 注册表（`curve_registry_ids: [0, 5]`）；
@@ -454,11 +509,12 @@ cd ui && npm install && npm run build   # 前端构建
 - 公共 RPC 可能限流；正常请求的粗选在内存执行，主要等待来自候选精算。增加候选能力组会增加
   RPC 开销；延迟参考上面的实测结果，不提供固定 SLA。
 - 不通用支持 fee-on-transfer 或任意 rebasing token；stETH 转换有专用适配器，不意味着其他特殊 token 自动可用。
-- 快照、V2 短 TTL 储备和实时调用可能来自不同区块；报价不等于整条路径的执行模拟。
+- 默认单路径的快照、V2 缓存和实时调用可能来自不同区块；多池精算固定区块，但不构建或模拟交易。
 - 公开 HTTP 无鉴权，仅简单限流。
 
 ## 相关文档
 
+- [docs/MULTI-POOL.md](docs/MULTI-POOL.md)：多池分配、固定区块 HTTP、Viewer 与对手回放的保证边界。
 - [docs/SPLIT-ROUTING.md](docs/SPLIT-ROUTING.md)：两池实验算法、预算、缓存和固定区块保证。
 - [docs/QUOTE-QUALITY.md](docs/QUOTE-QUALITY.md)：本轮转换、ShibaSwap、候选分组的设计与验证。
 - [docs/benchmarks/README.md](docs/benchmarks/README.md)：基准方法、配对结果及完整原始数据入口。
