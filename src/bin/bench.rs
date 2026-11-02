@@ -42,6 +42,8 @@ struct Side {
     hops: Option<usize>,
     error: Option<String>,
     platforms: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    route: Option<Box<Value>>,
 }
 
 impl Side {
@@ -52,6 +54,7 @@ impl Side {
             hops,
             error: None,
             platforms: Vec::new(),
+            route: None,
         }
     }
 
@@ -62,6 +65,7 @@ impl Side {
             hops: None,
             error: Some(error),
             platforms: Vec::new(),
+            route: None,
         }
     }
 
@@ -82,6 +86,7 @@ struct Row {
     token_out: String,
     amount_in: String,
     fluxion: Side,
+    control: Option<Side>,
     paraswap: Side,
     oneinch: Option<Side>,
     zerox: Option<Side>,
@@ -115,6 +120,112 @@ struct Summary {
     zerox_latency_p50_ms: Option<u128>,
     zerox_latency_p95_ms: Option<u128>,
     comparisons: HashMap<String, Comparison>,
+    cohorts: HashMap<String, Cohort>,
+}
+
+#[derive(Debug, Serialize)]
+struct Quality {
+    success: usize,
+    compared: usize,
+    median_delta_bps: Option<f64>,
+    mean_delta_bps: Option<f64>,
+    within_50_bps: usize,
+    latency_p50_ms: Option<u128>,
+    latency_p95_ms: Option<u128>,
+}
+
+#[derive(Debug, Serialize)]
+struct Cohort {
+    rows: usize,
+    candidate: Quality,
+    control: Quality,
+    candidate_better: usize,
+    equal: usize,
+    candidate_worse: usize,
+}
+
+fn quality(rows: &[&Row], control: bool) -> Quality {
+    let sides = rows
+        .iter()
+        .filter_map(|row| {
+            if control {
+                row.control.as_ref().map(|side| (side, &row.paraswap))
+            } else {
+                Some((&row.fluxion, &row.paraswap))
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut deltas = sides
+        .iter()
+        .filter_map(|(side, external)| delta_bps(side, external))
+        .collect::<Vec<_>>();
+    let mut latencies = sides
+        .iter()
+        .map(|(side, _)| side.latency_ms)
+        .collect::<Vec<_>>();
+    Quality {
+        success: sides.iter().filter(|(side, _)| side.is_ok()).count(),
+        compared: deltas.len(),
+        mean_delta_bps: (!deltas.is_empty())
+            .then(|| deltas.iter().sum::<f64>() / deltas.len() as f64),
+        within_50_bps: deltas.iter().filter(|delta| delta.abs() <= 50.0).count(),
+        median_delta_bps: median(&mut deltas),
+        latency_p50_ms: percentile(&mut latencies, 0.5),
+        latency_p95_ms: percentile(&mut latencies, 0.95),
+    }
+}
+
+fn cohorts(rows: &[Row]) -> HashMap<String, Cohort> {
+    let steth = "0xae7ab96520de3a18e5e111b5eaab095312d7fe84";
+    let shib = "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce";
+    let touches = |row: &Row, token: &str| {
+        row.token_in.eq_ignore_ascii_case(token) || row.token_out.eq_ignore_ascii_case(token)
+    };
+    ["all", "steth", "shib", "other"]
+        .into_iter()
+        .map(|name| {
+            let selected = rows
+                .iter()
+                .filter(|row| match name {
+                    "steth" => touches(row, steth),
+                    "shib" => touches(row, shib),
+                    "other" => !touches(row, steth) && !touches(row, shib),
+                    _ => true,
+                })
+                .collect::<Vec<_>>();
+            let mut better = 0;
+            let mut equal = 0;
+            let mut worse = 0;
+            for row in &selected {
+                if let (Some(new), Some(old)) = (
+                    row.fluxion.amount_out.as_deref(),
+                    row.control
+                        .as_ref()
+                        .and_then(|side| side.amount_out.as_deref()),
+                ) {
+                    match U256::from_str_radix(new, 10)
+                        .unwrap()
+                        .cmp(&U256::from_str_radix(old, 10).unwrap())
+                    {
+                        std::cmp::Ordering::Greater => better += 1,
+                        std::cmp::Ordering::Equal => equal += 1,
+                        std::cmp::Ordering::Less => worse += 1,
+                    }
+                }
+            }
+            (
+                name.to_string(),
+                Cohort {
+                    rows: selected.len(),
+                    candidate: quality(&selected, false),
+                    control: quality(&selected, true),
+                    candidate_better: better,
+                    equal,
+                    candidate_worse: worse,
+                },
+            )
+        })
+        .collect()
 }
 
 #[derive(Debug, Serialize)]
@@ -162,6 +273,8 @@ struct Meta {
     pair_count: usize,
     delay_ms: u64,
     code_fingerprint: String,
+    control_service: Option<String>,
+    control_info: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -178,6 +291,7 @@ struct Args {
     limit: Option<usize>,
     delay_ms: u64,
     config: String,
+    control_service: Option<String>,
 }
 
 fn print_help() {
@@ -185,7 +299,8 @@ fn print_help() {
         "Usage: cargo run --bin bench -- [options]\n\
          \n\
          Options:\n\
-           --service URL    Fluxion base URL (default http://127.0.0.1:8080)\n\
+            --service URL    Fluxion base URL (default http://127.0.0.1:8080)\n\
+            --control-service URL  optional feature-disabled control, quoted in the same run\n\
            --corpus PATH    corpus YAML (default bench/corpus.yaml)\n\
            --out PATH       Markdown output path (also writes PATH.json)\n\
            --limit N        only benchmark the first N pairs\n\
@@ -204,12 +319,16 @@ fn parse_args() -> Args {
         limit: None,
         delay_ms: 250,
         config: "config.yaml".to_string(),
+        control_service: None,
     };
 
     let mut it = std::env::args().skip(1);
     while let Some(flag) = it.next() {
         match flag.as_str() {
             "--service" => args.service = it.next().expect("--service needs a URL"),
+            "--control-service" => {
+                args.control_service = Some(it.next().expect("--control-service needs a URL"))
+            }
             "--corpus" => args.corpus = it.next().expect("--corpus needs a path"),
             "--out" => args.out = Some(it.next().expect("--out needs a path")),
             "--config" => args.config = it.next().expect("--config needs a path"),
@@ -396,6 +515,7 @@ fn summarize(rows: &[Row]) -> Summary {
             ("1inch".into(), comparison(rows, |row| row.oneinch.as_ref())),
             ("0x".into(), comparison(rows, |row| row.zerox.as_ref())),
         ]),
+        cohorts: cohorts(rows),
     }
 }
 
@@ -433,6 +553,7 @@ async fn quote_fluxion(
     let hops = value.get("path").and_then(Value::as_array).map(Vec::len);
     let mut side = Side::ok(amount_out, latency, hops);
     if let Some(path) = value.get("path").and_then(Value::as_array) {
+        side.route = Some(Box::new(Value::Array(path.clone())));
         side.platforms = path
             .iter()
             .filter_map(|hop| hop.get("platform")?.as_str().map(str::to_string))
@@ -489,7 +610,8 @@ async fn quote_paraswap(
         .and_then(Value::as_array)
         .map(Vec::len);
     let mut side = Side::ok(amount_out, latency, hops);
-    side.platforms = route_names(route, "exchange");
+    side.route = route.get("bestRoute").cloned().map(Box::new);
+    side.platforms = paraswap_platforms(&route["bestRoute"]);
     side
 }
 
@@ -572,6 +694,36 @@ async fn quote_zerox(
     let mut side = Side::ok(amount_out, latency, hops);
     side.platforms = route_names(&value["route"], "source");
     side
+}
+
+fn paraswap_platforms(value: &Value) -> Vec<String> {
+    fn visit(value: &Value, names: &mut Vec<String>) {
+        match value {
+            Value::Object(object) => {
+                if let Some(exchanges) = object.get("swapExchanges").and_then(Value::as_array) {
+                    names.extend(
+                        exchanges.iter().filter_map(|exchange| {
+                            exchange["exchange"].as_str().map(str::to_string)
+                        }),
+                    );
+                }
+                for child in object.values() {
+                    visit(child, names);
+                }
+            }
+            Value::Array(values) => {
+                for child in values {
+                    visit(child, names);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut names = Vec::new();
+    visit(value, &mut names);
+    names.sort();
+    names.dedup();
+    names
 }
 
 fn route_names(value: &Value, key: &str) -> Vec<String> {
@@ -679,6 +831,14 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
         "\nService mode, graph size and effective public configuration:\n\n```json\n{}\n```",
         serde_json::to_string_pretty(&meta.service_info).unwrap()
     );
+    if let Some(info) = &meta.control_info {
+        let _ = writeln!(
+            out,
+            "\nFeature-disabled control: {}\n\n```json\n{}\n```",
+            meta.control_service.as_deref().unwrap_or("unknown"),
+            serde_json::to_string_pretty(info).unwrap()
+        );
+    }
 
     let _ = writeln!(
         out,
@@ -723,6 +883,49 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
     }
 
     let _ = writeln!(out, "\n## Summary\n");
+    if meta.control_service.is_some() {
+        let _ = writeln!(
+            out,
+            "| cohort | rows | control median bps | candidate median bps | control mean bps | candidate mean bps | control within ±50 bps | candidate within ±50 bps | better/equal/worse vs control |\n|---|---|---|---|---|---|---|---|---|"
+        );
+        for name in ["all", "steth", "shib", "other"] {
+            let c = &summary.cohorts[name];
+            let _ = writeln!(
+                out,
+                "| {name} | {} | {} | {} | {} | {} | {} | {} | {}/{}/{} |",
+                c.rows,
+                format_option(c.control.median_delta_bps),
+                format_option(c.candidate.median_delta_bps),
+                format_option(c.control.mean_delta_bps),
+                format_option(c.candidate.mean_delta_bps),
+                c.control.within_50_bps,
+                c.candidate.within_50_bps,
+                c.candidate_better,
+                c.equal,
+                c.candidate_worse
+            );
+        }
+        let _ = writeln!(
+            out,
+            "\n## Paired control quotes\n\n| pair | amount_in | control output | candidate output | candidate vs control bps | control ms | candidate ms |\n|---|---|---|---|---|---|---|"
+        );
+        for row in rows {
+            if let Some(control) = &row.control {
+                let _ = writeln!(
+                    out,
+                    "| {} → {} | {} | {} | {} | {} | {} | {} |",
+                    symbol(corpus, &row.token_in),
+                    symbol(corpus, &row.token_out),
+                    row.amount_in,
+                    format_side(Some(control)),
+                    format_side(Some(&row.fluxion)),
+                    format_option(delta_bps(&row.fluxion, control)),
+                    control.latency_ms,
+                    row.fluxion.latency_ms
+                );
+            }
+        }
+    }
     let _ = writeln!(out, "- rows: {}", summary.rows);
     for name in ["paraswap", "1inch", "0x"] {
         let counts = &summary.comparisons[name];
@@ -775,7 +978,7 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
     );
     let _ = writeln!(
         out,
-        "\nΔ bps = (fluxion - aggregator) / aggregator × 10000; negative means Fluxion returned less.\n\nQuotes use live state, not a pinned block. Block range and row timestamps describe skew, not deterministic replay. Raw JSON embeds the corpus and public service configuration. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations."
+        "\nΔ bps = (fluxion - aggregator) / aggregator × 10000; negative means Fluxion returned less.\n\nQuotes use live state, not a pinned block. Block range and row timestamps describe skew, not deterministic replay. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations."
     );
     out
 }
@@ -920,6 +1123,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
+    let control_info = if let Some(service) = &args.control_service {
+        let info: Value = client
+            .get(format!("{}/info", service.trim_end_matches('/')))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        if info["mode"] != "mainnet" {
+            return Err("control service must use real mainnet discovery".into());
+        }
+        Some(info)
+    } else {
+        None
+    };
+
     let config = Config::load(&args.config)?;
     let rpc = RpcClient::new(config.rpc_url.clone());
     let start_block = rpc.block_number().await.ok();
@@ -946,8 +1165,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 symbol(&corpus, token_out),
                 amount_in
             );
+            let control_first = rows.len() % 2 == 0;
+            let mut control = None;
+            if control_first && let Some(service) = &args.control_service {
+                control =
+                    Some(quote_fluxion(&client, service, token_in, token_out, amount_in).await);
+            }
             let fluxion =
                 quote_fluxion(&client, &args.service, token_in, token_out, amount_in).await;
+            if !control_first && let Some(service) = &args.control_service {
+                control =
+                    Some(quote_fluxion(&client, service, token_in, token_out, amount_in).await);
+            }
 
             let paraswap = quote_paraswap(
                 &client,
@@ -998,6 +1227,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 token_out: token_out.clone(),
                 amount_in: amount_in.clone(),
                 fluxion,
+                control,
                 paraswap,
                 oneinch,
                 zerox,
@@ -1027,6 +1257,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         delay_ms: args.delay_ms,
         code_fingerprint: code_fingerprint()?,
         corpus_snapshot: corpus,
+        control_service: args.control_service,
+        control_info,
     };
     let summary = summarize(&rows);
 
@@ -1109,6 +1341,7 @@ mod tests {
             token_out: "b".into(),
             amount_in: "1".into(),
             fluxion,
+            control: None,
             paraswap,
             oneinch: None,
             zerox: None,
@@ -1128,6 +1361,42 @@ mod tests {
         assert_eq!(summary.paraswap_compared, 1);
         assert_eq!(summary.paraswap_median_delta_bps, Some(0.0));
         assert_eq!(summary.oneinch_latency_p50_ms, None);
+    }
+
+    #[test]
+    fn paired_control_cohorts_measure_target_tokens_separately() {
+        let rows = [
+            "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+            "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+            "other",
+        ]
+        .into_iter()
+        .map(|token| Row {
+            started_unix_ms: 0,
+            finished_unix_ms: 1,
+            token_in: token.into(),
+            token_out: "destination".into(),
+            amount_in: "1".into(),
+            fluxion: Side::ok("100".into(), 10, Some(2)),
+            control: Some(Side::ok("50".into(), 5, Some(1))),
+            paraswap: Side::ok("100".into(), 4, Some(1)),
+            oneinch: None,
+            zerox: None,
+        })
+        .collect::<Vec<_>>();
+        let summary = summarize(&rows);
+        for name in ["steth", "shib", "other"] {
+            assert_eq!(summary.cohorts[name].rows, 1);
+            assert_eq!(
+                summary.cohorts[name].control.median_delta_bps,
+                Some(-5000.0)
+            );
+            assert_eq!(summary.cohorts[name].candidate.median_delta_bps, Some(0.0));
+            assert_eq!(summary.cohorts[name].candidate_better, 1);
+        }
+        assert_eq!(summary.cohorts["all"].candidate_better, 3);
+        let route = json!([{"swaps": [{"swapExchanges": [{"exchange": "ShibaSwap", "data": {"exchange": "0x123"}}]}]}]);
+        assert_eq!(paraswap_platforms(&route), vec!["ShibaSwap"]);
     }
 
     #[test]

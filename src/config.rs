@@ -1,3 +1,5 @@
+use crate::model::{ConversionKind, Pool, PoolKind};
+use alloy_primitives::Address;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -7,6 +9,41 @@ pub enum ConfigError {
     Io(#[from] std::io::Error),
     #[error("invalid config: {0}")]
     Parse(#[from] serde_yaml::Error),
+    #[error("invalid configuration: {0}")]
+    Invalid(String),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProtocolConversionConfig {
+    pub kind: ConversionKind,
+    pub contract: Address,
+    pub underlying: Address,
+    pub wrapped: Address,
+    #[serde(default = "enabled")]
+    pub enabled: bool,
+    #[serde(default = "enabled")]
+    pub wrap: bool,
+    #[serde(default = "enabled")]
+    pub unwrap: bool,
+}
+
+fn enabled() -> bool {
+    true
+}
+
+impl ProtocolConversionConfig {
+    pub fn pool(&self) -> Pool {
+        Pool {
+            kind: PoolKind::Conversion {
+                kind: self.kind,
+                wrap: self.wrap,
+                unwrap: self.unwrap,
+            },
+            address: self.contract,
+            coins: vec![self.underlying, self.wrapped],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -32,6 +69,8 @@ pub struct Config {
     pub snapshot_refresh_secs: u64,
     pub request_timeout_ms: u64,
     pub token_allowlist: Vec<String>,
+    pub shibaswap_v2_factory: Address,
+    pub protocol_conversions: Vec<ProtocolConversionConfig>,
 }
 
 impl Default for Config {
@@ -48,6 +87,7 @@ impl Default for Config {
                 "uniswap-v2".to_string(),
                 "uniswap-v3".to_string(),
                 "curve".to_string(),
+                "shibaswap-v2".to_string(),
             ],
             max_hops: 3,
             top_k: 8,
@@ -61,11 +101,49 @@ impl Default for Config {
             snapshot_refresh_secs: 120,
             request_timeout_ms: 5000,
             token_allowlist: Vec::new(),
+            shibaswap_v2_factory: "0x115934131916C8b277DD010Ee02de363c09d037c"
+                .parse()
+                .unwrap(),
+            protocol_conversions: vec![ProtocolConversionConfig {
+                kind: ConversionKind::WstEth,
+                contract: "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+                    .parse()
+                    .unwrap(),
+                underlying: "0xae7ab96520de3a18e5e111b5eaab095312d7fe84"
+                    .parse()
+                    .unwrap(),
+                wrapped: "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+                    .parse()
+                    .unwrap(),
+                enabled: true,
+                wrap: true,
+                unwrap: true,
+            }],
         }
     }
 }
 
 impl Config {
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        let mut contracts = std::collections::HashSet::new();
+        for conversion in &self.protocol_conversions {
+            if conversion.contract == Address::ZERO
+                || conversion.underlying == Address::ZERO
+                || conversion.wrapped != conversion.contract
+                || conversion.underlying == conversion.wrapped
+                || (conversion.enabled && !conversion.wrap && !conversion.unwrap)
+                || !contracts.insert(conversion.contract)
+            {
+                return Err(ConfigError::Invalid("conversion must have a unique nonzero wrapper contract, distinct underlying, and an enabled direction".into()));
+            }
+        }
+        for token in &self.token_allowlist {
+            token
+                .parse::<Address>()
+                .map_err(|_| ConfigError::Invalid(format!("invalid allowlist token: {token}")))?;
+        }
+        Ok(())
+    }
     /// Only a missing file uses defaults; malformed configuration is an error.
     pub fn load(path: &str) -> Result<Self, ConfigError> {
         match Self::from_file(path) {
@@ -85,7 +163,9 @@ impl Config {
 
     pub fn from_file(path: &str) -> Result<Self, ConfigError> {
         let text = std::fs::read_to_string(path)?;
-        Ok(serde_yaml::from_str(&text)?)
+        let config: Self = serde_yaml::from_str(&text)?;
+        config.validate()?;
+        Ok(config)
     }
 }
 

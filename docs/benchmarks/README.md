@@ -19,6 +19,13 @@ Options: `--service URL`, `--corpus PATH` (default `bench/corpus.yaml`), `--limi
 configuration, default `config.yaml`). An output basename such as `--out run.md` also works.
 The harness requires the running service's `/info` endpoint and refuses mock mode.
 
+For a same-run feature-disabled control, start a second instance with
+`cargo run -- --config config.benchmark-control.yaml` (:8082), then add
+`--control-service http://127.0.0.1:8082` to the benchmark command. Candidate/control order
+alternates by row. Reports separate stETH, SHIB and other cohorts, and raw JSON includes both
+local paths plus ParaSwap's `bestRoute` (pool addresses and allocation percentages when returned).
+Live snapshots and block skew still differ; this is not a pinned-state replay.
+
 ParaSwap's price API is keyless and always runs. A real Fluxion universe is still required;
 missing Graph credentials must not silently turn a comparison into mock-vs-mainnet.
 1inch and 0x are opt-in via `.env`:
@@ -73,7 +80,35 @@ raw inputs that were approximately USD-sized when authored. No gas, execution or
 The competitors can support additional venues, conversions and split routes. 1inch/0x are skipped,
 not failed, when their keys are absent. Their live integrations have not been verified without keys.
 
-## Latest run: 2 Nov 2026
+## Latest paired run: protocol conversions + ShibaSwap (2 Nov 2026)
+
+See [Chinese analysis](2026-11-02-quote-quality-analysis.md), [full tables](2026-11-02-quote-quality.md),
+and [raw JSON](2026-11-02-quote-quality.json).
+
+| Metric | Feature-disabled control | Candidate |
+|---|---:|---:|
+| Success | 90/90 | 90/90 |
+| Median output delta vs ParaSwap | −1.479 bps | −0.699 bps |
+| Mean output delta vs ParaSwap | −133.722 bps | −10.179 bps |
+| Within ±50 bps | 72/90 | 84/90 |
+| Latency p50/p95 | 1085/1586 ms | 1246/1871 ms |
+
+- All 15 stETH-related and all 6 SHIB-related rows improve over their paired control outputs.
+- stETH: median delta −160.649→0 bps; 4/15→14/15 within ±50 bps. All six stETH↔WETH
+  outputs equal ParaSwap. The one stETH outlier outside ±50 bps is positive, not a large loss.
+- The 100000 USDC→stETH sample moves from about −40.725% to **−0.0213%** vs ParaSwap.
+- SHIB: median delta −151.087→−13.863 bps. The large WETH→SHIB sample moves from
+  about −19.010% to **−1.887%**, not complete parity. External raw routes show actual splitting
+  between Uniswap V2/V3 and ShibaSwap, including a BONE intermediate not on our allowlist.
+- Other rows: 68/69 outputs exactly equal the control. The remaining UNI→USDC row is 1.7 bps
+  lower on an identical route with the same first-hop output but a different second-hop RPC result.
+- The quality improvement costs additional candidates/RPCs: p50 rises about 15% in this run.
+- An [initial integration run](2026-11-02-quote-quality-initial.md) exposed conversion routes being
+  pruned before refinement. It is retained with [raw data](2026-11-02-quote-quality-initial.json);
+  the final version preserves bounded conversion/ShibaSwap candidate families. See
+  [implementation and regression evidence](../QUOTE-QUALITY.md).
+
+## Earlier baseline: 2 Nov 2026
 
 See [full table](2026-11-02-mainnet.md), [raw data](2026-11-02-mainnet.json), and
 [Chinese analysis](2026-11-02-analysis.md).

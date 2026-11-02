@@ -4,12 +4,16 @@ export const PLATFORM_COLORS = {
   "uniswap-v2": "#3fb950",
   "uniswap-v3": "#d29922",
   curve: "#a371f7",
+  "shibaswap-v2": "#f0883e",
+  wsteth: "#58a6ff",
 };
 
 export const PLATFORM_LABELS = {
   "uniswap-v2": "Uniswap V2",
   "uniswap-v3": "Uniswap V3",
   curve: "Curve",
+  "shibaswap-v2": "ShibaSwap V2",
+  wsteth: "wstETH conversion",
 };
 
 const FALLBACK_COLOR = "#8b949e";
@@ -150,6 +154,7 @@ function edgeTooltip(edge) {
     `${tokenLabel(edge.from)} → ${tokenLabel(edge.to)}`,
     `pool ${edge.pool}`,
     `platform ${edge.platform}`,
+    edge.operation ? `operation ${edge.operation}` : null,
     edge.mid_price === undefined ? null : `mid price ${edge.mid_price}`,
     edge.reserve === undefined ? null : `reserve ${edge.reserve}`,
   ]
@@ -290,7 +295,7 @@ export function syncGraphData(nodes, edges, graph, options = {}) {
       !searchActive || matchesSearch(edge.from, query) || matchesSearch(edge.to, query);
 
     let hidden = enabledPlatforms ? !enabledPlatforms.has(edge.platform) : false;
-    if (!hidden && minReserve !== null) {
+    if (!hidden && minReserve !== null && (!edge.operation || edge.operation === "swap")) {
       if (edge.reserve === undefined) {
         hidden = true;
       } else {
@@ -326,7 +331,8 @@ export function syncGraphData(nodes, edges, graph, options = {}) {
       id,
       from: edge.from,
       to: edge.to,
-      label: showEdgeLabels ? `${edge.platform} ${shortAddress(edge.pool)}` : "",
+      label: showEdgeLabels ? `${edge.platform} ${edge.operation ?? "swap"} ${shortAddress(edge.pool)}` : "",
+      dashes: edge.operation === "wrap" || edge.operation === "unwrap",
       title: edgeTooltip(edge),
       color: { color, highlight: platformColor, hover: platformColor },
       font: { color: fontColor },

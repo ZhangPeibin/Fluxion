@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -41,9 +40,10 @@ pub fn edge_weight(rate: f64, reserve_in: U256, amount_in: U256, lambda: f64) ->
 /// mid-price alone (each extra hop pays another fee).
 fn fee_penalty(kind: PoolKind) -> f64 {
     let frac = match kind {
-        PoolKind::UniswapV2 => 0.003,
+        PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 => 0.003,
         PoolKind::UniswapV3 { fee } => fee as f64 / 1_000_000.0,
         PoolKind::Curve => 0.0004,
+        PoolKind::Conversion { .. } => 0.0,
     };
     -(1.0 - frac).ln()
 }
@@ -53,6 +53,28 @@ struct Candidate {
     cost: f64,
     edges: Vec<usize>,
     visited: Vec<Address>,
+    // Bounded diversity: original venues, conversion, ShibaSwap, or both.
+    // A high spot rate in one family must not crowd every other family out
+    // before exact quoting can account for slippage.
+    family: u8,
+}
+
+fn retain_diverse_candidates(list: &mut Vec<Candidate>, top_k: usize) {
+    list.sort_by(|a, b| {
+        a.cost
+            .total_cmp(&b.cost)
+            .then_with(|| a.edges.cmp(&b.edges))
+    });
+    let mut kept = [0usize; 4];
+    list.retain(|candidate| {
+        let count = &mut kept[candidate.family as usize];
+        if *count >= top_k.max(1) {
+            false
+        } else {
+            *count += 1;
+            true
+        }
+    });
 }
 
 /// Per-edge coarse data: mid-price and input reserve, indexed by edge id.
@@ -218,6 +240,7 @@ impl Router {
             cost: 0.0,
             edges: Vec::new(),
             visited: vec![request.token_in],
+            family: 0,
         });
 
         let mut candidates: Vec<Candidate> = Vec::new();
@@ -240,6 +263,12 @@ impl Router {
                             cost: cand.cost + w,
                             edges: cand.edges.clone(),
                             visited: cand.visited.clone(),
+                            family: cand.family
+                                | match pool.kind {
+                                    PoolKind::Conversion { .. } => 1,
+                                    PoolKind::ShibaSwapV2 => 2,
+                                    _ => 0,
+                                },
                         };
                         next.edges.push(eidx);
                         next.visited.push(v);
@@ -248,8 +277,7 @@ impl Router {
                 }
             }
             for list in curr.values_mut() {
-                list.sort_by(|a, b| a.cost.partial_cmp(&b.cost).unwrap_or(Ordering::Equal));
-                list.truncate(self.config.top_k.max(1));
+                retain_diverse_candidates(list, self.config.top_k);
             }
             if let Some(list) = curr.get(&request.token_out) {
                 candidates.extend(list.iter().cloned());
@@ -278,6 +306,7 @@ impl Router {
                     cost: 0.0,
                     edges: vec![eidx],
                     visited: vec![request.token_in, request.token_out],
+                    family: 0,
                 });
             }
         }

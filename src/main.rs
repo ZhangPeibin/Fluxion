@@ -10,6 +10,7 @@ use fluxion::adapters::{
 };
 use fluxion::api::{self, AppState, RateLimiter};
 use fluxion::config::Config;
+use fluxion::conversion::ProtocolConversions;
 use fluxion::discovery;
 use fluxion::graph::Graph;
 use fluxion::model::{Pool, PoolKind};
@@ -118,12 +119,20 @@ async fn main() {
         });
     }
 
+    let mut platform_edges: std::collections::BTreeMap<&str, usize> =
+        std::collections::BTreeMap::new();
+    for idx in 0..graph.edge_count() {
+        *platform_edges
+            .entry(graph.pool(graph.edge(idx).pool_idx).kind.name())
+            .or_default() += 1;
+    }
     let info = serde_json::json!({
         "mode": if refresher.is_some() { "mainnet" } else { "mock" },
         "config": config.public_settings(),
         "pools": graph.pools().len(),
         "tokens": graph.tokens().len(),
         "edges": graph.edge_count(),
+        "platform_edges": platform_edges,
     });
     let state = Arc::new(AppState {
         graph,
@@ -167,9 +176,9 @@ async fn warm_coarse_prices(graph: &Graph, cached: &CachingSource, rpc: &RpcClie
     let mut v3: Vec<Address> = Vec::new();
     for pool in graph.pools() {
         match pool.kind {
-            PoolKind::UniswapV2 => v2.push(pool.address),
+            PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 => v2.push(pool.address),
             PoolKind::UniswapV3 { .. } => v3.push(pool.address),
-            PoolKind::Curve => {}
+            PoolKind::Curve | PoolKind::Conversion { .. } => {}
         }
     }
 
@@ -244,14 +253,19 @@ async fn build_universe(
 ) -> (Graph, Arc<CachingSource>, Option<Arc<StateCache>>) {
     let ttl = Duration::from_secs(config.refresh_interval_secs.max(1));
 
-    let Some(key) = std::env::var("GRAPH_API_KEY").ok() else {
+    let key = std::env::var("GRAPH_API_KEY")
+        .ok()
+        .filter(|key| !key.trim().is_empty());
+    let graph_platform_enabled =
+        platform_enabled(config, "uniswap-v2") || platform_enabled(config, "uniswap-v3");
+    if key.is_none() && graph_platform_enabled {
         tracing::warn!("GRAPH_API_KEY not set — serving the mock universe");
         return mock_universe(ttl);
-    };
+    }
 
     let mut pools: Vec<Pool> = Vec::new();
     if platform_enabled(config, "uniswap-v2") {
-        match discovery::discover_v2(config, &key).await {
+        match discovery::discover_v2(config, key.as_deref().unwrap()).await {
             Ok(p) => {
                 tracing::info!(count = p.len(), "discovered v2 pools");
                 pools.extend(p);
@@ -260,7 +274,7 @@ async fn build_universe(
         }
     }
     if platform_enabled(config, "uniswap-v3") {
-        match discovery::discover_v3(config, &key).await {
+        match discovery::discover_v3(config, key.as_deref().unwrap()).await {
             Ok(p) => {
                 tracing::info!(count = p.len(), "discovered v3 pools");
                 pools.extend(p);
@@ -275,6 +289,36 @@ async fn build_universe(
                 pools.extend(p);
             }
             Err(e) => tracing::warn!(error = %e, "curve discovery failed"),
+        }
+    }
+
+    if platform_enabled(config, "shibaswap-v2") {
+        match discovery::discover_shibaswap_v2(config, &rpc).await {
+            Ok(p) => {
+                tracing::info!(count = p.len(), "discovered ShibaSwap V2 pools");
+                pools.extend(p);
+            }
+            Err(error) => tracing::warn!(%error, "ShibaSwap V2 discovery failed"),
+        }
+    }
+    let conversions = ProtocolConversions::new(rpc.clone());
+    for configured in config
+        .protocol_conversions
+        .iter()
+        .filter(|conversion| conversion.enabled)
+    {
+        let pool = configured.pool();
+        if !discovery::conversion_allowed(config, &pool) {
+            continue;
+        }
+        match conversions.validate_pool(&pool).await {
+            Ok(()) => {
+                tracing::info!(contract = %pool.address, "enabled protocol conversion");
+                pools.push(pool);
+            }
+            Err(error) => {
+                tracing::warn!(%error, contract = %pool.address, "protocol conversion unavailable")
+            }
         }
     }
 
@@ -293,7 +337,8 @@ async fn build_universe(
         Box::new(UniswapV2::new(state.clone())),
         Some(Box::new(UniswapV3::new(rpc.clone()))),
         Some(Box::new(Curve::new(rpc))),
-    );
+    )
+    .with_conversions(Box::new(conversions));
     // The coarse-price cache must outlive a full prefetch + snapshot build;
     // otherwise early seeds expire before the build finishes and every edge
     // falls back to a per-edge RPC call.

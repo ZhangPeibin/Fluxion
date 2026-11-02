@@ -10,6 +10,19 @@ use crate::model::{Pool, PoolKind};
 use crate::rpc::RpcClient;
 use crate::util::{u256_to_usize, u256_word};
 
+mod shibaswap;
+pub use shibaswap::discover_shibaswap_v2;
+
+/// Apply the same both/all-token filter to configured conversion links.
+pub fn conversion_allowed(config: &Config, pool: &Pool) -> bool {
+    let allow = allowlist(config);
+    pool.coins.iter().all(|coin| {
+        allow
+            .iter()
+            .any(|token| token.eq_ignore_ascii_case(&format!("{coin:#x}")))
+    })
+}
+
 /// Keep both sides of every pool in the configured major-token universe.
 const DEFAULT_ALLOWLIST: &[&str] = &[
     "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", // WETH
