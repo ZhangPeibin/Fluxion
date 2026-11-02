@@ -6,6 +6,7 @@ pub mod discovery;
 pub mod error;
 pub mod graph;
 pub mod model;
+pub mod reference;
 pub mod router;
 pub mod rpc;
 pub mod source;

@@ -6,15 +6,50 @@ Ethereum mainnet multi-hop routing quote (RFQ) HTTP service. Given `token_in` / 
 `amount_in`, it builds a **directed multigraph** of Uniswap V2 / V3, Curve, ShibaSwap V2 pools,
 and configured protocol conversions. Bounded multi-hop search and exact refinement return the
 highest-output single candidate path (exact-in). The first conversion adapter supports stETH↔wstETH.
+Opt in with `split=true` to allocate across independent direct AMM pools.
 
 > Open-source, self-hosted: download it, supply a YAML config plus your own RPC / Graph key, run it.
 
-## Two-pool split experiment (#30)
+## Latest benchmark: single / two-pool / multi-pool / ParaSwap
+
+**All four modes succeeded on 90/90 rows; multi-pool output was within ±0.5% of ParaSwap on 88/90 (97.8%).**
+
+| Metric | Single route | Two pools | Multi-pool |
+|---|---:|---:|---:|
+| Median output delta vs ParaSwap | −0.001389% | −0.000960% | −0.000960% |
+| Equal-weight mean output delta | −0.095714% | −0.050302% | **−0.037133%** |
+| Within ±0.5% | 85/90 | 87/90 | **88/90** |
+| Complete calculation p50/p95 | 1364/2012 ms | 3523/5358 ms | 4727/6496 ms |
+
+Multi-pool improved **13 rows over two-pool, tied 77, and reduced none**. All six SHIB rows improved.
+The large WETH→SHIB gap fell from **−1.8821%** (single) and **−0.8294%** (two pools) to
+**−0.1697%**, allocating 70% ShibaSwap + 15% Uniswap V2 + 15% Uniswap V3. The large SHIB→WETH
+multi-pool gap was **−0.1355%**. Two DAI→WETH rows still lagged by more than 0.5%.
+
+Local modes share one pinned block per row, range **26325701–26325776**, with end-of-run hash
+verification. ParaSwap's raw response may contain cached/mixed-block state. SHIB allocations were
+also re-quoted at the local block: 5/6 supported, one unsupported `pancakeswapv3`. BONE paths are
+diagnostic only and were not added to the production allowlist. Gross outputs exclude gas and
+execution. Public RPC, debug builds; ParaSwap p50/p95 was 363/575 ms.
+
+```bash
+# No HTTP server required; retains external routes and SHIB allocation replays
+cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
+  --out docs/benchmarks/multi-pool-run.md
+```
+
+[90-row four-way results](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.md) ·
+[raw routes/costs](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.json) ·
+[gap analysis (Chinese)](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
+[algorithm and HTTP contract](docs/MULTI-POOL.md)
+
+## Historical two-pool experiment (#30)
 
 `SplitOptimizer` and a fixed-block CLI compare two independent direct AMM pools against the
 existing best single route, including multi-hop/conversion paths. Only a strictly higher gross
 output replaces the baseline; exhausted budgets retain the best complete evaluated plan. This
-phase delivers a library/experiment; HTTP `/quote` and the Viewer retain their single-path contract.
+historical phase delivered a library/experiment. HTTP `/quote` and the Viewer now support the
+optional multi-pool contract described above.
 
 At block **26325207**, **35/90 rows selected splitting, 55 kept the baseline, zero lost output**.
 Large WETH→SHIB gained **1.0723%** over the single route; 8 billion SHIB→WETH gained **0.4812%**.
@@ -30,7 +65,7 @@ cargo run --bin split_bench -- --focus SHIB --block 26325207
 [analysis/calibration (Chinese)](docs/benchmarks/2026-11-02-split-analysis.md) ·
 [algorithm and guarantees](docs/SPLIT-ROUTING.md)
 
-## Benchmark: mainnet quote comparison (2 Nov 2026)
+## Historical benchmark: conversions and ShibaSwap (2 Nov 2026)
 
 **90/90 successful quotes; 84/90 within ±0.5% of ParaSwap's output.**
 
@@ -39,7 +74,7 @@ sizes. The control disables conversions and ShibaSwap; the candidate enables stE
 ShibaSwap V2, and capability-diverse candidates. Output delta is `(local − ParaSwap) / ParaSwap`;
 negative means fewer output tokens.
 
-| Metric | Feature-disabled control | Current implementation |
+| Metric | Feature-disabled control | Then-current single-route implementation |
 |---|---:|---:|
 | Successful quotes | 90/90 | **90/90** |
 | Median output delta | −0.0148% | **−0.0070%** |
@@ -57,7 +92,7 @@ negative means fewer output tokens.
 | 8 billion SHIB → WETH | 14.30898 WETH | **15.82713 WETH** | 15.96768 WETH | **−10.388% → −0.880%** |
 
 All 15 stETH-related and 6 SHIB-related outputs exceed their paired controls. Remaining SHIB gaps
-involve external pool splitting and BONE intermediates; Fluxion still returns one path. Additional
+involved external pool splitting and BONE intermediates; that version returned one path. Additional
 candidates increase cost: p50 latency rises about 15%.
 
 Ethereum block range **26324635–26324658**, local debug builds, public RPC. ParaSwap p50/p95
@@ -119,7 +154,10 @@ Request:
 
 - Amounts are **decimal strings** (`U256`).
 - `max_hops` optional, counts **edges** (defaults to config); each swap, wrap or unwrap counts as one hop.
-- `amount_out_min` optional; below it returns `AmountOutBelowMin`.
+- `amount_out_min` optional; selected total output below it returns `AmountOutBelowMin`.
+- `split` optional, default `false`; existing requests keep the single-path response below.
+- With `split=true`, optional `split_max_branches` must be at least 2 and cannot exceed the server
+  cap (default 4). Supplying a cap without opting in returns 400.
 
 Response (`200`):
 
@@ -144,6 +182,15 @@ Response (`200`):
 
 - `operation` is `swap` / `wrap` / `unwrap`; a conversion's `pool` identifies the wrapper contract.
 - Responses contain quotes and route information, not transaction calldata. No transaction is sent.
+
+**Optional multi-pool mode:** add `"split": true` to the request. Responses also contain
+`plan_kind`, `allocations`, `baseline_amount_out`, `search`, and, for real mainnet pricing,
+`quote_block`. All exact quotes use that block. Each allocation has `amount_in`, `amount_out`,
+`input_share_percent`, and its own sequential `path`. Parallel branches are not concatenated: the top-level
+`path` is empty for multi-branch plans and `amount_out` sums branch outputs. Baseline selections
+still have one 100% allocation. Budget exhaustion retains the best complete evaluated plan.
+New split/direct selections return `price_impact_bps: null` because aggregate impact is not
+calculated. See the [full contract and budgets](docs/MULTI-POOL.md).
 
 ### `GET /graph`
 
@@ -221,7 +268,10 @@ strips the `/api` prefix, so the browser stays same-origin and the service needs
 - Pick From/To by clicking nodes or typing addresses; the amount defaults to **one whole token**
   (raw units derived from the token's decimals) and can be edited to any raw value. `POST /quote`
   highlights the best route, dims the rest, and shows `amount_out`, `price_impact_bps` and per-hop
-  details.
+   details.
+- Multi-pool routing is enabled by default with a toggle back to single-route mode. Branch
+  percentages, inputs/outputs, quote block and all selected edges are displayed; unavailable
+  aggregate price impact is shown as “—”.
 - Periodic refresh (default 5s, configurable) updates data in place, preserving node positions,
   selection and route highlight.
 
@@ -249,6 +299,7 @@ Batch-prefetch V2 reserves and V3 slot0 -> CachingSource -> PriceSnapshot
         v
 axum HTTP service
   POST /quote -> Router -> snapshot weights -> diverse K-best DP -> refine -> best single path
+    split=true -> pinned exact pricing -> two-pool refinement / allocation DP -> best complete plan
   GET /graph  -> topology and installed snapshot
   GET /info   -> mode, effective config and graph size
 
@@ -269,6 +320,9 @@ Topology is fixed at startup. Runtime loops update pricing state and snapshots, 
 3. **Refinement** runs at most 16 candidate paths concurrently. Each path quotes its hops in order,
    passing one hop's output into the next. Failure of one candidate does not fail the others.
 4. **Selection** takes the highest exact `amount_out`, calculates price impact, and checks `amount_out_min`.
+5. **Optional splitting** retains the baseline and two-pool refinement before discrete allocation
+   DP across up to four independent direct pools. Remainders are re-quoted exactly and only a
+   strictly higher total replaces the winner. Default extra budget: 256 quotes and 8 seconds.
 
 This is bounded heuristic search: families prevent one class from crowding out all others, but do
 not guarantee a globally optimal route across the market.
@@ -296,8 +350,9 @@ wrapper can be configured; a different protocol interface requires an adapter.
 | `CachingSource` | Coarse mid-prices and reserves | Batch prefetch or on-demand reads; TTL is the larger refresh interval |
 | `PriceSnapshot` | Read-only price vector indexed by graph edge | Default wait of 120 s between rebuilds; replace the shared snapshot when ready |
 
-V2 refinement may read short-TTL cached reserves; other refinement reads live on-chain state.
-The complete route is not a same-block execution simulation.
+Default single-route refinement may use short-TTL V2 reserves and live calls. Mainnet split
+requests build fresh pricing caches pinned to `quote_block`; coarse search may still use an older
+snapshot. Neither mode simulates execution of the complete transaction.
 
 Stack:
 
@@ -322,7 +377,8 @@ src/
   state.rs       StateCache: V2 reserve TTL cache + Multicall3 hot-pool refresh
   rpc.rs         raw JSON-RPC client (429/transient retry with backoff)
   router.rs      snapshots, four-family K-best DP, bounded refinement and price impact
-  split.rs       bounded two-pool allocation, baseline fallback and integer conservation (experiment)
+  split.rs       bounded two-/multi-pool allocation, baseline fallback and integer conservation
+  reference.rs   ParaSwap quotes and pinned allocation replay; diagnostics without graph expansion
   universe.rs    shared discovery, pricing assembly and batch prefetch
   api.rs         /quote, /graph, /health, /ready; DTOs, error mapping and rate limits
   error.rs       shared quote errors
@@ -331,7 +387,7 @@ src/
   main.rs        startup assembly, /info, background refresh and HTTP service
   bin/
     bench.rs     paired benchmarks, aggregator comparison, routes, JSON / Markdown reports
-    split_bench.rs fixed-block single-route/split experiment and cost reporting
+    split_bench.rs pinned single/two/multi/ParaSwap comparison and cost reporting
     graph.rs     Mermaid / HTML export from a running service
 
 config.example.yaml           complete configuration example
@@ -418,7 +474,8 @@ docs/benchmarks/               methodology, raw routes and result analysis
 | `slippage_penalty_lambda` | liquidity penalty coefficient | 0.0 |
 | `refresh_interval_secs` | V2 reserve TTL / hot refresh interval; hot = accessed in the last 5 minutes | 30 |
 | `snapshot_refresh_secs` | full price-snapshot rebuild interval | 120 |
-| `request_timeout_ms` | per-request timeout (ms) | 5000 |
+| `request_timeout_ms` | per-request timeout (ms) | 10000 |
+| `split` | server-side opt-in allocation budgets; requests still need `split=true` | 4 branches / 4 pools / 20 segments / 256 calls / 8000 ms |
 | `token_allowlist` | override built-in major-token allowlist | empty (built-in) |
 
 `GRAPH_API_KEY` lives **only in the gitignored `.env`** — never committed.
@@ -449,7 +506,7 @@ For a paired control, run a second service with `config.benchmark-control.yaml` 
 and reports stETH, SHIB, and other cohorts, retaining full routes in JSON.
 
 Latest results are displayed in the **Benchmark** section near the top of this README. Full
-per-row outputs are in the [90-row paired report](docs/benchmarks/2026-11-02-quote-quality.md).
+per-row outputs are in the [90-row four-way report](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.md).
 
 ## Testing
 
@@ -468,14 +525,16 @@ cd ui && npm install && npm run build   # frontend build
   Multicall3 hot refresh, end-to-end multi-hop (V2/V3 + Curve), subgraph discovery. The V2 adapter
   also has a **fixed-block `getReserves` fixture** for deterministic offline tests.
 - Added pinned-block mainnet checks: wstETH round-trip rounding, ShibaSwap discovery, and exact
-  agreement with the deployed ShibaSwap Router.
+   agreement with the deployed ShibaSwap Router.
+- Multi-pool: four-pool gains, integer rounding/overflow/ties, budget fallback, HTTP compatibility,
+  block pinning/deadline/min-output handling, offline mock mode, and independent mainnet branch totals.
 
 ## Limitations
 
-- Ethereum mainnet only; exact-in; one highest-output refined candidate, without splitting or
-  a market-wide global-optimality guarantee.
-- The single-path limit applies to HTTP; `split_bench` exposes a two-pool experiment, not a new
-  formal multi-branch service contract.
+- Ethereum mainnet only; exact-in; single-route by default, optional independent direct-pool
+  splitting. No market-wide global-optimality guarantee.
+- Allocation has candidate/grid/call budgets; arbitrary multi-hop branches and shared-pool state
+  interactions are not supported.
 - Native ETH unsupported; callers handle ETH↔WETH wrapping. stETH↔wstETH is a separate supported conversion.
 - The Curve adapter supports both stableswap (`get_dy(int128,…)`) and crypto (`get_dy(uint256,…)`);
   **discovery** covers the main stableswap + crypto registries by default (`curve_registry_ids: [0, 5]`);
@@ -485,12 +544,13 @@ cd ui && npm install && npm run build   # frontend build
   Additional candidate families increase RPC cost; measured latency is above, without a fixed SLA.
 - No generic support for fee-on-transfer or arbitrary rebasing tokens. The dedicated stETH
   conversion adapter does not imply automatic support for other special-token semantics.
-- Snapshots, short-TTL V2 reserves and live calls may reflect different blocks; a quote is not a
-  simulation of executing the complete route.
+- Default single-route snapshots, cached V2 reserves and live calls may reflect different blocks.
+  Split exact pricing is pinned; quotes do not construct or simulate transactions.
 - Public HTTP has no auth, only simple rate limiting.
 
 ## Docs
 
+- [`docs/MULTI-POOL.md`](docs/MULTI-POOL.md): allocation DP, pinned HTTP pricing, Viewer and reference-replay boundaries.
 - [`docs/SPLIT-ROUTING.md`](docs/SPLIT-ROUTING.md): allocation, budgets, memoization and fixed-state experiment.
 - [`docs/QUOTE-QUALITY.md`](docs/QUOTE-QUALITY.md): current conversion, ShibaSwap and candidate-family design.
 - [`docs/benchmarks/README.md`](docs/benchmarks/README.md): methodology, paired results and raw data index.

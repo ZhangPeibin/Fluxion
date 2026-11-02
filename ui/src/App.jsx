@@ -135,6 +135,7 @@ export default function App() {
   const [quote, setQuote] = useState(null);
   const [quoteError, setQuoteError] = useState(null);
   const [quoting, setQuoting] = useState(false);
+  const [splitMode, setSplitMode] = useState(true);
   const [details, setDetails] = useState(null);
 
   const enabledPlatforms = useMemo(
@@ -168,7 +169,10 @@ export default function App() {
   }, [graph]);
 
   const routeEdgeIds = useMemo(
-    () => new Set((quote?.path ?? []).map((hop) => edgeKey(hop.pool, hop.i, hop.j))),
+    () => {
+      const hops = quote?.allocations?.flatMap((allocation) => allocation.path) ?? quote?.path ?? [];
+      return new Set(hops.map((hop) => edgeKey(hop.pool, hop.i, hop.j)));
+    },
     [quote],
   );
 
@@ -239,6 +243,7 @@ export default function App() {
             token_in: trimmedIn,
             token_out: trimmedOut,
             amount_in: trimmedAmount,
+            split: splitMode,
           }),
           signal: controller.signal,
         });
@@ -267,7 +272,7 @@ export default function App() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [trimmedIn, trimmedOut, trimmedAmount]);
+  }, [trimmedIn, trimmedOut, trimmedAmount, splitMode]);
 
   function togglePlatform(platform) {
     setEnabled((current) => ({ ...current, [platform]: !current[platform] }));
@@ -386,6 +391,14 @@ export default function App() {
             (e.g. 1e18 for an 18-decimal token).
           </p>
 
+          <label className="legend-item split-toggle">
+            <input
+              type="checkbox"
+              checked={splitMode}
+              onChange={(event) => setSplitMode(event.target.checked)}
+            />
+            <span>Multi-pool routing</span>
+          </label>
           {quoting && <p className="status">Quoting…</p>}
           {quoteError && <p className="error">Quote failed: {quoteError}</p>}
           {quote && (
@@ -397,10 +410,44 @@ export default function App() {
                 </div>
                 <div>
                   <dt>Price impact</dt>
-                  <dd>{quote.price_impact_bps} bps</dd>
+                  <dd>{quote.price_impact_bps == null ? "—" : `${quote.price_impact_bps} bps`}</dd>
                 </div>
               </dl>
-              {quote.path.length === 0 ? (
+              {quote.allocations ? (
+                <div>
+                  <p className="status">
+                    {quote.plan_kind} · {quote.allocations.length} branch(es) · {quote.search?.stop_reason}
+                    {quote.quote_block ? ` · block ${quote.quote_block}` : ""}
+                  </p>
+                  <p className="hint">
+                    Single-route baseline: {quote.baseline_amount_out}. Gross output; gas excluded.
+                  </p>
+                  {quote.allocations.map((allocation, index) => (
+                    <div className="allocation" key={index}>
+                      <strong>Branch {index + 1}: {allocation.input_share_percent.toFixed(2)}%</strong>
+                      <p className="hint">
+                        {allocation.amount_in} → {allocation.amount_out} (raw units)
+                      </p>
+                      {allocation.path.length === 0 ? (
+                        <p className="status">Same token; no swap.</p>
+                      ) : (
+                        <ol className="hops">
+                          {allocation.path.map((hop) => (
+                            <li key={edgeKey(hop.pool, hop.i, hop.j)}>
+                              <span className="hop-tokens">
+                                {tokenLabel(hop.token_in)} → {tokenLabel(hop.token_out)}
+                              </span>
+                              <span className="hop-meta">
+                                {hop.platform} · {hop.operation ?? "swap"} · {shortAddress(hop.pool)}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : quote.path.length === 0 ? (
                 <p className="status">Input and output are the same token.</p>
               ) : (
                 <ol className="hops">

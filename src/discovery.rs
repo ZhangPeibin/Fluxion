@@ -13,6 +13,12 @@ use crate::util::{u256_to_usize, u256_word};
 mod shibaswap;
 pub use shibaswap::discover_shibaswap_v2;
 
+pub fn token_allowed(config: &Config, token: Address) -> bool {
+    allowlist(config)
+        .iter()
+        .any(|allowed| allowed.eq_ignore_ascii_case(&format!("{token:#x}")))
+}
+
 /// Apply the same both/all-token filter to configured conversion links.
 pub fn conversion_allowed(config: &Config, pool: &Pool) -> bool {
     let allow = allowlist(config);

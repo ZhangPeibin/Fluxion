@@ -1,4 +1,5 @@
 use crate::model::{ConversionKind, Pool, PoolKind};
+use crate::split::{SplitConfig, SplitOptimizer};
 use alloy_primitives::Address;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -71,6 +72,21 @@ pub struct Config {
     pub token_allowlist: Vec<String>,
     pub shibaswap_v2_factory: Address,
     pub protocol_conversions: Vec<ProtocolConversionConfig>,
+    #[serde(deserialize_with = "service_split_config")]
+    pub split: SplitConfig,
+}
+
+fn service_split_config<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<SplitConfig, D::Error> {
+    use serde::de::Error;
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let incoming = value
+        .as_object()
+        .ok_or_else(|| D::Error::custom("split must be a mapping"))?;
+    let mut merged = serde_json::to_value(SplitConfig::multi_pool()).map_err(D::Error::custom)?;
+    merged.as_object_mut().unwrap().extend(incoming.clone());
+    serde_json::from_value(merged).map_err(D::Error::custom)
 }
 
 impl Default for Config {
@@ -99,8 +115,9 @@ impl Default for Config {
             slippage_penalty_lambda: 0.0,
             refresh_interval_secs: 30,
             snapshot_refresh_secs: 120,
-            request_timeout_ms: 5000,
+            request_timeout_ms: 10000,
             token_allowlist: Vec::new(),
+            split: SplitConfig::multi_pool(),
             shibaswap_v2_factory: "0x115934131916C8b277DD010Ee02de363c09d037c"
                 .parse()
                 .unwrap(),
@@ -125,6 +142,7 @@ impl Default for Config {
 
 impl Config {
     pub fn validate(&self) -> Result<(), ConfigError> {
+        SplitOptimizer::new(self.split.clone()).map_err(ConfigError::Invalid)?;
         let mut contracts = std::collections::HashSet::new();
         for conversion in &self.protocol_conversions {
             if conversion.contract == Address::ZERO
@@ -198,5 +216,14 @@ mod tests {
     fn unknown_field_errors() {
         let r: Result<Config, _> = serde_yaml::from_str("bogus: 1");
         assert!(r.is_err());
+    }
+
+    #[test]
+    fn partial_service_split_settings_preserve_multi_pool_defaults() {
+        let config: Config = serde_yaml::from_str("split:\n  timeout_ms: 1234\n").unwrap();
+        assert_eq!(config.split.max_branches, 4);
+        assert_eq!(config.split.max_quote_calls, 256);
+        assert_eq!(config.split.timeout_ms, 1234);
+        assert!(serde_yaml::from_str::<Config>("split:\n  unknown_setting: 1\n").is_err());
     }
 }

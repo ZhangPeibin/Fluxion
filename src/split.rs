@@ -1,4 +1,4 @@
-//! Bounded two-pool allocation experiments. The caller supplies one immutable
+//! Bounded two-/multi-pool allocation. The caller supplies one immutable
 //! pricing context (pin RPC state for meaningful baseline/split comparisons).
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use alloy_primitives::{Address, U256};
 use async_trait::async_trait;
 use futures::{StreamExt, stream};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::QuoteError;
 use crate::graph::Graph;
@@ -16,7 +16,8 @@ use crate::model::{Hop, Pool, PoolKind, QuoteRequest, Route};
 use crate::router::Router;
 use crate::source::QuoteSource;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct SplitConfig {
     pub coarse_segments: usize,
     pub refinement_segments: usize,
@@ -25,6 +26,8 @@ pub struct SplitConfig {
     pub max_quote_calls: usize,
     pub concurrency: usize,
     pub timeout_ms: u64,
+    pub max_branches: usize,
+    pub allocation_segments: usize,
 }
 
 impl Default for SplitConfig {
@@ -37,6 +40,18 @@ impl Default for SplitConfig {
             max_quote_calls: 128,
             concurrency: 8,
             timeout_ms: 8000,
+            max_branches: 2,
+            allocation_segments: 20,
+        }
+    }
+}
+
+impl SplitConfig {
+    pub fn multi_pool() -> Self {
+        Self {
+            max_branches: 4,
+            max_quote_calls: 256,
+            ..Self::default()
         }
     }
 }
@@ -77,6 +92,9 @@ pub struct SearchStats {
     pub valid_plans: usize,
     pub refinement_rounds: usize,
     pub stop_reason: StopReason,
+    pub multi_pool_search: bool,
+    pub multi_pool_completed: bool,
+    pub allocation_plans_evaluated: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -254,11 +272,239 @@ fn evaluate(
     }
 }
 
+async fn fill_quotes(
+    pools: &[DirectPool],
+    source: &ObservedSource<'_>,
+    jobs: Vec<(usize, U256)>,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+) -> StopReason {
+    if tokio::time::Instant::now() >= deadline {
+        return StopReason::TimeBudget;
+    }
+    let remaining = config
+        .max_quote_calls
+        .saturating_sub(source.calls.load(Ordering::Relaxed) - baseline_calls);
+    let truncated = jobs.len() > remaining;
+    let mut pending = stream::iter(jobs.into_iter().take(remaining))
+        .map(|(idx, amount): (usize, U256)| async move {
+            let pool = &pools[idx];
+            let _ = source.amount_out(&pool.pool, pool.i, pool.j, amount).await;
+        })
+        .buffer_unordered(config.concurrency);
+    loop {
+        match tokio::time::timeout_at(deadline, pending.next()).await {
+            Ok(Some(())) => {}
+            Ok(None) => break,
+            Err(_) => return StopReason::TimeBudget,
+        }
+    }
+    if truncated {
+        StopReason::QuoteBudget
+    } else {
+        StopReason::Completed
+    }
+}
+
+#[derive(Clone)]
+struct DpAllocation {
+    out: U256,
+    units: Vec<usize>,
+}
+
+/// Discrete resource allocation over sampled independent pool quote tables.
+/// The DP optimizes the sampled additive model; integer residuals must still be
+/// allocated and re-quoted before a plan can replace the retained baseline.
+fn allocation_dp(
+    tables: &[Vec<Option<U256>>],
+    segments: usize,
+    branches: usize,
+    deadline: tokio::time::Instant,
+) -> Result<Vec<Vec<usize>>, StopReason> {
+    let width = branches + 1;
+    let mut previous = vec![None::<DpAllocation>; (segments + 1) * width];
+    previous[0] = Some(DpAllocation {
+        out: U256::ZERO,
+        units: vec![],
+    });
+    for table in tables {
+        let mut next = vec![None::<DpAllocation>; (segments + 1) * width];
+        for used in 0..=segments {
+            if tokio::time::Instant::now() >= deadline {
+                return Err(StopReason::TimeBudget);
+            }
+            for active in 0..=branches {
+                let Some(old) = &previous[used * width + active] else {
+                    continue;
+                };
+                for (units, value) in table.iter().enumerate().take(segments - used + 1) {
+                    let count = active + usize::from(units > 0);
+                    if count > branches {
+                        continue;
+                    }
+                    let Some(value) = value else {
+                        continue;
+                    };
+                    let Some(out) = old.out.checked_add(*value) else {
+                        continue;
+                    };
+                    let target = &mut next[(used + units) * width + count];
+                    if target.as_ref().is_none_or(|best| out > best.out) {
+                        let mut allocation = old.units.clone();
+                        allocation.push(units);
+                        *target = Some(DpAllocation {
+                            out,
+                            units: allocation,
+                        });
+                    }
+                }
+            }
+        }
+        previous = next;
+    }
+    Ok((1..=branches)
+        .filter_map(|b| previous[segments * width + b].take().map(|cell| cell.units))
+        .collect())
+}
+
+async fn multi_pool(
+    pools: &[DirectPool],
+    source: &ObservedSource<'_>,
+    amount: U256,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+    result: &mut SplitResult,
+) -> StopReason {
+    let segments = config.allocation_segments;
+    let mut jobs = Vec::new();
+    let mut keys = HashSet::new();
+    for (idx, pool) in pools.iter().enumerate() {
+        for k in 1..=segments {
+            let input = fraction(amount, k, segments);
+            if source.cached(pool, input).is_none() && keys.insert(ObservedSource::key(pool, input))
+            {
+                jobs.push((idx, input));
+            }
+        }
+    }
+    let table_stop = fill_quotes(pools, source, jobs, config, baseline_calls, deadline).await;
+    let tables = pools
+        .iter()
+        .map(|pool| {
+            (0..=segments)
+                .map(|k| {
+                    source
+                        .cached(pool, fraction(amount, k, segments))
+                        .and_then(Result::ok)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let allocations = match allocation_dp(
+        &tables,
+        segments,
+        config.max_branches.min(pools.len()),
+        deadline,
+    ) {
+        Ok(plans) => plans,
+        Err(stop) => return stop,
+    };
+    let mut plans = HashSet::new();
+    for units in allocations {
+        let inputs = units
+            .into_iter()
+            .map(|k| fraction(amount, k, segments))
+            .collect::<Vec<_>>();
+        let Some(sum) = inputs
+            .iter()
+            .try_fold(U256::ZERO, |sum, x| sum.checked_add(*x))
+        else {
+            continue;
+        };
+        let Some(remainder) = amount.checked_sub(sum) else {
+            continue;
+        };
+        if remainder.is_zero() {
+            plans.insert(inputs);
+            continue;
+        }
+        // Try each already active branch for the rounding remainder. A failed
+        // adjustment never leaves the remainder unspent in an accepted plan.
+        for idx in 0..inputs.len() {
+            if inputs[idx].is_zero() && inputs.iter().any(|x| !x.is_zero()) {
+                continue;
+            }
+            let mut adjusted = inputs.clone();
+            adjusted[idx] += remainder;
+            plans.insert(adjusted);
+        }
+    }
+    let mut plans = plans.into_iter().collect::<Vec<_>>();
+    plans.sort();
+    let mut jobs = Vec::new();
+    let mut keys = HashSet::new();
+    for inputs in &plans {
+        for (idx, input) in inputs.iter().copied().enumerate() {
+            if source.cached(&pools[idx], input).is_none()
+                && keys.insert(ObservedSource::key(&pools[idx], input))
+            {
+                jobs.push((idx, input));
+            }
+        }
+    }
+    let final_stop = fill_quotes(pools, source, jobs, config, baseline_calls, deadline).await;
+    for inputs in plans {
+        let mut allocations = Vec::new();
+        let mut total = Some(U256::ZERO);
+        let mut complete = true;
+        for (idx, input) in inputs.into_iter().enumerate() {
+            if input.is_zero() {
+                continue;
+            }
+            let Some(Ok(out)) = source.cached(&pools[idx], input) else {
+                complete = false;
+                break;
+            };
+            total = total.and_then(|sum| sum.checked_add(out));
+            allocations.push(allocation(&pools[idx], input, out));
+        }
+        if !complete {
+            continue;
+        }
+        result.stats.allocation_plans_evaluated += 1;
+        result.stats.evaluated_plans += 1;
+        let Some(out) = total else {
+            continue;
+        };
+        result.stats.valid_plans += 1;
+        if out > result.amount_out {
+            result.kind = if allocations.len() > 1 {
+                PlanKind::Split
+            } else {
+                PlanKind::Direct
+            };
+            result.amount_out = out;
+            result.allocations = allocations;
+        }
+    }
+    if final_stop != StopReason::Completed {
+        final_stop
+    } else {
+        table_stop
+    }
+}
+
+#[derive(Clone)]
 pub struct SplitOptimizer {
     config: SplitConfig,
 }
 
 impl SplitOptimizer {
+    pub fn config(&self) -> &SplitConfig {
+        &self.config
+    }
     pub fn new(config: SplitConfig) -> Result<Self, String> {
         if !(2..=1024).contains(&config.coarse_segments)
             || !(2..=1024).contains(&config.refinement_segments)
@@ -266,8 +512,10 @@ impl SplitOptimizer {
             || !(2..=32).contains(&config.max_pools)
             || !(1..=64).contains(&config.concurrency)
             || config.timeout_ms > 3_600_000
+            || !(2..=8).contains(&config.max_branches)
+            || !(2..=128).contains(&config.allocation_segments)
         {
-            return Err("segments must be 2..1024, rounds <=8, pools 2..32, concurrency 1..64, timeout <=1 hour".into());
+            return Err("segments must be 2..1024, allocation segments 2..128, branches 2..8, rounds <=8, pools 2..32, concurrency 1..64, timeout <=1 hour".into());
         }
         Ok(Self { config })
     }
@@ -292,6 +540,33 @@ impl SplitOptimizer {
         source: &(dyn QuoteSource + Send + Sync),
         request: &QuoteRequest,
         rpc_requests: Option<&(dyn Fn() -> u64 + Send + Sync)>,
+    ) -> Result<SplitResult, QuoteError> {
+        self.quote_inner(router, graph, source, request, rpc_requests, None)
+            .await
+    }
+
+    /// The service reserves a small response margin inside its request timeout.
+    /// Additional search ends here, retaining a completed baseline/plan.
+    pub async fn quote_until(
+        &self,
+        router: &Router,
+        graph: &Graph,
+        source: &(dyn QuoteSource + Send + Sync),
+        request: &QuoteRequest,
+        deadline: tokio::time::Instant,
+    ) -> Result<SplitResult, QuoteError> {
+        self.quote_inner(router, graph, source, request, None, Some(deadline))
+            .await
+    }
+
+    async fn quote_inner(
+        &self,
+        router: &Router,
+        graph: &Graph,
+        source: &(dyn QuoteSource + Send + Sync),
+        request: &QuoteRequest,
+        rpc_requests: Option<&(dyn Fn() -> u64 + Send + Sync)>,
+        hard_deadline: Option<tokio::time::Instant>,
     ) -> Result<SplitResult, QuoteError> {
         let rpc_before = rpc_requests.map(|counter| counter());
         let source = ObservedSource {
@@ -325,6 +600,7 @@ impl SplitOptimizer {
         };
         let search_started = Instant::now();
         let deadline = tokio::time::Instant::now() + Duration::from_millis(self.config.timeout_ms);
+        let deadline = hard_deadline.map_or(deadline, |hard| hard.min(deadline));
         let mut addresses = HashSet::new();
         let mut pools = graph
             .out_edge_indices(request.token_in)
@@ -463,6 +739,24 @@ impl SplitOptimizer {
                     break;
                 }
             }
+        }
+        if self.config.max_branches > 2
+            && pools.len() > 2
+            && result.stats.stop_reason == StopReason::Completed
+        {
+            result.stats.multi_pool_search = true;
+            let stop = multi_pool(
+                &pools,
+                &source,
+                request.amount_in,
+                &self.config,
+                baseline_calls,
+                deadline,
+                &mut result,
+            )
+            .await;
+            result.stats.multi_pool_completed = stop == StopReason::Completed;
+            result.stats.stop_reason = stop;
         }
         result.stats.search_ms = search_started.elapsed().as_millis();
         result.stats.additional_quote_calls = source.calls.load(Ordering::Relaxed) - baseline_calls;

@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::{Json, Router as AxumRouter};
+use axum::{Extension, Json, Router as AxumRouter};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -16,6 +16,7 @@ use crate::model::{Hop, QuoteRequest, Route};
 use crate::router::Router;
 use crate::rpc::RpcClient;
 use crate::source::QuoteSource;
+use crate::split::{Allocation, PlanKind, SearchStats, SplitConfig, SplitOptimizer, SplitResult};
 
 #[derive(Debug, Deserialize)]
 pub struct QuoteRequestDto {
@@ -26,6 +27,10 @@ pub struct QuoteRequestDto {
     pub max_hops: Option<usize>,
     #[serde(default)]
     pub amount_out_min: Option<String>,
+    #[serde(default)]
+    pub split: bool,
+    #[serde(default)]
+    pub split_max_branches: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -44,8 +49,64 @@ pub struct HopDto {
 #[derive(Debug, Serialize)]
 pub struct QuoteResponseDto {
     pub amount_out: String,
-    pub price_impact_bps: i64,
+    pub price_impact_bps: Option<i64>,
     pub path: Vec<HopDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan_kind: Option<PlanKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allocations: Option<Vec<AllocationDto>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub baseline_amount_out: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search: Option<SearchStats>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quote_block: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AllocationDto {
+    pub amount_in: String,
+    pub amount_out: String,
+    pub input_share_percent: f64,
+    pub path: Vec<HopDto>,
+}
+
+fn allocation_to_dto(allocation: &Allocation, total: U256) -> AllocationDto {
+    let numeric = |n: U256| n.to_string().parse::<f64>().unwrap();
+    AllocationDto {
+        amount_in: allocation.amount_in.to_string(),
+        amount_out: allocation.amount_out.to_string(),
+        input_share_percent: numeric(allocation.amount_in) / numeric(total) * 100.0,
+        path: allocation.hops.iter().map(hop_to_dto).collect(),
+    }
+}
+
+fn split_to_dto(result: SplitResult, total: U256, block: Option<u64>) -> QuoteResponseDto {
+    let path = if result.allocations.len() == 1 {
+        result.allocations[0].hops.iter().map(hop_to_dto).collect()
+    } else {
+        vec![]
+    };
+    QuoteResponseDto {
+        amount_out: result.amount_out.to_string(),
+        price_impact_bps: if result.kind == PlanKind::Baseline {
+            Some(result.baseline.price_impact_bps)
+        } else {
+            None
+        },
+        path,
+        plan_kind: Some(result.kind),
+        allocations: Some(
+            result
+                .allocations
+                .iter()
+                .map(|a| allocation_to_dto(a, total))
+                .collect(),
+        ),
+        baseline_amount_out: Some(result.baseline.amount_out.to_string()),
+        search: Some(result.stats),
+        quote_block: block,
+    }
 }
 
 /// A directed pool hop in the routing multigraph. Price fields are omitted when
@@ -104,6 +165,11 @@ pub struct AppState {
     pub limiter: RateLimiter,
     pub rpc: Option<RpcClient>,
     pub request_timeout: Duration,
+}
+
+struct SplitService {
+    optimizer: Arc<SplitOptimizer>,
+    pin_pricing: bool,
 }
 
 pub enum ApiError {
@@ -175,13 +241,19 @@ fn hop_to_dto(hop: &Hop) -> HopDto {
 fn route_to_dto(route: Route) -> QuoteResponseDto {
     QuoteResponseDto {
         amount_out: route.amount_out.to_string(),
-        price_impact_bps: route.price_impact_bps,
+        price_impact_bps: Some(route.price_impact_bps),
         path: route.hops.iter().map(hop_to_dto).collect(),
+        plan_kind: None,
+        allocations: None,
+        baseline_amount_out: None,
+        search: None,
+        quote_block: None,
     }
 }
 
 async fn quote(
     State(state): State<Arc<AppState>>,
+    Extension(service): Extension<Arc<SplitService>>,
     Json(req): Json<QuoteRequestDto>,
 ) -> Result<Json<QuoteResponseDto>, ApiError> {
     if !state.limiter.allow() {
@@ -195,6 +267,88 @@ async fn quote(
         max_hops: req.max_hops,
         amount_out_min: req.amount_out_min.as_deref().map(parse_u256).transpose()?,
     };
+
+    if req.split {
+        if request.amount_in.is_zero() {
+            return Err(ApiError::Quote(QuoteError::ZeroAmount));
+        }
+        let optimizer = service.optimizer.clone();
+        let optimizer = if let Some(limit) = req.split_max_branches {
+            if limit < 2 || limit > optimizer.config().max_branches {
+                return Err(ApiError::BadRequest(format!(
+                    "split_max_branches must be 2..{}",
+                    optimizer.config().max_branches
+                )));
+            }
+            let mut config = optimizer.config().clone();
+            config.max_branches = limit;
+            Arc::new(SplitOptimizer::new(config).map_err(ApiError::BadRequest)?)
+        } else {
+            optimizer
+        };
+        let deadline = tokio::time::Instant::now()
+            + state
+                .request_timeout
+                .saturating_sub(Duration::from_millis(25));
+        let mut split_request = request.clone();
+        split_request.amount_out_min = None;
+        let calculation = async {
+            if service.pin_pricing
+                && let Some(rpc) = state
+                    .rpc
+                    .as_ref()
+                    .filter(|_| request.token_in != request.token_out)
+            {
+                let block = rpc.block_number().await?;
+                // This assembly only selects adapter/cache implementations;
+                // the server's existing filtered graph and Router are retained.
+                // Fresh request-local caches cannot carry a different block.
+                let (source, _) = crate::universe::pricing_source(
+                    &crate::config::Config::default(),
+                    rpc.clone().at_block(block),
+                );
+                optimizer
+                    .quote_until(
+                        &state.router,
+                        &state.graph,
+                        source.as_ref(),
+                        &split_request,
+                        deadline,
+                    )
+                    .await
+                    .map(|result| (result, Some(block)))
+            } else {
+                optimizer
+                    .quote_until(
+                        &state.router,
+                        &state.graph,
+                        state.source.as_ref(),
+                        &split_request,
+                        deadline,
+                    )
+                    .await
+                    .map(|result| (result, None))
+            }
+        };
+        return match tokio::time::timeout(state.request_timeout, calculation).await {
+            Ok(result) => {
+                let (result, block) = result?;
+                if request
+                    .amount_out_min
+                    .is_some_and(|min| result.amount_out < min)
+                {
+                    return Err(ApiError::Quote(QuoteError::AmountOutBelowMin));
+                }
+                Ok(Json(split_to_dto(result, request.amount_in, block)))
+            }
+            Err(_) => Err(ApiError::Timeout),
+        };
+    }
+    if req.split_max_branches.is_some() {
+        return Err(ApiError::BadRequest(
+            "split_max_branches requires split=true".into(),
+        ));
+    }
 
     let route = match tokio::time::timeout(
         state.request_timeout,
@@ -274,11 +428,27 @@ async fn ready(State(state): State<Arc<AppState>>) -> (StatusCode, Json<serde_js
 }
 
 pub fn app(state: Arc<AppState>) -> AxumRouter {
+    app_with_split(
+        state,
+        SplitOptimizer::new(SplitConfig::multi_pool()).expect("valid default split configuration"),
+        true,
+    )
+}
+
+pub fn app_with_split(
+    state: Arc<AppState>,
+    optimizer: SplitOptimizer,
+    pin_pricing: bool,
+) -> AxumRouter {
     AxumRouter::new()
         .route("/quote", post(quote))
         .route("/graph", get(graph))
         .route("/health", get(health))
         .route("/ready", get(ready))
+        .layer(Extension(Arc::new(SplitService {
+            optimizer: Arc::new(optimizer),
+            pin_pricing,
+        })))
         .with_state(state)
 }
 

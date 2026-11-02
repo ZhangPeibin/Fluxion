@@ -67,4 +67,17 @@ refresh_interval_secs: 30
 snapshot_refresh_secs: 120
 
 # Per-request timeout for /quote (milliseconds).
-request_timeout_ms: 5000
+request_timeout_ms: 10000
+
+# Opt-in HTTP split=true. Existing requests remain single-route.
+# A request may lower split_max_branches to 2, not exceed this server cap.
+split:
+  max_branches: 4
+  max_pools: 4
+  allocation_segments: 20
+  coarse_segments: 10
+  refinement_segments: 4
+  refinement_rounds: 2
+  max_quote_calls: 256
+  concurrency: 8
+  timeout_ms: 8000 # additionally bounded by the HTTP request's remaining time
