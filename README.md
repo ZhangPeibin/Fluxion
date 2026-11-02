@@ -201,9 +201,9 @@ ui/              独立 Web viewer（React + Vite + vis-network；只读 /graph 
 - **Curve**：通过 `AddressProvider.get_address(id)` 枚举多个注册表（`curve_registry_ids`，
   默认 `[0, 5]` = 主 stableswap + crypto；`7` = MetaRegistry 覆盖全部含 factory/metapool，较慢），
   每个注册表 `pool_count() → pool_list(i) → coins(i)`，并用一次 `get_dy` 探测验证可报。
-- **过滤**：`min_liquidity`、`min_volume_24h`、`min_pool_age_days`；以及**默认主流币
-  白名单（约 50 个）**（V2/V3 要求池子两币都在白名单；Curve 要求所有币都在）。白名单可用
-  `token_allowlist` 覆盖。
+- **过滤**：`min_liquidity`、`min_volume_24h`、`min_pool_age_days`；以及默认约 50 个主流币的
+  白名单。`token_allowlist` 为空时使用内置名单，非空时覆盖；V2/V3 要求两币都在名单内，Curve 要求所有币都在。
+- V2/V3 分别按流动性/成交量排序，在过滤后保留最多 `max_pools` 个池（默认 10000）。
 - `max_pools` 限制每类平台的池子数，控制图规模与 RPC 压力。
 
 ## 路由算法
@@ -226,17 +226,38 @@ ui/              独立 Web viewer（React + Vite + vis-network；只读 /graph 
 | `curve_address_provider` | Curve AddressProvider | `0x0000…4383` |
 | `curve_registry_ids` | 枚举的 Curve 注册表 id（0=主 stableswap，5=crypto，7=MetaRegistry 全部） | `[0, 5]` |
 | `enabled_platforms` | 启用的平台 | v2/v3/curve |
-| `max_hops` / `top_k` / `max_pools` | 路由与规模 | 3 / 8 / 100 |
+| `max_hops` / `top_k` / `max_pools` | 路由与规模（`max_pools` 为每平台按流动性/成交量取前 N 个池） | 3 / 8 / 10000 |
 | `min_liquidity` | 流动性下限（USD 量级） | 50000 |
 | `min_volume_24h` | 成交量下限（用 subgraph `volumeUSD` 作代理） | 0 |
 | `min_pool_age_days` | 最小池龄（天） | 0 |
-| `reserve_ratio_k` | 动态浅池阈值 `reserve_in ≥ k·amount_in` | 10 |
+| `reserve_ratio_k` | 动态浅池阈值 `reserve_in ≥ k·amount_in`（0 = 关闭） | 0 |
 | `slippage_penalty_lambda` | 流动性惩罚系数 | 0.0 |
-| `refresh_interval_secs` | 刷新间隔 / mid-price TTL | 30 |
+| `refresh_interval_secs` | 热池储备刷新间隔与储备 TTL；近 5 分钟访问过的池才是热池 | 30 |
+| `snapshot_refresh_secs` | 全量价格快照重建间隔 | 120 |
 | `request_timeout_ms` | 单请求超时（毫秒） | 5000 |
-| `token_allowlist` | 覆盖默认主流币白名单 | 空（用内置） |
+| `token_allowlist` | 覆盖内置主流币白名单 | 空（使用内置） |
 
 `GRAPH_API_KEY` 只放在 **gitignored 的 `.env`** 里，不进版本库。
+
+粗选价格缓存 TTL 取 `max(refresh_interval_secs, snapshot_refresh_secs)`。全图预热使用
+Multicall3 分批读取 V2 储备和 V3 `slot0`，不会将所有池标成热池；精算时才懒加载 V2 的短 TTL 储备。
+
+## 基准测试与图导出
+
+```bash
+# 单独配置启动一个真实主网实例（默认 :8081；需要 GRAPH_API_KEY）
+cargo run -- --config config.benchmark.yaml
+
+# 另一个终端：30 个交易对 × 3 档固定 raw 输入金额
+cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchmark.yaml
+
+# 从同一实例导出 Mermaid 与交互式 HTML，可用 --token ADDRESS --depth 2 聚焦
+cargo run --bin graph -- --service http://127.0.0.1:8081 --out graph
+```
+
+`GET /info` 返回主网/mock 模式、图规模及生效配置（不含 RPC URL），基准工具拒绝 mock 模式。
+ParaSwap 无需密钥；1inch/0x 可通过 `.env` 中的 `ONEINCH_API_KEY` / `ZEROX_API_KEY` 启用。
+方法、结果与限制见 [docs/benchmarks/README.md](docs/benchmarks/README.md)。
 
 ## 测试
 
