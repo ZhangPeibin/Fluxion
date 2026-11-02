@@ -145,15 +145,21 @@ impl Router {
         source: &(dyn QuoteSource + Send + Sync),
         request: &QuoteRequest,
     ) -> Result<Route, QuoteError> {
+        if request.amount_in.is_zero() {
+            return Err(QuoteError::ZeroAmount);
+        }
         if request.token_in == request.token_out {
+            if request
+                .amount_out_min
+                .is_some_and(|min| request.amount_in < min)
+            {
+                return Err(QuoteError::AmountOutBelowMin);
+            }
             return Ok(Route {
                 hops: Vec::new(),
                 amount_out: request.amount_in,
                 price_impact_bps: 0,
             });
-        }
-        if request.amount_in.is_zero() {
-            return Err(QuoteError::ZeroAmount);
         }
 
         let max_hops = request.max_hops.unwrap_or(self.config.max_hops).max(1);
@@ -251,17 +257,19 @@ impl Router {
             prev = curr;
         }
 
-        if candidates.is_empty() {
-            return Err(QuoteError::NoPath);
-        }
-        candidates.sort_by(|a, b| a.cost.partial_cmp(&b.cost).unwrap_or(Ordering::Equal));
-        candidates.truncate(self.config.top_k.max(1));
+        // Keep candidates from every hop length instead of truncating the whole
+        // pool to top-K. A cheap-looking longer path must not crowd out a
+        // feasible shorter path before the exact refine stage (which picks by
+        // real amount_out, not coarse cost).
 
         // Always consider direct routes: coarse mid-price can misrank thin or
         // mispriced pools and crowd the obvious best route out of the top-K.
         for &eidx in graph.out_edge_indices(request.token_in) {
             let edge = graph.edge(eidx);
             if graph.pool(edge.pool_idx).coins[edge.j] == request.token_out
+                && (ratio_k == U256::ZERO
+                    || snapshot.per_edge[eidx].reserve_in
+                        >= amount_in.checked_mul(ratio_k).unwrap_or(U256::MAX))
                 && !candidates
                     .iter()
                     .any(|c| c.edges.len() == 1 && c.edges[0] == eidx)
@@ -274,9 +282,9 @@ impl Router {
             }
         }
 
-        // Refine stage: chain the exact amount_out along each candidate path,
-        // refining all candidates concurrently to hide RPC latency.
-        let refine = candidates.iter().map(|cand| async move {
+        // Refine candidates with bounded concurrency to keep RPC use predictable.
+        let candidate_count = candidates.len();
+        let refine = stream::iter(candidates).map(|cand: Candidate| async move {
             let mut amount_in = request.amount_in;
             let mut hops = Vec::with_capacity(cand.edges.len());
             for &eidx in &cand.edges {
@@ -301,11 +309,11 @@ impl Router {
             })
         });
         let mut best: Option<Route> = None;
-        for route in futures::future::join_all(refine)
-            .await
-            .into_iter()
-            .flatten()
-        {
+        let mut refined = refine.buffer_unordered(16);
+        while let Some(result) = refined.next().await {
+            let Ok(route) = result else {
+                continue;
+            };
             if best
                 .as_ref()
                 .is_none_or(|r| route.amount_out > r.amount_out)
@@ -315,7 +323,7 @@ impl Router {
         }
         tracing::debug!(
             refine_ms = __t0.elapsed().as_millis() as u64,
-            candidates = candidates.len(),
+            candidates = candidate_count,
             "refine done"
         );
 
@@ -467,6 +475,59 @@ mod tests {
         let route = route(&g, &src, &req).await.unwrap();
         assert!(route.hops.is_empty());
         assert_eq!(route.amount_out, U256::from(7u64));
+    }
+
+    #[tokio::test]
+    async fn same_token_still_enforces_zero_and_minimum_checks() {
+        let g = Graph::new();
+        let src = FixedRate::new(U256::from(1));
+        let mut req = QuoteRequest {
+            token_in: eth(),
+            token_out: eth(),
+            amount_in: U256::ZERO,
+            max_hops: None,
+            amount_out_min: None,
+        };
+        assert_eq!(route(&g, &src, &req).await, Err(QuoteError::ZeroAmount));
+        req.amount_in = U256::from(7);
+        req.amount_out_min = Some(U256::from(8));
+        assert_eq!(
+            route(&g, &src, &req).await,
+            Err(QuoteError::AmountOutBelowMin)
+        );
+    }
+
+    #[tokio::test]
+    async fn direct_fallback_works_without_a_coarse_price_but_honors_reserve_filter() {
+        let (g, a, b) = graph_with_two_parallel_pools();
+        let source = MockV2::new(HashMap::from([
+            (a, [U256::from(100), U256::from(1000)]),
+            (b, [U256::from(100), U256::from(2000)]),
+        ]));
+        let req = QuoteRequest {
+            token_in: eth(),
+            token_out: usdc(),
+            amount_in: U256::from(20),
+            max_hops: None,
+            amount_out_min: None,
+        };
+        let mut config = RouterConfig::default();
+        let router = Router::new(config);
+        router.set_snapshot(Arc::new(PriceSnapshot {
+            per_edge: vec![
+                EdgePrice {
+                    mid_price: f64::NAN,
+                    reserve_in: U256::from(100)
+                };
+                g.edge_count()
+            ],
+        }));
+        assert!(router.route(&g, &source, &req).await.is_ok());
+        config.reserve_ratio_k = 10;
+        assert_eq!(
+            Router::new(config).route(&g, &source, &req).await,
+            Err(QuoteError::NoPath)
+        );
     }
 
     #[tokio::test]

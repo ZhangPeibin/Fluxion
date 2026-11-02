@@ -211,9 +211,11 @@ ui/              standalone web viewer (React + Vite + vis-network; read-only /g
   (`curve_registry_ids`, default `[0, 5]` = main stableswap + crypto; `7` = MetaRegistry covering
   all incl. factory/metapool, slower), each `pool_count() → pool_list(i) → coins(i)`, validating
   each pool with one `get_dy` probe.
-- **Filtering**: `min_liquidity`, `min_volume_24h`, `min_pool_age_days`; plus a **default
-  major-token allowlist (~50 tokens)** (V2/V3 require both coins; Curve requires all coins).
-  Override via `token_allowlist`.
+- **Filtering**: `min_liquidity`, `min_volume_24h`, `min_pool_age_days`; plus a built-in
+  major-token allowlist (~50 tokens). Empty `token_allowlist` uses that list; a nonempty list
+  overrides it. V2/V3 require both coins, Curve all coins.
+- V2/V3 are ordered by liquidity/volume respectively and keep up to `max_pools` qualifying pools
+  (default 10000).
 - `max_pools` caps per-platform pool count to bound graph size and RPC cost.
 
 ## Routing algorithm
@@ -237,17 +239,33 @@ ui/              standalone web viewer (React + Vite + vis-network; read-only /g
 | `curve_address_provider` | Curve AddressProvider | `0x0000…4383` |
 | `curve_registry_ids` | Curve registries to enumerate (0=main stableswap, 5=crypto, 7=MetaRegistry all) | `[0, 5]` |
 | `enabled_platforms` | enabled platforms | v2/v3/curve |
-| `max_hops` / `top_k` / `max_pools` | routing & scale | 3 / 8 / 100 |
+| `max_hops` / `top_k` / `max_pools` | routing & scale (`max_pools` = top N pools per platform by liquidity/volume) | 3 / 8 / 10000 |
 | `min_liquidity` | liquidity floor (USD-ish) | 50000 |
 | `min_volume_24h` | volume floor (uses subgraph `volumeUSD` as proxy) | 0 |
 | `min_pool_age_days` | minimum pool age (days) | 0 |
-| `reserve_ratio_k` | shallow-pool threshold `reserve_in ≥ k·amount_in` | 10 |
+| `reserve_ratio_k` | shallow-pool threshold `reserve_in ≥ k·amount_in` (0 = off) | 0 |
 | `slippage_penalty_lambda` | liquidity penalty coefficient | 0.0 |
-| `refresh_interval_secs` | refresh interval / mid-price TTL | 30 |
+| `refresh_interval_secs` | V2 reserve TTL / hot refresh interval; hot = accessed in the last 5 minutes | 30 |
+| `snapshot_refresh_secs` | full price-snapshot rebuild interval | 120 |
 | `request_timeout_ms` | per-request timeout (ms) | 5000 |
-| `token_allowlist` | override the default major-token allowlist | empty (built-in) |
+| `token_allowlist` | override built-in major-token allowlist | empty (built-in) |
 
 `GRAPH_API_KEY` lives **only in the gitignored `.env`** — never committed.
+
+Coarse cache TTL is `max(refresh_interval_secs, snapshot_refresh_secs)`. Multicall3 prefetches
+V2 reserves and V3 `slot0` in batches without promoting the entire graph to the hot set.
+
+## Benchmarks and graph export
+
+```bash
+cargo run -- --config config.benchmark.yaml # separate mainnet service on :8081
+cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchmark.yaml
+cargo run --bin graph -- --service http://127.0.0.1:8081 --out graph
+```
+
+`GET /info` exposes mode, graph size and effective configuration, excluding the RPC URL.
+The harness rejects mock services. ParaSwap is keyless; 1inch/0x are opt-in via
+`ONEINCH_API_KEY` / `ZEROX_API_KEY` in `.env`. See [benchmark methodology and results](docs/benchmarks/README.md).
 
 ## Testing
 

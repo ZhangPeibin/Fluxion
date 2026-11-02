@@ -1,0 +1,2916 @@
+{
+  "meta": {
+    "timestamp_unix": 1793587608,
+    "git_sha": "6743f75",
+    "service": "http://127.0.0.1:8081",
+    "corpus": "bench/corpus.yaml",
+    "start_block": 26324182,
+    "end_block": 26324194,
+    "paraswap_enabled": true,
+    "oneinch_enabled": false,
+    "zerox_enabled": false,
+    "working_tree_dirty": true,
+    "service_info": {
+      "config": {
+        "curve_address_provider": "0x0000000022D53366457F9d5E68Ec105046FC4383",
+        "curve_registry_ids": [
+          0,
+          5
+        ],
+        "enabled_platforms": [
+          "uniswap-v2",
+          "uniswap-v3",
+          "curve"
+        ],
+        "host": "127.0.0.1",
+        "max_hops": 3,
+        "max_pools": 10000,
+        "min_liquidity": 50000,
+        "min_pool_age_days": 0,
+        "min_volume_24h": 0,
+        "port": 8081,
+        "refresh_interval_secs": 30,
+        "request_timeout_ms": 10000,
+        "reserve_ratio_k": 0,
+        "slippage_penalty_lambda": 0.0,
+        "snapshot_refresh_secs": 120,
+        "token_allowlist": [],
+        "top_k": 8,
+        "uniswap_v2_subgraph_id": "EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu",
+        "uniswap_v3_subgraph_id": "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+      },
+      "edges": 418,
+      "mode": "mainnet",
+      "pools": 203,
+      "tokens": 48
+    },
+    "corpus_snapshot": {
+      "symbols": {
+        "0x6982508145454ce325ddbe47a25d4ec3d2311933": "PEPE",
+        "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984": "UNI",
+        "0xdac17f958d2ee523a2206206994597c13d831ec7": "USDT",
+        "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": "AAVE",
+        "0x514910771af9ca656af840dff83e8264ecf986ca": "LINK",
+        "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0": "wstETH",
+        "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": "WBTC",
+        "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce": "SHIB",
+        "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": "WETH",
+        "0xae7ab96520de3a18e5e111b5eaab095312d7fe84": "stETH",
+        "0x5a98fcbea516cf06857215779fd812ca3bef1b32": "LDO",
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": "USDC",
+        "0x6b175474e89094c44da98b954eedeac495271d0f": "DAI"
+      },
+      "decimals": {
+        "0xae7ab96520de3a18e5e111b5eaab095312d7fe84": 18,
+        "0xdac17f958d2ee523a2206206994597c13d831ec7": 6,
+        "0x6982508145454ce325ddbe47a25d4ec3d2311933": 18,
+        "0x514910771af9ca656af840dff83e8264ecf986ca": 18,
+        "0x6b175474e89094c44da98b954eedeac495271d0f": 18,
+        "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": 18,
+        "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984": 18,
+        "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0": 18,
+        "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": 18,
+        "0x5a98fcbea516cf06857215779fd812ca3bef1b32": 18,
+        "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": 8,
+        "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce": 18,
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": 6
+      },
+      "amounts": {
+        "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984": [
+          "140000000000000000000",
+          "1400000000000000000000",
+          "14000000000000000000000"
+        ],
+        "0xae7ab96520de3a18e5e111b5eaab095312d7fe84": [
+          "333333333333333333",
+          "3333333333333333333",
+          "33333333333333333333"
+        ],
+        "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": [
+          "4000000000000000000",
+          "40000000000000000000",
+          "400000000000000000000"
+        ],
+        "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce": [
+          "80000000000000000000000000",
+          "800000000000000000000000000",
+          "8000000000000000000000000000"
+        ],
+        "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0": [
+          "285714285714285714",
+          "2857142857142857142",
+          "28571428571428571428"
+        ],
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": [
+          "1000000000",
+          "10000000000",
+          "100000000000"
+        ],
+        "0x6b175474e89094c44da98b954eedeac495271d0f": [
+          "1000000000000000000000",
+          "10000000000000000000000",
+          "100000000000000000000000"
+        ],
+        "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": [
+          "1670000",
+          "16700000",
+          "167000000"
+        ],
+        "0xdac17f958d2ee523a2206206994597c13d831ec7": [
+          "1000000000",
+          "10000000000",
+          "100000000000"
+        ],
+        "0x5a98fcbea516cf06857215779fd812ca3bef1b32": [
+          "1600000000000000000000",
+          "16000000000000000000000",
+          "160000000000000000000000"
+        ],
+        "0x6982508145454ce325ddbe47a25d4ec3d2311933": [
+          "125000000000000000000000000",
+          "1250000000000000000000000000",
+          "12500000000000000000000000000"
+        ],
+        "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": [
+          "333333333333333333",
+          "3333333333333333333",
+          "33333333333333333333"
+        ],
+        "0x514910771af9ca656af840dff83e8264ecf986ca": [
+          "66000000000000000000",
+          "666000000000000000000",
+          "6666000000000000000000"
+        ]
+      },
+      "pairs": [
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        [
+          "0xdac17f958d2ee523a2206206994597c13d831ec7",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0x6b175474e89094c44da98b954eedeac495271d0f"
+        ],
+        [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+        ],
+        [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        [
+          "0xdac17f958d2ee523a2206206994597c13d831ec7",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0x6b175474e89094c44da98b954eedeac495271d0f"
+        ],
+        [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        [
+          "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xae7ab96520de3a18e5e111b5eaab095312d7fe84"
+        ],
+        [
+          "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+        ],
+        [
+          "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xae7ab96520de3a18e5e111b5eaab095312d7fe84"
+        ],
+        [
+          "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+          "0x5a98fcbea516cf06857215779fd812ca3bef1b32"
+        ],
+        [
+          "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0x6982508145454ce325ddbe47a25d4ec3d2311933"
+        ],
+        [
+          "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0x514910771af9ca656af840dff83e8264ecf986ca"
+        ],
+        [
+          "0x514910771af9ca656af840dff83e8264ecf986ca",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
+        ],
+        [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9"
+        ],
+        [
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+        ],
+        [
+          "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ]
+      ]
+    },
+    "pair_count": 30,
+    "delay_ms": 250,
+    "code_fingerprint": "22ddbf8ba5ccebc6dc3872f03810ccada1bfec5d"
+  },
+  "summary": {
+    "rows": 90,
+    "fluxion_ok": 90,
+    "paraswap_ok": 90,
+    "oneinch_ok": 0,
+    "zerox_ok": 0,
+    "paraswap_compared": 90,
+    "paraswap_median_delta_bps": -2.2237699860418565,
+    "paraswap_mean_delta_bps": -132.68660751348716,
+    "paraswap_within_50_bps": 73,
+    "oneinch_compared": 0,
+    "oneinch_median_delta_bps": null,
+    "oneinch_mean_delta_bps": null,
+    "oneinch_within_50_bps": 0,
+    "zerox_compared": 0,
+    "zerox_median_delta_bps": null,
+    "zerox_mean_delta_bps": null,
+    "zerox_within_50_bps": 0,
+    "fluxion_latency_p50_ms": 944,
+    "fluxion_latency_p95_ms": 1629,
+    "paraswap_latency_p50_ms": 381,
+    "paraswap_latency_p95_ms": 827,
+    "oneinch_latency_p50_ms": null,
+    "oneinch_latency_p95_ms": null,
+    "zerox_latency_p50_ms": null,
+    "zerox_latency_p95_ms": null,
+    "comparisons": {
+      "0x": {
+        "both_ok": 0,
+        "fluxion_only": 0,
+        "aggregator_only": 0,
+        "both_failed": 0
+      },
+      "paraswap": {
+        "both_ok": 90,
+        "fluxion_only": 0,
+        "aggregator_only": 0,
+        "both_failed": 0
+      },
+      "1inch": {
+        "both_ok": 0,
+        "fluxion_only": 0,
+        "aggregator_only": 0,
+        "both_failed": 0
+      }
+    }
+  },
+  "rows": [
+    {
+      "started_unix_ms": 1793587453783,
+      "finished_unix_ms": 1793587456407,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "764123852",
+        "latency_ms": 1021,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "764208368",
+        "latency_ms": 1350,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587456407,
+      "finished_unix_ms": 1793587458098,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "7640588038",
+        "latency_ms": 1008,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "7641179252",
+        "latency_ms": 427,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587458098,
+      "finished_unix_ms": 1793587459561,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "76340769297",
+        "latency_ms": 871,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "76379398104",
+        "latency_ms": 340,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587459561,
+      "finished_unix_ms": 1793587461371,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "1000000000",
+      "fluxion": {
+        "amount_out": "436129387972290177",
+        "latency_ms": 1048,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "436129387972290177",
+        "latency_ms": 507,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587461371,
+      "finished_unix_ms": 1793587463306,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "10000000000",
+      "fluxion": {
+        "amount_out": "4360447984814533366",
+        "latency_ms": 1069,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "4360471919094072235",
+        "latency_ms": 613,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587463306,
+      "finished_unix_ms": 1793587464957,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "100000000000",
+      "fluxion": {
+        "amount_out": "43524817353025427951",
+        "latency_ms": 1007,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "43564608697566661065",
+        "latency_ms": 389,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1",
+          "curvev1stableng",
+          "sushiswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587464957,
+      "finished_unix_ms": 1793587467412,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "764901425",
+        "latency_ms": 1245,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "764684304",
+        "latency_ms": 956,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587467412,
+      "finished_unix_ms": 1793587469361,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "7645578318",
+        "latency_ms": 1285,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "7646260097",
+        "latency_ms": 409,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587469361,
+      "finished_unix_ms": 1793587471232,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "76350602981",
+        "latency_ms": 1231,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "76431051973",
+        "latency_ms": 385,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1",
+          "curvev1stableng",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587471232,
+      "finished_unix_ms": 1793587473147,
+      "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "1000000000",
+      "fluxion": {
+        "amount_out": "435704599997552725",
+        "latency_ms": 1282,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "435818779583427578",
+        "latency_ms": 379,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587473147,
+      "finished_unix_ms": 1793587474871,
+      "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "10000000000",
+      "fluxion": {
+        "amount_out": "4353456316308012744",
+        "latency_ms": 1129,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "4357369736259978899",
+        "latency_ms": 341,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587474871,
+      "finished_unix_ms": 1793587476631,
+      "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "100000000000",
+      "fluxion": {
+        "amount_out": "43427736562620959951",
+        "latency_ms": 1140,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "43536428542155309697",
+        "latency_ms": 365,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587476631,
+      "finished_unix_ms": 1793587478165,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "763721423469919293744",
+        "latency_ms": 821,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "763830380555698569979",
+        "latency_ms": 459,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587478165,
+      "finished_unix_ms": 1793587479659,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "7636561478472407442204",
+        "latency_ms": 861,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "7637074235113980465104",
+        "latency_ms": 380,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1",
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587479659,
+      "finished_unix_ms": 1793587481192,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "76300062283615288739957",
+        "latency_ms": 915,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "76337773141552710130833",
+        "latency_ms": 364,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587481192,
+      "finished_unix_ms": 1793587483183,
+      "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "1000000000000000000000",
+      "fluxion": {
+        "amount_out": "435431231779497359",
+        "latency_ms": 1351,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "436315379243381801",
+        "latency_ms": 386,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587483183,
+      "finished_unix_ms": 1793587485336,
+      "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "10000000000000000000000",
+      "fluxion": {
+        "amount_out": "4346637274267976410",
+        "latency_ms": 1463,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "4362316737292747194",
+        "latency_ms": 436,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587485336,
+      "finished_unix_ms": 1793587487481,
+      "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "100000000000000000000000",
+      "fluxion": {
+        "amount_out": "42713600737477153972",
+        "latency_ms": 1330,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "43583094613498400894",
+        "latency_ms": 561,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587487481,
+      "finished_unix_ms": 1793587489304,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "975249",
+        "latency_ms": 1224,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "975350",
+        "latency_ms": 344,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587489304,
+      "finished_unix_ms": 1793587491054,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "9749120",
+        "latency_ms": 1072,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "9749638",
+        "latency_ms": 425,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587491054,
+      "finished_unix_ms": 1793587492708,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "97449482",
+        "latency_ms": 1046,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "97455268",
+        "latency_ms": 354,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587492709,
+      "finished_unix_ms": 1793587494818,
+      "token_in": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "1670000",
+      "fluxion": {
+        "amount_out": "570558904540679849",
+        "latency_ms": 1526,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "570537458304693090",
+        "latency_ms": 330,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587494818,
+      "finished_unix_ms": 1793587497261,
+      "token_in": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "16700000",
+      "fluxion": {
+        "amount_out": "5703976958763077570",
+        "latency_ms": 1811,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "5704193071988805890",
+        "latency_ms": 379,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587497261,
+      "finished_unix_ms": 1793587499726,
+      "token_in": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "167000000",
+      "fluxion": {
+        "amount_out": "57004620162014514951",
+        "latency_ms": 1672,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "57013233073733128027",
+        "latency_ms": 540,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "sushiswapv3",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587499726,
+      "finished_unix_ms": 1793587501426,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "amount_in": "1000000000",
+      "fluxion": {
+        "amount_out": "1000890549",
+        "latency_ms": 1097,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "1000911696",
+        "latency_ms": 351,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587501426,
+      "finished_unix_ms": 1793587503211,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "amount_in": "10000000000",
+      "fluxion": {
+        "amount_out": "10008901330",
+        "latency_ms": 1053,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "10008974453",
+        "latency_ms": 478,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1",
+          "curvev1stableng"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587503211,
+      "finished_unix_ms": 1793587504957,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "amount_in": "100000000000",
+      "fluxion": {
+        "amount_out": "100088598764",
+        "latency_ms": 1162,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "100088731508",
+        "latency_ms": 331,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1",
+          "curvev1stableng"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587504957,
+      "finished_unix_ms": 1793587507142,
+      "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "1000000000",
+      "fluxion": {
+        "amount_out": "999028247",
+        "latency_ms": 1523,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "999039330",
+        "latency_ms": 408,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587507142,
+      "finished_unix_ms": 1793587512064,
+      "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "10000000000",
+      "fluxion": {
+        "amount_out": "9990274599",
+        "latency_ms": 2822,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "9990300719",
+        "latency_ms": 1846,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587512064,
+      "finished_unix_ms": 1793587514206,
+      "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "100000000000",
+      "fluxion": {
+        "amount_out": "99901958429",
+        "latency_ms": 1525,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "99902068331",
+        "latency_ms": 364,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587514206,
+      "finished_unix_ms": 1793587515791,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "amount_in": "1000000000",
+      "fluxion": {
+        "amount_out": "999919351393198299616",
+        "latency_ms": 996,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "999919351393198299616",
+        "latency_ms": 336,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587515791,
+      "finished_unix_ms": 1793587517692,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "amount_in": "10000000000",
+      "fluxion": {
+        "amount_out": "9999188772284448093674",
+        "latency_ms": 1079,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "9999188772284448093674",
+        "latency_ms": 568,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587517692,
+      "finished_unix_ms": 1793587519318,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "amount_in": "100000000000",
+      "fluxion": {
+        "amount_out": "99991413759296998584473",
+        "latency_ms": 930,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "curve"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "99991413759296998584473",
+        "latency_ms": 442,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587519318,
+      "finished_unix_ms": 1793587520797,
+      "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "1000000000000000000000",
+      "fluxion": {
+        "amount_out": "999992727",
+        "latency_ms": 833,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "999992727",
+        "latency_ms": 394,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587520797,
+      "finished_unix_ms": 1793587522321,
+      "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "10000000000000000000000",
+      "fluxion": {
+        "amount_out": "9999911059",
+        "latency_ms": 917,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "9999911059",
+        "latency_ms": 354,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587522321,
+      "finished_unix_ms": 1793587523817,
+      "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "100000000000000000000000",
+      "fluxion": {
+        "amount_out": "99997489221",
+        "latency_ms": 843,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "99997489221",
+        "latency_ms": 400,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587523817,
+      "finished_unix_ms": 1793587524646,
+      "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "328681425636870172",
+        "latency_ms": 250,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "333216952274041608",
+        "latency_ms": 326,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswapv3",
+          "wsteth"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587524646,
+      "finished_unix_ms": 1793587525576,
+      "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "3267395350622455931",
+        "latency_ms": 269,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "3332168161541452893",
+        "latency_ms": 407,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswapv3",
+          "wsteth"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587525576,
+      "finished_unix_ms": 1793587526484,
+      "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "32485170013356329977",
+        "latency_ms": 247,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "33321545496129863815",
+        "latency_ms": 407,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswapv3",
+          "wsteth"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587526484,
+      "finished_unix_ms": 1793587527434,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "333056383514051709",
+        "latency_ms": 268,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "333383038156231390",
+        "latency_ms": 424,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswapv3",
+          "wsteth"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587527434,
+      "finished_unix_ms": 1793587528277,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "3328612862568640279",
+        "latency_ms": 268,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "3333829019345527041",
+        "latency_ms": 321,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswapv3",
+          "wsteth"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587528277,
+      "finished_unix_ms": 1793587529091,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "25659659726469924242",
+        "latency_ms": 249,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "33338153972388848567",
+        "latency_ms": 311,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswapv3",
+          "wsteth"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587529091,
+      "finished_unix_ms": 1793587530592,
+      "token_in": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "285714285714285714",
+      "fluxion": {
+        "amount_out": "356500112499791010",
+        "latency_ms": 857,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "356500112499791010",
+        "latency_ms": 392,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587530592,
+      "finished_unix_ms": 1793587532129,
+      "token_in": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "2857142857142857142",
+      "fluxion": {
+        "amount_out": "3564999566928632911",
+        "latency_ms": 877,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "3564999566928632911",
+        "latency_ms": 407,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587532129,
+      "finished_unix_ms": 1793587533664,
+      "token_in": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "28571428571428571428",
+      "fluxion": {
+        "amount_out": "35649839863107648791",
+        "latency_ms": 884,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "35649839863107648791",
+        "latency_ms": 399,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587533664,
+      "finished_unix_ms": 1793587535307,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "267093996007063483",
+        "latency_ms": 1075,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "267093996007063483",
+        "latency_ms": 315,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587535307,
+      "finished_unix_ms": 1793587537025,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "2670938868713596864",
+        "latency_ms": 1143,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "2670938868713596864",
+        "latency_ms": 323,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587537025,
+      "finished_unix_ms": 1793587538787,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "26709279551922695121",
+        "latency_ms": 1083,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "26709279551922695121",
+        "latency_ms": 425,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587538787,
+      "finished_unix_ms": 1793587540246,
+      "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "752957812",
+        "latency_ms": 870,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v2",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "763311095",
+        "latency_ms": 335,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswapv3",
+          "wsteth"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587540246,
+      "finished_unix_ms": 1793587541727,
+      "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "7484279916",
+        "latency_ms": 844,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "7627186589",
+        "latency_ms": 382,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "0x828b154032950c8ff7cf8085d841723db2696056",
+          "CurveV1Factory",
+          "pancakeswapv3",
+          "uniswapv3",
+          "wsteth"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587541727,
+      "finished_unix_ms": 1793587543075,
+      "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "74348262821",
+        "latency_ms": 749,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "75535882802",
+        "latency_ms": 340,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "0x4d9f9d15101eec665f77210cb999639f760f831e",
+          "0x828b154032950c8ff7cf8085d841723db2696056",
+          "0xdcef968d416a41cdac0ed8702fac8128a64241a2",
+          "CurveV1",
+          "CurveV1Factory",
+          "uniswapv2",
+          "uniswapv3",
+          "wsteth"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587543076,
+      "finished_unix_ms": 1793587544624,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "amount_in": "1000000000",
+      "fluxion": {
+        "amount_out": "436045298580019638",
+        "latency_ms": 855,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "436421433194573409",
+        "latency_ms": 440,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "lido",
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587544624,
+      "finished_unix_ms": 1793587546073,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "amount_in": "10000000000",
+      "fluxion": {
+        "amount_out": "4356269654836501115",
+        "latency_ms": 842,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "4363368831302883888",
+        "latency_ms": 354,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "lido",
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587546073,
+      "finished_unix_ms": 1793587548020,
+      "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "amount_in": "100000000000",
+      "fluxion": {
+        "amount_out": "25659660302031919040",
+        "latency_ms": 761,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "43592462397902306984",
+        "latency_ms": 932,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "0x4d9f9d15101eec665f77210cb999639f760f831e",
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "0x9c3b46c0ceb5b9e304fcd6d88fc50f7dd24b31bc",
+          "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+          "CurveV1",
+          "CurveV1Factory",
+          "curvev1stableng",
+          "lido",
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587548020,
+      "finished_unix_ms": 1793587549587,
+      "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "token_out": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "2196415260944242497768",
+        "latency_ms": 883,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v2",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "2227376697224832037607",
+        "latency_ms": 431,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "0x828b154032950c8ff7cf8085d841723db2696056",
+          "CurveV1Factory",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587549587,
+      "finished_unix_ms": 1793587550968,
+      "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "token_out": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "21674929347711063769082",
+        "latency_ms": 753,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "22120258701243538330839",
+        "latency_ms": 375,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "0x828b154032950c8ff7cf8085d841723db2696056",
+          "CurveV1Factory",
+          "sushiswap",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587550968,
+      "finished_unix_ms": 1793587552304,
+      "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "token_out": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "201182822388470133901519",
+        "latency_ms": 752,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "206021728948642088155101",
+        "latency_ms": 330,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "0x4d9f9d15101eec665f77210cb999639f760f831e",
+          "0x828b154032950c8ff7cf8085d841723db2696056",
+          "0xdcef968d416a41cdac0ed8702fac8128a64241a2",
+          "CurveV1",
+          "CurveV1Factory",
+          "sushiswap",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587552304,
+      "finished_unix_ms": 1793587553814,
+      "token_in": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "1600000000000000000000",
+      "fluxion": {
+        "amount_out": "237658459819481723",
+        "latency_ms": 919,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "237809741960696196",
+        "latency_ms": 338,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587553814,
+      "finished_unix_ms": 1793587555254,
+      "token_in": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "16000000000000000000000",
+      "fluxion": {
+        "amount_out": "2363838593396617539",
+        "latency_ms": 829,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "2366820364756384169",
+        "latency_ms": 357,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "sushiswap",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587555254,
+      "finished_unix_ms": 1793587556722,
+      "token_in": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "160000000000000000000000",
+      "fluxion": {
+        "amount_out": "22351686565496449536",
+        "latency_ms": 882,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "22621543304213938844",
+        "latency_ms": 331,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "BalancerV1",
+          "pancakeswapv3",
+          "sushiswap",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587556722,
+      "finished_unix_ms": 1793587558168,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "155570132224936917390726659",
+        "latency_ms": 834,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "155570132224936917390726659",
+        "latency_ms": 359,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv2"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587558168,
+      "finished_unix_ms": 1793587559519,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "1555027563120368077503194323",
+        "latency_ms": 779,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "1555027563120368077503194323",
+        "latency_ms": 318,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv2"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587559519,
+      "finished_unix_ms": 1793587560963,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "15483219312558409659863457199",
+        "latency_ms": 854,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "15483219312558409659863457199",
+        "latency_ms": 335,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv2"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587560963,
+      "finished_unix_ms": 1793587562542,
+      "token_in": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "125000000000000000000000000",
+      "fluxion": {
+        "amount_out": "266204380173467976",
+        "latency_ms": 901,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "266210774792000402",
+        "latency_ms": 425,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587562542,
+      "finished_unix_ms": 1793587564232,
+      "token_in": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "1250000000000000000000000000",
+      "fluxion": {
+        "amount_out": "2661120181876587972",
+        "latency_ms": 938,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "2661147047907261218",
+        "latency_ms": 498,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587564232,
+      "finished_unix_ms": 1793587565922,
+      "token_in": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "12500000000000000000000000000",
+      "fluxion": {
+        "amount_out": "26519191118110774939",
+        "latency_ms": 1091,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "26519254009565734213",
+        "latency_ms": 345,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587565922,
+      "finished_unix_ms": 1793587567803,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x514910771af9ca656af840dff83e8264ecf986ca",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "67434051671221465166",
+        "latency_ms": 1287,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "67434051671221465166",
+        "latency_ms": 340,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587567803,
+      "finished_unix_ms": 1793587569491,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x514910771af9ca656af840dff83e8264ecf986ca",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "672229142738427503368",
+        "latency_ms": 1032,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "672702515154933559469",
+        "latency_ms": 402,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587569491,
+      "finished_unix_ms": 1793587571146,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x514910771af9ca656af840dff83e8264ecf986ca",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "6711365811293834669978",
+        "latency_ms": 998,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "6713499825851934213003",
+        "latency_ms": 404,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587571146,
+      "finished_unix_ms": 1793587573105,
+      "token_in": "0x514910771af9ca656af840dff83e8264ecf986ca",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "66000000000000000000",
+      "fluxion": {
+        "amount_out": "746930633",
+        "latency_ms": 1333,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "746954421",
+        "latency_ms": 372,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "BalancerV2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587573105,
+      "finished_unix_ms": 1793587574733,
+      "token_in": "0x514910771af9ca656af840dff83e8264ecf986ca",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "666000000000000000000",
+      "fluxion": {
+        "amount_out": "7518553165",
+        "latency_ms": 1013,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "7522663504",
+        "latency_ms": 360,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "pancakeswapv3",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587574733,
+      "finished_unix_ms": 1793587576369,
+      "token_in": "0x514910771af9ca656af840dff83e8264ecf986ca",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "6666000000000000000000",
+      "fluxion": {
+        "amount_out": "75070056027",
+        "latency_ms": 989,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "75152856290",
+        "latency_ms": 391,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587576369,
+      "finished_unix_ms": 1793587578161,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "105463122474007350147",
+        "latency_ms": 1155,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "105538484499978488040",
+        "latency_ms": 381,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587578161,
+      "finished_unix_ms": 1793587579774,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "1053737050028391741072",
+        "latency_ms": 1035,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "1053998039265678855510",
+        "latency_ms": 322,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587579774,
+      "finished_unix_ms": 1793587581831,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "10509592456634954773840",
+        "latency_ms": 1452,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "10518309676065336520188",
+        "latency_ms": 350,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587581831,
+      "finished_unix_ms": 1793587583435,
+      "token_in": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "140000000000000000000",
+      "fluxion": {
+        "amount_out": "1008786054",
+        "latency_ms": 903,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v2",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "1008952888",
+        "latency_ms": 447,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "ShibaSwap",
+          "pancakeswapv3",
+          "sushiswap",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587583435,
+      "finished_unix_ms": 1793587584913,
+      "token_in": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "1400000000000000000000",
+      "fluxion": {
+        "amount_out": "10073454512",
+        "latency_ms": 888,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "10078072104",
+        "latency_ms": 335,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "pancakeswapv3",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587584913,
+      "finished_unix_ms": 1793587586507,
+      "token_in": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "14000000000000000000000",
+      "fluxion": {
+        "amount_out": "100223491228",
+        "latency_ms": 928,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "100491994263",
+        "latency_ms": 411,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "0x4f493b7de8aac7d55f71853688b1f7c8f0243c85",
+          "curvev1stableng",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587586507,
+      "finished_unix_ms": 1793587588219,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "5648276898457194720",
+        "latency_ms": 944,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "5648276898457194720",
+        "latency_ms": 514,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587588219,
+      "finished_unix_ms": 1793587589712,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "56354389942831977235",
+        "latency_ms": 901,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "56363383620055130305",
+        "latency_ms": 339,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "BalancerV1",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587589712,
+      "finished_unix_ms": 1793587591727,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "560393630059567203840",
+        "latency_ms": 934,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "561109239371520989879",
+        "latency_ms": 827,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "BalancerV1",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587591727,
+      "finished_unix_ms": 1793587593259,
+      "token_in": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "4000000000000000000",
+      "fluxion": {
+        "amount_out": "539998739",
+        "latency_ms": 911,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "540105213",
+        "latency_ms": 367,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "BalancerV1",
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587593259,
+      "finished_unix_ms": 1793587594903,
+      "token_in": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "40000000000000000000",
+      "fluxion": {
+        "amount_out": "5398336838",
+        "latency_ms": 897,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "5398688309",
+        "latency_ms": 493,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "BalancerV1",
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587594903,
+      "finished_unix_ms": 1793587596541,
+      "token_in": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+      "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "amount_in": "400000000000000000000",
+      "fluxion": {
+        "amount_out": "53824674624",
+        "latency_ms": 835,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "uniswap-v3",
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "53867368006",
+        "latency_ms": 549,
+        "hops": 2,
+        "error": null,
+        "platforms": [
+          "pancakeswapv3",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587596541,
+      "finished_unix_ms": 1793587598077,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "amount_in": "333333333333333333",
+      "fluxion": {
+        "amount_out": "161536175677591946584662866",
+        "latency_ms": 893,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "161902518986699659655975476",
+        "latency_ms": 389,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "ShibaSwap",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587598077,
+      "finished_unix_ms": 1793587599716,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "amount_in": "3333333333333333333",
+      "fluxion": {
+        "amount_out": "1584245937872814948936951435",
+        "latency_ms": 951,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "1613279693036475967708553030",
+        "latency_ms": 434,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "ShibaSwap",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587599716,
+      "finished_unix_ms": 1793587601250,
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "amount_in": "33333333333333333333",
+      "fluxion": {
+        "amount_out": "12636485237395973622493515268",
+        "latency_ms": 912,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "15597920861850508329738992465",
+        "latency_ms": 369,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "ShibaSwap",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587601250,
+      "finished_unix_ms": 1793587603197,
+      "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "80000000000000000000000000",
+      "fluxion": {
+        "amount_out": "163479034245500032",
+        "latency_ms": 1341,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v3"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "163633741127076350",
+        "latency_ms": 352,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "ShibaSwap",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587603197,
+      "finished_unix_ms": 1793587605434,
+      "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "800000000000000000000000000",
+      "fluxion": {
+        "amount_out": "1614534066284769110",
+        "latency_ms": 1629,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "1633346125568629517",
+        "latency_ms": 351,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "ShibaSwap",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    },
+    {
+      "started_unix_ms": 1793587605434,
+      "finished_unix_ms": 1793587608113,
+      "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "amount_in": "8000000000000000000000000000",
+      "fluxion": {
+        "amount_out": "14376132086418606207",
+        "latency_ms": 2053,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "uniswap-v2"
+        ]
+      },
+      "paraswap": {
+        "amount_out": "16048767080115248748",
+        "latency_ms": 372,
+        "hops": 1,
+        "error": null,
+        "platforms": [
+          "ShibaSwap",
+          "uniswapv2",
+          "uniswapv3"
+        ]
+      },
+      "oneinch": null,
+      "zerox": null
+    }
+  ]
+}

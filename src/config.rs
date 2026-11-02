@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -9,7 +9,7 @@ pub enum ConfigError {
     Parse(#[from] serde_yaml::Error),
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub host: String,
@@ -29,6 +29,7 @@ pub struct Config {
     pub reserve_ratio_k: u128,
     pub slippage_penalty_lambda: f64,
     pub refresh_interval_secs: u64,
+    pub snapshot_refresh_secs: u64,
     pub request_timeout_ms: u64,
     pub token_allowlist: Vec<String>,
 }
@@ -50,13 +51,14 @@ impl Default for Config {
             ],
             max_hops: 3,
             top_k: 8,
-            max_pools: 100,
+            max_pools: 10_000,
             min_liquidity: 50_000,
             min_volume_24h: 0,
             min_pool_age_days: 0,
-            reserve_ratio_k: 10,
+            reserve_ratio_k: 0,
             slippage_penalty_lambda: 0.0,
             refresh_interval_secs: 30,
+            snapshot_refresh_secs: 120,
             request_timeout_ms: 5000,
             token_allowlist: Vec::new(),
         }
@@ -64,6 +66,23 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Only a missing file uses defaults; malformed configuration is an error.
+    pub fn load(path: &str) -> Result<Self, ConfigError> {
+        match Self::from_file(path) {
+            Err(ConfigError::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => {
+                Ok(Self::default())
+            }
+            result => result,
+        }
+    }
+
+    /// Public experiment settings. RPC URLs may embed credentials and are omitted.
+    pub fn public_settings(&self) -> serde_json::Value {
+        let mut value = serde_json::to_value(self).expect("serializable configuration");
+        value.as_object_mut().unwrap().remove("rpc_url");
+        value
+    }
+
     pub fn from_file(path: &str) -> Result<Self, ConfigError> {
         let text = std::fs::read_to_string(path)?;
         Ok(serde_yaml::from_str(&text)?)
@@ -80,7 +99,7 @@ mod tests {
         assert_eq!(c.max_hops, 3);
         assert_eq!(c.top_k, 8);
         assert_eq!(c.rpc_url, "https://eth.drpc.org");
-        assert_eq!(c.reserve_ratio_k, 10);
+        assert_eq!(c.reserve_ratio_k, 0);
     }
 
     #[test]

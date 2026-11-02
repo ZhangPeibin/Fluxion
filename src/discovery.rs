@@ -10,9 +10,7 @@ use crate::model::{Pool, PoolKind};
 use crate::rpc::RpcClient;
 use crate::util::{u256_to_usize, u256_word};
 
-/// Built-in major-token allowlist (top ~50 mainnet tokens) used when the config
-/// leaves `token_allowlist` empty. Pools must have BOTH tokens in the allowlist,
-/// which keeps the graph focused and avoids junk/thin pools poisoning prices.
+/// Keep both sides of every pool in the configured major-token universe.
 const DEFAULT_ALLOWLIST: &[&str] = &[
     "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", // WETH
     "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", // WBTC
@@ -149,7 +147,13 @@ pub async fn discover_v2(
     config: &Config,
     graph_api_key: &str,
 ) -> Result<Vec<Pool>, DiscoveryError> {
-    let client = reqwest::Client::new();
+    if config.max_pools == 0 {
+        return Ok(Vec::new());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| DiscoveryError::Request(e.to_string()))?;
     let url = format!(
         "https://gateway.thegraph.com/api/{graph_api_key}/subgraphs/id/{}",
         config.uniswap_v2_subgraph_id
@@ -162,17 +166,19 @@ pub async fn discover_v2(
 
     loop {
         let query = format!(
-            r#"{{ pairs(first: 200, skip: {skip}, orderBy: reserveUSD, orderDirection: desc, where: {{ {where_clause} }}) {{ id token0 {{ id }} token1 {{ id }} }} }}"#
+            r#"{{ pairs(first: 1000, skip: {skip}, orderBy: reserveUSD, orderDirection: desc, where: {{ {where_clause} }}) {{ id token0 {{ id }} token1 {{ id }} }} }}"#
         );
         let resp: serde_json::Value = client
             .post(&url)
             .json(&json!({ "query": query }))
             .send()
             .await
-            .map_err(|e| DiscoveryError::Request(e.to_string()))?
+            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?
+            .error_for_status()
+            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?
             .json()
             .await
-            .map_err(|e| DiscoveryError::Request(e.to_string()))?;
+            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?;
 
         if let Some(errors) = resp.get("errors") {
             return Err(DiscoveryError::Request(errors.to_string()));
@@ -210,10 +216,10 @@ pub async fn discover_v2(
             pools.truncate(config.max_pools);
             break;
         }
-        if pairs.len() < 200 {
+        if pairs.len() < 1000 {
             break;
         }
-        skip += 200;
+        skip += 1000;
     }
 
     Ok(pools)
@@ -237,7 +243,13 @@ pub async fn discover_v3(
     config: &Config,
     graph_api_key: &str,
 ) -> Result<Vec<Pool>, DiscoveryError> {
-    let client = reqwest::Client::new();
+    if config.max_pools == 0 {
+        return Ok(Vec::new());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| DiscoveryError::Request(e.to_string()))?;
     let url = format!(
         "https://gateway.thegraph.com/api/{graph_api_key}/subgraphs/id/{}",
         config.uniswap_v3_subgraph_id
@@ -250,17 +262,19 @@ pub async fn discover_v3(
 
     loop {
         let query = format!(
-            r#"{{ pools(first: 200, skip: {skip}, orderBy: volumeUSD, orderDirection: desc, where: {{ {where_clause} }}) {{ id token0 {{ id }} token1 {{ id }} feeTier }} }}"#
+            r#"{{ pools(first: 1000, skip: {skip}, orderBy: volumeUSD, orderDirection: desc, where: {{ {where_clause} }}) {{ id token0 {{ id }} token1 {{ id }} feeTier }} }}"#
         );
         let resp: serde_json::Value = client
             .post(&url)
             .json(&json!({ "query": query }))
             .send()
             .await
-            .map_err(|e| DiscoveryError::Request(e.to_string()))?
+            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?
+            .error_for_status()
+            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?
             .json()
             .await
-            .map_err(|e| DiscoveryError::Request(e.to_string()))?;
+            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?;
 
         if let Some(errors) = resp.get("errors") {
             return Err(DiscoveryError::Request(errors.to_string()));
@@ -299,10 +313,10 @@ pub async fn discover_v3(
             pools.truncate(config.max_pools);
             break;
         }
-        if arr.len() < 200 {
+        if arr.len() < 1000 {
             break;
         }
-        skip += 200;
+        skip += 1000;
     }
 
     Ok(pools)
@@ -459,6 +473,21 @@ mod tests {
         let allow = vec!["0xaaa".to_string(), "0xbbb".to_string()];
         assert!(both_allowed(&allow, "0xAAA", "0xbbb"));
         assert!(!both_allowed(&allow, "0xaaa", "0xccc"));
+    }
+
+    #[test]
+    fn empty_config_uses_major_tokens_and_rejects_unknown_counterparty() {
+        let allow = allowlist(&Config::default());
+        assert!(both_allowed(
+            &allow,
+            DEFAULT_ALLOWLIST[0],
+            DEFAULT_ALLOWLIST[2]
+        ));
+        assert!(!both_allowed(
+            &allow,
+            DEFAULT_ALLOWLIST[0],
+            "0x0000000000000000000000000000000000000001"
+        ));
     }
 
     #[test]
