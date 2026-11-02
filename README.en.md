@@ -9,6 +9,45 @@ highest-output single candidate path (exact-in). The first conversion adapter su
 
 > Open-source, self-hosted: download it, supply a YAML config plus your own RPC / Graph key, run it.
 
+## Benchmark: mainnet quote comparison (2 Nov 2026)
+
+**90/90 successful quotes; 84/90 within ±0.5% of ParaSwap's output.**
+
+The same run compares two local instances and ParaSwap across 30 directed pairs × 3 fixed input
+sizes. The control disables conversions and ShibaSwap; the candidate enables stETH↔wstETH,
+ShibaSwap V2, and capability-diverse candidates. Output delta is `(local − ParaSwap) / ParaSwap`;
+negative means fewer output tokens.
+
+| Metric | Feature-disabled control | Current implementation |
+|---|---:|---:|
+| Successful quotes | 90/90 | **90/90** |
+| Median output delta | −0.0148% | **−0.0070%** |
+| Mean output delta | −1.3372% | **−0.1018%** |
+| Within ±0.5% output delta | 72/90 (80.0%) | **84/90 (93.3%)** |
+| Latency p50 | 1085 ms | 1246 ms |
+| Latency p95 | 1586 ms | 1871 ms |
+
+### Representative stETH / SHIB samples
+
+| Input and direction | Control output | Current output | ParaSwap output | Delta change |
+|---|---:|---:|---:|---:|
+| 100000 USDC → stETH | 25.65966 stETH | **43.28001 stETH** | 43.28921 stETH | **−40.725% → −0.0213%** |
+| 33.333… WETH → SHIB | 12.693 billion SHIB | **15.376 billion SHIB** | 15.672 billion SHIB | **−19.010% → −1.887%** |
+| 8 billion SHIB → WETH | 14.30898 WETH | **15.82713 WETH** | 15.96768 WETH | **−10.388% → −0.880%** |
+
+All 15 stETH-related and 6 SHIB-related outputs exceed their paired controls. Remaining SHIB gaps
+involve external pool splitting and BONE intermediates; Fluxion still returns one path. Additional
+candidates increase cost: p50 latency rises about 15%.
+
+Ethereum block range **26324635–26324658**, local debug builds, public RPC. ParaSwap p50/p95
+is 351/436 ms in this run. Quotes are not same-block; gas and actual execution are excluded.
+1inch/0x were skipped because keys were absent.
+
+**Evidence:** [90-row quote/control tables](docs/benchmarks/2026-11-02-quote-quality.md) ·
+[raw JSON with routes and allocations](docs/benchmarks/2026-11-02-quote-quality.json) ·
+[analysis (Chinese)](docs/benchmarks/2026-11-02-quote-quality-analysis.md) ·
+[methodology and historical runs](docs/benchmarks/README.md)
+
 ## Quick start
 
 ```bash
@@ -385,20 +424,8 @@ For a paired control, run a second service with `config.benchmark-control.yaml` 
 `--control-service http://127.0.0.1:8082` to the benchmark invocation. It alternates quote order
 and reports stETH, SHIB, and other cohorts, retaining full routes in JSON.
 
-### Latest paired results (2 Nov 2026)
-
-| Metric | Feature-disabled control | Conversions + ShibaSwap |
-|---|---:|---:|
-| Successful quotes | 90/90 | 90/90 |
-| Mean output delta vs ParaSwap | −1.3372% | −0.1018% |
-| Within ±0.5% output delta | 72/90 | 84/90 |
-| Latency p50 / p95 | 1085 / 1586 ms | 1246 / 1871 ms |
-
-All 15 stETH-related and 6 SHIB-related outputs exceeded their paired controls. The 100000
-USDC→stETH gap shrank from about −40.725% to −0.0213%; large WETH→SHIB from −19.010% to
-−1.887%. Remaining SHIB gaps involve external splitting and intermediates outside our allowlist.
-The run uses live state and debug builds, excluding gas and execution. See the
-[analysis](docs/benchmarks/2026-11-02-quote-quality-analysis.md) for raw routes, state skew and latency trade-offs.
+Latest results are displayed in the **Benchmark** section near the top of this README. Full
+per-row outputs are in the [90-row paired report](docs/benchmarks/2026-11-02-quote-quality.md).
 
 ## Testing
 
