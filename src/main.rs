@@ -12,6 +12,7 @@ use fluxion::model::{Pool, PoolKind};
 use fluxion::router::{PriceSnapshot, Router, RouterConfig};
 use fluxion::rpc::RpcClient;
 use fluxion::source::MockV2;
+use fluxion::split::SplitOptimizer;
 use fluxion::state::StateCache;
 use fluxion::universe::{discover_pools, platform_enabled, pricing_source, warm_coarse_prices};
 
@@ -139,7 +140,12 @@ async fn main() {
         request_timeout: Duration::from_millis(config.request_timeout_ms.max(1)),
     });
 
-    let app = api::app(state).route(
+    let app = api::app_with_split(
+        state,
+        SplitOptimizer::new(config.split.clone()).expect("validated split configuration"),
+        refresher.is_some(),
+    )
+    .route(
         "/info",
         axum::routing::get(move || async move { axum::Json(info) }),
     );

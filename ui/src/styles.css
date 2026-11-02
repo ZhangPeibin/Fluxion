@@ -152,6 +152,23 @@ body {
   margin-top: 12px;
 }
 
+.split-toggle {
+  margin-top: 12px;
+}
+
+.allocation {
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.allocation .hint {
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+
 .quote-metrics {
   display: flex;
   gap: 16px;
