@@ -68,6 +68,11 @@ impl Graph {
         &self.pools[idx]
     }
 
+    /// All pools in insertion order, for bulk prefetching.
+    pub fn pools(&self) -> &[Pool] {
+        &self.pools
+    }
+
     pub fn pool_count(&self) -> usize {
         self.pools.len()
     }

@@ -29,18 +29,23 @@ enabled_platforms:
 # Routing.
 max_hops: 3          # max edges in a route
 top_k: 8             # candidate paths refined with live quotes
-max_pools: 100       # cap discovered pools per platform
+max_pools: 10000     # cap discovered pools per platform (top by liquidity/volume)
 slippage_penalty_lambda: 0.0   # liquidity penalty coefficient
 
 # Pool filtering.
-min_liquidity: 50000       # static lower bound (USD-ish)
+min_liquidity: 50000       # static lower bound (USD-ish); lower = more pools/tokens
 min_volume_24h: 0          # 24h volume floor
 min_pool_age_days: 0       # minimum pool age in days
-reserve_ratio_k: 10        # skip edges where reserve_in < k * amount_in
-token_allowlist: []        # empty = built-in major-token list (WETH/WBTC/USDC/USDT/DAI/...); list addresses to override
+reserve_ratio_k: 0         # skip edges where reserve_in < k * amount_in (0 = off)
+# Optional token allowlist. Empty = built-in major-token list.
+# Listing addresses restricts V2/V3 pools to pairs where BOTH coins are listed
+# and Curve pools where ALL coins are listed.
+token_allowlist: []
 
 # State refresh (hot-pool set) and mid-price cache TTL.
 refresh_interval_secs: 30
+# Full price-snapshot rebuild interval. Keep this well above the rebuild cost.
+snapshot_refresh_secs: 120
 
 # Per-request timeout for /quote (milliseconds).
 request_timeout_ms: 5000

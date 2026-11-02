@@ -15,7 +15,10 @@ pub struct RpcClient {
 impl RpcClient {
     pub fn new(url: String) -> Self {
         Self {
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .expect("HTTP client"),
             url,
         }
     }
@@ -45,9 +48,9 @@ impl RpcClient {
                             return Ok(value);
                         }
                     }
-                    Err(e) => last = e.to_string(),
+                    Err(e) => last = e.without_url().to_string(),
                 },
-                Err(e) => last = e.to_string(),
+                Err(e) => last = e.without_url().to_string(),
             }
             tokio::time::sleep(Duration::from_millis(100 * u64::from(attempt + 1))).await;
         }

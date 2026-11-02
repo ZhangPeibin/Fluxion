@@ -12,7 +12,7 @@ use crate::source::{QuoteSource, constant_product_out, ratio};
 use crate::util::{pad_address, u32_word, u256_to_f64, u256_word};
 
 const GET_RESERVES: &str = "0902f1ac";
-const SLOT0: &str = "3850c7bd";
+pub const SLOT0: &str = "3850c7bd";
 const QUOTE_EXACT_INPUT_SINGLE: &str = "c6a5026a";
 const GET_DY_INT128: &str = "5e0d443f";
 const GET_DY_U256: &str = "556d6e9f";
@@ -104,6 +104,24 @@ impl QuoteSource for UniswapV2 {
     }
 }
 
+/// Mid-price (token1 per token0, or the reverse) from a V3 `slot0()` result.
+pub fn v3_price_from_slot0(out: &[u8], i: usize, j: usize) -> Result<f64, QuoteError> {
+    if out.len() < 32 {
+        return Err(QuoteError::RpcError("short slot0 result".to_string()));
+    }
+    let sqrt = u256_to_f64(U256::from_be_slice(&out[0..32]));
+    let q = 79228162514264337593543950336.0_f64; // 2^96
+    let price = (sqrt / q) * (sqrt / q); // token1 per token0
+    if !price.is_finite() || price <= 0.0 {
+        return Err(QuoteError::InsufficientLiquidity);
+    }
+    match (i, j) {
+        (0, 1) => Ok(price),
+        (1, 0) => Ok(1.0 / price),
+        _ => Err(QuoteError::UnknownPool),
+    }
+}
+
 /// Uniswap V3 quotes via `QuoterV2.quoteExactInputSingle`.
 pub struct UniswapV3 {
     rpc: RpcClient,
@@ -165,17 +183,7 @@ impl QuoteSource for UniswapV3 {
 
     async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
         let out = self.rpc.eth_call(pool.address, SLOT0).await?;
-        if out.len() < 32 {
-            return Err(QuoteError::RpcError("short slot0 result".to_string()));
-        }
-        let sqrt = u256_to_f64(U256::from_be_slice(&out[0..32]));
-        let q = 79228162514264337593543950336.0_f64; // 2^96
-        let price = (sqrt / q) * (sqrt / q); // token1 per token0
-        Ok(match (i, j) {
-            (0, 1) => price,
-            (1, 0) => 1.0 / price,
-            _ => return Err(QuoteError::UnknownPool),
-        })
+        v3_price_from_slot0(&out, i, j)
     }
 
     async fn reserve_in(&self, _pool: &Pool, _i: usize) -> Result<U256, QuoteError> {
@@ -323,6 +331,24 @@ impl CachingSource {
     pub fn cached_count(&self) -> usize {
         self.prices.lock().unwrap().len()
     }
+
+    /// Seeds a mid-price from a batched prefetch.
+    pub fn seed_price(&self, pool: Address, i: usize, j: usize, price: f64) {
+        if price.is_finite() && price > 0.0 {
+            self.prices
+                .lock()
+                .unwrap()
+                .insert((pool, i, j), (price, Instant::now()));
+        }
+    }
+
+    /// Seeds an input reserve from a batched prefetch.
+    pub fn seed_reserve(&self, pool: Address, i: usize, reserve: U256) {
+        self.reserves
+            .lock()
+            .unwrap()
+            .insert((pool, i), (reserve, Instant::now()));
+    }
 }
 
 #[async_trait]
@@ -398,25 +424,25 @@ mod tests {
         }
     }
 
-    // Captured from the WETH/USDC Uniswap V2 pair (0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc)
-    // at a fixed block; raw `getReserves()` return.
-    const RAW_GET_RESERVES: &str = "0x000000000000000000000000000000000000000000000000000008d3d2e93f5b\
-        0000000000000000000000000000000000000000000000e48f03d863b0c3ee36\
-        000000000000000000000000000000000000000000000000000000006ae07af3";
+    fn pinned_fixture() -> serde_json::Value {
+        serde_json::from_str(include_str!("../tests/fixtures/v2-usdc-weth.json")).unwrap()
+    }
 
     #[test]
     fn decodes_raw_get_reserves() {
-        let bytes = hex_decode(RAW_GET_RESERVES).unwrap();
+        let fixture = pinned_fixture();
+        let bytes = hex_decode(fixture["raw_result"].as_str().unwrap()).unwrap();
         let r = decode_reserves(&bytes).unwrap();
-        let expected0 = U256::from_str_radix("08d3d2e93f5b", 16).unwrap();
-        let expected1 = U256::from_str_radix("e48f03d863b0c3ee36", 16).unwrap();
+        let expected0 = U256::from_str_radix(fixture["reserve0"].as_str().unwrap(), 10).unwrap();
+        let expected1 = U256::from_str_radix(fixture["reserve1"].as_str().unwrap(), 10).unwrap();
         assert_eq!(r, [expected0, expected1]);
     }
 
     #[tokio::test]
     async fn adapter_quotes_from_pinned_reserves_without_network() {
-        let r0 = U256::from_str_radix("08d3d2e93f5b", 16).unwrap();
-        let r1 = U256::from_str_radix("e48f03d863b0c3ee36", 16).unwrap();
+        let fixture = pinned_fixture();
+        let [r0, r1] =
+            decode_reserves(&hex_decode(fixture["raw_result"].as_str().unwrap()).unwrap()).unwrap();
         let adapter = UniswapV2::new(Arc::new(FixtureReserves { reserves: [r0, r1] }));
 
         let amount_in = U256::from(1_000_000_000_000_000_000u128); // 1 WETH (18 decimals)
@@ -424,7 +450,8 @@ mod tests {
             .amount_out(&fixture_pool(), 1, 0, amount_in)
             .await
             .unwrap();
-        let expected = constant_product_out(r1, r0, amount_in).unwrap();
+        let expected =
+            U256::from_str_radix(fixture["usdc_amount_out"].as_str().unwrap(), 10).unwrap();
         assert_eq!(out, expected);
         assert!(out > U256::ZERO);
     }
