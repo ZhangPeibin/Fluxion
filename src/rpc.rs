@@ -10,6 +10,7 @@ use crate::util::hex_decode;
 pub struct RpcClient {
     http: reqwest::Client,
     url: String,
+    block_tag: String,
 }
 
 impl RpcClient {
@@ -20,11 +21,19 @@ impl RpcClient {
                 .build()
                 .expect("HTTP client"),
             url,
+            block_tag: "latest".into(),
         }
     }
 
     pub fn url(&self) -> &str {
         &self.url
+    }
+
+    /// Pin read-only calls for reproducible adapter diagnostics. Aggregator
+    /// endpoints do not support this, so live benchmark services use latest.
+    pub fn at_block(mut self, block: u64) -> Self {
+        self.block_tag = format!("0x{block:x}");
+        self
     }
 
     async fn post(&self, body: Value) -> Result<Value, QuoteError> {
@@ -67,7 +76,7 @@ impl RpcClient {
             .post(json!({
                 "jsonrpc": "2.0",
                 "method": "eth_call",
-                "params": [{ "to": format!("{to:#x}"), "data": data }, "latest"],
+                "params": [{ "to": format!("{to:#x}"), "data": data }, self.block_tag],
                 "id": 1
             }))
             .await?;

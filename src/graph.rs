@@ -34,7 +34,7 @@ impl Graph {
         self.pools.push(pool);
         for (i, &from) in ids.iter().enumerate() {
             for (j, _) in ids.iter().enumerate() {
-                if i == j {
+                if !self.pools[pool_idx].kind.allows(i, j) {
                     continue;
                 }
                 let edge_idx = self.edges.len();

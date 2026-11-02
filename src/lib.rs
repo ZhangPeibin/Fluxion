@@ -1,6 +1,7 @@
 pub mod adapters;
 pub mod api;
 pub mod config;
+pub mod conversion;
 pub mod discovery;
 pub mod error;
 pub mod graph;

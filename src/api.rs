@@ -30,6 +30,7 @@ pub struct QuoteRequestDto {
 
 #[derive(Debug, Serialize)]
 pub struct HopDto {
+    pub operation: String,
     pub platform: String,
     pub pool: String,
     pub i: usize,
@@ -51,6 +52,7 @@ pub struct QuoteResponseDto {
 /// no snapshot (or no value for this edge) is available.
 #[derive(Debug, Serialize)]
 pub struct GraphEdgeDto {
+    pub operation: String,
     pub from: String,
     pub to: String,
     pub platform: String,
@@ -158,6 +160,7 @@ fn parse_u256(s: &str) -> Result<U256, ApiError> {
 
 fn hop_to_dto(hop: &Hop) -> HopDto {
     HopDto {
+        operation: hop.pool.kind.operation(hop.i).to_string(),
         platform: hop.pool.kind.name().to_string(),
         pool: hop.pool.address.to_string(),
         i: hop.i,
@@ -234,8 +237,9 @@ async fn graph(State(state): State<Arc<AppState>>) -> Json<GraphResponseDto> {
             .filter(|mid_price| mid_price.is_finite() && *mid_price > 0.0);
         let reserve = price
             .map(|p| p.reserve_in)
-            .filter(|reserve| !reserve.is_zero());
+            .filter(|reserve| !reserve.is_zero() && !pool.kind.is_conversion());
         edges.push(GraphEdgeDto {
+            operation: pool.kind.operation(edge.i).to_string(),
             from: pool.coins[edge.i].to_string(),
             to: pool.coins[edge.j].to_string(),
             platform: pool.kind.name().to_string(),

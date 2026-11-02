@@ -25,10 +25,29 @@ enabled_platforms:
   - uniswap-v2
   - uniswap-v3
   - curve
+  - shibaswap-v2
+
+# ShibaSwap V2: factory getPair for both-allowlisted token pairs (30 bps fee).
+# Liquidity uses reserve-ratio estimates anchored in USDC/USDT/DAI and WETH.
+# Pools without a USD anchor are excluded when min_liquidity > 0.
+# Factory discovery cannot apply volume/age filters: nonzero values disable it with a warning.
+shibaswap_v2_factory: "0x115934131916C8b277DD010Ee02de363c09d037c"
+
+# Typed protocol conversion instances. [] disables all conversions.
+# This is a live protocol exchange rate, not a fixed 1:1 or a static config rate.
+# wrap/unwrap are independently configurable; each operation counts as one hop.
+protocol_conversions:
+  - kind: wsteth
+    contract: "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+    underlying: "0xae7ab96520de3a18e5e111b5eaab095312d7fe84"
+    wrapped: "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+    enabled: true
+    wrap: true
+    unwrap: true
 
 # Routing.
 max_hops: 3          # max edges in a route
-top_k: 8             # candidate paths refined with live quotes
+top_k: 8             # candidates per (token, hop, capability family); at most 4 families
 max_pools: 10000     # cap discovered pools per platform (top by liquidity/volume)
 slippage_penalty_lambda: 0.0   # liquidity penalty coefficient
 

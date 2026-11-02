@@ -1,5 +1,10 @@
 use alloy_primitives::{Address, U256};
 
+/// Four-byte selector; argument/return encoding remains hand-written ABI.
+pub(crate) fn selector(signature: &str) -> String {
+    bytes_to_hex(&alloy_primitives::keccak256(signature.as_bytes())[..4])
+}
+
 pub(crate) fn u256_to_f64(x: U256) -> f64 {
     x.to_string().parse().unwrap_or(f64::INFINITY)
 }

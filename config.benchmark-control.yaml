@@ -1,0 +1,15 @@
+# Feature-disabled control: same settings as config.benchmark.yaml, but only
+# the original three venues and no protocol conversions.
+host: 127.0.0.1
+port: 8082
+enabled_platforms: [uniswap-v2, uniswap-v3, curve]
+protocol_conversions: []
+max_pools: 10000
+min_liquidity: 50000
+max_hops: 3
+top_k: 8
+reserve_ratio_k: 0
+refresh_interval_secs: 30
+snapshot_refresh_secs: 120
+request_timeout_ms: 10000
+token_allowlist: []

@@ -253,6 +253,7 @@ pub struct Dispatcher {
     v2: Box<dyn QuoteSource + Send + Sync>,
     v3: Option<Box<dyn QuoteSource + Send + Sync>>,
     curve: Option<Box<dyn QuoteSource + Send + Sync>>,
+    conversions: Option<Box<dyn QuoteSource + Send + Sync>>,
 }
 
 impl Dispatcher {
@@ -261,14 +262,27 @@ impl Dispatcher {
         v3: Option<Box<dyn QuoteSource + Send + Sync>>,
         curve: Option<Box<dyn QuoteSource + Send + Sync>>,
     ) -> Self {
-        Self { v2, v3, curve }
+        Self {
+            v2,
+            v3,
+            curve,
+            conversions: None,
+        }
+    }
+
+    pub fn with_conversions(mut self, source: Box<dyn QuoteSource + Send + Sync>) -> Self {
+        self.conversions = Some(source);
+        self
     }
 
     fn source(&self, kind: PoolKind) -> Result<&(dyn QuoteSource + Send + Sync), QuoteError> {
         match kind {
-            PoolKind::UniswapV2 => Ok(self.v2.as_ref()),
+            PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 => Ok(self.v2.as_ref()),
             PoolKind::UniswapV3 { .. } => self.v3.as_deref().ok_or(QuoteError::UnknownPool),
             PoolKind::Curve => self.curve.as_deref().ok_or(QuoteError::UnknownPool),
+            PoolKind::Conversion { .. } => {
+                self.conversions.as_deref().ok_or(QuoteError::UnknownPool)
+            }
         }
     }
 }

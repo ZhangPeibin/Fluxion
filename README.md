@@ -3,15 +3,15 @@
 [English](README.en.md) | 中文
 
 Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `token_out` / `amount_in`，
-在 Uniswap V2 / V3 / Curve 构成的**有向多重图**上搜索最优路由（支持多跳），返回最优
-`amount_out` 与完整路径（exact-in）。
+将 Uniswap V2 / V3、Curve、ShibaSwap V2 的池子和可配置的协议转换统一建成**有向多重图**，
+搜索多跳候选，精算后返回候选中输出最大的单条路径（exact-in）。首个协议转换适配器支持 stETH↔wstETH。
 
 > 开源、自托管：下载后用一份 YAML 配置 + 你自己的 RPC / Graph key 跑起来。
 
 ## 快速开始
 
 ```bash
-# 1) 密钥（gitignored）—— .env 只放 GRAPH_API_KEY
+# 1) 密钥（gitignored）—— .env 只放密钥；服务需要 GRAPH_API_KEY
 cp .env.example .env
 #   编辑 .env，填入 GRAPH_API_KEY（The Graph Studio 免费创建）
 
@@ -24,8 +24,9 @@ cargo run
 
 > 分工：**`.env` 只放密钥**（`GRAPH_API_KEY`）；**其余所有配置走 `config.yaml`**。
 
-启动时会从 subgraph / 链上注册表发现池子、预热 mid-price 缓存，然后开始服务。
-（没有 `GRAPH_API_KEY` 时会退回到内置的 mock universe，便于离线开发。）
+启动时读取配置、发现池子、验证协议转换实例，建图并预热价格快照后开始服务。
+默认配置启用 Uniswap subgraph；缺少 `GRAPH_API_KEY` 时使用 mock universe，便于离线开发。
+也可通过 `cargo run -- --config PATH` 指定其他配置文件。
 
 ```bash
 curl -s localhost:8080/health   # {"status":"ok"}
@@ -55,7 +56,7 @@ curl -s -X POST localhost:8080/quote \
 ```
 
 - 金额均为**十进制字符串**（`U256`）。
-- `max_hops` 可选，指**边数**（默认取配置）。
+- `max_hops` 可选，指**边数**（默认取配置）；每次 swap、wrap、unwrap 都计一跳。
 - `amount_out_min` 可选，结果低于它时返回 `AmountOutBelowMin`。
 
 响应（`200`）：
@@ -66,6 +67,7 @@ curl -s -X POST localhost:8080/quote \
   "price_impact_bps": 32,
   "path": [
     {
+      "operation": "swap",
       "platform": "uniswap-v3",
       "pool": "0xE0554a476A092703abdB3Ef35c80e0D76d32939F",
       "i": 1, "j": 0,
@@ -78,6 +80,9 @@ curl -s -X POST localhost:8080/quote \
 }
 ```
 
+- `operation` 为 `swap` / `wrap` / `unwrap`；转换步骤的 `pool` 字段指 wrapper 合约地址。
+- 返回的是报价和逐跳信息，不包含交易 calldata，也不会发送交易。
+
 ### `GET /graph`
 
 只读地导出当前路由多重图，供 Web viewer 等外部工具使用：
@@ -87,22 +92,30 @@ curl -s -X POST localhost:8080/quote \
   "tokens": ["0xA0b8...", "0xC02a..."],
   "edges": [
     {
+      "operation": "swap",
       "from": "0xC02a...",
       "to": "0xA0b8...",
       "platform": "uniswap-v3",
       "pool": "0xE055...",
       "i": 1,
       "j": 0,
-      "mid_price": 2318.7,
+      "mid_price": 2.3187e-9,
       "reserve": "1234567890123456789"
     }
   ]
 }
 ```
 
-- 每条边是一个**有向池跳**；`i` / `j` 是池内币索引。
+- 每条边是一个有向交换或转换步骤；`i` / `j` 是 `Pool.coins` 中的币索引。
+- `mid_price` 是输出 raw units / 输入 raw units 的比值；换算整币价格需要结合 token decimals。
 - `mid_price` / `reserve` 来自当前价格快照；没有快照或该边数据不可用时**省略这两个字段**（不报错）。
+- 协议转换边省略 `reserve`，避免把内部哨兵值显示成真实流动性。
 - 只读：不触发新快照、不消耗限流额度，也不影响 `/quote`。
+
+### `GET /info`
+
+返回 `mode`（`mainnet` / `mock`）、生效配置、图规模和 `platform_edges`。配置不包含 RPC URL；
+`pools` 是图内记录数，也包含 wrapper link。基准工具用它确认实例模式与实际加载的平台。
 
 ### `GET /health` / `GET /ready`
 
@@ -136,6 +149,7 @@ npm run dev
   回退为短地址），边标注平台 + pool（默认关闭，可在侧栏打开），平行边按方向和序号弯折区分。
 - 平台图例兼作筛选器，并显示各平台边数；另有 token 搜索（淡出无关节点/边）与最小流动性
   （raw reserve）过滤。
+- ShibaSwap 与 wstETH 转换有独立图例；转换边用虚线表示，不参与池子储备阈值过滤。
 - 悬停显示完整地址、pool、platform、`mid_price`、`reserve`；点击节点/边打开详情面板（含 Etherscan 链接）。
 - From/To 可点击节点或直接输入地址，金额默认填入 **1 个整 token**（按 token decimals 换算为 raw units，
   也可手动改成任意 raw 数值）；调用 `POST /quote` 后高亮最优路由、
@@ -147,15 +161,66 @@ npm run dev
 
 ## 架构
 
-```
-请求 → axum /quote → Router
-                        ├─ 粗选：读缓存 mid-price 算边权 → K-best DP（限 hop、简单路径、含费用/流动性惩罚）→ top-K 候选
-                        └─ 精算：对候选路径并行链式调用链上 quote，取 amount_out 最大者
-后台：启动发现池子 + 预热 mid-price；定期刷新热池储备（V2 走 Multicall3）
+### 启动与运行结构
+
+```text
+config.yaml + .env
+        │
+        ├─ 池发现：Uniswap subgraph / Curve registry / ShibaSwap factory
+        └─ 转换实例：配置声明 → 校验 wrapper 的 underlying 与启用方向
+        │
+        ▼
+Graph：token 为节点，AMM swap 与协议转换为有向边
+        │
+        ▼
+批量预热 V2 储备、V3 slot0 → CachingSource → PriceSnapshot
+        │
+        ▼
+axum HTTP 服务
+  POST /quote → Router → 快照粗选 → 分组 K-best DP → 候选精算 → 单条最佳路径
+  GET /graph  → 读取拓扑与已安装快照
+  GET /info   → 模式、配置与图规模
+
+后台独立循环：
+  refresh_interval_secs  → StateCache 分批刷新近期用过的 V2 池储备
+  snapshot_refresh_secs → 全图粗选数据预热、重建并替换 PriceSnapshot
 ```
 
-两层定价：**粗选**用缓存 mid-price 做快速路径搜索；**精算**只对少量候选用链上真实
-`amount_out`（含滑点、费用）定胜负。
+拓扑在启动时确定；运行期间更新报价状态和快照，不会在后台重新发现池子。
+
+### 一次报价如何决定路径
+
+1. **粗选**：从已安装快照读取 mid-price，加入费用和可选流动性惩罚；正常 HTTP 报价的粗选不发 RPC。
+2. **保留候选多样性**：按 `(token, hop, 能力分组)` 保留 top-K，禁止重复 token。四组分别为
+   原有 AMM、含协议转换、含 ShibaSwap、两者都有；各跳数的候选都保留到精算。
+3. **精算**：候选之间最多并发 16 条，每条路径内部按顺序传递实际输出金额；单条候选失败不影响其他候选。
+4. **择优**：以精算的 `amount_out` 最大者为结果，计算价格冲击并检查 `amount_out_min`。
+
+这仍是有界启发式搜索：分组避免新能力被其他路径全部挤掉，但不保证全市场的全局最优。
+
+### 统一接口，不同报价语义
+
+`QuoteSource` 提供 `amount_out`、`mid_price`、`reserve_in`。`Dispatcher` 按 `PoolKind` 分派：
+
+| 类型 | 精算方式 | 语义 |
+|---|---|---|
+| Uniswap V2 / ShibaSwap V2 | 短 TTL 储备 + 本地常数积计算 | 复用 V2 数学，平台身份独立；费用 0.3% |
+| Uniswap V3 | QuoterV2 `eth_call` | 使用池对和费率，计算输入金额对应的输出 |
+| Curve | `get_dy`，按接口分派 | 支持 stableswap / crypto 的不同索引类型 |
+| wstETH 协议转换 | wrapper 的整数转换 view | 读取实际金额的转换结果，不假设 1:1，不附加 AMM 费用 |
+
+例如 `stETH → wrap → wstETH → V3 → WETH → V3 → USDC` 是三跳路径。
+**代码实现接口类型，配置声明部署实例**：增加同类 wrapper 可改配置，增加其他协议接口需要对应适配器。
+
+### 缓存职责
+
+| 组件 | 保存什么 | 更新方式 |
+|---|---|---|
+| `StateCache` | V2 精算使用的储备 | 冷池懒加载；近 5 分钟访问过的池分批热刷新；TTL 默认 30 秒 |
+| `CachingSource` | 粗选 mid-price 与 reserve | 批量预热或按需读取；TTL 为两个刷新间隔的较大值 |
+| `PriceSnapshot` | 与图边索引对齐的只读价格向量 | 默认每轮等待 120 秒后重建，完成后替换共享快照 |
+
+V2 精算可能使用短 TTL 缓存，其他精算读取实时链上状态；整条路径不是同一区块的执行模拟。
 
 技术栈：
 
@@ -168,32 +233,57 @@ npm run dev
 
 ```
 src/
-  model.rs       Token / Pool / PoolKind / Edge / Hop / Route / QuoteRequest
-  graph.rs       自定义邻接表多重图（平行边；多币池展开为所有有序对）
-  discovery.rs   V2/V3 subgraph 发现 + Curve 主注册表发现 + 过滤
-  source.rs      QuoteSource trait + mock 实现
-  adapters.rs    真实适配器（V2/V3/Curve）+ Dispatcher + CachingSource
+  lib.rs         库模块导出
+  model.rs       Token、PoolKind、ConversionKind、Edge、Hop、Route 等模型
+  graph.rs       邻接表多重图；多币池展开；转换边按启用方向加入
+  discovery.rs   Uniswap subgraph / Curve registry 发现与白名单过滤
+  discovery/
+    shibaswap.rs ShibaSwap factory 查询、储备验证、估值过滤和排序
+  source.rs      QuoteSource trait、V2 数学与 mock 实现
+  adapters.rs    V2/V3/Curve 适配器、Dispatcher、CachingSource
+  conversion.rs 协议转换适配器；目前为 wstETH 接口
   state.rs       StateCache：V2 储备 TTL 缓存 + Multicall3 热池刷新
   rpc.rs         原始 JSON-RPC 客户端（含 429/瞬时错误重试退避）
-  router.rs      K-best DP 粗选 + 并行精算 + 价格冲击
-  api.rs         axum（/quote、/graph、/health、/ready）、错误映射、限流
-  config.rs      YAML 配置
+  router.rs      快照、四类候选 K-best DP、有界精算与价格冲击
+  api.rs         /quote、/graph、/health、/ready；DTO、错误映射与限流
+  error.rs       共享报价错误类型
+  config.rs      YAML 配置、类型化转换实例与校验
   util.rs        ABI 编码、hex、数值转换
-  main.rs        入口：发现 → 建图 → 预热 → 服务
+  main.rs        启动装配、/info、后台刷新与 HTTP 服务
+  bin/
+    bench.rs     配对基准；聚合器对比、完整路径、JSON / Markdown 报告
+    graph.rs     从运行实例导出 Mermaid / HTML
 
-ui/              独立 Web viewer（React + Vite + vis-network；只读 /graph + /quote）
+config.example.yaml           全部配置示例
+config.benchmark.yaml         开启新能力的基准实例（:8081）
+config.benchmark-control.yaml  关闭转换与 ShibaSwap 的对照实例（:8082）
+bench/corpus.yaml             固定交易对与 raw 输入金额
+tests/                        路由 / 转换行为、主网集成测试与固定区块 fixture
+ui/                           独立 React + Vite + vis-network 查看器
+docs/QUOTE-QUALITY.md          转换、ShibaSwap 和候选多样性的实现说明
+docs/benchmarks/               基准方法、原始路径数据与结果分析
 ```
 
 ## 数据模型
 
 - `Token { address, symbol, decimals }`
 - `Pool { kind: PoolKind, address, coins: Vec<Address> }`
-  - `PoolKind = UniswapV2 | UniswapV3 { fee } | Curve`
+  - `PoolKind = UniswapV2 | ShibaSwapV2 | UniswapV3 { fee } | Curve | Conversion { kind, wrap, unwrap }`
+  - `ConversionKind` 当前支持 `WstEth`；转换复用 `Pool` 容器，`address` 为 wrapper，`coins` 为 `[underlying, wrapped]`。
 - `Edge { pool_idx, i, j }`（有向：卖出币索引 `i` → 买入币索引 `j`）
 - 同一 token 对在多平台 = **平行边**；多币池（如 Curve 3pool）展开为所有有序对：
   3 币 → 6 条边。
+- 转换只加入启用方向；`Hop` 经 API 映射后使用 `operation` 区分 swap、wrap 和 unwrap。
 
 ## 池子发现与过滤
+
+- **协议转换**：默认将 stETH↔wstETH 加入路由图。`protocol_conversions` 配置类型化实例，
+  `wrap` / `unwrap` 可独立启用；精算读取协议的实际整数转换结果，不假设 1:1、不收取虚构的 AMM 费用。
+  每个转换操作计一跳。`protocol_conversions: []` 可关闭；新增接口类型需要对应代码适配器。
+- **ShibaSwap V2**：通过 `shibaswap_v2_factory.getPair()` 分批查询白名单中的代币对，
+  验证币序与非零储备，复用 0.3% 费用的 V2 报价数学；单独标识为 `shibaswap-v2`。
+  使用稳定币/WETH 锚定的储备比例估算过滤 `min_liquidity`，再按估值排序取上限；
+  不能估值的池在流动性门槛非零时排除。该来源不提供成交量/池龄，设置相应非零门槛会跳过 ShibaSwap 并记录警告。
 
 - **Uniswap V2**：V2 subgraph，按 `reserveUSD` 排序、分页。
 - **Uniswap V3**：V3 subgraph，按 `volumeUSD` 排序、分页（注意：按 TVL 排序会先冒出
@@ -201,19 +291,20 @@ ui/              独立 Web viewer（React + Vite + vis-network；只读 /graph 
 - **Curve**：通过 `AddressProvider.get_address(id)` 枚举多个注册表（`curve_registry_ids`，
   默认 `[0, 5]` = 主 stableswap + crypto；`7` = MetaRegistry 覆盖全部含 factory/metapool，较慢），
   每个注册表 `pool_count() → pool_list(i) → coins(i)`，并用一次 `get_dy` 探测验证可报。
-- **过滤**：`min_liquidity`、`min_volume_24h`、`min_pool_age_days`；以及默认约 50 个主流币的
-  白名单。`token_allowlist` 为空时使用内置名单，非空时覆盖；V2/V3 要求两币都在名单内，Curve 要求所有币都在。
+- **过滤**：按数据来源支持的条件应用流动性、活动代理和池龄门槛，并保留默认约 50 个主流币的
+  白名单。`token_allowlist` 为空时使用内置名单，非空时覆盖；V2/V3、ShibaSwap 与转换要求两币都在名单内，Curve 要求所有币都在。
 - V2/V3 分别按流动性/成交量排序，在过滤后保留最多 `max_pools` 个池（默认 10000）。
-- `max_pools` 限制每类平台的池子数，控制图规模与 RPC 压力。
+- ShibaSwap 按估算流动性排序截断；Curve 的 `max_pools` 是每个注册表的枚举上限；转换实例由配置列表控制。
 
 ## 路由算法
 
-- 最大化 `∏ rate` ⟺ 最小化 `∑ (-ln(rate) + fee + liquidity)`。
+- 粗选以 `-ln(rate)` 将汇率乘积变成可累加的成本，再加入费用与流动性惩罚；最终按精算输出择优。
 - 粗选边权：`-ln(mid_price) + fee_penalty(kind) + λ·(amount_in/reserve_in)`；
   `reserve_ratio_k > 0` 时跳过 `reserve_in < k·amount_in` 的浅边。
-- **K-best DP**：按 `(token, hop)` 保留 top-K 路径，限 `max_hops`，禁止重复 token。
-- **直连兜底**：直连池始终纳入候选，避免粗选把明显最优的直连路由挤掉。
-- **并行**：粗选与精算均用有界/并发 futures，隐藏 RPC 延迟。
+- **K-best DP**：按 `(token, hop, 能力分组)` 保留 top-K 路径。分组区分是否含协议转换、ShibaSwap，
+  最多 4 组，避免新路径与原有路径在精算前互相挤掉；限 `max_hops`，禁止重复 token。
+- **直连兜底**：符合已配置储备门槛的直连边补入候选，避免粗选把明显最优的直连路由挤掉。
+- **并行**：快照构建与候选精算各最多并发 16 项；快照上的边权计算与 DP 是同步内存计算。
 - 滑点被精算吸收；响应额外返回 `price_impact_bps`。
 
 ## 配置（`config.yaml`）
@@ -225,8 +316,10 @@ ui/              独立 Web viewer（React + Vite + vis-network；只读 /graph 
 | `uniswap_v2_subgraph_id` / `uniswap_v3_subgraph_id` | The Graph 去中心化网络部署 ID | 见示例 |
 | `curve_address_provider` | Curve AddressProvider | `0x0000…4383` |
 | `curve_registry_ids` | 枚举的 Curve 注册表 id（0=主 stableswap，5=crypto，7=MetaRegistry 全部） | `[0, 5]` |
-| `enabled_platforms` | 启用的平台 | v2/v3/curve |
-| `max_hops` / `top_k` / `max_pools` | 路由与规模（`max_pools` 为每平台按流动性/成交量取前 N 个池） | 3 / 8 / 10000 |
+| `enabled_platforms` | 启用的 AMM 平台；与转换列表独立 | `uniswap-v2` / `uniswap-v3` / `curve` / `shibaswap-v2` |
+| `shibaswap_v2_factory` | ShibaSwap V2 工厂地址 | 见示例 |
+| `protocol_conversions` | 已支持接口类型的部署实例；`[]` 关闭转换 | Lido stETH↔wstETH，双向开启 |
+| `max_hops` / `top_k` / `max_pools` | 最大边数 / 每状态每能力组保留数 / 发现上限 | 3 / 8 / 10000 |
 | `min_liquidity` | 流动性下限（USD 量级） | 50000 |
 | `min_volume_24h` | 成交量下限（用 subgraph `volumeUSD` 作代理） | 0 |
 | `min_pool_age_days` | 最小池龄（天） | 0 |
@@ -238,6 +331,8 @@ ui/              独立 Web viewer（React + Vite + vis-network；只读 /graph 
 | `token_allowlist` | 覆盖内置主流币白名单 | 空（使用内置） |
 
 `GRAPH_API_KEY` 只放在 **gitignored 的 `.env`** 里，不进版本库。
+转换实例字段为 `kind`、`contract`、`underlying`、`wrapped`、`enabled`、`wrap`、`unwrap`；
+完整示例见 [config.example.yaml](config.example.yaml)。汇率来自协议，不在 YAML 中填写固定价格。
 
 粗选价格缓存 TTL 取 `max(refresh_interval_secs, snapshot_refresh_secs)`。全图预热使用
 Multicall3 分批读取 V2 储备和 V3 `slot0`，不会将所有池标成热池；精算时才懒加载 V2 的短 TTL 储备。
@@ -256,8 +351,29 @@ cargo run --bin graph -- --service http://127.0.0.1:8081 --out graph
 ```
 
 `GET /info` 返回主网/mock 模式、图规模及生效配置（不含 RPC URL），基准工具拒绝 mock 模式。
+`/quote` 的每跳与 `/graph` 的每条边增加 `operation: swap | wrap | unwrap`；转换边的
+`pool` 字段为 wrapper 合约地址，`/graph` 不为转换边伪造储备值。Viewer 为转换边使用虚线。
 ParaSwap 无需密钥；1inch/0x 可通过 `.env` 中的 `ONEINCH_API_KEY` / `ZEROX_API_KEY` 启用。
 方法、结果与限制见 [docs/benchmarks/README.md](docs/benchmarks/README.md)。
+
+同轮对照：另启动 `cargo run -- --config config.benchmark-control.yaml`（:8082），然后运行
+`cargo run --bin bench -- --service http://127.0.0.1:8081 --control-service http://127.0.0.1:8082 --config config.benchmark.yaml`。
+两实例使用相同语料、相同基础配置；对照实例关闭转换和 ShibaSwap。报告按 stETH、SHIB、其他样本分组，
+JSON 保留逐跳路径、对手拆单比例和池信息。详细实现见 [报价质量改进](docs/QUOTE-QUALITY.md)。
+
+### 最近一轮配对结果（2026-11-02）
+
+| 指标 | 关闭新能力的对照 | 开启转换 + ShibaSwap |
+|---|---:|---:|
+| 报价成功 | 90/90 | 90/90 |
+| 相对 ParaSwap 的平均输出差距 | −1.3372% | −0.1018% |
+| 输出差距在 ±0.5% 内 | 72/90 | 84/90 |
+| 延迟 p50 / p95 | 1085 / 1586 ms | 1246 / 1871 ms |
+
+15 个 stETH 相关样本与 6 个 SHIB 样本的输出均高于同轮对照。100000 USDC→stETH 的差距
+从约 −40.725% 缩至 −0.0213%；大额 WETH→SHIB 从 −19.010% 缩至 −1.887%。剩余 SHIB
+差距涉及对手拆单和白名单外中间币。该轮使用实时状态、debug 构建，不含 gas 或实际成交。
+原始路径、少量实时状态偏差和延迟取舍见 [结果分析](docs/benchmarks/2026-11-02-quote-quality-analysis.md)。
 
 ## 测试
 
@@ -269,24 +385,30 @@ cd ui && npm install && npm run build   # 前端构建
 ```
 
 - 单元：mock `QuoteSource` 的多重图、路由择优、负权/简单路径、编码稳定性。
+- 转换与候选回归：整数舍入、方向开关、配置/underlying 校验、转换加多跳组合、API 操作标记，
+  以及 `top_k=1` 时转换路径和原有深池路径不被另一类薄池挤掉。
 - 主网：V2/V3/Curve 真实报价、V2 vs V3 择优、Curve 3pool、Multicall3 热刷新、
   端到端多跳（V2/V3 + Curve）、subgraph 发现。V2 适配器另有**固定区块 `getReserves`
   fixture** 做不联网的确定性测试。
+- 新增固定区块主网核对：wstETH 往返舍入、ShibaSwap 发现与部署 Router 的输出一致性。
 
 ## 边界与限制
 
-- 仅 Ethereum 主网；exact-in；单条最优路径（不做 split routing，留 v2）。
-- 原生 ETH 不支持（仅 ERC-20 / WETH；wrap/unwrap 由上游处理）。
+- 仅 Ethereum 主网；exact-in；返回已精算候选中输出最大的单条路径，不做拆单，不保证全市场最优。
+- 原生 ETH 不支持；ETH↔WETH 包装由调用方处理。stETH↔wstETH 是独立的、已支持的协议转换。
 - Curve 适配器同时支持 stableswap（`get_dy(int128,…)`）与 crypto（`get_dy(uint256,…)`）；
   **发现**默认覆盖主 stableswap + crypto 注册表（`curve_registry_ids: [0, 5]`）；
   factory/metapool 可通过把 `7`（MetaRegistry）加入 `curve_registry_ids` 纳入，但会显著变慢。
-- 依赖公共 RPC 时可能遇到限流；粗选基于内存**价格快照**同步计算（O(边数) 但无 RPC），
-  延迟主要由**精算**（对候选路径的链上真实报价）决定（约 0.5–1s，取决于 RPC）。
-- fee-on-transfer / rebasing token 报价会失真 → 白名单排除。
+- 公共 RPC 可能限流；正常请求的粗选在内存执行，主要等待来自候选精算。增加候选能力组会增加
+  RPC 开销；延迟参考上面的实测结果，不提供固定 SLA。
+- 不通用支持 fee-on-transfer 或任意 rebasing token；stETH 转换有专用适配器，不意味着其他特殊 token 自动可用。
+- 快照、V2 短 TTL 储备和实时调用可能来自不同区块；报价不等于整条路径的执行模拟。
 - 公开 HTTP 无鉴权，仅简单限流。
 
 ## 相关文档
 
+- [docs/QUOTE-QUALITY.md](docs/QUOTE-QUALITY.md)：本轮转换、ShibaSwap、候选分组的设计与验证。
+- [docs/benchmarks/README.md](docs/benchmarks/README.md)：基准方法、配对结果及完整原始数据入口。
 - `docs/ARCHITECTURE.md`：**详细架构设计文档**（数据流、模块、缓存三层、路由算法、RPC、API、并发、限制）。英文版：`docs/ARCHITECTURE.en.md`。
 - `docs/REQUEST-TRACE.md`：**一次 `/quote` 请求的逐函数调用栈**。
 - `docs/PLAN.md`：教学版里程碑（含学习目标与检查点）。

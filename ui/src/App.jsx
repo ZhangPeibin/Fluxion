@@ -410,7 +410,7 @@ export default function App() {
                         {tokenLabel(hop.token_in)} → {tokenLabel(hop.token_out)}
                       </span>
                       <span className="hop-meta">
-                        {hop.platform} · {shortAddress(hop.pool)}
+                        {hop.platform} · {hop.operation ?? "swap"} · {shortAddress(hop.pool)}
                       </span>
                     </li>
                   ))}
