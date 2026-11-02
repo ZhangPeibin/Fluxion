@@ -1,0 +1,4709 @@
+{
+  "meta": {
+    "block": 26325207,
+    "block_hash": "0x6552f10c25fe99a05f776bc5e0dfac98907ee9af3d2de1002ffeda9b94aec40c",
+    "block_hash_unchanged": true,
+    "completed": true,
+    "config": {
+      "curve_address_provider": "0x0000000022D53366457F9d5E68Ec105046FC4383",
+      "curve_registry_ids": [
+        0,
+        5
+      ],
+      "enabled_platforms": [
+        "uniswap-v2",
+        "uniswap-v3",
+        "curve",
+        "shibaswap-v2"
+      ],
+      "host": "127.0.0.1",
+      "max_hops": 3,
+      "max_pools": 10000,
+      "min_liquidity": 50000,
+      "min_pool_age_days": 0,
+      "min_volume_24h": 0,
+      "port": 8081,
+      "protocol_conversions": [
+        {
+          "contract": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+          "enabled": true,
+          "kind": "wsteth",
+          "underlying": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+          "unwrap": true,
+          "wrap": true,
+          "wrapped": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+        }
+      ],
+      "refresh_interval_secs": 30,
+      "request_timeout_ms": 10000,
+      "reserve_ratio_k": 0,
+      "shibaswap_v2_factory": "0x115934131916c8b277dd010ee02de363c09d037c",
+      "slippage_penalty_lambda": 0.0,
+      "snapshot_refresh_secs": 120,
+      "token_allowlist": [],
+      "top_k": 8,
+      "uniswap_v2_subgraph_id": "EYCKATKGBKLWvSfwvBjzfCBmGwYNdVkduYXVivCsLRFu",
+      "uniswap_v3_subgraph_id": "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV"
+    },
+    "corpus_yaml": "# Benchmark corpus: directed token pairs and raw-unit input amounts.\n#\n# Amount tiers are chosen to approximate $1k / $10k / $100k at authoring time.\n# Both Fluxion and aggregators receive the same raw amount for each row.\n\nsymbols:\n  \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\": WETH\n  \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\": USDC\n  \"0xdac17f958d2ee523a2206206994597c13d831ec7\": USDT\n  \"0x6b175474e89094c44da98b954eedeac495271d0f\": DAI\n  \"0x2260fac5e5542a773aa44fbcfedf7c193bc2c599\": WBTC\n  \"0xae7ab96520de3a18e5e111b5eaab095312d7fe84\": stETH\n  \"0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0\": wstETH\n  \"0x5a98fcbea516cf06857215779fd812ca3bef1b32\": LDO\n  \"0x6982508145454ce325ddbe47a25d4ec3d2311933\": PEPE\n  \"0x514910771af9ca656af840dff83e8264ecf986ca\": LINK\n  \"0x1f9840a85d5af5bf1d1762f925bdaddc4201f984\": UNI\n  \"0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9\": AAVE\n  \"0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce\": SHIB\n\n# Required by keyless aggregators (ParaSwap) that take explicit decimals.\ndecimals:\n  \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\": 18\n  \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\": 6\n  \"0xdac17f958d2ee523a2206206994597c13d831ec7\": 6\n  \"0x6b175474e89094c44da98b954eedeac495271d0f\": 18\n  \"0x2260fac5e5542a773aa44fbcfedf7c193bc2c599\": 8\n  \"0xae7ab96520de3a18e5e111b5eaab095312d7fe84\": 18\n  \"0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0\": 18\n  \"0x5a98fcbea516cf06857215779fd812ca3bef1b32\": 18\n  \"0x6982508145454ce325ddbe47a25d4ec3d2311933\": 18\n  \"0x514910771af9ca656af840dff83e8264ecf986ca\": 18\n  \"0x1f9840a85d5af5bf1d1762f925bdaddc4201f984\": 18\n  \"0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9\": 18\n  \"0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce\": 18\n\namounts:\n  \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\":\n    [\"333333333333333333\", \"3333333333333333333\", \"33333333333333333333\"]\n  \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\":\n    [\"1000000000\", \"10000000000\", \"100000000000\"]\n  \"0xdac17f958d2ee523a2206206994597c13d831ec7\":\n    [\"1000000000\", \"10000000000\", \"100000000000\"]\n  \"0x6b175474e89094c44da98b954eedeac495271d0f\":\n    [\"1000000000000000000000\", \"10000000000000000000000\", \"100000000000000000000000\"]\n  \"0x2260fac5e5542a773aa44fbcfedf7c193bc2c599\":\n    [\"1670000\", \"16700000\", \"167000000\"]\n  \"0xae7ab96520de3a18e5e111b5eaab095312d7fe84\":\n    [\"333333333333333333\", \"3333333333333333333\", \"33333333333333333333\"]\n  \"0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0\":\n    [\"285714285714285714\", \"2857142857142857142\", \"28571428571428571428\"]\n  \"0x5a98fcbea516cf06857215779fd812ca3bef1b32\":\n    [\"1600000000000000000000\", \"16000000000000000000000\", \"160000000000000000000000\"]\n  \"0x6982508145454ce325ddbe47a25d4ec3d2311933\":\n    [\"125000000000000000000000000\", \"1250000000000000000000000000\", \"12500000000000000000000000000\"]\n  \"0x514910771af9ca656af840dff83e8264ecf986ca\":\n    [\"66000000000000000000\", \"666000000000000000000\", \"6666000000000000000000\"]\n  \"0x1f9840a85d5af5bf1d1762f925bdaddc4201f984\":\n    [\"140000000000000000000\", \"1400000000000000000000\", \"14000000000000000000000\"]\n  \"0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9\":\n    [\"4000000000000000000\", \"40000000000000000000\", \"400000000000000000000\"]\n  \"0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce\":\n    [\"80000000000000000000000000\", \"800000000000000000000000000\", \"8000000000000000000000000000\"]\n\npairs:\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\"]\n  - [\"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\", \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0xdac17f958d2ee523a2206206994597c13d831ec7\"]\n  - [\"0xdac17f958d2ee523a2206206994597c13d831ec7\", \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0x6b175474e89094c44da98b954eedeac495271d0f\"]\n  - [\"0x6b175474e89094c44da98b954eedeac495271d0f\", \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0x2260fac5e5542a773aa44fbcfedf7c193bc2c599\"]\n  - [\"0x2260fac5e5542a773aa44fbcfedf7c193bc2c599\", \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"]\n  - [\"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\", \"0xdac17f958d2ee523a2206206994597c13d831ec7\"]\n  - [\"0xdac17f958d2ee523a2206206994597c13d831ec7\", \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\"]\n  - [\"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\", \"0x6b175474e89094c44da98b954eedeac495271d0f\"]\n  - [\"0x6b175474e89094c44da98b954eedeac495271d0f\", \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\"]\n  - [\"0xae7ab96520de3a18e5e111b5eaab095312d7fe84\", \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0xae7ab96520de3a18e5e111b5eaab095312d7fe84\"]\n  - [\"0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0\", \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0\"]\n  - [\"0xae7ab96520de3a18e5e111b5eaab095312d7fe84\", \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\"]\n  - [\"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\", \"0xae7ab96520de3a18e5e111b5eaab095312d7fe84\"]\n  - [\"0xae7ab96520de3a18e5e111b5eaab095312d7fe84\", \"0x5a98fcbea516cf06857215779fd812ca3bef1b32\"]\n  - [\"0x5a98fcbea516cf06857215779fd812ca3bef1b32\", \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0x6982508145454ce325ddbe47a25d4ec3d2311933\"]\n  - [\"0x6982508145454ce325ddbe47a25d4ec3d2311933\", \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0x514910771af9ca656af840dff83e8264ecf986ca\"]\n  - [\"0x514910771af9ca656af840dff83e8264ecf986ca\", \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0x1f9840a85d5af5bf1d1762f925bdaddc4201f984\"]\n  - [\"0x1f9840a85d5af5bf1d1762f925bdaddc4201f984\", \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9\"]\n  - [\"0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9\", \"0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48\"]\n  - [\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\", \"0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce\"]\n  - [\"0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce\", \"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\"]\n",
+    "discovery_rpc_requests": 287,
+    "edge_count": 432,
+    "expected_rows": 6,
+    "focus": "SHIB",
+    "git_sha": "bed3642ee5e48d12ee996d7dd5f6e766416d3725",
+    "pool_count": 210,
+    "pool_inventory": [
+      {
+        "address": "0xa43fe16908251ee70ef74718545e4fe6c5ccec9f",
+        "coins": [
+          "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x0d4a11d5eeaac28ec3f61d100daf4d40471f1852",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xa478c2975ab1ea89e8196811f51a7b7ade33eb11",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xbb2b8038a1640196fbe3e38816f3e67cba72d940",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xd3d2e2692501a5c9ca623199d38826e513033a17",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x3041cbd36888becc7bbcbc0045e3b1f144466f5f",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xa2107fa5b38d9bbd2c461d6edf11b11a50f6b974",
+        "coins": [
+          "0x514910771af9ca656af840dff83e8264ecf986ca",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xc2adda861f89bbb333c90c492cb837741916a225",
+        "coins": [
+          "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x9b7dad79fc16106b47a3dab791f389c167e15eb0",
+        "coins": [
+          "0x967da4048cd07ab37855c090aaf366e4ce1b9f48",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xae461ca67b15dc8dc81ce7615e0320da1a9ab8d5",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x811beed0119b4afce20d2583eb608c6f7af1954f",
+        "coins": [
+          "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xa40bb1c47f6dd27142a2bd7c93bfa98db9d1f5c5",
+        "coins": [
+          "0x69af81e73a73b40adf4f3d4223cd9b1ece623074",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x3dd49f67e9d5bc4c5e6634b3f70bfd9dc1b6bd74",
+        "coins": [
+          "0x3845badade8e6dff049820680d1f14bd3903a5d0",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xc0a6bb3d31bb63033176edba7c48542d6b4e406d",
+        "coins": [
+          "0x6de037ef9ad2725eb40118bb1702ebb27e4aeb24",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x4028daac072e492d34a3afdbef0ba7e35d8b55c4",
+        "coins": [
+          "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x2e81ec0b8b4022fac83a21b2f2b4b8f5ed744d70",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xc944e90c64b2c07662a292be6244bdf05cda44a7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xcffdded873554f362ac02f8fb1f02e5ada10516f",
+        "coins": [
+          "0xc00e94cb662c3520282e6f5717214004a7f26888",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x2fdbadf3c4d5a8666bc06645b8358ab803996e28",
+        "coins": [
+          "0x0bc529c00c6401aef6d220be8c6ea1667f6ad93e",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x97c4adc5d28a86f9470c70dd91dc6cc2f20d2d4d",
+        "coins": [
+          "0x853d955acef822db058eb8505911ed77f175b99e",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xce84867c3c02b05dc570d0135103d3fb9cc19433",
+        "coins": [
+          "0x6b3595068778dd592e39a122f4f5a5cf09c90fe2",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xb6909b960dbbe7392d405429eb2b3649752b4838",
+        "coins": [
+          "0x0d8775f648430679a709e98d2b0cb6250d2887ef",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x004375dff511095cc5a197a54140a24efef3a416",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x3da1313ae46132a397d90d95b1424a9a7e3e0fce",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xd533a949740bb3306d119cc777fa900ba034cd52"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x43ae24960e5534731fc831386c07755a2dc33d47",
+        "coins": [
+          "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xe1573b9d29e2183b1af0e743dc2754979a40d237",
+        "coins": [
+          "0x3432b6a60d23ca0dfca7761b7ab56459d9c964d0",
+          "0x853d955acef822db058eb8505911ed77f175b99e"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0xdfc14d2af169b0d36c4eff567ada9b2e0cae044f",
+        "coins": [
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x11b1f53204d03e5529f09eb3091939e4fd8c9cf3",
+        "coins": [
+          "0x0f5d2fb29fb7d3cfee444a200298f468908cc942",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x1e496fae4613b4e9c4f8fc31826812cdcbd03a90",
+        "coins": [
+          "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "uniswap-v2"
+      },
+      {
+        "address": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x11b815efb8f581194ae79006d24e0d814b7697f6",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x3416cf6c708da44db2624d63ea0aaef7113527c6",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4585fe77225b41b697c938b018e2ac67ac5a20c0",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x8ad599c3a0ff1de082011efddc58f1908eb6e6d8",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc7bbec68d12a0d1830360f8ec58fa599ba1b0e9b",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4e68ccd3e89f51c3074ca5072bbac773960dfa36",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe0554a476a092703abdb3ef35c80e0d76d32939f",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xcbcdf9626bc03e24f779434178a73a0b4bad62ed",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x60594a405d53811d3bc4766596efd80fd545a270",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x109830a1aaad605bbf02a9dfa7b0b92ec2fb7daa",
+        "coins": [
+          "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x99ac8ca7087fa4a2a1fb6357269965a2014abc35",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x5777d92f208679db4b9778590fa3cab3ac9e2168",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x56534741cd8b152df6d48adf7ac51f75169a83b2",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x435664008f38b0650fbc1c9fc971d0a3bc2f1e47",
+        "coins": [
+          "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x7858e59e0c01ea06df3af3d20ac7b0003275d4bf",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xa6cc3c2531fdaa6ae1a3ca84c2855806728693e8",
+        "coins": [
+          "0x514910771af9ca656af840dff83e8264ecf986ca",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc2e9f25be6257c210d7adf0d4cd6e3e881ba25f8",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x9a772018fbd77fcd2d25657e5c547baff3fd7d16",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x1d42064fc4beb5f8aaf85f4617ae8b3b5b8bd801",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x9db9e0e53058c89e5b94e29621a205198648425b",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x48da0965ab2d2cbf1c17c09cfb5cbe67ad5b1406",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x6c6bc977e13df9b0de53b251522280bb72383700",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xac4b3dacb91461209ae9d41ec517c2b9cb1b7daf",
+        "coins": [
+          "0x4d224452801aced8b2f0aebe155379bb5d594381",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x11950d141ecb863f01007add7d1a342041227b58",
+        "coins": [
+          "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x5ab53ee1d50eef2c1dd3d5402789cd27bb52c1bb",
+        "coins": [
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x553e9c493678d8606d6a5ba284643db2110df823",
+        "coins": [
+          "0xae78736cd615f374d3085123a210448e74fc6393",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xa3f558aebaecaf0e11ca4b2199cc5ed341edfd74",
+        "coins": [
+          "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe6d7ebb9f1a9519dc06d557e03c522d53520e76a",
+        "coins": [
+          "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe8c6c9227491c0a8156a0106a0204d881bb7e531",
+        "coins": [
+          "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc63b0708e2f7e69cb8a1df0e1389a98c35a76d52",
+        "coins": [
+          "0x853d955acef822db058eb8505911ed77f175b99e",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x92560c178ce069cc014138ed3c2f5221ba71f58a",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xc18360217d8f7ab5e7c516566761ea12ce7f9d72"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc3db44adc1fcdfd5671f555236eae49f4a8eea18",
+        "coins": [
+          "0x57e114b691db790c35207b2e685d4a43181e6061",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x2f62f2b4c5fcd7570a709dec05d68ea19c82a9ec",
+        "coins": [
+          "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x840deeef2f115cf50da625f7368c24af6fe74410",
+        "coins": [
+          "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe6ff8b9a37b0fab776134636d9981aa778c4e718",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x6f48eca74b38d2936b02ab603ff4e36a6c0e3a77",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x9a834b70c07c81a9fcd6f22e842bf002fbffbe4d",
+        "coins": [
+          "0x853d955acef822db058eb8505911ed77f175b99e",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x5764a6f2212d502bc5970f9f129ffcd61e5d7563",
+        "coins": [
+          "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xd8de6af55f618a7bc69835d55ddc6582220c36c0",
+        "coins": [
+          "0x92d6c1e31e14520e676a687f0a93788b716beff5",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xa4e0faa58465a2d369aa21b3e42d43374c6f9613",
+        "coins": [
+          "0xae78736cd615f374d3085123a210448e74fc6393",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x824a30f2984f9013f2c8d0a29c0a3cc5fd5c0673",
+        "coins": [
+          "0x5283d291dbcf85356a21ba090e6db59121208b44",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe42318ea3b998e8355a3da364eb9d48ec725eb45",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xd33526068d116ce69f19a9ee46f0bd304f21a51f"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x97e7d56a0408570ba1a7852de36350f7713906ec",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0x853d955acef822db058eb8505911ed77f175b99e"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xf79fc43494ce8a4613cb0b2a67a1b1207fd05d27",
+        "coins": [
+          "0x4d224452801aced8b2f0aebe155379bb5d594381",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc2a856c3aff2110c1171b8f942256d40e980c726",
+        "coins": [
+          "0x853d955acef822db058eb8505911ed77f175b99e",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x919fa96e88d67499339577fa202345436bcdaf79",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xd533a949740bb3306d119cc777fa900ba034cd52"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xd1d5a4c0ea98971894772dcd6d2f1dc71083c44e",
+        "coins": [
+          "0x6dea81c8171d0ba574754ef6f8b412f2ed88c54d",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x7bea39867e4169dbe237d55c8242a8f2fcdcc387",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xea4ba4ce14fdd287f380b55419b1c5b6c3f22ab6",
+        "coins": [
+          "0xc00e94cb662c3520282e6f5717214004a7f26888",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4c83a7f819a5c37d64b4c5a2f8238ea082fa1f4e",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xd533a949740bb3306d119cc777fa900ba034cd52"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x6c063a6e8cd45869b5eb75291e65a3de298f3aa8",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xe28b3b32b6c345a34ff64674606124dd5aceca30"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x177622e79acece98c39f6e12fa78ac7fc8a8bf62",
+        "coins": [
+          "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 100,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x5b97b125cf8af96834f2d08c8f1291bd47724939",
+        "coins": [
+          "0x3845badade8e6dff049820680d1f14bd3903a5d0",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe936f0073549ad8b1fa53583600d629ba9375161",
+        "coins": [
+          "0x6de037ef9ad2725eb40118bb1702ebb27e4aeb24",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4622df6fb2d9bee0dcdacf545acdb6a2b2f4f863",
+        "coins": [
+          "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x59c38b6775ded821f010dbd30ecabdcf84e04756",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xd35efae4097d005720608eaf37e42a5936c94b44",
+        "coins": [
+          "0x111111111117dc0aa78b770fa6a738034120c302",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xf4ad61db72f114be877e87d62dc5e7bd52df4d9b",
+        "coins": [
+          "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xb07fe2f407f971125d4eb1977f8acee8846c7324",
+        "coins": [
+          "0x4d224452801aced8b2f0aebe155379bb5d594381",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x6c4ab1907805adcb0b7ae911a5d1b0b99d608b3c",
+        "coins": [
+          "0x92d6c1e31e14520e676a687f0a93788b716beff5",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe0cfa17aa9b8f930fd936633c0252d5cb745c2c3",
+        "coins": [
+          "0x92d6c1e31e14520e676a687f0a93788b716beff5",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xd0fc8ba7e267f2bc56044a7715a489d851dc6d78",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x9febc984504356225405e26833608b17719c82ae",
+        "coins": [
+          "0x111111111117dc0aa78b770fa6a738034120c302",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xfad57d2039c21811c8f2b5d5b65308aa99d31559",
+        "coins": [
+          "0x514910771af9ca656af840dff83e8264ecf986ca",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xfd76be67fff3bac84e3d5444167bbc018f5968b6",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xf57e7e7c23978c3caec3c3548e3d615c346e79ff"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xcd8286b48936cdac20518247dbd310ab681a9fbf",
+        "coins": [
+          "0x3432b6a60d23ca0dfca7761b7ab56459d9c964d0",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x3afdc5e6dfc0b0a507a8e023c9dce2cafc310316",
+        "coins": [
+          "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4628a0a564debfc8798eb55db5c91f2200486c24",
+        "coins": [
+          "0x6de037ef9ad2725eb40118bb1702ebb27e4aeb24",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x8661ae7918c0115af9e3691662f605e9c550ddc9",
+        "coins": [
+          "0x0f5d2fb29fb7d3cfee444a200298f468908cc942",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xf56d08221b5942c428acc5de8f78489a97fc5599",
+        "coins": [
+          "0x6810e776880c02933d47db1b9fc05908e5386b96",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xd340b57aacdd10f96fc1cf10e15921936f41e29c",
+        "coins": [
+          "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x3470447f3cecffac709d3e783a307790b0208d60",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x948b54a93f5ad1df6b8bff6dc249d99ca2eca052",
+        "coins": [
+          "0xaea46a60368a7bd060eec7df8cba43b7ef41ad85",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xb9c4a5522a2f8ba9e2ff7063df8c02ed443337a3",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xc18360217d8f7ab5e7c516566761ea12ce7f9d72"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x0e2c4be9f3408e5b1ff631576d946eb8c224b5ed",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xc944e90c64b2c07662a292be6244bdf05cda44a7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x5d4f3c6fa16908609bac31ff148bd002aa6b8c83",
+        "coins": [
+          "0x514910771af9ca656af840dff83e8264ecf986ca",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xede8dd046586d22625ae7ff2708f879ef7bdb8cf",
+        "coins": [
+          "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x744159757cac173a7a3ecf5e97adb10d1a725377",
+        "coins": [
+          "0xaea46a60368a7bd060eec7df8cba43b7ef41ad85",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x92ab871abb9d567aa276b2ce58d0203d84e0181e",
+        "coins": [
+          "0x5283d291dbcf85356a21ba090e6db59121208b44",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe931b03260b2854e77e8da8378a1bc017b13cb97",
+        "coins": [
+          "0x111111111117dc0aa78b770fa6a738034120c302",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xf239009a101b6b930a527deaab6961b6e7dec8a6",
+        "coins": [
+          "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x59354356ec5d56306791873f567d61ebf11dfbd5",
+        "coins": [
+          "0xb50721bcf8d664c30412cfbc6cf7a15145234ad1",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x04916039b1f59d9745bf6e0a21f191d1e0a84287",
+        "coins": [
+          "0x0bc529c00c6401aef6d220be8c6ea1667f6ad93e",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xae614a7a56cb79c04df2aeba6f5dab80a39ca78e",
+        "coins": [
+          "0x0d8775f648430679a709e98d2b0cb6250d2887ef",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc5af84701f98fa483ece78af83f11b6c38aca71d",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xb0f4a77bde7fee134265307c5cc19abff0ba409b",
+        "coins": [
+          "0x3506424f91fd33084466f402d5d97f05f8e3b4af",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xfc545f345e2afc52652cd6f76323c5ddc847bd6d",
+        "coins": [
+          "0x57e114b691db790c35207b2e685d4a43181e6061",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x14424eeecbff345b38187d0b8b749e56faa68539",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xe41d2489571d322189246dafa5ebde1f4699f498"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x283e2e83b7f3e297c4b7c02114ab0196b001a109",
+        "coins": [
+          "0x967da4048cd07ab37855c090aaf366e4ce1b9f48",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xcfecc1c9f3cb6190cb1ff7f65a130bfbe5107d38",
+        "coins": [
+          "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x6f41040b9e098c2ac4b88e27b50d4e9ab486781b",
+        "coins": [
+          "0x5283d291dbcf85356a21ba090e6db59121208b44",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x73a6a761fe483ba19debb8f56ac5bbf14c0cdad1",
+        "coins": [
+          "0x6b3595068778dd592e39a122f4f5a5cf09c90fe2",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x81fbbc40cf075fd7de6afce1bc72eda1bb0e13aa",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xf57e7e7c23978c3caec3c3548e3d615c346e79ff"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x391e8501b626c623d39474afca6f9e46c2686649",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0x6b175474e89094c44da98b954eedeac495271d0f"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x9445bd19767f73dcae6f2de90e6cd31192f62589",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xd533a949740bb3306d119cc777fa900ba034cd52"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xfaa318479b7755b2dbfdd34dc306cb28b420ad12",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4674abc5796e1334b5075326b39b748bee9eaa34",
+        "coins": [
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x2e8daf55f212be91d3fa882cceab193a08fddeb2",
+        "coins": [
+          "0x0bc529c00c6401aef6d220be8c6ea1667f6ad93e",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xae4045ffeddf61d570e6d1fe2d71ded1a2e85a88",
+        "coins": [
+          "0x57e114b691db790c35207b2e685d4a43181e6061",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 500,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xdceaf5d0e5e0db9596a47c0c4120654e80b1d706",
+        "coins": [
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xb06e7ed37cfa8f0f2888355dd1913e45412798c5",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc944e90c64b2c07662a292be6244bdf05cda44a7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xa21ed0af81d7cdaebd06d1150c166821cfcd64ff",
+        "coins": [
+          "0x111111111117dc0aa78b770fa6a738034120c302",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x9f178e86e42ddf2379cb3d2acf9ed67a1ed2550a",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0x514910771af9ca656af840dff83e8264ecf986ca"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x08b8cebfca0f49a9303bab1cc4e2c25d280f2c00",
+        "coins": [
+          "0x57e114b691db790c35207b2e685d4a43181e6061",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x8f0cb37cdff37e004e0088f563e5fe39e05ccc5b",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xac4fd96fcf729390a3c8044422a529028ec36751",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xca14007eff0db1f8135f4c25b34de49ab0d42766"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x5859ebe6fd3bbc6bd646b73a5dbb09a5d7b6e7b7",
+        "coins": [
+          "0x3845badade8e6dff049820680d1f14bd3903a5d0",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x3ed96d54be53868edbc3ad5ccc4995710d187dc4",
+        "coins": [
+          "0x4d224452801aced8b2f0aebe155379bb5d594381",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x020c349a0541d76c16f501abc6b2e9c98adae892",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x07b1c12be0d62fe548a2b4b025ab7a5ca8def21e",
+        "coins": [
+          "0xd533a949740bb3306d119cc777fa900ba034cd52",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xbea615376d1184f3670a341b70f6f45d9d0fbaad",
+        "coins": [
+          "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xcf15ad9be9d33384b74b94d63d06b4a9bd82f640",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xd33526068d116ce69f19a9ee46f0bd304f21a51f"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x2a84e2bd2e961b1557d6e516ca647268b432cba4",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x5598931bfbb43eec686fa4b5b92b5152ebadc2f6",
+        "coins": [
+          "0xc00e94cb662c3520282e6f5717214004a7f26888",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x360b9726186c0f62cc719450685ce70280774dc8",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xcbfb0745b8489973bf7b334d54fdbd573df7ef3c",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x6ab3bba2f41e7eaa262fa5a1a9b3932fa161526f",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x39c9e3128b8736e02a30b2b9b7e50ff522b935c5",
+        "coins": [
+          "0x3432b6a60d23ca0dfca7761b7ab56459d9c964d0",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x5f7e8408e573e934b0df49ba5b569c30f1ebbad4",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc18360217d8f7ab5e7c516566761ea12ce7f9d72"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x408a625596f47314e1fd4a6cbce84c4a8695ba3f",
+        "coins": [
+          "0x57e114b691db790c35207b2e685d4a43181e6061",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xac5a2c404ebba22a869998089ac7893ff4e1f0a7",
+        "coins": [
+          "0x514910771af9ca656af840dff83e8264ecf986ca",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x38fee5f2ce469ebdfaa62863928e333ef4da485f",
+        "coins": [
+          "0x5283d291dbcf85356a21ba090e6db59121208b44",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4d1ad4a9e61bc0e5529d64f38199ccfca56f5a42",
+        "coins": [
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xefd784093ddd12e24231fa6b792c09d03a4f7b7e",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0x6dea81c8171d0ba574754ef6f8b412f2ed88c54d"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x755e5a186f0469583bd2e80d1216e02ab88ec6ca",
+        "coins": [
+          "0xb50721bcf8d664c30412cfbc6cf7a15145234ad1",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xf0e02cf61b31260fd5ae527d58be16312bda59b1",
+        "coins": [
+          "0xae78736cd615f374d3085123a210448e74fc6393",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x14243ea6bb3d64c8d54a1f47b077e23394d6528a",
+        "coins": [
+          "0x514910771af9ca656af840dff83e8264ecf986ca",
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xa46466ad5507be77ff5abdc27df9dfeda9bd7aee",
+        "coins": [
+          "0x6810e776880c02933d47db1b9fc05908e5386b96",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x325365ed8275f6a74cac98917b7f6face8da533b",
+        "coins": [
+          "0x3506424f91fd33084466f402d5d97f05f8e3b4af",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x09aa63b7a22eefc372196aacd5b53441ed390bfb",
+        "coins": [
+          "0xc18360217d8f7ab5e7c516566761ea12ce7f9d72",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x78235d08b2ae7a3e00184329212a4d7acd2f9985",
+        "coins": [
+          "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x92c7b5ce4cb0e5483f3365c1449f21578ee9f21a",
+        "coins": [
+          "0x853d955acef822db058eb8505911ed77f175b99e",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xa80964c5bbd1a0e95777094420555fead1a26c1e",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xa2375dad211fe6e538d29c98ec526246e38be4ec",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xd9ed2b5f292a0e319a04e6c1aca15df97705821c",
+        "coins": [
+          "0x0f5d2fb29fb7d3cfee444a200298f468908cc942",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x1353fe67fff8f376762b7034dc9066f0be15a723",
+        "coins": [
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x28b67e0a4e570720c111c090c45daa065a54e58d",
+        "coins": [
+          "0x6dea81c8171d0ba574754ef6f8b412f2ed88c54d",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe9f1e2ef814f5686c30ce6fb7103d0f780836c67",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xdc035d45d973e3ec169d2276ddab16f1e407384f"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xcee31c846cbf003f4ceb5bbd234cba03c6e940c7",
+        "coins": [
+          "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc12af0c4aa39d3061c56cd3cb19f5e62deeaebde",
+        "coins": [
+          "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x173821f6ad4c5324cd35753a9fd12d92f2eaab29",
+        "coins": [
+          "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xf5ce0293c24fd0990e0a5758e53f66a36ca0118f",
+        "coins": [
+          "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x429f1144e390a74785eeebf73f6ef565faa318b7",
+        "coins": [
+          "0x4d224452801aced8b2f0aebe155379bb5d594381",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xf7878463070a013a58f547b2b08df47a1fb91744",
+        "coins": [
+          "0x6810e776880c02933d47db1b9fc05908e5386b96",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4858c96a9024fbd7efbfe78aa5a8d62900952420",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xe28b3b32b6c345a34ff64674606124dd5aceca30"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc486ad2764d55c7dc033487d634195d6e4a6917e",
+        "coins": [
+          "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x417bad05186155d022c9acdef742aede3f177a5e",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xd33526068d116ce69f19a9ee46f0bd304f21a51f"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x28028cb848361930d2dc1f502439050a6ee5e4c2",
+        "coins": [
+          "0x111111111117dc0aa78b770fa6a738034120c302",
+          "0x514910771af9ca656af840dff83e8264ecf986ca"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xd921a81445ff6a9114deb7db011f5ef8353f0bbc",
+        "coins": [
+          "0x111111111117dc0aa78b770fa6a738034120c302",
+          "0x6b175474e89094c44da98b954eedeac495271d0f"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc931d9fefd06a8361d8057501f1ec522cf69c573",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xaea46a60368a7bd060eec7df8cba43b7ef41ad85"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x0619062b988576fe2d39b33ff23fb1a0330c0ac7",
+        "coins": [
+          "0x111111111117dc0aa78b770fa6a738034120c302",
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x63818bbdd21e69be108a23ac1e84cbf66399bd7d",
+        "coins": [
+          "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4786bb29a1589854204a4e62dcbe26a571224c0f",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xc00e94cb662c3520282e6f5717214004a7f26888"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc5bccf768e4242a0b518608b4843988ec5fb24d9",
+        "coins": [
+          "0x3506424f91fd33084466f402d5d97f05f8e3b4af",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xc8f797e893d9f08db03759213b8d09f0ca6ac9c2",
+        "coins": [
+          "0x6dea81c8171d0ba574754ef6f8b412f2ed88c54d",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x0c1887e602da2aa96aa0642a37a32dbc2a142213",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xceee866d0893ea3c0cc7d1be290d53f8b8fe2596",
+        "coins": [
+          "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
+          "0xc00e94cb662c3520282e6f5717214004a7f26888"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x20215cd3949edf87771c529ed41f5d8cce652f65",
+        "coins": [
+          "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x799a584267a95263106a387170e84e7d2f2b0fc1",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x4f37c19212aa5b45392af720d73fa87cdb40edc1",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xe41d2489571d322189246dafa5ebde1f4699f498"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xee4cf3b78a74affa38c6a926282bcd8b5952818d",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xfe47dad3d8072a7c5e38202bc4b82d322163e2b6",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xb66776014d002479ace38ec16e604e465851a33b",
+        "coins": [
+          "0x0d8775f648430679a709e98d2b0cb6250d2887ef",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x10581399a549dbfffdbd9b070a0ba2f9f61620d2",
+        "coins": [
+          "0x853d955acef822db058eb8505911ed77f175b99e",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x5a59e4e647a3acc42b01715f3a1d271c1f7e7aeb",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xe07c687cecb3caf246ded3240d186181d5eae705",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xb64508b9f7b81407549e13db970dd5bb5c19107f",
+        "coins": [
+          "0x3432b6a60d23ca0dfca7761b7ab56459d9c964d0",
+          "0x853d955acef822db058eb8505911ed77f175b99e"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 10000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0x3051607998fe3a690237af729caa6c6d1d6d99b4",
+        "coins": [
+          "0xae78736cd615f374d3085123a210448e74fc6393",
+          "0xd33526068d116ce69f19a9ee46f0bd304f21a51f"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": 3000,
+        "platform": "uniswap-v3"
+      },
+      {
+        "address": "0xdcef968d416a41cdac0ed8702fac8128a64241a2",
+        "coins": [
+          "0x853d955acef822db058eb8505911ed77f175b99e",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "curve"
+      },
+      {
+        "address": "0xd51a44d3fae010294c616388b506acda1bfaae46",
+        "coins": [
+          "0xdac17f958d2ee523a2206206994597c13d831ec7",
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            0
+          ],
+          [
+            2,
+            1
+          ]
+        ],
+        "fee": null,
+        "platform": "curve"
+      },
+      {
+        "address": "0x1005f7406f32a61bd760cfa14accd2737913d546",
+        "coins": [
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "curve"
+      },
+      {
+        "address": "0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5",
+        "coins": [
+          "0xdac17f958d2ee523a2206206994597c13d831ec7",
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            0
+          ],
+          [
+            2,
+            1
+          ]
+        ],
+        "fee": null,
+        "platform": "curve"
+      },
+      {
+        "address": "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+        "coins": [
+          "0x6b175474e89094c44da98b954eedeac495271d0f",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            0
+          ],
+          [
+            2,
+            1
+          ]
+        ],
+        "fee": null,
+        "platform": "curve"
+      },
+      {
+        "address": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+        "coins": [
+          "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "shibaswap-v2"
+      },
+      {
+        "address": "0x86cccda3799a43fbceb4cec6ad8b028f5bf8b3dd",
+        "coins": [
+          "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "shibaswap-v2"
+      },
+      {
+        "address": "0x98c2b0681d8bf07767826ea8bd3b11b0ca421631",
+        "coins": [
+          "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "shibaswap-v2"
+      },
+      {
+        "address": "0x9d406c4067a53f65de1a8a9273d55bfea5870a75",
+        "coins": [
+          "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "shibaswap-v2"
+      },
+      {
+        "address": "0x703b120f15ab77b986a24c6f9262364d02f9432f",
+        "coins": [
+          "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "shibaswap-v2"
+      },
+      {
+        "address": "0x9379f5e035cf6148c6bbee1d6415795cc773b0a4",
+        "coins": [
+          "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "shibaswap-v2"
+      },
+      {
+        "address": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+        "coins": [
+          "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+          "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
+        ],
+        "directions": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "fee": null,
+        "platform": "wsteth"
+      }
+    ],
+    "row_timeout_ms": 60000,
+    "search_config": {
+      "coarse_segments": 20,
+      "concurrency": 8,
+      "max_pools": 4,
+      "max_quote_calls": 512,
+      "refinement_rounds": 2,
+      "refinement_segments": 8,
+      "timeout_ms": 15000
+    },
+    "setup_rpc_requests": 39,
+    "source_fingerprint_keccak256": "0x1952b0de58170f9854c887ee5b7d3d243aafac88d4c8bd7f8f80ca705280bb97",
+    "timestamp_unix": 1793600063,
+    "working_tree_dirty": true
+  },
+  "rows": [
+    {
+      "allocations": [
+        {
+          "amount_in": "267708333333333332",
+          "amount_out": "130681587727667428539016413",
+          "input_share_percent": 80.31250000000001,
+          "path": [
+            {
+              "amount_in": "267708333333333332",
+              "amount_out": "130681587727667428539016413",
+              "i": 1,
+              "j": 0,
+              "operation": "swap",
+              "platform": "shibaswap-v2",
+              "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+              "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+              "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+            }
+          ]
+        },
+        {
+          "amount_in": "65625000000000001",
+          "amount_out": "32037341286959371171543817",
+          "input_share_percent": 19.687500000000004,
+          "path": [
+            {
+              "amount_in": "65625000000000001",
+              "amount_out": "32037341286959371171543817",
+              "i": 1,
+              "j": 0,
+              "operation": "swap",
+              "platform": "uniswap-v2",
+              "pool": "0x811beed0119b4afce20d2583eb608c6f7af1954f",
+              "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+              "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+            }
+          ]
+        }
+      ],
+      "amount_in": "333333333333333333",
+      "baseline_out": "162697569490260873338699714",
+      "baseline_path": [
+        {
+          "amount_in": "333333333333333333",
+          "amount_out": "162697569490260873338699714",
+          "i": 1,
+          "j": 0,
+          "operation": "swap",
+          "platform": "shibaswap-v2",
+          "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+          "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+        }
+      ],
+      "elapsed_ms": 5720,
+      "error": null,
+      "gain_bps": 1.3128361064548635,
+      "kind": "split",
+      "rpc_requests": 166,
+      "selected_out": "162718929014626799710560230",
+      "started_unix_ms": 1793600063814,
+      "stats": {
+        "additional_quote_calls": 248,
+        "additional_rpc_requests": 111,
+        "baseline_ms": 1326,
+        "baseline_quote_calls": 56,
+        "baseline_rpc_requests": 55,
+        "cache_hits": 5,
+        "completed_additional_quotes": 248,
+        "eligible_pools": 4,
+        "evaluated_plans": 207,
+        "failed_additional_quotes": 0,
+        "pairs": 6,
+        "refinement_rounds": 2,
+        "search_ms": 4393,
+        "searched_pools": 4,
+        "stop_reason": "completed",
+        "valid_plans": 207
+      },
+      "symbol_in": "WETH",
+      "symbol_out": "SHIB",
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+    },
+    {
+      "allocations": [
+        {
+          "amount_in": "2749999999999999999",
+          "amount_out": "1336566879619018923157505270",
+          "input_share_percent": 82.5,
+          "path": [
+            {
+              "amount_in": "2749999999999999999",
+              "amount_out": "1336566879619018923157505270",
+              "i": 1,
+              "j": 0,
+              "operation": "swap",
+              "platform": "shibaswap-v2",
+              "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+              "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+              "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+            }
+          ]
+        },
+        {
+          "amount_in": "583333333333333334",
+          "amount_out": "283534208427053207374753333",
+          "input_share_percent": 17.5,
+          "path": [
+            {
+              "amount_in": "583333333333333334",
+              "amount_out": "283534208427053207374753333",
+              "i": 1,
+              "j": 0,
+              "operation": "swap",
+              "platform": "uniswap-v2",
+              "pool": "0x811beed0119b4afce20d2583eb608c6f7af1954f",
+              "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+              "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+            }
+          ]
+        }
+      ],
+      "amount_in": "3333333333333333333",
+      "baseline_out": "1618425591318847060037567840",
+      "baseline_path": [
+        {
+          "amount_in": "3333333333333333333",
+          "amount_out": "1618425591318847060037567840",
+          "i": 1,
+          "j": 0,
+          "operation": "swap",
+          "platform": "shibaswap-v2",
+          "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+          "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+        }
+      ],
+      "elapsed_ms": 6387,
+      "error": null,
+      "gain_bps": 10.352633671960886,
+      "kind": "split",
+      "rpc_requests": 167,
+      "selected_out": "1620101088046072130532258603",
+      "started_unix_ms": 1793600069547,
+      "stats": {
+        "additional_quote_calls": 260,
+        "additional_rpc_requests": 126,
+        "baseline_ms": 1124,
+        "baseline_quote_calls": 56,
+        "baseline_rpc_requests": 41,
+        "cache_hits": 5,
+        "completed_additional_quotes": 260,
+        "eligible_pools": 4,
+        "evaluated_plans": 205,
+        "failed_additional_quotes": 0,
+        "pairs": 6,
+        "refinement_rounds": 2,
+        "search_ms": 5263,
+        "searched_pools": 4,
+        "stop_reason": "completed",
+        "valid_plans": 205
+      },
+      "symbol_in": "WETH",
+      "symbol_out": "SHIB",
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+    },
+    {
+      "allocations": [
+        {
+          "amount_in": "27395833333333333332",
+          "amount_out": "12763441141640064477057012058",
+          "input_share_percent": 82.1875,
+          "path": [
+            {
+              "amount_in": "27395833333333333332",
+              "amount_out": "12763441141640064477057012058",
+              "i": 1,
+              "j": 0,
+              "operation": "swap",
+              "platform": "shibaswap-v2",
+              "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+              "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+              "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+            }
+          ]
+        },
+        {
+          "amount_in": "5937500000000000001",
+          "amount_out": "2777738720136839759606749963",
+          "input_share_percent": 17.8125,
+          "path": [
+            {
+              "amount_in": "5937500000000000001",
+              "amount_out": "2777738720136839759606749963",
+              "i": 1,
+              "j": 0,
+              "operation": "swap",
+              "platform": "uniswap-v3",
+              "pool": "0x2f62f2b4c5fcd7570a709dec05d68ea19c82a9ec",
+              "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+              "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+            }
+          ]
+        }
+      ],
+      "amount_in": "33333333333333333333",
+      "baseline_out": "15376203681003950732941386791",
+      "baseline_path": [
+        {
+          "amount_in": "33333333333333333333",
+          "amount_out": "15376203681003950732941386791",
+          "i": 1,
+          "j": 0,
+          "operation": "swap",
+          "platform": "shibaswap-v2",
+          "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+          "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+        }
+      ],
+      "elapsed_ms": 6063,
+      "error": null,
+      "gain_bps": 107.29318120100616,
+      "kind": "split",
+      "rpc_requests": 177,
+      "selected_out": "15541179861776904236663762021",
+      "started_unix_ms": 1793600075948,
+      "stats": {
+        "additional_quote_calls": 265,
+        "additional_rpc_requests": 134,
+        "baseline_ms": 1123,
+        "baseline_quote_calls": 58,
+        "baseline_rpc_requests": 43,
+        "cache_hits": 3,
+        "completed_additional_quotes": 265,
+        "eligible_pools": 4,
+        "evaluated_plans": 204,
+        "failed_additional_quotes": 0,
+        "pairs": 6,
+        "refinement_rounds": 2,
+        "search_ms": 4939,
+        "searched_pools": 4,
+        "stop_reason": "completed",
+        "valid_plans": 204
+      },
+      "symbol_in": "WETH",
+      "symbol_out": "SHIB",
+      "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+    },
+    {
+      "allocations": [
+        {
+          "amount_in": "56750000000000000000000000",
+          "amount_out": "115480914041857238",
+          "input_share_percent": 70.9375,
+          "path": [
+            {
+              "amount_in": "56750000000000000000000000",
+              "amount_out": "115480914041857238",
+              "i": 0,
+              "j": 1,
+              "operation": "swap",
+              "platform": "shibaswap-v2",
+              "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+              "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+              "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+            }
+          ]
+        },
+        {
+          "amount_in": "23250000000000000000000000",
+          "amount_out": "47320329751776255",
+          "input_share_percent": 29.062499999999996,
+          "path": [
+            {
+              "amount_in": "23250000000000000000000000",
+              "amount_out": "47320329751776255",
+              "i": 0,
+              "j": 1,
+              "operation": "swap",
+              "platform": "uniswap-v3",
+              "pool": "0x2f62f2b4c5fcd7570a709dec05d68ea19c82a9ec",
+              "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+              "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+            }
+          ]
+        }
+      ],
+      "amount_in": "80000000000000000000000000",
+      "baseline_out": "162778867178814908",
+      "baseline_path": [
+        {
+          "amount_in": "80000000000000000000000000",
+          "amount_out": "162778867178814908",
+          "i": 0,
+          "j": 1,
+          "operation": "swap",
+          "platform": "shibaswap-v2",
+          "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+          "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        }
+      ],
+      "elapsed_ms": 5122,
+      "error": null,
+      "gain_bps": 1.3746633826861547,
+      "kind": "split",
+      "rpc_requests": 151,
+      "selected_out": "162801243793633493",
+      "started_unix_ms": 1793600082024,
+      "stats": {
+        "additional_quote_calls": 208,
+        "additional_rpc_requests": 101,
+        "baseline_ms": 1249,
+        "baseline_quote_calls": 53,
+        "baseline_rpc_requests": 50,
+        "cache_hits": 23,
+        "completed_additional_quotes": 208,
+        "eligible_pools": 4,
+        "evaluated_plans": 198,
+        "failed_additional_quotes": 0,
+        "pairs": 6,
+        "refinement_rounds": 2,
+        "search_ms": 3872,
+        "searched_pools": 4,
+        "stop_reason": "completed",
+        "valid_plans": 198
+      },
+      "symbol_in": "SHIB",
+      "symbol_out": "WETH",
+      "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    {
+      "allocations": [
+        {
+          "amount_in": "650000000000000000000000000",
+          "amount_out": "1319872891190633035",
+          "input_share_percent": 81.25,
+          "path": [
+            {
+              "amount_in": "650000000000000000000000000",
+              "amount_out": "1319872891190633035",
+              "i": 0,
+              "j": 1,
+              "operation": "swap",
+              "platform": "shibaswap-v2",
+              "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+              "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+              "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+            }
+          ]
+        },
+        {
+          "amount_in": "150000000000000000000000000",
+          "amount_out": "304643407699989569",
+          "input_share_percent": 18.75,
+          "path": [
+            {
+              "amount_in": "150000000000000000000000000",
+              "amount_out": "304643407699989569",
+              "i": 0,
+              "j": 1,
+              "operation": "swap",
+              "platform": "uniswap-v3",
+              "pool": "0x2f62f2b4c5fcd7570a709dec05d68ea19c82a9ec",
+              "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+              "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+            }
+          ]
+        }
+      ],
+      "amount_in": "800000000000000000000000000",
+      "baseline_out": "1623584961459120415",
+      "baseline_path": [
+        {
+          "amount_in": "800000000000000000000000000",
+          "amount_out": "1623584961459120415",
+          "i": 0,
+          "j": 1,
+          "operation": "swap",
+          "platform": "shibaswap-v2",
+          "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+          "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        }
+      ],
+      "elapsed_ms": 5097,
+      "error": null,
+      "gain_bps": 5.736302402463702,
+      "kind": "split",
+      "rpc_requests": 157,
+      "selected_out": "1624516298890622604",
+      "started_unix_ms": 1793600087158,
+      "stats": {
+        "additional_quote_calls": 216,
+        "additional_rpc_requests": 108,
+        "baseline_ms": 1050,
+        "baseline_quote_calls": 54,
+        "baseline_rpc_requests": 49,
+        "cache_hits": 22,
+        "completed_additional_quotes": 216,
+        "eligible_pools": 4,
+        "evaluated_plans": 199,
+        "failed_additional_quotes": 0,
+        "pairs": 6,
+        "refinement_rounds": 2,
+        "search_ms": 4046,
+        "searched_pools": 4,
+        "stop_reason": "completed",
+        "valid_plans": 199
+      },
+      "symbol_in": "SHIB",
+      "symbol_out": "WETH",
+      "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    },
+    {
+      "allocations": [
+        {
+          "amount_in": "6625000000000000000000000000",
+          "amount_out": "13170150658626567033",
+          "input_share_percent": 82.8125,
+          "path": [
+            {
+              "amount_in": "6625000000000000000000000000",
+              "amount_out": "13170150658626567033",
+              "i": 0,
+              "j": 1,
+              "operation": "swap",
+              "platform": "shibaswap-v2",
+              "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+              "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+              "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+            }
+          ]
+        },
+        {
+          "amount_in": "1375000000000000000000000000",
+          "amount_out": "2733161432485058457",
+          "input_share_percent": 17.1875,
+          "path": [
+            {
+              "amount_in": "1375000000000000000000000000",
+              "amount_out": "2733161432485058457",
+              "i": 0,
+              "j": 1,
+              "operation": "swap",
+              "platform": "uniswap-v2",
+              "pool": "0x811beed0119b4afce20d2583eb608c6f7af1954f",
+              "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+              "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+            }
+          ]
+        }
+      ],
+      "amount_in": "8000000000000000000000000000",
+      "baseline_out": "15827119495892400068",
+      "baseline_path": [
+        {
+          "amount_in": "8000000000000000000000000000",
+          "amount_out": "15827119495892400068",
+          "i": 0,
+          "j": 1,
+          "operation": "swap",
+          "platform": "shibaswap-v2",
+          "pool": "0xcf6daab95c476106eca715d48de4b13287ffdeaa",
+          "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        }
+      ],
+      "elapsed_ms": 5780,
+      "error": null,
+      "gain_bps": 48.14053197677545,
+      "kind": "split",
+      "rpc_requests": 171,
+      "selected_out": "15903312091111625490",
+      "started_unix_ms": 1793600092271,
+      "stats": {
+        "additional_quote_calls": 219,
+        "additional_rpc_requests": 122,
+        "baseline_ms": 1200,
+        "baseline_quote_calls": 54,
+        "baseline_rpc_requests": 49,
+        "cache_hits": 22,
+        "completed_additional_quotes": 219,
+        "eligible_pools": 4,
+        "evaluated_plans": 199,
+        "failed_additional_quotes": 0,
+        "pairs": 6,
+        "refinement_rounds": 2,
+        "search_ms": 4580,
+        "searched_pools": 4,
+        "stop_reason": "completed",
+        "valid_plans": 199
+      },
+      "symbol_in": "SHIB",
+      "symbol_out": "WETH",
+      "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+      "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    }
+  ],
+  "summary": {
+    "all": {
+      "additional_quote_calls": 1416,
+      "additional_rpc_requests": 702,
+      "baseline": 0,
+      "baseline_latency_p50_ms": 1124,
+      "baseline_latency_p95_ms": 1326,
+      "baseline_rpc_requests": 287,
+      "direct": 0,
+      "max_gain_bps": 107.29318120100616,
+      "mean_gain_bps": 29.035024790224536,
+      "median_gain_bps": 8.044468037212294,
+      "rows": 6,
+      "search_latency_p50_ms": 4393,
+      "search_latency_p95_ms": 5263,
+      "split": 6,
+      "stop_reasons": {
+        "completed": 6
+      },
+      "success": 6,
+      "total_latency_p50_ms": 5720,
+      "total_latency_p95_ms": 6387,
+      "total_row_rpc_requests_including_failures": 989
+    },
+    "other": {
+      "additional_quote_calls": 0,
+      "additional_rpc_requests": 0,
+      "baseline": 0,
+      "baseline_latency_p50_ms": null,
+      "baseline_latency_p95_ms": null,
+      "baseline_rpc_requests": 0,
+      "direct": 0,
+      "max_gain_bps": null,
+      "mean_gain_bps": null,
+      "median_gain_bps": null,
+      "rows": 0,
+      "search_latency_p50_ms": null,
+      "search_latency_p95_ms": null,
+      "split": 0,
+      "stop_reasons": {},
+      "success": 0,
+      "total_latency_p50_ms": null,
+      "total_latency_p95_ms": null,
+      "total_row_rpc_requests_including_failures": 0
+    },
+    "shib": {
+      "additional_quote_calls": 1416,
+      "additional_rpc_requests": 702,
+      "baseline": 0,
+      "baseline_latency_p50_ms": 1124,
+      "baseline_latency_p95_ms": 1326,
+      "baseline_rpc_requests": 287,
+      "direct": 0,
+      "max_gain_bps": 107.29318120100616,
+      "mean_gain_bps": 29.035024790224536,
+      "median_gain_bps": 8.044468037212294,
+      "rows": 6,
+      "search_latency_p50_ms": 4393,
+      "search_latency_p95_ms": 5263,
+      "split": 6,
+      "stop_reasons": {
+        "completed": 6
+      },
+      "success": 6,
+      "total_latency_p50_ms": 5720,
+      "total_latency_p95_ms": 6387,
+      "total_row_rpc_requests_including_failures": 989
+    },
+    "steth": {
+      "additional_quote_calls": 0,
+      "additional_rpc_requests": 0,
+      "baseline": 0,
+      "baseline_latency_p50_ms": null,
+      "baseline_latency_p95_ms": null,
+      "baseline_rpc_requests": 0,
+      "direct": 0,
+      "max_gain_bps": null,
+      "mean_gain_bps": null,
+      "median_gain_bps": null,
+      "rows": 0,
+      "search_latency_p50_ms": null,
+      "search_latency_p95_ms": null,
+      "split": 0,
+      "stop_reasons": {},
+      "success": 0,
+      "total_latency_p50_ms": null,
+      "total_latency_p95_ms": null,
+      "total_row_rpc_requests_including_failures": 0
+    }
+  }
+}

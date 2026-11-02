@@ -8,6 +8,28 @@ Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `tok
 
 > 开源、自托管：下载后用一份 YAML 配置 + 你自己的 RPC / Graph key 跑起来。
 
+## 两池拆单实验（#30）
+
+新增 `SplitOptimizer` 与固定区块实验 CLI，自动比较“两个独立直连池拆单”和原有最佳单路径；
+只在毛输出更多时替换，相等或搜索预算耗尽时保留已得到的最佳完整方案。原单路径可以包含多跳与协议转换。
+本阶段交付库和实验，HTTP `/quote` 与 Viewer 仍使用现有单路径协议。
+
+固定区块 **26325207** 的 90 组实验：**35 组选拆单，55 组保留原路径，0 组输出退化**。
+大额 WETH→SHIB 比单路径多 **1.0723%**；80 亿 SHIB→WETH 多 **0.4812%**。
+完整流程 p50/p95 为 **3451/4697 ms**，原单路径阶段为 1315/1862 ms；收益未扣除 gas。
+
+```bash
+# 无需启动 HTTP 服务；复用原语料和池发现，在同一区块比较
+cargo run --bin split_bench -- --config config.benchmark.yaml
+# 只看 SHIB；--block 可用于固定报价状态复查
+cargo run --bin split_bench -- --focus SHIB --block 26325207
+```
+
+[90 组结果](docs/benchmarks/2026-11-02-split-mainnet.md) ·
+[原始分配与成本](docs/benchmarks/2026-11-02-split-mainnet.json) ·
+[结果与参数校准分析](docs/benchmarks/2026-11-02-split-analysis.md) ·
+[算法、预算与保证边界](docs/SPLIT-ROUTING.md)
+
 ## Benchmark：主网报价对比（2026-11-02）
 
 **90 组报价全部成功，84/90 组与 ParaSwap 的输出差距在 ±0.5% 内。**
@@ -282,6 +304,8 @@ src/
   state.rs       StateCache：V2 储备 TTL 缓存 + Multicall3 热池刷新
   rpc.rs         原始 JSON-RPC 客户端（含 429/瞬时错误重试退避）
   router.rs      快照、四类候选 K-best DP、有界精算与价格冲击
+  split.rs       两池粗搜/细化、单路径兜底、输入守恒与搜索预算（实验库）
+  universe.rs    服务与实验共享的池发现、报价源装配和批量预热
   api.rs         /quote、/graph、/health、/ready；DTO、错误映射与限流
   error.rs       共享报价错误类型
   config.rs      YAML 配置、类型化转换实例与校验
@@ -289,6 +313,7 @@ src/
   main.rs        启动装配、/info、后台刷新与 HTTP 服务
   bin/
     bench.rs     配对基准；聚合器对比、完整路径、JSON / Markdown 报告
+    split_bench.rs 固定区块单路径/两池拆单实验与调用成本报告
     graph.rs     从运行实例导出 Mermaid / HTML
 
 config.example.yaml           全部配置示例
@@ -421,6 +446,7 @@ cd ui && npm install && npm run build   # 前端构建
 ## 边界与限制
 
 - 仅 Ethereum 主网；exact-in；返回已精算候选中输出最大的单条路径，不做拆单，不保证全市场最优。
+- 上述单路径限制针对 HTTP 服务；`split_bench` 提供两池实验，尚未定义正式多分支服务协议。
 - 原生 ETH 不支持；ETH↔WETH 包装由调用方处理。stETH↔wstETH 是独立的、已支持的协议转换。
 - Curve 适配器同时支持 stableswap（`get_dy(int128,…)`）与 crypto（`get_dy(uint256,…)`）；
   **发现**默认覆盖主 stableswap + crypto 注册表（`curve_registry_ids: [0, 5]`）；
@@ -433,6 +459,7 @@ cd ui && npm install && npm run build   # 前端构建
 
 ## 相关文档
 
+- [docs/SPLIT-ROUTING.md](docs/SPLIT-ROUTING.md)：两池实验算法、预算、缓存和固定区块保证。
 - [docs/QUOTE-QUALITY.md](docs/QUOTE-QUALITY.md)：本轮转换、ShibaSwap、候选分组的设计与验证。
 - [docs/benchmarks/README.md](docs/benchmarks/README.md)：基准方法、配对结果及完整原始数据入口。
 - `docs/ARCHITECTURE.md`：**详细架构设计文档**（数据流、模块、缓存三层、路由算法、RPC、API、并发、限制）。英文版：`docs/ARCHITECTURE.en.md`。

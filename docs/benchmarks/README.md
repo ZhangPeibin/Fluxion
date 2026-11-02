@@ -1,5 +1,23 @@
 # Quote benchmarks
 
+## Fixed-block two-pool experiment (#30)
+
+This is an internal single-route vs split comparison, distinct from the live aggregator runs below.
+Run `cargo run --bin split_bench -- --config config.benchmark.yaml`; no HTTP server is required.
+Use `--focus SHIB`, `--block NUMBER` and `--help` for targeted runs and search-budget options.
+
+- [90-row fixed-block report](2026-11-02-split-mainnet.md) / [raw JSON](2026-11-02-split-mainnet.json)
+- [Chinese analysis and parameter comparison](2026-11-02-split-analysis.md)
+- [Default SHIB calibration](2026-11-02-split-shib-calibration.md) / [JSON](2026-11-02-split-shib-calibration.json)
+- [Denser SHIB grid](2026-11-02-split-shib-dense.md) / [JSON](2026-11-02-split-shib-dense.json)
+
+At block 26325207: 90 successful, 35 split wins, 55 baseline selections, no output decrease.
+Large SHIB buy/sell improvements: 1.0723% / 0.4812% over the existing single route. Total p50/p95
+3451/4697 ms; additional quote-phase RPC 3727. Gas/actual execution are excluded. This phase does
+not change the HTTP/Viewer contract; [implementation details](../SPLIT-ROUTING.md).
+
+## Live aggregator comparison
+
 `cargo run --bin bench --` compares Fluxion's `POST /quote` against external aggregator quote
 endpoints for a fixed corpus of token pairs and amount tiers.
 
