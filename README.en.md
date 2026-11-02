@@ -9,6 +9,27 @@ highest-output single candidate path (exact-in). The first conversion adapter su
 
 > Open-source, self-hosted: download it, supply a YAML config plus your own RPC / Graph key, run it.
 
+## Two-pool split experiment (#30)
+
+`SplitOptimizer` and a fixed-block CLI compare two independent direct AMM pools against the
+existing best single route, including multi-hop/conversion paths. Only a strictly higher gross
+output replaces the baseline; exhausted budgets retain the best complete evaluated plan. This
+phase delivers a library/experiment; HTTP `/quote` and the Viewer retain their single-path contract.
+
+At block **26325207**, **35/90 rows selected splitting, 55 kept the baseline, zero lost output**.
+Large WETH→SHIB gained **1.0723%** over the single route; 8 billion SHIB→WETH gained **0.4812%**.
+Total p50/p95 was **3451/4697 ms**, versus 1315/1862 ms for the baseline phase. Gas is excluded.
+
+```bash
+cargo run --bin split_bench -- --config config.benchmark.yaml
+cargo run --bin split_bench -- --focus SHIB --block 26325207
+```
+
+[90-row results](docs/benchmarks/2026-11-02-split-mainnet.md) ·
+[raw allocations and costs](docs/benchmarks/2026-11-02-split-mainnet.json) ·
+[analysis/calibration (Chinese)](docs/benchmarks/2026-11-02-split-analysis.md) ·
+[algorithm and guarantees](docs/SPLIT-ROUTING.md)
+
 ## Benchmark: mainnet quote comparison (2 Nov 2026)
 
 **90/90 successful quotes; 84/90 within ±0.5% of ParaSwap's output.**
@@ -301,6 +322,8 @@ src/
   state.rs       StateCache: V2 reserve TTL cache + Multicall3 hot-pool refresh
   rpc.rs         raw JSON-RPC client (429/transient retry with backoff)
   router.rs      snapshots, four-family K-best DP, bounded refinement and price impact
+  split.rs       bounded two-pool allocation, baseline fallback and integer conservation (experiment)
+  universe.rs    shared discovery, pricing assembly and batch prefetch
   api.rs         /quote, /graph, /health, /ready; DTOs, error mapping and rate limits
   error.rs       shared quote errors
   config.rs      YAML config, typed conversion instances and validation
@@ -308,6 +331,7 @@ src/
   main.rs        startup assembly, /info, background refresh and HTTP service
   bin/
     bench.rs     paired benchmarks, aggregator comparison, routes, JSON / Markdown reports
+    split_bench.rs fixed-block single-route/split experiment and cost reporting
     graph.rs     Mermaid / HTML export from a running service
 
 config.example.yaml           complete configuration example
@@ -450,6 +474,8 @@ cd ui && npm install && npm run build   # frontend build
 
 - Ethereum mainnet only; exact-in; one highest-output refined candidate, without splitting or
   a market-wide global-optimality guarantee.
+- The single-path limit applies to HTTP; `split_bench` exposes a two-pool experiment, not a new
+  formal multi-branch service contract.
 - Native ETH unsupported; callers handle ETH↔WETH wrapping. stETH↔wstETH is a separate supported conversion.
 - The Curve adapter supports both stableswap (`get_dy(int128,…)`) and crypto (`get_dy(uint256,…)`);
   **discovery** covers the main stableswap + crypto registries by default (`curve_registry_ids: [0, 5]`);
@@ -465,6 +491,7 @@ cd ui && npm install && npm run build   # frontend build
 
 ## Docs
 
+- [`docs/SPLIT-ROUTING.md`](docs/SPLIT-ROUTING.md): allocation, budgets, memoization and fixed-state experiment.
 - [`docs/QUOTE-QUALITY.md`](docs/QUOTE-QUALITY.md): current conversion, ShibaSwap and candidate-family design.
 - [`docs/benchmarks/README.md`](docs/benchmarks/README.md): methodology, paired results and raw data index.
 - [`docs/ARCHITECTURE.en.md`](docs/ARCHITECTURE.en.md): **detailed architecture** (data flow, modules,

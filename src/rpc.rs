@@ -1,3 +1,7 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 use std::time::Duration;
 
 use alloy_primitives::Address;
@@ -11,6 +15,7 @@ pub struct RpcClient {
     http: reqwest::Client,
     url: String,
     block_tag: String,
+    requests: Arc<AtomicU64>,
 }
 
 impl RpcClient {
@@ -22,11 +27,17 @@ impl RpcClient {
                 .expect("HTTP client"),
             url,
             block_tag: "latest".into(),
+            requests: Arc::new(AtomicU64::new(0)),
         }
     }
 
     pub fn url(&self) -> &str {
         &self.url
+    }
+
+    /// Actual HTTP JSON-RPC attempts, including retries, shared by client clones.
+    pub fn request_count(&self) -> u64 {
+        self.requests.load(Ordering::Relaxed)
     }
 
     /// Pin read-only calls for reproducible adapter diagnostics. Aggregator
@@ -39,6 +50,7 @@ impl RpcClient {
     async fn post(&self, body: Value) -> Result<Value, QuoteError> {
         let mut last = String::from("unknown rpc error");
         for attempt in 0..3u32 {
+            self.requests.fetch_add(1, Ordering::Relaxed);
             let result = self.http.post(&self.url).json(&body).send().await;
             match result {
                 Ok(resp) => match resp.json::<Value>().await {
@@ -102,5 +114,13 @@ impl RpcClient {
             .ok_or_else(|| QuoteError::RpcError("missing result".to_string()))?;
         u64::from_str_radix(hex.trim_start_matches("0x"), 16)
             .map_err(|e| QuoteError::RpcError(e.to_string()))
+    }
+
+    pub async fn block_hash(&self, block: u64) -> Result<String, QuoteError> {
+        let value = self.post(json!({"jsonrpc":"2.0", "id":1, "method":"eth_getBlockByNumber", "params":[format!("0x{block:x}"), false]})).await?;
+        value["result"]["hash"]
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| QuoteError::RpcError("missing block hash".into()))
     }
 }
