@@ -1,6 +1,6 @@
 //! Loading is deployment-profile based, not get_dy-signature based.
 use crate::{
-    curve_local::{self, Classic3Pool},
+    curve_local::{self, CurveState},
     local_state::StateError,
     model::Pool,
     rpc::RpcClient,
@@ -34,21 +34,22 @@ pub async fn load(
     pools: &[&Pool],
     rpc: &RpcClient,
     batch: usize,
-) -> Result<HashMap<Address, Classic3Pool>, StateError> {
+) -> Result<HashMap<Address, CurveState>, StateError> {
     let mut calls = Vec::new();
+    let mut layouts = Vec::new();
     for pool in pools {
-        if !curve_local::supported(pool) {
-            return Err(StateError::Unsupported);
-        }
+        let profile = curve_local::profile_for(pool).ok_or(StateError::Unsupported)?;
+        let count = pool.coins.len();
+        layouts.push((calls.len(), count, profile));
         for signature in ["coins(uint256)", "balances(uint256)"] {
-            for i in 0..3 {
+            for i in 0..count {
                 calls.push((
                     pool.address,
                     format!("{}{}", selector(signature), u256_word(U256::from(i))),
                 ));
             }
         }
-        for signature in ["A()", "fee()"] {
+        for signature in [profile.a_getter(), "fee()"] {
             calls.push((pool.address, selector(signature)));
         }
     }
@@ -56,22 +57,23 @@ pub async fn load(
     let mut states = Vec::new();
     let mut probes = Vec::new();
     let mut expected = Vec::new();
-    for (pool, words) in pools.iter().zip(values.as_chunks::<8>().0) {
-        for (word, coin) in words.iter().take(3).zip(&pool.coins) {
+    for (pool, (offset, count, profile)) in pools.iter().zip(layouts) {
+        let words = &values[offset..offset + count * 2 + 2];
+        for (word, coin) in words.iter().take(count).zip(&pool.coins) {
             if *word != U256::from_be_slice(coin.as_slice()) {
                 return Err(StateError::Incomplete);
             }
         }
-        let state = Classic3Pool::new([words[3], words[4], words[5]], words[6], words[7])
+        let state = profile
+            .build(
+                &words[count..count * 2],
+                words[count * 2],
+                words[count * 2 + 1],
+            )
             .map_err(|_| StateError::Incomplete)?;
         if state.is_liquid() {
-            for i in 0..3 {
-                let unit = if i == 0 {
-                    U256::from(10u128.pow(18))
-                } else {
-                    U256::from(1_000_000)
-                };
-                for j in 0..3 {
+            for (i, unit) in profile.units().into_iter().enumerate() {
+                for j in 0..count {
                     if i == j {
                         continue;
                     }
@@ -86,19 +88,24 @@ pub async fn load(
                                 u256_word(amount)
                             ),
                         ));
-                        expected.push(
-                            state
-                                .amount_out(i, j, amount)
-                                .map_err(|_| StateError::Incomplete)?,
-                        );
+                        expected.push(state.amount_out(i, j, amount));
                     }
                 }
             }
         }
         states.push(state);
     }
-    if read(rpc, &probes, batch).await? != expected {
-        return Err(StateError::Incomplete);
+    for (calls, expected) in probes.chunks(batch).zip(expected.chunks(batch)) {
+        let results = multicall(rpc, calls)
+            .await
+            .map_err(|_| StateError::SyncFailed)?;
+        for ((ok, data), expected) in results.into_iter().zip(expected) {
+            match expected {
+                Ok(value) if ok && data.len() == 32 && U256::from_be_slice(&data) == *value => {}
+                Err(_) if !ok => {} // a modeled view revert is not missing metadata
+                _ => return Err(StateError::Incomplete),
+            }
+        }
     }
     Ok(pools
         .iter()

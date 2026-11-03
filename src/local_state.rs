@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     adapters::decode_reserves,
-    curve_local::{self, Classic3Pool},
+    curve_local::{self, CurveState},
     error::QuoteError,
     graph::Graph,
     model::{ConversionKind, Pool, PoolKind, QuoteRequest, Route},
@@ -149,6 +149,7 @@ pub struct ConversionState {
 pub struct CurveStateInfo {
     pub pool: Address,
     pub profile: &'static str,
+    pub balance_source: &'static str,
     pub coins: Vec<Address>,
     pub balances: Vec<String>,
     pub amplification: String,
@@ -178,7 +179,7 @@ enum PoolState {
     V2([U256; 2]),
     V3(V3State),
     WstEth(WstEthState),
-    Curve(Box<Classic3Pool>),
+    Curve(Box<CurveState>),
 }
 
 struct FrozenSource {
@@ -196,11 +197,12 @@ impl FrozenSource {
                 };
                 Some(CurveStateInfo {
                     pool: pool.address,
-                    profile: curve_local::PROFILE,
+                    profile: state.profile().name(),
+                    balance_source: state.profile().balance_source(),
                     coins: pool.coins.clone(),
                     balances: state.balances().iter().map(ToString::to_string).collect(),
                     amplification: state.amplification().to_string(),
-                    a_precision: 1,
+                    a_precision: state.profile().a_precision(),
                     fee: state.fee().to_string(),
                     fee_denominator: 10_000_000_000,
                     has_liquidity: state.is_liquid(),

@@ -3,6 +3,7 @@ pub mod api;
 pub mod config;
 pub mod conversion;
 pub mod curve_local;
+pub mod curve_plain;
 mod curve_sync;
 pub mod discovery;
 pub mod error;

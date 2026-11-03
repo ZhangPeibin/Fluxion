@@ -1,5 +1,12 @@
 # Quote benchmarks
 
+## Two-coin Curve stable pools (#34)
+
+[Two-coin evidence](2026-11-03-local-state-curve-plain.md): 58 independent historical vectors,
+29/29 live raw outputs (including zeros), forced V3 composition and a fixed three-stable-pool HTTP
+sample (25/25, per-direction p50 1.50–1.66 ms). Local coverage is now three of the five default Curve
+deployments. Both crypto pools remain explicit unsupported cases, not silently removed.
+
 ## Classic Curve 3pool checkpoint (#33)
 
 [3pool evidence](2026-11-03-local-state-curve.md): 64 historical raw vectors, 18/18 mainnet
