@@ -1,5 +1,13 @@
 # Quote benchmarks
 
+## Tricrypto2 checkpoint (#35)
+
+[Tricrypto2 evidence](2026-11-03-local-state-tricrypto2.md): 104 independent historical success/revert
+scenarios, 52 live cases (44 successful raw outputs and 8 expected reverts), classic/V3/wstETH
+composition, and a fixed-deployment HTTP sample (30/30, per-direction p50 0.74–0.84 ms, maximum
+sample 12.18 ms). This does
+not integrate the pending #34 branch or replace full-universe 90-row migration acceptance.
+
 ## Classic Curve 3pool checkpoint (#33)
 
 [3pool evidence](2026-11-03-local-state-curve.md): 64 historical raw vectors, 18/18 mainnet

@@ -2,11 +2,10 @@
 use fluxion::{
     api::{self, AppState, RateLimiter},
     config::Config,
-    curve_local::{COINS, THREE_POOL},
+    curve_local::CurveProfile,
     discovery::token_allowed,
     graph::Graph,
     local_state::{PricingMode, SnapshotStore, StateSynchronizer},
-    model::{Pool, PoolKind},
     router::{Router, RouterConfig},
     rpc::RpcClient,
     split::SplitOptimizer,
@@ -17,12 +16,15 @@ use std::{sync::Arc, time::Duration};
 #[tokio::main]
 async fn main() {
     let mut args = std::env::args().skip(1);
-    let path = match args.next().as_deref() {
-        None => "config.local-curve.example.yaml".to_string(),
-        Some("--config") => args.next().expect("missing config"),
-        _ => panic!("use --config PATH"),
-    };
-    assert!(args.next().is_none(), "unexpected arguments");
+    let mut path = "config.local-curve.example.yaml".to_string();
+    let mut profile = CurveProfile::Classic3;
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--config" => path = args.next().expect("missing config"),
+            "--tricrypto2" => profile = CurveProfile::Tricrypto2,
+            _ => panic!("use --config PATH [--tricrypto2]"),
+        }
+    }
     let config = Config::from_file(&path).expect("valid configuration");
     assert_eq!(
         config.pricing_mode,
@@ -34,18 +36,13 @@ async fn main() {
         platform_enabled(&config, "curve"),
         "the demo requires enabled curve pricing"
     );
+    let pool = profile.pool();
     assert!(
-        COINS
-            .iter()
-            .all(|coin| token_allowed(&config, coin.parse().unwrap())),
-        "all three pool coins must be allowed"
+        pool.coins.iter().all(|coin| token_allowed(&config, *coin)),
+        "all selected pool coins must be allowed"
     );
     let mut graph = Graph::new();
-    graph.add_pool(Pool {
-        kind: PoolKind::Curve,
-        address: THREE_POOL.parse().unwrap(),
-        coins: COINS.map(|c| c.parse().unwrap()).to_vec(),
-    });
+    graph.add_pool(pool);
     let router_config = RouterConfig {
         max_hops: config.max_hops,
         top_k: config.top_k,
@@ -56,7 +53,7 @@ async fn main() {
         SnapshotStore::new(graph.clone(), router_config, config.local_state.clone()).unwrap(),
     );
     let (source, _) = pricing_source(&config, rpc.clone());
-    let info = serde_json::json!({"mode":"mainnet","profile":"explicit-classic-3pool-only","discovery":"not run: fixed verified deployment demo", "config":config.public_settings(),"pools":1,"tokens":3,"edges":6,"platform_edges":{"curve":6}});
+    let info = serde_json::json!({"mode":"mainnet","profile":match profile {CurveProfile::Classic3=>"explicit-classic-3pool-only",CurveProfile::Tricrypto2=>"explicit-tricrypto2-only"},"discovery":"not run: fixed verified deployment demo", "config":config.public_settings(),"pools":1,"tokens":3,"edges":6,"platform_edges":{"curve":6}});
     let state = Arc::new(AppState {
         graph,
         source,
@@ -79,7 +76,7 @@ async fn main() {
         .await
         .unwrap();
     println!(
-        "explicit classic-3pool demo on {}",
+        "explicit verified Curve demo on {}",
         listener.local_addr().unwrap()
     );
     axum::serve(listener, app).await.unwrap();

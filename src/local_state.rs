@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     adapters::decode_reserves,
-    curve_local::{self, Classic3Pool},
+    curve_local::{self, CurveState},
     error::QuoteError,
     graph::Graph,
     model::{ConversionKind, Pool, PoolKind, QuoteRequest, Route},
@@ -149,13 +149,30 @@ pub struct ConversionState {
 pub struct CurveStateInfo {
     pub pool: Address,
     pub profile: &'static str,
+    pub balance_source: &'static str,
     pub coins: Vec<Address>,
     pub balances: Vec<String>,
     pub amplification: String,
     pub a_precision: u64,
-    pub fee: String,
+    pub fee_model: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fee: Option<String>,
     pub fee_denominator: u64,
     pub has_liquidity: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crypto: Option<CryptoStateInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CryptoStateInfo {
+    pub gamma: String,
+    pub stored_d: String,
+    pub price_scale: [String; 2],
+    pub fee_gamma: String,
+    pub mid_fee: String,
+    pub out_fee: String,
+    pub math_contract: Address,
+    pub views_contract: Address,
 }
 
 #[derive(Debug, Serialize)]
@@ -178,7 +195,7 @@ enum PoolState {
     V2([U256; 2]),
     V3(V3State),
     WstEth(WstEthState),
-    Curve(Box<Classic3Pool>),
+    Curve(Box<CurveState>),
 }
 
 struct FrozenSource {
@@ -196,14 +213,30 @@ impl FrozenSource {
                 };
                 Some(CurveStateInfo {
                     pool: pool.address,
-                    profile: curve_local::PROFILE,
+                    profile: state.profile().name(),
+                    balance_source: "stored",
                     coins: pool.coins.clone(),
                     balances: state.balances().iter().map(ToString::to_string).collect(),
                     amplification: state.amplification().to_string(),
-                    a_precision: 1,
-                    fee: state.fee().to_string(),
+                    a_precision: state.profile().a_precision(),
+                    fee_model: if state.crypto_parameters().is_some() {
+                        "dynamic-post-trade"
+                    } else {
+                        "fixed"
+                    },
+                    fee: state.fixed_fee().map(|f| f.to_string()),
                     fee_denominator: 10_000_000_000,
                     has_liquidity: state.is_liquid(),
+                    crypto: state.crypto_parameters().map(|p| CryptoStateInfo {
+                        gamma: p.gamma.to_string(),
+                        stored_d: p.stored_d.to_string(),
+                        price_scale: p.price_scale.map(|x| x.to_string()),
+                        fee_gamma: p.fee_gamma.to_string(),
+                        mid_fee: p.mid_fee.to_string(),
+                        out_fee: p.out_fee.to_string(),
+                        math_contract: crate::tricrypto2_local::MATH.parse().unwrap(),
+                        views_contract: crate::tricrypto2_local::VIEWS.parse().unwrap(),
+                    }),
                 })
             })
             .collect::<Vec<_>>();

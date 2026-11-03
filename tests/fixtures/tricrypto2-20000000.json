@@ -1,0 +1,407 @@
+{
+  "balances": [
+    "9375283477212",
+    "13796469680",
+    "2433399622590991307956"
+  ],
+  "block": {
+    "hash": "0xd24fd73f794058a3807db926d8898c6481e902b7edb91ce0d479d6760f276183",
+    "number": 20000000,
+    "parent_hash": "0xb390d63aac03bbef75de888d16bd56b91c9291c2a7e38d36ac24731351522bd1",
+    "timestamp": 1717281407
+  },
+  "coins": [
+    "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+  ],
+  "hash_unchanged": true,
+  "math": "0x8f68f4810cce3194b6cb6f3d50fa58c2c9bdd1d5",
+  "parameters": {
+    "amplification": "1707629",
+    "fee_gamma": "500000000000000",
+    "gamma": "11809167828997",
+    "mid_fee": "3000000",
+    "out_fee": "30000000",
+    "price_scale": [
+      "67803955522684520999954",
+      "3817490794586031943324"
+    ],
+    "stored_d": "28019291519748808278389852"
+  },
+  "pool": "0xd51a44d3fae010294c616388b506acda1bfaae46",
+  "profile": "tricrypto2",
+  "quotes": [
+    {
+      "amount_in": "1",
+      "amount_out": "0",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000000",
+      "amount_out": "1474",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000001",
+      "amount_out": "1474",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000",
+      "amount_out": "1473438",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000000001",
+      "amount_out": "1473438",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "10000000000",
+      "amount_out": "14730153",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "100000000000",
+      "amount_out": "146261673",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000000000",
+      "amount_out": null,
+      "i": 0,
+      "j": 1,
+      "success": false
+    },
+    {
+      "amount_in": "1",
+      "amount_out": "261292376",
+      "i": 0,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "1000000",
+      "amount_out": "261293816255280",
+      "i": 0,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "1000001",
+      "amount_out": "261294077550383",
+      "i": 0,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000",
+      "amount_out": "261274336958668247",
+      "i": 0,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "1000000001",
+      "amount_out": "261274337219923341",
+      "i": 0,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "10000000000",
+      "amount_out": "2610784741613552016",
+      "i": 0,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "100000000000",
+      "amount_out": "25832499045381400712",
+      "i": 0,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000000000",
+      "amount_out": null,
+      "i": 0,
+      "j": 2,
+      "success": false
+    },
+    {
+      "amount_in": "1",
+      "amount_out": "678",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "1000000",
+      "amount_out": "678085287",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "1670000",
+      "amount_out": "1132389378",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "1670001",
+      "amount_out": "1132390055",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "16700000",
+      "amount_out": "11321105559",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "100000000",
+      "amount_out": "67636675713",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "100000001",
+      "amount_out": "67636676387",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "167000000",
+      "amount_out": "112520252633",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "1670000000000",
+      "amount_out": null,
+      "i": 1,
+      "j": 0,
+      "success": false
+    },
+    {
+      "amount_in": "1",
+      "amount_out": "177256810756",
+      "i": 1,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "1000000",
+      "amount_out": "177250279472706550",
+      "i": 1,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "1670000",
+      "amount_out": "296000541910190071",
+      "i": 1,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "1670001",
+      "amount_out": "296000719145634771",
+      "i": 1,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "16700000",
+      "amount_out": "2958092712813656956",
+      "i": 1,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "100000000",
+      "amount_out": "17613743401183241384",
+      "i": 1,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "100000001",
+      "amount_out": "17613743576033670325",
+      "i": 1,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "167000000",
+      "amount_out": "29256912968632579117",
+      "i": 1,
+      "j": 2,
+      "success": true
+    },
+    {
+      "amount_in": "1670000000000",
+      "amount_out": null,
+      "i": 1,
+      "j": 2,
+      "success": false
+    },
+    {
+      "amount_in": "1",
+      "amount_out": null,
+      "i": 2,
+      "j": 0,
+      "success": false
+    },
+    {
+      "amount_in": "1000000",
+      "amount_out": "0",
+      "i": 2,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "333333333333333333",
+      "amount_out": "1274532465",
+      "i": 2,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "333333333333333334",
+      "amount_out": "1274532465",
+      "i": 2,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000000000000",
+      "amount_out": "3823015293",
+      "i": 2,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000000000001",
+      "amount_out": "3823015293",
+      "i": 2,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "3333333333333333330",
+      "amount_out": "12737702788",
+      "i": 2,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "33333333333333333300",
+      "amount_out": "126913102042",
+      "i": 2,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "333333333333333333000000",
+      "amount_out": null,
+      "i": 2,
+      "j": 0,
+      "success": false
+    },
+    {
+      "amount_in": "1",
+      "amount_out": null,
+      "i": 2,
+      "j": 1,
+      "success": false
+    },
+    {
+      "amount_in": "1000000",
+      "amount_out": "0",
+      "i": 2,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "333333333333333333",
+      "amount_out": "1878827",
+      "i": 2,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "333333333333333334",
+      "amount_out": "1878827",
+      "i": 2,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000000000000",
+      "amount_out": "5635862",
+      "i": 2,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000000000001",
+      "amount_out": "5635862",
+      "i": 2,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "3333333333333333330",
+      "amount_out": "18780166",
+      "i": 2,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "33333333333333333300",
+      "amount_out": "186892711",
+      "i": 2,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "333333333333333333000000",
+      "amount_out": null,
+      "i": 2,
+      "j": 1,
+      "success": false
+    }
+  ],
+  "runtime_code_hashes": {
+    "math": "0x7bead5c85d7bce833e933c384038394a1b5c0200d8a0f0b78e9b93e820d583c8",
+    "pool": "0x9cb858c1d8e8ab8ba7dc273f146d428965b0ca686d05fb02cb4ffc62149ec928",
+    "views": "0x0b6010f39f5d26850f80f06fe69f0886bb50618ab98ddeda4c46a409b0ef6fe2"
+  },
+  "schema_version": 1,
+  "views": "0x40745803c2faa8e8402e2ae935933d07ca8f355c"
+}

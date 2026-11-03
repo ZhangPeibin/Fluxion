@@ -43,9 +43,9 @@ cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
 [gap analysis (Chinese)](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
 [algorithm and HTTP contract](docs/MULTI-POOL.md)
 
-## Data/compute separation (#31–#33: V2/V3, wstETH and classic 3pool)
+## Data/compute separation (#31 / #35: V2/V3, wstETH, 3pool and Tricrypto2)
 
-Opt-in `pricing_mode: local_snapshot` synchronizes V2/ShibaSwap, V3, Lido v4 and classic 3pool state, and
+Opt-in `pricing_mode: local_snapshot` synchronizes V2/ShibaSwap, V3, Lido v4, 3pool and Tricrypto2, and
 publishes immutable block snapshots. Single-route, multi-hop and split calculations use the same
 snapshot for coarse and exact pricing, with **zero RPC during request computation**. Offline
 operation, reorg/staleness/failure handling and integer parity with deployed Routers are verified.
@@ -57,6 +57,10 @@ ETH/shares avoid a demonstrated 1-wei error from substituting the public total-s
 Classic Curve 3pool also matches 64 historical raw vectors and 18 live quotes, with independently
 checked multi-hop routes. Its single-deployment HTTP sample succeeded 30/30, per-direction p50
 **1.51–1.73 ms**. These restricted universes do not replace full-coverage acceptance.
+Tricrypto2 matches 104 historical success/revert scenarios and 52 live scenarios exactly. Its
+single-deployment HTTP sample succeeded 30/30 with per-direction p50 **0.74–0.84 ms** (maximum sample
+12.18 ms), using stored
+D and amount-dependent fees rather than a stable-pool approximation.
 
 ```bash
 # Restricted real ShibaSwap example on :8083, not the full-venue benchmark profile
@@ -68,14 +72,18 @@ cargo run -- --config config.local-v3.example.yaml
 cargo run -- --config config.local-wsteth.example.yaml
 # Explicit single-deployment 3pool HTTP demo on :8086 (no Graph key/discovery)
 cargo run --example local_curve_server
+# Explicit Tricrypto2 graph on :8088 (no Graph key/registry discovery)
+cargo run --example local_curve_server -- --tricrypto2 --config config.local-tricrypto2.example.yaml
 ```
 
-The default remains `rpc`. The other two two-coin Curve stable pools, two crypto deployments and
-full 90-row migration acceptance remain subsequent stages. Unsupported pools/protocol versions or missing V3 coverage are explicit rather
+The default remains `rpc`. The #34 two-coin implementation awaits joint integration; together it
+would cover four of the five discovered Curve deployments. Legacy Tricrypto and full 90-row
+migration acceptance remain subsequent work. Unsupported pools/protocol versions or missing V3 coverage are explicit rather
 than disappearing from the graph or falling back to request-time RPC. [Design/run guide](docs/LOCAL-STATE.md) ·
 [V3 measurements](docs/benchmarks/2026-11-03-local-state-v3.md) ·
 [wstETH measurements](docs/benchmarks/2026-11-03-local-state-wsteth.md) ·
-[Curve support matrix](docs/CURVE-SUPPORT.md) · [3pool measurements](docs/benchmarks/2026-11-03-local-state-curve.md) (Chinese).
+[Curve support matrix](docs/CURVE-SUPPORT.md) · [3pool measurements](docs/benchmarks/2026-11-03-local-state-curve.md) ·
+[Tricrypto2 model](docs/TRICRYPTO2.md) · [Tricrypto2 measurements](docs/benchmarks/2026-11-03-local-state-tricrypto2.md) (Chinese).
 
 ## Historical two-pool experiment (#30)
 

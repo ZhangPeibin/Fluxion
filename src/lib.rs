@@ -15,6 +15,7 @@ pub mod rpc;
 pub mod source;
 pub mod split;
 pub mod state;
+pub mod tricrypto2_local;
 pub mod universe;
 pub mod util;
 pub mod v3_local;

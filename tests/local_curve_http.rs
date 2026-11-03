@@ -392,7 +392,10 @@ async fn real_historical_a_fee_and_balance_changes_do_not_mutate_old_snapshots()
         "2000"
     );
     assert_eq!(store.status().curve_state[0].amplification, "4000");
-    assert_eq!(store.status().curve_state[0].fee, "1500000");
+    assert_eq!(
+        store.status().curve_state[0].fee.as_deref(),
+        Some("1500000")
+    );
     server.abort();
 }
 
