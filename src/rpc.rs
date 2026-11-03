@@ -4,7 +4,7 @@ use std::sync::{
 };
 use std::time::Duration;
 
-use alloy_primitives::{Address, B256};
+use alloy_primitives::{Address, B256, keccak256};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -136,6 +136,23 @@ impl RpcClient {
             .and_then(|r| r.as_str())
             .ok_or_else(|| QuoteError::RpcError("missing result".to_string()))?;
         hex_decode(result).map_err(QuoteError::RpcError)
+    }
+
+    /// Runtime bytecode fingerprint for deployment inventory at the same block
+    /// tag as state reads. This is not a source-verification oracle by itself.
+    pub async fn code_hash(&self, address: Address) -> Result<B256, QuoteError> {
+        let response = self
+            .post(json!({"jsonrpc":"2.0","id":1,"method":"eth_getCode",
+            "params":[address,self.block_tag]}))
+            .await?;
+        let hex = response["result"]
+            .as_str()
+            .ok_or_else(|| QuoteError::RpcError("missing bytecode".into()))?;
+        let bytes = hex_decode(hex).map_err(QuoteError::RpcError)?;
+        if bytes.is_empty() {
+            return Err(QuoteError::RpcError("empty runtime bytecode".into()));
+        }
+        Ok(keccak256(bytes))
     }
 
     pub async fn block_number(&self) -> Result<u64, QuoteError> {

@@ -495,8 +495,10 @@ async fn graph(
         let mid_price = price
             .map(|p| p.mid_price)
             .filter(|mid_price| mid_price.is_finite() && *mid_price > 0.0);
-        let reserve = price
-            .map(|p| p.reserve_in)
+        let reserve = local
+            .as_ref()
+            .and_then(|snapshot| snapshot.graph_reserve(idx))
+            .or_else(|| price.map(|p| p.reserve_in))
             .filter(|reserve| !reserve.is_zero() && !pool.kind.is_conversion());
         edges.push(GraphEdgeDto {
             operation: pool.kind.operation(edge.i).to_string(),

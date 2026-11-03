@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     adapters::decode_reserves,
+    curve_local::{self, Classic3Pool},
     error::QuoteError,
     graph::Graph,
     model::{ConversionKind, Pool, PoolKind, QuoteRequest, Route},
@@ -121,6 +122,7 @@ pub struct StateStatus {
     pub reorgs: u64,
     pub v3_coverage: Vec<V3Coverage>,
     pub conversion_state: Vec<ConversionState>,
+    pub curve_state: Vec<CurveStateInfo>,
 }
 
 #[derive(Debug, Serialize)]
@@ -144,6 +146,19 @@ pub struct ConversionState {
 }
 
 #[derive(Debug, Serialize)]
+pub struct CurveStateInfo {
+    pub pool: Address,
+    pub profile: &'static str,
+    pub coins: Vec<Address>,
+    pub balances: Vec<String>,
+    pub amplification: String,
+    pub a_precision: u64,
+    pub fee: String,
+    pub fee_denominator: u64,
+    pub has_liquidity: bool,
+}
+
+#[derive(Debug, Serialize)]
 pub struct QuoteState {
     pub pricing_mode: &'static str,
     pub block_hash: alloy_primitives::B256,
@@ -155,12 +170,15 @@ pub struct QuoteState {
     pub v3_coverage: Vec<V3Coverage>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub conversion_state: Vec<ConversionState>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub curve_state: Vec<CurveStateInfo>,
 }
 
 enum PoolState {
     V2([U256; 2]),
     V3(V3State),
     WstEth(WstEthState),
+    Curve(Box<Classic3Pool>),
 }
 
 struct FrozenSource {
@@ -168,6 +186,30 @@ struct FrozenSource {
 }
 
 impl FrozenSource {
+    fn curve_states(&self) -> Vec<CurveStateInfo> {
+        let mut entries = self
+            .pools
+            .values()
+            .filter_map(|(pool, state)| {
+                let PoolState::Curve(state) = state else {
+                    return None;
+                };
+                Some(CurveStateInfo {
+                    pool: pool.address,
+                    profile: curve_local::PROFILE,
+                    coins: pool.coins.clone(),
+                    balances: state.balances().iter().map(ToString::to_string).collect(),
+                    amplification: state.amplification().to_string(),
+                    a_precision: 1,
+                    fee: state.fee().to_string(),
+                    fee_denominator: 10_000_000_000,
+                    has_liquidity: state.is_liquid(),
+                })
+            })
+            .collect::<Vec<_>>();
+        entries.sort_by_key(|entry| entry.pool);
+        entries
+    }
     fn conversions(&self) -> Vec<ConversionState> {
         let mut entries = self
             .pools
@@ -236,7 +278,7 @@ impl QuoteSource for FrozenSource {
         j: usize,
         amount: U256,
     ) -> Result<U256, QuoteError> {
-        if i > 1 || j > 1 || !pool.kind.allows(i, j) {
+        if i >= pool.coins.len() || j >= pool.coins.len() || !pool.kind.allows(i, j) {
             return Err(QuoteError::UnknownPool);
         }
         match self.state(pool)? {
@@ -255,10 +297,11 @@ impl QuoteSource for FrozenSource {
                     Ok(out)
                 }
             }
+            PoolState::Curve(state) => state.amount_out(i, j, amount),
         }
     }
     async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
-        if i > 1 || j > 1 || !pool.kind.allows(i, j) {
+        if i >= pool.coins.len() || j >= pool.coins.len() || !pool.kind.allows(i, j) {
             return Err(QuoteError::UnknownPool);
         }
         Ok(match self.state(pool)? {
@@ -272,15 +315,18 @@ impl QuoteSource for FrozenSource {
                 }
             }
             PoolState::WstEth(state) => state.mid_price(i == 0),
+            PoolState::Curve(state) => return state.mid_price(i, j),
         })
     }
     async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, QuoteError> {
-        if i > 1 {
+        if i >= pool.coins.len() {
             return Err(QuoteError::UnknownPool);
         }
         Ok(match self.state(pool)? {
             PoolState::V2(reserves) => reserves[i],
-            PoolState::V3(_) | PoolState::WstEth(_) => U256::MAX,
+            // Keep Curve's coarse reserve convention identical to the RPC
+            // adapter. Actual pool balances remain available for graph display.
+            PoolState::V3(_) | PoolState::WstEth(_) | PoolState::Curve(_) => U256::MAX,
         })
     }
 }
@@ -348,6 +394,18 @@ impl LocalSnapshot {
     }
     pub fn graph(&self) -> &Graph {
         &self.graph
+    }
+    /// Optional display reserve, separate from coarse-search heuristics.
+    pub fn graph_reserve(&self, edge_index: usize) -> Option<U256> {
+        if edge_index >= self.graph.edge_count() {
+            return None;
+        }
+        let edge = self.graph.edge(edge_index);
+        let pool = self.graph.pool(edge.pool_idx);
+        match self.source.state(pool).ok()? {
+            PoolState::Curve(state) => Some(state.balances()[edge.i]),
+            _ => None,
+        }
     }
     fn age_secs(&self) -> u64 {
         now_secs().saturating_sub(self.block.timestamp).max(
@@ -431,6 +489,9 @@ impl SnapshotStore {
             .pools()
             .iter()
             .filter(|p| {
+                if p.kind == PoolKind::Curve {
+                    return !curve_local::supported(p);
+                }
                 let supported = matches!(
                     p.kind,
                     PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 | PoolKind::UniswapV3 { .. }
@@ -522,6 +583,7 @@ impl SnapshotStore {
                 .map_or(0, |h| h.number.saturating_sub(snapshot.block.number)),
             v3_coverage: snapshot.source.coverage(),
             conversion_state: snapshot.source.conversions(),
+            curve_state: snapshot.source.curve_states(),
         })
     }
 
@@ -564,6 +626,10 @@ impl SnapshotStore {
                 .current
                 .as_ref()
                 .map_or_else(Vec::new, |s| s.source.conversions()),
+            curve_state: state
+                .current
+                .as_ref()
+                .map_or_else(Vec::new, |s| s.source.curve_states()),
         }
     }
 
@@ -734,6 +800,29 @@ impl StateSynchronizer {
                 .ok_or(StateError::Incomplete)?;
             if pools
                 .insert(pool.address, (pool.clone(), PoolState::WstEth(state)))
+                .is_some()
+            {
+                return Err(StateError::Incomplete);
+            }
+        }
+        let curves = self
+            .store
+            .graph
+            .pools()
+            .iter()
+            .filter(|p| p.kind == PoolKind::Curve)
+            .collect::<Vec<_>>();
+        let mut curve_states =
+            crate::curve_sync::load(&curves, &rpc, self.store.config.batch_size).await?;
+        for pool in curves {
+            let state = curve_states
+                .remove(&pool.address)
+                .ok_or(StateError::Incomplete)?;
+            if pools
+                .insert(
+                    pool.address,
+                    (pool.clone(), PoolState::Curve(Box::new(state))),
+                )
                 .is_some()
             {
                 return Err(StateError::Incomplete);

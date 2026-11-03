@@ -1,5 +1,13 @@
 # Quote benchmarks
 
+## Classic Curve 3pool checkpoint (#33)
+
+[3pool evidence](2026-11-03-local-state-curve.md): 64 historical raw vectors, 18/18 mainnet
+six-direction quotes, independent mixed routes and a fixed-deployment HTTP sample (30/30,
+per-direction p50 1.51–1.73 ms). [Support matrix](../CURVE-SUPPORT.md) and
+[raw inventory](2026-11-03-curve-inventory.json) retain all five discovered deployments; four remain
+explicitly unsupported locally. This is not the full-universe 90-row migration acceptance.
+
 ## Local wstETH checkpoint (#32)
 
 [wstETH evidence](2026-11-03-local-state-wsteth.md) verifies Lido v4 internal-ratio arithmetic,

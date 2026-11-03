@@ -1,0 +1,16 @@
+# Used by: cargo run --example local_curve_server
+# That example assembles ONLY the verified classic 3pool; it does not discover
+# or silently filter the production Curve universe. No Graph key is needed.
+# The normal server keeps all discovered unsupported deployments explicit.
+host: 127.0.0.1
+port: 8086
+pricing_mode: local_snapshot
+enabled_platforms: [curve]
+protocol_conversions: []
+local_state:
+  poll_interval_ms: 2000
+  sync_timeout_ms: 30000
+  batch_size: 200
+  max_age_secs: 60
+  max_lag_blocks: 3
+  compute_concurrency: 4
