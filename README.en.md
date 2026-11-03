@@ -10,64 +10,45 @@ Opt in with `split=true` to allocate across independent direct AMM pools.
 
 > Open-source, self-hosted: download it, supply a YAML config plus your own RPC / Graph key, run it.
 
-## Latest benchmark: local snapshot computation (3 Nov 2026)
+## Latest benchmark: local snapshots / ParaSwap / 1inch (3 Nov 2026)
 
-**Tricrypto2-only HTTP succeeded on 30/30 requests, with per-direction p50 of 0.74–0.84 ms and
-zero RPC during request computation.** A seven-record graph containing four Curve deployments,
-two V3 pools and wstETH also matches independent on-chain outputs hop by hop at one block.
+**All three succeeded on 90/90 quotes in one run: 30 directions × three amount tiers. Fluxion output
+was within ±0.5% of ParaSwap on 88/90 rows and of 1inch on 84/90. Every Fluxion request computed with zero RPC.**
 
-| Scenario | Samples and result | Latency |
-|---|---|---:|
-| Tricrypto2-only HTTP | Five requests per direction, 30/30 successful | Per-direction p50 **0.74–0.84 ms**; maximum **12.18 ms** |
-| Seven-record graph: 100,000 USDC → WBTC | Exact same-block per-hop outputs | Local computation **3.365 ms** |
-| Seven-record graph: 1.67 WBTC → USDC | Exact same-block per-hop outputs | Local computation **3.180 ms** |
-| Seven-record graph: 0.167 WBTC → stETH | Exact same-block per-hop outputs | Local computation **1.471 ms** |
-
-HTTP samples used block **26331864**; the combined graph used block **26331902**. Both computed
-with zero RPC; combined-graph initialization required 15 RPC requests. Debug build, local HTTP;
-timings exclude initialization and background synchronization. Combined-graph rows are individual
-compute measurements, not HTTP percentiles. The maximum HTTP sample is retained without trimming.
-
-The integrated version passes **124 offline tests and four relevant mainnet tests**. Local models
-cover four of the five default Curve deployments; legacy Tricrypto is pending. The latest version
-has not completed the full-universe 90-row migration comparison, so these restricted graphs do not
-establish a full-platform speedup ratio. The default pricing mode remains `rpc`.
-
-[Full measurements, block hashes and reproduction commands](docs/benchmarks/2026-11-03-local-state-tricrypto2.md) ·
-[Curve support matrix](docs/CURVE-SUPPORT.md) (Chinese)
-
-## Latest full 90-row benchmark: single / two-pool / multi-pool / ParaSwap (2 Nov 2026)
-
-**All four modes succeeded on 90/90 rows; multi-pool output was within ±0.5% of ParaSwap on 88/90 (97.8%).**
-
-| Metric | Single route | Two pools | Multi-pool |
+| Metric | Fluxion | ParaSwap | 1inch |
 |---|---:|---:|---:|
-| Median output delta vs ParaSwap | −0.001389% | −0.000960% | −0.000960% |
-| Equal-weight mean output delta | −0.095714% | −0.050302% | **−0.037133%** |
-| Within ±0.5% | 85/90 | 87/90 | **88/90** |
-| Complete calculation p50/p95 | 1364/2012 ms | 3523/5358 ms | 4727/6496 ms |
+| Successful quotes | **90/90** | **90/90** | **90/90** |
+| End-to-end HTTP p50 | **31 ms** | 390 ms | 467 ms |
+| End-to-end HTTP p95 | 3501 ms | **864 ms** | 1058 ms |
 
-Multi-pool improved **13 rows over two-pool, tied 77, and reduced none**. All six SHIB rows improved.
-The large WETH→SHIB gap fell from **−1.8821%** (single) and **−0.8294%** (two pools) to
-**−0.1697%**, allocating 70% ShibaSwap + 15% Uniswap V2 + 15% Uniswap V3. The large SHIB→WETH
-multi-pool gap was **−0.1355%**. Two DAI→WETH rows still lagged by more than 0.5%.
+**State age was 50–112 seconds** (median 76.5 seconds), under an explicit 180-second / 15-block
+experiment policy. Median latency is now milliseconds, but tail latency remains high and background
+synchronization has not met continuous-service acceptance under the default 60-second / three-block policy.
 
-Local modes share one pinned block per row, range **26325701–26325776**, with end-of-run hash
-verification. ParaSwap's raw response may contain cached/mixed-block state. SHIB allocations were
-also re-quoted at the local block: 5/6 supported, one unsupported `pancakeswapv3`. BONE paths are
-diagnostic only and were not added to the production allowlist. Gross outputs exclude gas and
-execution. Public RPC, debug builds; ParaSwap p50/p95 was 363/575 ms.
+| Fluxion output relative to competitor | ParaSwap | 1inch |
+|---|---:|---:|
+| Median delta | −0.000094% | +0.098762% |
+| Equal-weight mean delta | −0.028838% | −0.034276% |
+| Within ±0.5% | **88/90 (97.8%)** | **84/90 (93.3%)** |
+| Fluxion higher / equal / lower | 28 / 8 / 54 | 68 / 0 / 22 |
 
-```bash
-# No HTTP server required; retains external routes and SHIB allocation replays
-cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
-  --out docs/benchmarks/multi-pool-run.md
-```
+Delta is `(Fluxion / competitor − 1)`. Most samples are close, but large trades still have gaps:
+100,000 DAI→WETH is **−1.128%** versus ParaSwap; 160,000 LDO→WETH and 33.333… WETH→SHIB are
+**−4.708% / −2.975%** versus 1inch. Its plan-dependent infrastructure fee may affect API amounts;
+no fee-adjusted quote was inferred. The 68 higher outputs do not establish superior routing alone.
+See the analysis for all outliers.
 
-[90-row four-way results](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.md) ·
-[raw routes/costs](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.json) ·
-[gap analysis (Chinese)](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
-[algorithm and HTTP contract](docs/MULTI-POOL.md)
+This run uses **`config.benchmark-local.yaml` / `local_snapshot`**, explicitly excluding only legacy
+Tricrypto. All remaining **209 pool/conversion records, 48 tokens and 426 edges** are retained and
+loaded, with full-range V3 bitmap/tick coverage. `split=true`, up to four branches; 35/90 rows selected
+splitting. Quote snapshot blocks **26332461–26332478**. All sides receive identical raw inputs, but
+external APIs are not pinned to the same block. Debug build, public RPC, local Fluxion HTTP; latency
+includes complete body receipt and excludes pacing sleeps. Background synchronization still uses
+RPC. Gas/service fees are not normalized and execution is not simulated.
+
+[90-row report](docs/benchmarks/2026-11-03-local-threeway.md) ·
+[Raw JSON, state age and three-way routes](docs/benchmarks/2026-11-03-local-threeway.json) ·
+[Analysis and reproduction](docs/benchmarks/2026-11-03-local-threeway-analysis.md) (Chinese)
 
 ## Data/compute separation (#31–#35: V2/V3, wstETH, three stable pools and Tricrypto2)
 
@@ -75,19 +56,10 @@ Opt-in `pricing_mode: local_snapshot` synchronizes V2/ShibaSwap, V3, Lido v4, th
 publishes immutable block snapshots. Single-route, multi-hop and split calculations use the same
 snapshot for coarse and exact pricing, with **zero RPC during request computation**. Offline
 operation, reorg/staleness/failure handling and integer parity with deployed Routers are verified.
-All **30/30** V3 samples across five pools/four fee tiers match QuoterV2 exactly. A restricted
-four-pool, 20-request HTTP sample measured **31.05/31.33 ms** p50/p95; this is not the full 90-row regression.
-wstETH integer boundaries and conversion+V3 routes also match on-chain references. A restricted
-six-record HTTP sample (five requests per direction) measured **0.54–1.22 ms** p50. Exact internal
-ETH/shares avoid a demonstrated 1-wei error from substituting the public total-supply ratio.
-Classic Curve 3pool also matches 64 historical raw vectors and 18 live quotes, with independently
-checked multi-hop routes. Its single-deployment HTTP sample succeeded 30/30, per-direction p50
-**1.51–1.73 ms**. These restricted universes do not replace full-coverage acceptance.
-Tricrypto2 matches 104 historical success/revert scenarios and 52 live scenarios exactly, using
-stored D and amount-dependent fees. Latest HTTP and combined-graph measurements appear above.
-The two-coin deployments add 58 exact historical vectors and 29 matching live scenarios. A fixed
-three-stable-pool HTTP sample succeeded 25/25 with **1.50–1.66 ms** per-direction p50; distinct balance
-and integer-rounding semantics remain deployment-specific.
+V3, wstETH and each Curve deployment use protocol-specific integer models checked against
+independent on-chain views. wstETH uses Lido internal ETH/shares; two-coin stable pools retain their
+distinct balance sources and rounding orders; Tricrypto2 uses stored D and dynamic fees. The latest
+local-snapshot comparison appears above; local model details are linked below.
 
 ```bash
 # Restricted real ShibaSwap example on :8083, not the full-venue benchmark profile
@@ -106,7 +78,8 @@ cargo run --example local_curve_server -- --all-stable --config config.local-cur
 ```
 
 The default remains `rpc`. The jointly integrated #34/#35 models cover four of the five discovered
-Curve deployments. Legacy Tricrypto and full 90-row migration acceptance remain subsequent work.
+Curve deployments; the local experiment explicitly excludes the remaining legacy pool. Full-graph
+continuous service under the default freshness policy and tail latency still require optimization and acceptance.
 Unsupported pools/protocol versions or missing V3 coverage are explicit rather
 than disappearing from the graph or falling back to request-time RPC. [Design/run guide](docs/LOCAL-STATE.md) ·
 [V3 measurements](docs/benchmarks/2026-11-03-local-state-v3.md) ·
@@ -114,67 +87,6 @@ than disappearing from the graph or falling back to request-time RPC. [Design/ru
 [Curve support matrix](docs/CURVE-SUPPORT.md) · [3pool measurements](docs/benchmarks/2026-11-03-local-state-curve.md) ·
 [Tricrypto2 model](docs/TRICRYPTO2.md) · [Tricrypto2 measurements](docs/benchmarks/2026-11-03-local-state-tricrypto2.md) ·
 [two-coin measurements](docs/benchmarks/2026-11-03-local-state-curve-plain.md) (Chinese).
-
-## Historical two-pool experiment (#30)
-
-`SplitOptimizer` and a fixed-block CLI compare two independent direct AMM pools against the
-existing best single route, including multi-hop/conversion paths. Only a strictly higher gross
-output replaces the baseline; exhausted budgets retain the best complete evaluated plan. This
-historical phase delivered a library/experiment. HTTP `/quote` and the Viewer now support the
-optional multi-pool contract described above.
-
-At block **26325207**, **35/90 rows selected splitting, 55 kept the baseline, zero lost output**.
-Large WETH→SHIB gained **1.0723%** over the single route; 8 billion SHIB→WETH gained **0.4812%**.
-Total p50/p95 was **3451/4697 ms**, versus 1315/1862 ms for the baseline phase. Gas is excluded.
-
-```bash
-cargo run --bin split_bench -- --config config.benchmark.yaml
-cargo run --bin split_bench -- --focus SHIB --block 26325207
-```
-
-[90-row results](docs/benchmarks/2026-11-02-split-mainnet.md) ·
-[raw allocations and costs](docs/benchmarks/2026-11-02-split-mainnet.json) ·
-[analysis/calibration (Chinese)](docs/benchmarks/2026-11-02-split-analysis.md) ·
-[algorithm and guarantees](docs/SPLIT-ROUTING.md)
-
-## Historical benchmark: conversions and ShibaSwap (2 Nov 2026)
-
-**90/90 successful quotes; 84/90 within ±0.5% of ParaSwap's output.**
-
-The same run compares two local instances and ParaSwap across 30 directed pairs × 3 fixed input
-sizes. The control disables conversions and ShibaSwap; the candidate enables stETH↔wstETH,
-ShibaSwap V2, and capability-diverse candidates. Output delta is `(local − ParaSwap) / ParaSwap`;
-negative means fewer output tokens.
-
-| Metric | Feature-disabled control | Then-current single-route implementation |
-|---|---:|---:|
-| Successful quotes | 90/90 | **90/90** |
-| Median output delta | −0.0148% | **−0.0070%** |
-| Mean output delta | −1.3372% | **−0.1018%** |
-| Within ±0.5% output delta | 72/90 (80.0%) | **84/90 (93.3%)** |
-| Latency p50 | 1085 ms | 1246 ms |
-| Latency p95 | 1586 ms | 1871 ms |
-
-### Representative stETH / SHIB samples
-
-| Input and direction | Control output | Current output | ParaSwap output | Delta change |
-|---|---:|---:|---:|---:|
-| 100000 USDC → stETH | 25.65966 stETH | **43.28001 stETH** | 43.28921 stETH | **−40.725% → −0.0213%** |
-| 33.333… WETH → SHIB | 12.693 billion SHIB | **15.376 billion SHIB** | 15.672 billion SHIB | **−19.010% → −1.887%** |
-| 8 billion SHIB → WETH | 14.30898 WETH | **15.82713 WETH** | 15.96768 WETH | **−10.388% → −0.880%** |
-
-All 15 stETH-related and 6 SHIB-related outputs exceed their paired controls. Remaining SHIB gaps
-involved external pool splitting and BONE intermediates; that version returned one path. Additional
-candidates increase cost: p50 latency rises about 15%.
-
-Ethereum block range **26324635–26324658**, local debug builds, public RPC. ParaSwap p50/p95
-is 351/436 ms in this run. Quotes are not same-block; gas and actual execution are excluded.
-1inch/0x were skipped because keys were absent.
-
-**Evidence:** [90-row quote/control tables](docs/benchmarks/2026-11-02-quote-quality.md) ·
-[raw JSON with routes and allocations](docs/benchmarks/2026-11-02-quote-quality.json) ·
-[analysis (Chinese)](docs/benchmarks/2026-11-02-quote-quality-analysis.md) ·
-[methodology and historical runs](docs/benchmarks/README.md)
 
 ## Quick start
 
@@ -586,8 +498,8 @@ For a paired control, run a second service with `config.benchmark-control.yaml` 
 `--control-service http://127.0.0.1:8082` to the benchmark invocation. It alternates quote order
 and reports stETH, SHIB, and other cohorts, retaining full routes in JSON.
 
-Latest results are displayed in the **Benchmark** section near the top of this README. Full
-per-row outputs are in the [90-row four-way report](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.md).
+Add `--split` to compare multi-pool mode. Latest results appear in the **Benchmark** section near the
+top; data and reproduction steps are in the [latest local three-way analysis](docs/benchmarks/2026-11-03-local-threeway-analysis.md).
 
 ## Testing
 

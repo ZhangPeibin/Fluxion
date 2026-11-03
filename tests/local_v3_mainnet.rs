@@ -46,7 +46,7 @@ async fn independent_hop(rpc: &RpcClient, hop: &fluxion::model::Hop) -> U256 {
 
 #[tokio::test]
 #[ignore]
-async fn mixed_v2_v3_splits_and_multi_hop_match_independent_mainnet_calls() {
+async fn full_range_v2_v3_splits_and_multi_hop_match_independent_mainnet_calls() {
     use fluxion::split::{SplitConfig, SplitOptimizer};
     let weth: Address = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
         .parse()
@@ -104,6 +104,7 @@ async fn mixed_v2_v3_splits_and_multi_hop_match_independent_mainnet_calls() {
             LocalStateConfig {
                 max_age_secs: 300,
                 sync_timeout_ms: 120_000,
+                v3_full_range: true,
                 ..Default::default()
             },
         )

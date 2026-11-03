@@ -1,0 +1,25 @@
+# Three-way local snapshot benchmark. Same discovery settings as config.benchmark.yaml.
+host: 127.0.0.1
+port: 8089
+enabled_platforms: [uniswap-v2, uniswap-v3, curve, shibaswap-v2]
+max_pools: 10000
+min_liquidity: 50000
+max_hops: 3
+top_k: 8
+reserve_ratio_k: 0
+request_timeout_ms: 10000
+token_allowlist: []
+excluded_pools:
+  # Legacy Tricrypto only; Tricrypto2 with identical coins remains enabled.
+  - "0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5"
+pricing_mode: local_snapshot
+local_state:
+  sync_timeout_ms: 120000
+  batch_size: 400
+  # Full-range public-RPC rebuilds take ~55s; record actual age for every quote.
+  # This is a declared benchmark policy, not the default service freshness target.
+  max_age_secs: 180
+  max_lag_blocks: 15
+  v3_bitmap_radius: 16
+  v3_full_range: true
+  v3_max_loaded_ticks: 250000

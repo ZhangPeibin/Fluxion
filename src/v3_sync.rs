@@ -7,6 +7,7 @@ use crate::{
     v3_local::{MAX_TICK, MIN_TICK, V3State},
 };
 use alloy_primitives::{Address, U256};
+use futures::{StreamExt, TryStreamExt, stream};
 use std::collections::{BTreeMap, HashMap};
 
 fn unsigned(data: &[u8]) -> Result<U256, StateError> {
@@ -46,11 +47,21 @@ async fn read(
     batch: usize,
 ) -> Result<Vec<Vec<u8>>, StateError> {
     let mut values = Vec::with_capacity(calls.len());
+    // All batches use the same pinned client. Bound network fan-out while
+    // preserving call order even when responses arrive out of order.
+    let mut requests = Vec::new();
     for chunk in calls.chunks(batch) {
-        for (ok, data) in multicall(rpc, chunk)
-            .await
-            .map_err(|_| StateError::SyncFailed)?
-        {
+        let chunk = chunk.to_vec();
+        let rpc = rpc.clone();
+        requests.push(async move { multicall(&rpc, &chunk).await });
+    }
+    let batches = stream::iter(requests)
+        .buffered(8)
+        .try_collect::<Vec<_>>()
+        .await
+        .map_err(|_| StateError::SyncFailed)?;
+    for results in batches {
+        for (ok, data) in results {
             if !ok {
                 return Err(StateError::Incomplete);
             }
@@ -76,6 +87,7 @@ pub async fn load(
     batch: usize,
     radius: i16,
     max_ticks: usize,
+    full_range: bool,
 ) -> Result<HashMap<Address, V3State>, StateError> {
     let selectors = [
         "3850c7bd", "1a686502", "d0c93a7c", "ddca3f43", "0dfe1681", "d21220a7", "c45a0155",
@@ -133,8 +145,16 @@ pub async fn load(
     let mut calls = Vec::new();
     for (index, (pool, h)) in pools.iter().zip(&headers).enumerate() {
         let center = h.tick.div_euclid(h.spacing).div_euclid(256);
-        let low = (center - i32::from(radius)).max(MIN_TICK.div_euclid(h.spacing).div_euclid(256));
-        let high = (center + i32::from(radius)).min(MAX_TICK.div_euclid(h.spacing).div_euclid(256));
+        let minimum = MIN_TICK.div_euclid(h.spacing).div_euclid(256);
+        let maximum = MAX_TICK.div_euclid(h.spacing).div_euclid(256);
+        let (low, high) = if full_range {
+            (minimum, maximum)
+        } else {
+            (
+                (center - i32::from(radius)).max(minimum),
+                (center + i32::from(radius)).min(maximum),
+            )
+        };
         for word in low..=high {
             positions.push((index, word as i16));
             calls.push((pool.address, format!("5339c296{}", signed_word(word))));

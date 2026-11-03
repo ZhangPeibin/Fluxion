@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 use fluxion::config::Config;
 use fluxion::rpc::RpcClient;
 
-const ONEINCH_URL: &str = "https://api.1inch.dev/swap/v6.0/1/quote";
+const ONEINCH_URL: &str = "https://api.1inch.com/swap/v6.0/1/quote";
 const ZEROX_URL: &str = "https://api.0x.org/swap/allowance-holder/price";
 const PARASWAP_URL: &str = "https://api.paraswap.io/prices";
 
@@ -266,6 +266,7 @@ struct Meta {
     end_block: Option<u64>,
     paraswap_enabled: bool,
     oneinch_enabled: bool,
+    fluxion_split: bool,
     zerox_enabled: bool,
     working_tree_dirty: bool,
     service_info: Value,
@@ -292,6 +293,7 @@ struct Args {
     delay_ms: u64,
     config: String,
     control_service: Option<String>,
+    split: bool,
 }
 
 fn print_help() {
@@ -303,7 +305,8 @@ fn print_help() {
             --control-service URL  optional feature-disabled control, quoted in the same run\n\
            --corpus PATH    corpus YAML (default bench/corpus.yaml)\n\
            --out PATH       Markdown output path (also writes PATH.json)\n\
-           --limit N        only benchmark the first N pairs\n\
+            --limit N        only benchmark the first N pairs\n\
+            --split          enable Fluxion multi-pool routing\n\
             --delay-ms MS    pause after each external request (default 250)\n\
             --config PATH    local RPC config (default config.yaml)\n\
          \n\
@@ -320,6 +323,7 @@ fn parse_args() -> Args {
         delay_ms: 250,
         config: "config.yaml".to_string(),
         control_service: None,
+        split: false,
     };
 
     let mut it = std::env::args().skip(1);
@@ -332,6 +336,7 @@ fn parse_args() -> Args {
             "--corpus" => args.corpus = it.next().expect("--corpus needs a path"),
             "--out" => args.out = Some(it.next().expect("--out needs a path")),
             "--config" => args.config = it.next().expect("--config needs a path"),
+            "--split" => args.split = true,
             "--limit" => {
                 args.limit = Some(
                     it.next()
@@ -525,6 +530,7 @@ async fn quote_fluxion(
     token_in: &str,
     token_out: &str,
     amount_in: &str,
+    split: bool,
 ) -> Side {
     let url = format!("{}/quote", service.trim_end_matches('/'));
     let started = Instant::now();
@@ -534,6 +540,7 @@ async fn quote_fluxion(
             "token_in": token_in,
             "token_out": token_out,
             "amount_in": amount_in,
+            "split": split,
         }))
         .send()
         .await;
@@ -550,7 +557,16 @@ async fn quote_fluxion(
     let Some(amount_out) = parse_amount(amount_out) else {
         return Side::error(latency, "amount_out is not a decimal integer".to_string());
     };
-    let hops = value.get("path").and_then(Value::as_array).map(Vec::len);
+    let hops = if split {
+        value["allocations"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|allocation| allocation["path"].as_array().map(Vec::len))
+            .max()
+    } else {
+        value.get("path").and_then(Value::as_array).map(Vec::len)
+    };
     let mut side = Side::ok(amount_out, latency, hops);
     if let Some(path) = value.get("path").and_then(Value::as_array) {
         side.route = Some(Box::new(Value::Array(path.clone())));
@@ -559,6 +575,17 @@ async fn quote_fluxion(
             .filter_map(|hop| hop.get("platform")?.as_str().map(str::to_string))
             .collect();
     }
+    if split {
+        side.platforms = value["allocations"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .flat_map(|allocation| allocation["path"].as_array().into_iter().flatten())
+            .filter_map(|hop| hop["platform"].as_str().map(str::to_owned))
+            .collect();
+    }
+    // Keep block/state, allocations and search metrics alongside the exact output.
+    side.route = Some(Box::new(value));
     side
 }
 
@@ -625,7 +652,12 @@ async fn quote_oneinch(
     let started = Instant::now();
     let response = client
         .get(ONEINCH_URL)
-        .query(&[("src", token_in), ("dst", token_out), ("amount", amount_in)])
+        .query(&[
+            ("src", token_in),
+            ("dst", token_out),
+            ("amount", amount_in),
+            ("includeProtocols", "true"),
+        ])
         .header("Authorization", format!("Bearer {key}"))
         .send()
         .await;
@@ -650,6 +682,7 @@ async fn quote_oneinch(
         .map(Vec::len);
     let mut side = Side::ok(amount_out, latency, hops);
     side.platforms = route_names(&value["protocols"], "name");
+    side.route = Some(Box::new(value));
     side
 }
 
@@ -1168,14 +1201,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let control_first = rows.len() % 2 == 0;
             let mut control = None;
             if control_first && let Some(service) = &args.control_service {
-                control =
-                    Some(quote_fluxion(&client, service, token_in, token_out, amount_in).await);
+                control = Some(
+                    quote_fluxion(&client, service, token_in, token_out, amount_in, args.split)
+                        .await,
+                );
             }
-            let fluxion =
-                quote_fluxion(&client, &args.service, token_in, token_out, amount_in).await;
+            let fluxion = quote_fluxion(
+                &client,
+                &args.service,
+                token_in,
+                token_out,
+                amount_in,
+                args.split,
+            )
+            .await;
             if !control_first && let Some(service) = &args.control_service {
-                control =
-                    Some(quote_fluxion(&client, service, token_in, token_out, amount_in).await);
+                control = Some(
+                    quote_fluxion(&client, service, token_in, token_out, amount_in, args.split)
+                        .await,
+                );
             }
 
             let paraswap = quote_paraswap(
@@ -1246,6 +1290,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         end_block,
         paraswap_enabled: true,
         oneinch_enabled: oneinch_key.is_some(),
+        fluxion_split: args.split,
         zerox_enabled: zerox_key.is_some(),
         working_tree_dirty: std::process::Command::new("git")
             .args(["status", "--porcelain"])
@@ -1410,6 +1455,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn split_requests_preserve_parallel_allocations_and_quote_block() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let reply = json!({"amount_out":"123", "path":[], "quote_block":42,
+            "allocations":[
+                {"amount_in":"3", "amount_out":"73", "path":[{"platform":"uniswap-v2"}]},
+                {"amount_in":"2", "amount_out":"50", "path":[{"platform":"uniswap-v3"}]}
+            ], "search":{"baseline_rpc_requests":1,"additional_rpc_requests":2}});
+        let response = reply.clone();
+        let app = axum::Router::new().route(
+            "/quote",
+            axum::routing::post(move |axum::Json(request): axum::Json<Value>| {
+                let response = response.clone();
+                async move {
+                    assert_eq!(request["split"], true);
+                    assert_eq!(request["amount_in"], "5");
+                    axum::Json(response)
+                }
+            }),
+        );
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let side = quote_fluxion(&reqwest::Client::new(), &url, "a", "b", "5", true).await;
+        server.abort();
+        assert_eq!(side.amount_out.as_deref(), Some("123"));
+        assert_eq!(side.platforms, ["uniswap-v2", "uniswap-v3"]);
+        assert_eq!(side.hops, Some(1));
+        assert_eq!(side.route.as_deref(), Some(&reply));
+    }
+
+    #[tokio::test]
     async fn latency_includes_receiving_the_response_body() {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
@@ -1427,7 +1502,7 @@ mod tests {
         let server = tokio::spawn(async move {
             axum::serve(listener, app).await.unwrap();
         });
-        let side = quote_fluxion(&reqwest::Client::new(), &url, "a", "b", "1").await;
+        let side = quote_fluxion(&reqwest::Client::new(), &url, "a", "b", "1", false).await;
         server.abort();
         assert_eq!(side.amount_out.as_deref(), Some("123"));
         assert_eq!(side.platforms, ["uniswap-v2"]);

@@ -1,5 +1,40 @@
 # Quote benchmarks
 
+## Latest: local snapshots / ParaSwap / 1inch (3 Nov 2026)
+
+[90-row report](2026-11-03-local-threeway.md) / [raw JSON](2026-11-03-local-threeway.json) /
+[analysis and reproduction](2026-11-03-local-threeway-analysis.md).
+
+All three succeed on 90/90. Fluxion HTTP p50/p95 is **31/3501 ms**, with **zero computation RPC
+on every row**. Output is within ±0.5% of ParaSwap on 88/90 and of 1inch on 84/90. This explicitly
+excludes only legacy Tricrypto, retaining the other 209 records with full-range V3 coverage.
+Actual state age is **50–112 seconds**, under an experiment policy of 180 seconds / 15 blocks;
+default-freshness continuous operation and tail latency remain unresolved.
+
+```bash
+cargo run -- --config config.benchmark-local.yaml
+cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchmark-local.yaml \
+  --split --delay-ms 600 --out docs/benchmarks/local-threeway-run.md
+```
+
+## RPC reference: Fluxion / ParaSwap / 1inch (3 Nov 2026)
+
+- [90-row three-way report](2026-11-03-threeway-aggregators.md)
+- [Raw JSON, full responses/routes and per-row timestamps](2026-11-03-threeway-aggregators.json)
+- [Results and comparison scope](2026-11-03-threeway-analysis.md)
+
+The full discovered graph has 210 records, 48 tokens and 432 directed edges. This run uses
+`pricing_mode: rpc` with `split=true`, up to four independent direct-pool branches, the original
+30 directions × three raw-input tiers, and both external APIs enabled. It is not a full-universe
+local-snapshot migration benchmark; legacy Tricrypto is still unsupported in local mode.
+
+```bash
+cargo run -- --config config.benchmark.yaml
+# In another terminal, with ONEINCH_API_KEY in the gitignored .env:
+cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchmark.yaml \
+  --split --delay-ms 600 --out docs/benchmarks/threeway-run.md
+```
+
 ## Tricrypto2 checkpoint (#35)
 
 [Tricrypto2 evidence](2026-11-03-local-state-tricrypto2.md): 104 independent historical success/revert
@@ -39,7 +74,7 @@ sample (20 requests, p50/p95 31.05/31.33 ms). [V2 history](2026-11-02-local-stat
 first checkpoint. Neither replaces the full-venue 90-row comparison below. The default remains
 RPC pricing until Curve and full-coverage migration acceptance is complete.
 
-## Latest: single / two-pool / multi-pool / ParaSwap (2 Nov 2026)
+## Historical: single / two-pool / multi-pool / ParaSwap (2 Nov 2026)
 
 Run without an HTTP server:
 
@@ -103,7 +138,8 @@ cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchma
 cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchmark.yaml
 ```
 
-Options: `--service URL`, `--corpus PATH` (default `bench/corpus.yaml`), `--limit N`,
+Options: `--service URL`, `--corpus PATH` (default `bench/corpus.yaml`), `--limit N`, `--split`
+(enable multi-pool Fluxion requests; omitted means single-route),
 `--delay-ms MS` (pause after each external request, default 250), `--config PATH` (local RPC
 configuration, default `config.yaml`). An output basename such as `--out run.md` also works.
 The harness requires the running service's `/info` endpoint and refuses mock mode.
@@ -120,7 +156,7 @@ missing Graph credentials must not silently turn a comparison into mock-vs-mainn
 1inch and 0x are opt-in via `.env`:
 
 ```bash
-ONEINCH_API_KEY=...   # https://portal.1inch.dev — quote API v6.0
+ONEINCH_API_KEY=...   # https://business.1inch.com/portal — quote API v6.0, api.1inch.com
 ZEROX_API_KEY=...     # https://dashboard.0x.org — allowance-holder v2 price API
 ```
 
@@ -160,14 +196,16 @@ Negative means Fluxion returned less. Output deltas use only successful pairs; l
 includes failures and measures request start through complete response-body receipt, without the
 pacing sleep. ParaSwap/1inch hop counts describe their first returned route; 0x fill counts are
 not directly comparable with sequential hop counts. Platform names are unique venue labels for
-external services and ordered per-hop labels for Fluxion.
+external services and ordered per-hop labels for Fluxion. In split mode Fluxion hops is the maximum
+branch length; JSON retains the full response, allocations, quote block and search metrics. 1inch
+responses include `protocols`; its public API does not provide a pinned block in these responses.
 
 This is a reproducible **procedure**, not deterministic replay: aggregator APIs do not pin a
 block; discovery, cached reserves, and live calls can observe different states. The before/after
 block range and timestamps disclose skew, not same-block equivalence. Amount tiers are fixed
 raw inputs that were approximately USD-sized when authored. No gas, execution or MEV is modelled.
 The competitors can support additional venues, conversions and split routes. 1inch/0x are skipped,
-not failed, when their keys are absent. Their live integrations have not been verified without keys.
+not failed, when their keys are absent. 1inch is verified in the three-way run above; 0x remains unverified.
 
 ## Historical paired run: protocol conversions + ShibaSwap (2 Nov 2026)
 

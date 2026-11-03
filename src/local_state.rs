@@ -44,6 +44,7 @@ pub struct LocalStateConfig {
     pub max_age_secs: u64,
     pub max_lag_blocks: u64,
     pub v3_bitmap_radius: i16,
+    pub v3_full_range: bool,
     pub v3_max_loaded_ticks: usize,
     pub compute_concurrency: usize,
 }
@@ -57,6 +58,7 @@ impl Default for LocalStateConfig {
             max_age_secs: 60,
             max_lag_blocks: 3,
             v3_bitmap_radius: 2,
+            v3_full_range: false,
             v3_max_loaded_ticks: 50_000,
             compute_concurrency: 4,
         }
@@ -397,6 +399,7 @@ impl QuoteSource for GuardedSource<'_> {
     ) -> Result<U256, QuoteError> {
         let result = self.inner.amount_out(pool, i, j, amount).await;
         if result == Err(QuoteError::IncompleteState) {
+            tracing::debug!(pool=%pool.address, i, j, input=%amount, "local quote exceeds loaded state coverage");
             self.incomplete.store(true, Ordering::Relaxed);
         }
         result
@@ -805,6 +808,7 @@ impl StateSynchronizer {
             self.store.config.batch_size,
             self.store.config.v3_bitmap_radius,
             self.store.config.v3_max_loaded_ticks,
+            self.store.config.v3_full_range,
         )
         .await?;
         for pool in v3 {

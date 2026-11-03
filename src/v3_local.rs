@@ -265,6 +265,17 @@ impl V3State {
         if amount.bit_len() > 255 {
             return Err(QuoteError::Overflow);
         } // protocol uses signed amountSpecified
+        // A complete, empty global bitmap proves that no liquidity can be
+        // reached. A partial window (including one with a hole) cannot prove it.
+        if self.liquidity == 0 && self.ticks.is_empty() {
+            let low = MIN_TICK.div_euclid(self.spacing).div_euclid(256) as i16;
+            let high = MAX_TICK.div_euclid(self.spacing).div_euclid(256) as i16;
+            if self.covered_words() == (low, high)
+                && self.bitmaps.len() == usize::from((high - low) as u16) + 1
+            {
+                return Err(QuoteError::InsufficientLiquidity);
+            }
+        }
         let limit = if zero_for_one {
             sqrt_ratio_at_tick(MIN_TICK)? + U256::from(1)
         } else {

@@ -25,6 +25,17 @@ pub fn platform_enabled(config: &Config, name: &str) -> bool {
             .any(|p| p.eq_ignore_ascii_case(name))
 }
 
+/// Address-specific policy; matching coins or pool kind do not exclude another deployment.
+pub fn retain_enabled_pools(config: &Config, pools: &mut Vec<Pool>) {
+    pools.retain(|pool| {
+        let keep = !config.excluded_pools.contains(&pool.address);
+        if !keep {
+            tracing::info!(pool=%pool.address, "excluded pool by explicit configuration");
+        }
+        keep
+    });
+}
+
 /// Empty/failed real discovery is reported, never replaced with mock data here.
 /// The server owns its offline fallback; experiments must reject empty universes.
 pub async fn discover_pools(
@@ -96,6 +107,7 @@ pub async fn discover_pools(
             }
         }
     }
+    retain_enabled_pools(config, &mut pools);
     if pools.is_empty() {
         return Err(DiscoveryError::Request("no real pools discovered".into()));
     }
@@ -195,4 +207,58 @@ pub async fn warm_coarse_prices(graph: &Graph, cached: &CachingSource, rpc: &Rpc
         elapsed_ms = started.elapsed().as_millis() as u64,
         "warmed coarse prices"
     );
+}
+
+#[cfg(test)]
+mod exclusion_tests {
+    use super::*;
+    use crate::{
+        curve_local::CurveProfile,
+        curve_plain::PlainProfile,
+        local_state::{LocalStateConfig, SnapshotStore},
+        router::RouterConfig,
+    };
+
+    #[test]
+    fn explicit_exclusion_removes_only_legacy_deployment_and_is_public() {
+        let mut pools = vec![
+            CurveProfile::Classic3.pool(),
+            PlainProfile::TwoCrv.pool(),
+            PlainProfile::FraxUsdc.pool(),
+            CurveProfile::Tricrypto2.pool(),
+        ];
+        let mut legacy = CurveProfile::Tricrypto2.pool();
+        legacy.address = "0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5"
+            .parse()
+            .unwrap();
+        pools.push(legacy.clone());
+        let before = pools.iter().map(|p| p.address).collect::<Vec<_>>();
+        retain_enabled_pools(&Config::default(), &mut pools);
+        assert_eq!(pools.iter().map(|p| p.address).collect::<Vec<_>>(), before);
+        let config: Config = serde_yaml::from_str(
+            "excluded_pools: [\"0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5\"]",
+        )
+        .unwrap();
+        retain_enabled_pools(&config, &mut pools);
+        assert_eq!(pools.len(), 4);
+        assert!(!pools.iter().any(|p| p.address == legacy.address));
+        assert!(
+            pools
+                .iter()
+                .any(|p| p.address == CurveProfile::Tricrypto2.pool().address)
+        );
+        assert_eq!(
+            config.public_settings()["excluded_pools"][0],
+            serde_json::json!(legacy.address)
+        );
+        let mut graph = Graph::new();
+        for pool in pools {
+            graph.add_pool(pool);
+        }
+        let store = SnapshotStore::new(graph, RouterConfig::default(), LocalStateConfig::default())
+            .unwrap();
+        assert_eq!(store.status().total_pools, 4);
+        assert!(store.status().unsupported_pools.is_empty());
+        assert!(serde_yaml::from_str::<Config>("excluded_pools: [not-an-address]").is_err());
+    }
 }

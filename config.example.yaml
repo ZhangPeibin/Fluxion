@@ -79,6 +79,9 @@ request_timeout_ms: 10000
 # Add --all-stable --config config.local-curve-stable.example.yaml for all three verified stable pools.
 # Combine --all-stable and --tricrypto2 for all four verified Curve deployments.
 pricing_mode: rpc
+# Explicit deployment exclusions (addresses), also reported in /info.config.
+# See config.benchmark-local.yaml for the legacy Tricrypto exclusion.
+excluded_pools: []
 local_state:
   poll_interval_ms: 2000
   sync_timeout_ms: 30000
@@ -86,6 +89,7 @@ local_state:
   max_age_secs: 60 # block age, not time since the last successful poll
   max_lag_blocks: 3 # relative to the most recently observed head
   v3_bitmap_radius: 2 # center word +/- radius; missing coverage fails explicitly
+  v3_full_range: false # opt-in full global bitmap/ticks; higher sync cost, radius ignored
   v3_max_loaded_ticks: 50000 # total across the snapshot; no silent truncation
   compute_concurrency: 4 # CPU workers; saturation returns 429, not an unbounded queue
 

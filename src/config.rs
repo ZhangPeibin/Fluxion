@@ -71,6 +71,8 @@ pub struct Config {
     pub snapshot_refresh_secs: u64,
     pub request_timeout_ms: u64,
     pub token_allowlist: Vec<String>,
+    /// Explicit deployment exclusions, visible in public experiment settings.
+    pub excluded_pools: Vec<Address>,
     pub shibaswap_v2_factory: Address,
     pub protocol_conversions: Vec<ProtocolConversionConfig>,
     #[serde(deserialize_with = "service_split_config")]
@@ -120,6 +122,7 @@ impl Default for Config {
             snapshot_refresh_secs: 120,
             request_timeout_ms: 10000,
             token_allowlist: Vec::new(),
+            excluded_pools: Vec::new(),
             split: SplitConfig::multi_pool(),
             pricing_mode: PricingMode::default(),
             local_state: LocalStateConfig::default(),

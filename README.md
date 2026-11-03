@@ -9,76 +9,50 @@ Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `tok
 
 > 开源、自托管：下载后用一份 YAML 配置 + 你自己的 RPC / Graph key 跑起来。
 
-## 最新 Benchmark：本地快照计算（2026-11-03）
+## 最新 Benchmark：本地快照 / ParaSwap / 1inch（2026-11-03）
 
-**Tricrypto2 单部署 HTTP 30/30 成功，各方向 p50 为 0.74–0.84 ms；请求计算 0 RPC。**
-四个 Curve 部署、两个 V3 和 wstETH 的七记录组合图也已在同一区块逐跳核对链上输出。
+**同轮 30 个交易方向 × 3 档金额，三方均 90/90 成功。Fluxion 与 ParaSwap 的输出差距在
+±0.5% 内为 88/90，与 1inch 为 84/90。Fluxion 每行请求计算均为 0 RPC。**
 
-| 场景 | 样本与结果 | 耗时 |
-|---|---|---:|
-| Tricrypto2 单部署 HTTP | 六方向各 5 次，30/30 成功 | 各方向 p50 **0.74–0.84 ms**；最大 **12.18 ms** |
-| 七记录图：100,000 USDC → WBTC | 同块逐跳输出完全一致 | 本地计算 **3.365 ms** |
-| 七记录图：1.67 WBTC → USDC | 同块逐跳输出完全一致 | 本地计算 **3.180 ms** |
-| 七记录图：0.167 WBTC → stETH | 同块逐跳输出完全一致 | 本地计算 **1.471 ms** |
-
-HTTP 样本使用区块 **26331864**，组合图使用区块 **26331902**；两者计算阶段均为 0 RPC。
-组合图初始化为 15 RPC。debug 构建、本机 HTTP，表中耗时不含初始化与后台同步；
-组合图各行是单次纯计算测量，不是 HTTP 分位数。单部署最大样本保留，未剔除尾部延迟。
-
-联合版本 **124 项离线测试、4 项相关主网测试通过**。当前本地模型覆盖默认 5 个 Curve
-部署中的 4 个，仍缺旧 Tricrypto；最新版本尚未完成全平台 90 组迁移对比，不能用以上
-受限图结果推算全平台提速比例。默认报价模式仍为 `rpc`。
-
-[完整实测、区块哈希与复现命令](docs/benchmarks/2026-11-03-local-state-tricrypto2.md) ·
-[Curve 支持矩阵](docs/CURVE-SUPPORT.md)
-
-## 最近一次完整 90 组 Benchmark：单路径 / 两池 / 多池 / ParaSwap（2026-11-02）
-
-**同轮 90 组四方报价全部成功，多池 88/90（97.8%）与 ParaSwap 的输出差距在 ±0.5% 内。**
-
-| 指标 | 单路径 | 两池 | 多池 |
+| 指标 | Fluxion | ParaSwap | 1inch |
 |---|---:|---:|---:|
-| 与 ParaSwap 的输出差距中位数 | −0.001389% | −0.000960% | −0.000960% |
-| 输出差距等权均值 | −0.095714% | −0.050302% | **−0.037133%** |
-| 差距在 ±0.5% 内 | 85/90 | 87/90 | **88/90** |
-| 完整计算延迟 p50/p95 | 1364/2012 ms | 3523/5358 ms | 4727/6496 ms |
+| 报价成功 | **90/90** | **90/90** | **90/90** |
+| 端到端 HTTP p50 | **31 ms** | 390 ms | 467 ms |
+| 端到端 HTTP p95 | 3501 ms | **864 ms** | 1058 ms |
 
-多池比两池 **13 组输出增加、77 组相同、0 组减少**。SHIB 六组全部增加；大额 WETH→SHIB
-相对 ParaSwap 从单路径 **−1.8821%**、两池 **−0.8294%** 缩至多池 **−0.1697%**，
-分配为 70% ShibaSwap + 15% Uniswap V2 + 15% Uniswap V3。大额 SHIB→WETH 的多池差距为
-**−0.1355%**。仍有两组 DAI→WETH 落后超过 0.5%。
+**状态年龄为 50–112 秒**（中位数 76.5 秒），实验显式采用 180 秒 / 15 块上限。中位延迟
+已降到毫秒级，但尾延迟仍高，后台同步时效也尚未达到默认 60 秒 / 3 块策略的连续服务目标。
 
-本地各模式每行固定同一区块，区块范围 **26325701–26325776**，结束时校验哈希。
-ParaSwap 原始报价可能含缓存/混合区块状态；SHIB 另做同区块分配重估，5/6 支持，1 组
-`pancakeswapv3` 未支持。BONE 路径仅用于覆盖诊断，未加入生产白名单。
-这是公共 RPC、debug 构建的毛输出实验，不含 gas 或实际成交；ParaSwap 延迟 p50/p95 为 363/575 ms。
+| Fluxion 输出相对对手 | ParaSwap | 1inch |
+|---|---:|---:|
+| 差距中位数 | −0.000094% | +0.098762% |
+| 差距等权均值 | −0.028838% | −0.034276% |
+| 差距在 ±0.5% 内 | **88/90（97.8%）** | **84/90（93.3%）** |
+| Fluxion 输出更高 / 相同 / 更低 | 28 / 8 / 54 | 68 / 0 / 22 |
 
-```bash
-# 无需启动 HTTP 服务：同轮比较，并保存外部路径与 SHIB 回放
-cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
-  --out docs/benchmarks/multi-pool-run.md
-```
+输出差距为 `(Fluxion / 对手 − 1)`。多数样本接近，但大额仍有明显缺口：100,000 DAI→WETH
+相对 ParaSwap **−1.128%**；160,000 LDO→WETH 和 33.333… WETH→SHIB 相对 1inch 分别
+**−4.708% / −2.975%**。1inch 的 API 套餐基础设施费可能影响返回金额，未做去费反推；
+“68 组输出更高”不等于纯路由能力胜出。完整离群样本见分析。
 
-[90 组四方结果](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.md) ·
-[原始路径与成本](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.json) ·
-[结果与剩余差距分析](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
-[多池算法与 HTTP 协议](docs/MULTI-POOL.md)
+本轮使用 **`config.benchmark-local.yaml` / `local_snapshot`**，按地址明确排除旧 Tricrypto，
+其余 **209 条池/转换记录、48 个 token、426 条边**全部保留并装载，V3 使用全范围 bitmap/ticks。
+`split=true`、最多 4 分支，35/90 组选拆单；实际报价快照区块 **26332461–26332478**。
+三方使用相同 raw 输入，外部 API 未固定为同一区块。debug 构建、公共 RPC、本机 Fluxion HTTP；
+耗时包含完整响应体接收，不含主动限速等待。后台仍需 RPC，报价未统一核算 gas/服务费或模拟成交。
+
+[90 组逐行报告](docs/benchmarks/2026-11-03-local-threeway.md) ·
+[原始 JSON、状态年龄与三方路径](docs/benchmarks/2026-11-03-local-threeway.json) ·
+[结果分析与复现命令](docs/benchmarks/2026-11-03-local-threeway-analysis.md)
 
 ## 数据与计算分层（#31–#35：V2/V3、wstETH、三个稳定池与 Tricrypto2）
 
 新增显式 `pricing_mode: local_snapshot`：后台同步 V2/ShibaSwap、V3、Lido v4、三个 Curve 稳定池和 Tricrypto2，发布不可变区块快照；
 单路径、多跳和拆单的粗选/精算都在同一快照本地完成，**请求计算 0 RPC**。
 已验证断网计算、重组/过期/同步失败，以及固定区块与部署 Router 的整数输出一致性。
-V3 五池、四档费率的 **30/30** 样本与 QuoterV2 完全一致；受限四池 HTTP 20 次样本
-p50/p95 为 **31.05/31.33 ms**。这不是原全平台 90 行回归。
-wstETH 双向整数边界及转换+V3 多跳也已核对；受限六池 HTTP 每方向 5 次，p50 为
-**0.54–1.22 ms**。模型使用精确内部 ETH/shares，避免公开总量比在整数边界少算 1 wei。
-经典 Curve 3pool 的 64 条历史 raw 向量、18 条主网报价和组合多跳核对通过；单部署 HTTP
-30/30 成功，各方向 p50 **1.51–1.73 ms**。这些均为受限池集，不能代替全平台验收。
-Tricrypto2 的 **104 条历史成功/失败场景、52 条当前主网场景**与 view 一致，动态费用与
-stored D 按具体部署精算；最新 HTTP 与联合组合图数据见上方 benchmark。
-两个两币池新增 **58 条历史向量、29 条主网场景**一致；三稳定池固定图 HTTP 25/25 成功，
-各方向 p50 **1.50–1.66 ms**。两者按部署分别处理余额与整数取整，不仅凭 A 精度归类。
+V3、wstETH 和各 Curve 部署分别使用协议整数模型，并以独立链上 view 核对。
+wstETH 使用 Lido 内部 ETH/shares；两币稳定池分别处理余额来源与取整顺序；Tricrypto2
+使用 stored D 与动态费用。最新本地快照三方对比见上方 benchmark，本地模型细节见下方文档。
 
 ```bash
 # 受限的真实 ShibaSwap 示例，默认 :8083；不是原全平台 benchmark 配置
@@ -96,72 +70,14 @@ cargo run --example local_curve_server -- --tricrypto2 --config config.local-tri
 cargo run --example local_curve_server -- --all-stable --config config.local-curve-stable.example.yaml
 ```
 
-默认仍为原有 `rpc` 模式。#34/#35 已联合集成，覆盖 4/5 Curve；旧 Tricrypto 与全平台 90 组验收仍待后续阶段。
+默认仍为原有 `rpc` 模式。#34/#35 已联合集成，覆盖 4/5 Curve；本地实验显式排除剩余旧池，
+默认新鲜度策略下的全图连续服务与尾延迟仍待进一步优化和验收。
 未支持池型/协议版本、V3 覆盖不足会明确报告，不会静默删池或回退到请求内 RPC。
 [设计与运行方法](docs/LOCAL-STATE.md) · [V3 实测](docs/benchmarks/2026-11-03-local-state-v3.md) ·
 [wstETH 实测](docs/benchmarks/2026-11-03-local-state-wsteth.md) ·
 [Curve 支持矩阵](docs/CURVE-SUPPORT.md) · [3pool 实测](docs/benchmarks/2026-11-03-local-state-curve.md) ·
 [Tricrypto2 模型](docs/TRICRYPTO2.md) · [Tricrypto2 实测](docs/benchmarks/2026-11-03-local-state-tricrypto2.md) ·
 [两币池实测](docs/benchmarks/2026-11-03-local-state-curve-plain.md)。
-
-## 历史：两池拆单实验（#30）
-
-新增 `SplitOptimizer` 与固定区块实验 CLI，自动比较“两个独立直连池拆单”和原有最佳单路径；
-只在毛输出更多时替换，相等或搜索预算耗尽时保留已得到的最佳完整方案。原单路径可以包含多跳与协议转换。
-该历史版本交付库和实验；当前 HTTP `/quote` 与 Viewer 已接入上面的可选多池协议。
-
-固定区块 **26325207** 的 90 组实验：**35 组选拆单，55 组保留原路径，0 组输出退化**。
-大额 WETH→SHIB 比单路径多 **1.0723%**；80 亿 SHIB→WETH 多 **0.4812%**。
-完整流程 p50/p95 为 **3451/4697 ms**，原单路径阶段为 1315/1862 ms；收益未扣除 gas。
-
-```bash
-# 无需启动 HTTP 服务；复用原语料和池发现，在同一区块比较
-cargo run --bin split_bench -- --config config.benchmark.yaml
-# 只看 SHIB；--block 可用于固定报价状态复查
-cargo run --bin split_bench -- --focus SHIB --block 26325207
-```
-
-[90 组结果](docs/benchmarks/2026-11-02-split-mainnet.md) ·
-[原始分配与成本](docs/benchmarks/2026-11-02-split-mainnet.json) ·
-[结果与参数校准分析](docs/benchmarks/2026-11-02-split-analysis.md) ·
-[算法、预算与保证边界](docs/SPLIT-ROUTING.md)
-
-## 历史 Benchmark：协议转换与 ShibaSwap（2026-11-02）
-
-**90 组报价全部成功，84/90 组与 ParaSwap 的输出差距在 ±0.5% 内。**
-
-本轮使用 30 个交易方向 × 3 档固定输入金额，同轮比较两个本地实例与 ParaSwap。
-对照实例关闭协议转换和 ShibaSwap；新实例开启 stETH↔wstETH 转换、ShibaSwap V2 和候选能力分组。
-差距为 `(本地输出 − ParaSwap 输出) / ParaSwap 输出`，负数表示少换到代币。
-
-| 指标 | 关闭新能力的对照 | 当时的单路径实现 |
-|---|---:|---:|
-| 报价成功 | 90/90 | **90/90** |
-| 输出金额中位差距 | −0.0148% | **−0.0070%** |
-| 输出金额平均差距 | −1.3372% | **−0.1018%** |
-| 输出差距在 ±0.5% 内 | 72/90（80.0%） | **84/90（93.3%）** |
-| 延迟 p50 | 1085 ms | 1246 ms |
-| 延迟 p95 | 1586 ms | 1871 ms |
-
-### stETH / SHIB 关键样本
-
-| 输入与方向 | 对照输出 | 当前输出 | ParaSwap 输出 | 差距变化 |
-|---|---:|---:|---:|---:|
-| 100000 USDC → stETH | 25.65966 stETH | **43.28001 stETH** | 43.28921 stETH | **−40.725% → −0.0213%** |
-| 33.333… WETH → SHIB | 126.927 亿 SHIB | **153.762 亿 SHIB** | 156.719 亿 SHIB | **−19.010% → −1.887%** |
-| 80 亿 SHIB → WETH | 14.30898 WETH | **15.82713 WETH** | 15.96768 WETH | **−10.388% → −0.880%** |
-
-15 个 stETH 相关样本、6 个 SHIB 样本的输出均高于同轮对照。当前 SHIB 的剩余差距涉及
-对手的多池拆单和 BONE 中间路径；当时本项目仅返回单路径。候选增加带来成本，p50 延迟约增加 15%。
-
-实验使用 Ethereum 主网区块范围 **26324635–26324658**、本地 debug 构建与公共 RPC；
-ParaSwap 本轮延迟 p50/p95 为 351/436 ms。报价不固定在同一区块，不含 gas 或实际成交；
-1inch/0x 因未配置密钥跳过。
-
-**完整证据：** [90 组报价与配对对照表](docs/benchmarks/2026-11-02-quote-quality.md) ·
-[原始 JSON（含实际路径和拆单比例）](docs/benchmarks/2026-11-02-quote-quality.json) ·
-[中文结果分析](docs/benchmarks/2026-11-02-quote-quality-analysis.md) ·
-[运行方法与历史记录](docs/benchmarks/README.md)
 
 ## 快速开始
 
@@ -547,8 +463,8 @@ ParaSwap 无需密钥；1inch/0x 可通过 `.env` 中的 `ONEINCH_API_KEY` / `ZE
 两实例使用相同语料、相同基础配置；对照实例关闭转换和 ShibaSwap。报告按 stETH、SHIB、其他样本分组，
 JSON 保留逐跳路径、对手拆单比例和池信息。详细实现见 [报价质量改进](docs/QUOTE-QUALITY.md)。
 
-最新结果直接展示在本文前部的 **Benchmark** 章节；完整逐行数据见
-[90 组四方报告](docs/benchmarks/2026-11-02-multi-pool-vs-paraswap.md)。
+加上 `--split` 可比较多池模式；最新结果展示在本文前部的 **Benchmark** 章节，完整数据与
+复现步骤见 [最新本地三方实测](docs/benchmarks/2026-11-03-local-threeway-analysis.md)。
 
 ## 测试
 

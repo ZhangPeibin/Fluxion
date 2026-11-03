@@ -101,7 +101,11 @@ HTTP 返回前再次检查状态年龄、已观测链头落后和重组代际。
   静默跳过 V3 后返回看似完整的结果。该 guard 不会污染后续请求。
 - `/state.v3_coverage` 和报价 `state.v3_coverage` 显示各池装载的 word 范围及 initialized tick 数。
   ready 表示已发布窗口完整，不表示任意大输入都在窗口内。窗口超出时需调整后台配置并
-  重新装载；本阶段尚未实现按请求自动拓展、日志增量 tick 缓存或任意金额全区间覆盖。
+   重新装载。可显式配置 `v3_full_range: true`，在后台读取每个已发现 V3 池的全部合法
+   bitmap words 和全部 initialized ticks，覆盖到协议全局价格边界；此时忽略 radius，仍
+   受 `v3_max_loaded_ticks` 硬上限约束。后台分批最多 8 并发且保持返回顺序，仍固定同一
+   block hash、全量验证后原子发布。全范围模式同步成本更高，不会自动放宽新鲜度策略。
+   本阶段尚未实现按请求自动拓展或日志增量 tick 缓存。
 - tick 数上限是整个快照的硬限制。超过上限拒绝本次发布，不截断 ticks 或把缺失值当作零。
 
 HTTP 的本地计算使用有界 CPU worker，不占用 Tokio 的同步/RPC worker。并发额度用尽返回
@@ -259,5 +263,9 @@ local 的不可用错误均为 HTTP 503，带 `pricing_mode: local_snapshot`：
   [Tricrypto2 实测](benchmarks/2026-11-03-local-state-tricrypto2.md) ·
   [两币稳定池实测](benchmarks/2026-11-03-local-state-curve-plain.md)。都不是原全平台 90 行回归。
 
-下一阶段是旧 Tricrypto 的逐部署核实/本地精算。保持 #31 开放，待
+`config.benchmark-local.yaml` 显式排除旧 Tricrypto 地址，保留其余发现池、启用全范围 V3。
+`excluded_pools` 是可见、按地址生效的配置策略，默认空；与因缺状态而静默删池不同。
+该全图实验使用声明过的 180 秒 / 15 块策略，逐行保留实际年龄；默认仍为 60 秒 / 3 块。
+
+下一阶段需降低全图后台同步成本，并验证目标新鲜度下的连续服务能力。保持 #31 开放，待
 全部协议覆盖及同候选集质量对照通过后才能切换默认模式。
