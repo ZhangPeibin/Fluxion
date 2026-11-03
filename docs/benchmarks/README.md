@@ -1,12 +1,19 @@
 # Quote benchmarks
 
+## Local wstETH checkpoint (#32)
+
+[wstETH evidence](2026-11-03-local-state-wsteth.md) verifies Lido v4 internal-ratio arithmetic,
+18 bidirectional integer scenarios including zero-output rounding, input caps and four conversion+V3
+routes. A restricted six-record HTTP profile succeeded on 20/20 requests, per-direction p50
+0.54–1.22 ms. These samples exclude Curve and do not replace the full 90-row migration acceptance.
+
 ## Local-state V2/V3 migration checkpoints (#31)
 
 [V3 evidence](2026-11-03-local-state-v3.md) records 30/30 exact QuoterV2 matches across four fee tiers,
 independent checks of mixed V2/V3 splits and multi-hop routes, and a restricted four-pool HTTP
 sample (20 requests, p50/p95 31.05/31.33 ms). [V2 history](2026-11-02-local-state-v2.md) retains the
 first checkpoint. Neither replaces the full-venue 90-row comparison below. The default remains
-RPC pricing until Curve/conversion and full-coverage migration acceptance is complete.
+RPC pricing until Curve and full-coverage migration acceptance is complete.
 
 ## Latest: single / two-pool / multi-pool / ParaSwap (2 Nov 2026)
 

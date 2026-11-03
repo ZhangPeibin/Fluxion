@@ -70,9 +70,10 @@ snapshot_refresh_secs: 120
 request_timeout_ms: 10000
 
 # Migration opt-in: rpc (existing full-venue behavior) or local_snapshot.
-# Local mode supports V2/ShibaSwap and covered Uniswap V3 state.
-# Unsupported Curve/conversion pools are reported, never silently dropped.
-# See config.local-v2.example.yaml or config.local-v3.example.yaml.
+# Local mode supports V2/ShibaSwap, covered V3 and verified Lido v4 wstETH.
+# Unsupported Curve pools/protocol versions are reported, never silently dropped.
+# See config.local-v2.example.yaml, config.local-v3.example.yaml,
+# or config.local-wsteth.example.yaml.
 pricing_mode: rpc
 local_state:
   poll_interval_ms: 2000
