@@ -41,13 +41,15 @@ cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
 [结果与剩余差距分析](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
 [多池算法与 HTTP 协议](docs/MULTI-POOL.md)
 
-## 数据与计算分层（#31：V2/V3 本地精算）
+## 数据与计算分层（#31 / #32：V2/V3 与 wstETH 本地精算）
 
-新增显式 `pricing_mode: local_snapshot`：后台按区块同步 V2/ShibaSwap 储备和 V3 bitmap/ticks，发布不可变快照；
+新增显式 `pricing_mode: local_snapshot`：后台同步 V2/ShibaSwap、V3 bitmap/ticks 及 Lido v4 转换状态，发布不可变区块快照；
 单路径、多跳和拆单的粗选/精算都在同一快照本地完成，**请求计算 0 RPC**。
 已验证断网计算、重组/过期/同步失败，以及固定区块与部署 Router 的整数输出一致性。
 V3 五池、四档费率的 **30/30** 样本与 QuoterV2 完全一致；受限四池 HTTP 20 次样本
 p50/p95 为 **31.05/31.33 ms**。这不是原全平台 90 行回归。
+wstETH 双向整数边界及转换+V3 多跳也已核对；受限六池 HTTP 每方向 5 次，p50 为
+**0.54–1.22 ms**。模型使用精确内部 ETH/shares，避免公开总量比在整数边界少算 1 wei。
 
 ```bash
 # 受限的真实 ShibaSwap 示例，默认 :8083；不是原全平台 benchmark 配置
@@ -55,11 +57,14 @@ cargo run -- --config config.local-v2.example.yaml
 curl -s localhost:8083/state
 # V2/V3/ShibaSwap 示例（需要 Graph key，默认 :8084）
 cargo run -- --config config.local-v3.example.yaml
+# stETH/wstETH 与 V3 多跳示例（需要 Graph key，默认 :8085）
+cargo run -- --config config.local-wsteth.example.yaml
 ```
 
-默认仍为原有 `rpc` 模式。Curve/wstETH 本地精算和全量 90 组切换验收属于后续阶段；
-未支持池型、V3 覆盖不足会明确返回 503，不会静默删池或回退到请求内 RPC。
-[设计与运行方法](docs/LOCAL-STATE.md) · [V3 阶段实测](docs/benchmarks/2026-11-03-local-state-v3.md)。
+默认仍为原有 `rpc` 模式。Curve 支持矩阵/本地精算和全量 90 组切换验收属于后续阶段；
+未支持池型/协议版本、V3 覆盖不足会明确报告，不会静默删池或回退到请求内 RPC。
+[设计与运行方法](docs/LOCAL-STATE.md) · [V3 实测](docs/benchmarks/2026-11-03-local-state-v3.md) ·
+[wstETH 实测](docs/benchmarks/2026-11-03-local-state-wsteth.md)。
 
 ## 历史：两池拆单实验（#30）
 
@@ -342,7 +347,7 @@ axum HTTP 服务
 | Uniswap V2 / ShibaSwap V2 | 短 TTL 储备 + 本地常数积计算 | 复用 V2 数学，平台身份独立；费用 0.3% |
 | Uniswap V3 | QuoterV2 `eth_call` | 使用池对和费率，计算输入金额对应的输出 |
 | Curve | `get_dy`，按接口分派 | 支持 stableswap / crypto 的不同索引类型 |
-| wstETH 协议转换 | wrapper 的整数转换 view | 读取实际金额的转换结果，不假设 1:1，不附加 AMM 费用 |
+| wstETH 协议转换 | RPC view / 本地 Lido v4 整数状态 | 实际金额取整，不假设 1:1，不附加 AMM 费用 |
 
 例如 `stETH → wrap → wstETH → V3 → WETH → V3 → USDC` 是三跳路径。
 **代码实现接口类型，配置声明部署实例**：增加同类 wrapper 可改配置，增加其他协议接口需要对应适配器。

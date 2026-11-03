@@ -1,5 +1,5 @@
 //! Background-owned chain reads and immutable, network-free pricing contexts.
-//! V2/ShibaSwap reserves and explicitly covered V3 bitmap/tick state.
+//! V2/ShibaSwap reserves, covered V3 ticks, and Lido v4 conversion state.
 use std::collections::HashMap;
 use std::sync::{
     Arc, RwLock,
@@ -15,7 +15,7 @@ use crate::{
     adapters::decode_reserves,
     error::QuoteError,
     graph::Graph,
-    model::{Pool, PoolKind, QuoteRequest, Route},
+    model::{ConversionKind, Pool, PoolKind, QuoteRequest, Route},
     router::{PriceSnapshot, Router, RouterConfig},
     rpc::{BlockHeader, RpcClient},
     source::{QuoteSource, constant_product_out, ratio},
@@ -23,6 +23,7 @@ use crate::{
     state::{GET_RESERVES, multicall},
     util::u256_to_f64,
     v3_local::V3State,
+    wsteth_local::{SUPPORTED_VERSION, WstEthState},
 };
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -119,6 +120,7 @@ pub struct StateStatus {
     pub published_versions: u64,
     pub reorgs: u64,
     pub v3_coverage: Vec<V3Coverage>,
+    pub conversion_state: Vec<ConversionState>,
 }
 
 #[derive(Debug, Serialize)]
@@ -127,6 +129,18 @@ pub struct V3Coverage {
     pub first_bitmap_word: i16,
     pub last_bitmap_word: i16,
     pub initialized_ticks: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConversionState {
+    pub kind: &'static str,
+    pub contract: Address,
+    pub underlying: Address,
+    pub protocol_version: u64,
+    pub internal_ether: String,
+    pub internal_shares: String,
+    pub wrap_enabled: bool,
+    pub unwrap_enabled: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -139,11 +153,14 @@ pub struct QuoteState {
     pub lag_blocks: u64,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub v3_coverage: Vec<V3Coverage>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conversion_state: Vec<ConversionState>,
 }
 
 enum PoolState {
     V2([U256; 2]),
     V3(V3State),
+    WstEth(WstEthState),
 }
 
 struct FrozenSource {
@@ -151,6 +168,32 @@ struct FrozenSource {
 }
 
 impl FrozenSource {
+    fn conversions(&self) -> Vec<ConversionState> {
+        let mut entries = self
+            .pools
+            .values()
+            .filter_map(|(pool, state)| {
+                let PoolState::WstEth(state) = state else {
+                    return None;
+                };
+                let PoolKind::Conversion { wrap, unwrap, .. } = pool.kind else {
+                    return None;
+                };
+                Some(ConversionState {
+                    kind: "wsteth",
+                    contract: pool.address,
+                    underlying: pool.coins[0],
+                    protocol_version: SUPPORTED_VERSION,
+                    internal_ether: state.internal_ether().to_string(),
+                    internal_shares: state.internal_shares().to_string(),
+                    wrap_enabled: wrap,
+                    unwrap_enabled: unwrap,
+                })
+            })
+            .collect::<Vec<_>>();
+        entries.sort_by_key(|entry| entry.contract);
+        entries
+    }
     fn state(&self, pool: &Pool) -> Result<&PoolState, QuoteError> {
         let (identity, state) = self
             .pools
@@ -193,7 +236,7 @@ impl QuoteSource for FrozenSource {
         j: usize,
         amount: U256,
     ) -> Result<U256, QuoteError> {
-        if i > 1 || j > 1 || i == j {
+        if i > 1 || j > 1 || !pool.kind.allows(i, j) {
             return Err(QuoteError::UnknownPool);
         }
         match self.state(pool)? {
@@ -204,10 +247,18 @@ impl QuoteSource for FrozenSource {
                 constant_product_out(reserves[i], reserves[j], amount)
             }
             PoolState::V3(state) => Ok(state.quote(amount, i == 0)?.amount_out),
+            PoolState::WstEth(state) => {
+                let out = state.amount_out(amount, i == 0)?;
+                if out.is_zero() {
+                    Err(QuoteError::InsufficientLiquidity)
+                } else {
+                    Ok(out)
+                }
+            }
         }
     }
     async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
-        if i > 1 || j > 1 || i == j {
+        if i > 1 || j > 1 || !pool.kind.allows(i, j) {
             return Err(QuoteError::UnknownPool);
         }
         Ok(match self.state(pool)? {
@@ -220,6 +271,7 @@ impl QuoteSource for FrozenSource {
                     1.0 / (sqrt * sqrt)
                 }
             }
+            PoolState::WstEth(state) => state.mid_price(i == 0),
         })
     }
     async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, QuoteError> {
@@ -228,7 +280,7 @@ impl QuoteSource for FrozenSource {
         }
         Ok(match self.state(pool)? {
             PoolState::V2(reserves) => reserves[i],
-            PoolState::V3(_) => U256::MAX,
+            PoolState::V3(_) | PoolState::WstEth(_) => U256::MAX,
         })
     }
 }
@@ -379,10 +431,27 @@ impl SnapshotStore {
             .pools()
             .iter()
             .filter(|p| {
-                !matches!(
+                let supported = matches!(
                     p.kind,
                     PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 | PoolKind::UniswapV3 { .. }
-                ) || p.coins.len() != 2
+                ) || matches!(
+                    p.kind,
+                    PoolKind::Conversion {
+                        kind: ConversionKind::WstEth,
+                        wrap: true,
+                        ..
+                    } | PoolKind::Conversion {
+                        kind: ConversionKind::WstEth,
+                        unwrap: true,
+                        ..
+                    }
+                );
+                !supported
+                    || p.coins.len() != 2
+                    || (p.kind.is_conversion()
+                        && (p.coins[1] != p.address
+                            || p.coins[0] == Address::ZERO
+                            || p.coins[0] == p.coins[1]))
             })
             .map(|p| UnsupportedPool {
                 address: p.address,
@@ -452,6 +521,7 @@ impl SnapshotStore {
                 .as_ref()
                 .map_or(0, |h| h.number.saturating_sub(snapshot.block.number)),
             v3_coverage: snapshot.source.coverage(),
+            conversion_state: snapshot.source.conversions(),
         })
     }
 
@@ -490,6 +560,10 @@ impl SnapshotStore {
                 .current
                 .as_ref()
                 .map_or_else(Vec::new, |s| s.source.coverage()),
+            conversion_state: state
+                .current
+                .as_ref()
+                .map_or_else(Vec::new, |s| s.source.conversions()),
         }
     }
 
@@ -515,9 +589,10 @@ impl StateSynchronizer {
         loop {
             if let Err(error) = self.sync_once().await {
                 tracing::warn!(%error,"local state sync incomplete");
-                if error == StateError::Unsupported {
+                if error == StateError::Unsupported && !self.store.unsupported_pools.is_empty() {
                     return;
-                } // fixed startup topology cannot gain support on retry
+                } // Only statically unsupported topology is permanent. A protocol
+                // version mismatch is block-dependent and can recover on reorg.
             }
             tokio::time::sleep(Duration::from_millis(self.store.config.poll_interval_ms)).await;
         }
@@ -639,6 +714,26 @@ impl StateSynchronizer {
                 .ok_or(StateError::Incomplete)?;
             if pools
                 .insert(pool.address, (pool.clone(), PoolState::V3(state)))
+                .is_some()
+            {
+                return Err(StateError::Incomplete);
+            }
+        }
+        let conversions = self
+            .store
+            .graph
+            .pools()
+            .iter()
+            .filter(|p| p.kind.is_conversion())
+            .collect::<Vec<_>>();
+        let mut conversion_states =
+            crate::wsteth_sync::load(&conversions, &rpc, self.store.config.batch_size).await?;
+        for pool in conversions {
+            let state = conversion_states
+                .remove(&pool.address)
+                .ok_or(StateError::Incomplete)?;
+            if pools
+                .insert(pool.address, (pool.clone(), PoolState::WstEth(state)))
                 .is_some()
             {
                 return Err(StateError::Incomplete);
