@@ -4,11 +4,12 @@ use crate::{
     model::{Pool, PoolKind},
     rpc::RpcClient,
     state::multicall,
-    v3_local::{MAX_TICK, MIN_TICK, V3State},
+    v3_local::{MAX_TICK, MIN_TICK, V3State, initialized_bits},
 };
 use alloy_primitives::{Address, U256};
 use futures::{StreamExt, TryStreamExt, stream};
 use std::collections::{BTreeMap, HashMap};
+use std::time::Instant;
 
 fn unsigned(data: &[u8]) -> Result<U256, StateError> {
     if data.len() != 32 {
@@ -96,7 +97,15 @@ pub async fn load(
         .iter()
         .flat_map(|p| selectors.iter().map(move |s| (p.address, s.to_string())))
         .collect::<Vec<_>>();
+    let phase = Instant::now();
+    tracing::debug!(phase = "headers_rpc", "diag_v3_begin");
     let values = read(rpc, &calls, batch).await?;
+    tracing::debug!(
+        phase = "headers_rpc",
+        elapsed_ms = phase.elapsed().as_millis(),
+        "diag_v3_end"
+    );
+    let phase = Instant::now();
     let factory: Address = "0x1f98431c8ad98523631ae4a59f267346ea31f984"
         .parse()
         .unwrap();
@@ -141,6 +150,12 @@ pub async fn load(
             ticks: BTreeMap::new(),
         });
     }
+    tracing::debug!(
+        phase = "headers_decode",
+        elapsed_ms = phase.elapsed().as_millis(),
+        "diag_v3_end"
+    );
+    let phase = Instant::now();
     let mut positions = Vec::new();
     let mut calls = Vec::new();
     for (index, (pool, h)) in pools.iter().zip(&headers).enumerate() {
@@ -160,17 +175,36 @@ pub async fn load(
             calls.push((pool.address, format!("5339c296{}", signed_word(word))));
         }
     }
-    for ((index, word), value) in positions.into_iter().zip(read(rpc, &calls, batch).await?) {
+    tracing::debug!(
+        phase = "bitmap_calls_build",
+        calls = calls.len(),
+        elapsed_ms = phase.elapsed().as_millis(),
+        "diag_v3_end"
+    );
+    let phase = Instant::now();
+    tracing::debug!(phase = "bitmap_rpc", "diag_v3_begin");
+    let values = read(rpc, &calls, batch).await?;
+    tracing::debug!(
+        phase = "bitmap_rpc",
+        elapsed_ms = phase.elapsed().as_millis(),
+        "diag_v3_end"
+    );
+    let phase = Instant::now();
+    for ((index, word), value) in positions.into_iter().zip(values) {
         headers[index].bitmaps.insert(word, unsigned(&value)?);
     }
+    tracing::debug!(
+        phase = "bitmap_decode",
+        elapsed_ms = phase.elapsed().as_millis(),
+        "diag_v3_end"
+    );
+    let phase = Instant::now();
+    tracing::debug!(phase = "expand_tick_bits", "diag_v3_begin");
     let mut ticks = Vec::new();
     let mut calls = Vec::new();
     for (index, (pool, h)) in pools.iter().zip(&headers).enumerate() {
         for (&word, &bitmap) in &h.bitmaps {
-            for bit in 0..256 {
-                if (bitmap >> bit) & U256::from(1) == U256::ZERO {
-                    continue;
-                }
+            for bit in initialized_bits(bitmap) {
                 let tick = (i32::from(word) * 256 + bit) * h.spacing;
                 if !(MIN_TICK..=MAX_TICK).contains(&tick) {
                     return Err(StateError::Incomplete);
@@ -183,7 +217,22 @@ pub async fn load(
             }
         }
     }
-    for ((index, tick), data) in ticks.into_iter().zip(read(rpc, &calls, batch).await?) {
+    tracing::debug!(
+        phase = "expand_tick_bits",
+        ticks = ticks.len(),
+        elapsed_ms = phase.elapsed().as_millis(),
+        "diag_v3_end"
+    );
+    let phase = Instant::now();
+    tracing::debug!(phase = "ticks_rpc", "diag_v3_begin");
+    let values = read(rpc, &calls, batch).await?;
+    tracing::debug!(
+        phase = "ticks_rpc",
+        elapsed_ms = phase.elapsed().as_millis(),
+        "diag_v3_end"
+    );
+    let phase = Instant::now();
+    for ((index, tick), data) in ticks.into_iter().zip(values) {
         if data.len() != 256 {
             return Err(StateError::Incomplete);
         }
@@ -200,7 +249,14 @@ pub async fn load(
         }
         headers[index].ticks.insert(tick, net);
     }
-    pools
+    tracing::debug!(
+        phase = "ticks_decode",
+        elapsed_ms = phase.elapsed().as_millis(),
+        "diag_v3_end"
+    );
+    let phase = Instant::now();
+    tracing::debug!(phase = "validate_states", "diag_v3_begin");
+    let states = pools
         .iter()
         .zip(headers)
         .map(|(pool, h)| {
@@ -216,5 +272,11 @@ pub async fn load(
             .map(|state| (pool.address, state))
             .map_err(|_| StateError::Incomplete)
         })
-        .collect()
+        .collect();
+    tracing::debug!(
+        phase = "validate_states",
+        elapsed_ms = phase.elapsed().as_millis(),
+        "diag_v3_end"
+    );
+    states
 }

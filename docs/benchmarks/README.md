@@ -1,6 +1,28 @@
 # Quote benchmarks
 
-## Latest: local snapshots / ParaSwap / 1inch (3 Nov 2026)
+## Latest: writer-isolation fix (#36, 3 Nov 2026)
+
+[90-row three-way report](2026-11-03-writer-isolation-threeway.md) /
+[raw JSON with request IDs and state](2026-11-03-writer-isolation-threeway.json) /
+[acceptance, health probes and analysis](2026-11-03-writer-isolation-fix.md).
+
+All three succeed on 90/90 under continuous background updates. Fluxion computes with zero RPC
+on every row: HTTP p50/p95 **27/124 ms**, maximum 238 ms. ParaSwap is 438/883 ms and 1inch
+530/1059 ms. Output is within ±0.5% of ParaSwap on 89/90 and of 1inch on 84/90.
+Concurrent health probes succeed 3832/3832, p95 3.143 ms, maximum 79.653 ms; versions advance 1→4.
+
+This explicitly excludes only legacy Tricrypto and retains all other 209 records with full-range V3.
+Actual state age remains 59–129 seconds under the unchanged 180-second / 15-block experiment policy;
+default-freshness acceptance is separate from the fixed HTTP scheduling defect.
+
+```bash
+cargo run -- --config config.benchmark-local.yaml
+# After /ready, with ONEINCH_API_KEY in .env:
+cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchmark-local.yaml \
+  --split --delay-ms 600 --out docs/benchmarks/writer-isolation-run.md
+```
+
+## Pre-fix local snapshot reference (3 Nov 2026)
 
 [90-row report](2026-11-03-local-threeway.md) / [raw JSON](2026-11-03-local-threeway.json) /
 [analysis and reproduction](2026-11-03-local-threeway-analysis.md).
@@ -156,7 +178,7 @@ missing Graph credentials must not silently turn a comparison into mock-vs-mainn
 1inch and 0x are opt-in via `.env`:
 
 ```bash
-ONEINCH_API_KEY=...   # https://business.1inch.com/portal — quote API v6.0, api.1inch.com
+ONEINCH_API_KEY=...   # https://business.1inch.com/portal — api.1inch.com quote API v6.0
 ZEROX_API_KEY=...     # https://dashboard.0x.org — allowance-holder v2 price API
 ```
 
@@ -205,7 +227,7 @@ block; discovery, cached reserves, and live calls can observe different states. 
 block range and timestamps disclose skew, not same-block equivalence. Amount tiers are fixed
 raw inputs that were approximately USD-sized when authored. No gas, execution or MEV is modelled.
 The competitors can support additional venues, conversions and split routes. 1inch/0x are skipped,
-not failed, when their keys are absent. 1inch is verified in the three-way run above; 0x remains unverified.
+not failed, when their keys are absent. 1inch is verified in the latest three-way run; 0x remains unverified.
 
 ## Historical paired run: protocol conversions + ShibaSwap (2 Nov 2026)
 

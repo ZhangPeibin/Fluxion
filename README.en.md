@@ -10,45 +10,70 @@ Opt in with `split=true` to allocate across independent direct AMM pools.
 
 > Open-source, self-hosted: download it, supply a YAML config plus your own RPC / Graph key, run it.
 
-## Latest benchmark: local snapshots / ParaSwap / 1inch (3 Nov 2026)
+## Integrated liquidity
 
-**All three succeeded on 90/90 quotes in one run: 30 directions × three amount tiers. Fluxion output
-was within ±0.5% of ParaSwap on 88/90 rows and of 1inch on 84/90. Every Fluxion request computed with zero RPC.**
+Live `/info` and `/graph` inventory on 3 Nov 2026 with `config.benchmark-local.yaml`:
 
-| Metric | Fluxion | ParaSwap | 1inch |
+| Metric | Count |
+|---|---:|
+| Tokens | **48** |
+| Actual AMM pools | **208** |
+| Unique direct swap pairs (unordered) | **106** |
+| Unique direct swap directions | **212** |
+| Protocol conversion links | **1** (stETH↔wstETH) |
+| Total pool/conversion records | **209** |
+| Directed graph edges, including parallel pools | **426** |
+
+| Source | Pools / conversion links | Unique direct pairs within source |
+|---|---:|---:|
+| Uniswap V2 | 29 | 29 |
+| Uniswap V3 | 169 | 103 |
+| Curve | 4 | 7 |
+| ShibaSwap V2 | 6 | 6 |
+| Lido wstETH conversion | 1 link | 1 |
+
+Sources overlap, so their pair counts are not additive. Including conversions gives **107 unique
+direct connections / 214 directions**. Multi-hop combinations are not counted as integrated pairs;
+the benchmark below tests a 30-direction subset. Counts depend on discovery and configuration.
+This local profile explicitly excludes legacy Tricrypto and retains Tricrypto2.
+[Inventory definitions and snapshot](docs/benchmarks/2026-11-03-graph-inventory.json).
+
+## Latest benchmark: three-way comparison after writer isolation (3 Nov 2026)
+
+**All three succeed on the original 90 rows under continuous background updates. Every Fluxion
+request computes with zero RPC. HTTP p95 falls from the defect run’s 3501 ms to 124 ms; maximum 238 ms.**
+
+| Metric | Fluxion local snapshots | ParaSwap | 1inch |
 |---|---:|---:|---:|
 | Successful quotes | **90/90** | **90/90** | **90/90** |
-| End-to-end HTTP p50 | **31 ms** | 390 ms | 467 ms |
-| End-to-end HTTP p95 | 3501 ms | **864 ms** | 1058 ms |
-
-**State age was 50–112 seconds** (median 76.5 seconds), under an explicit 180-second / 15-block
-experiment policy. Median latency is now milliseconds, but tail latency remains high and background
-synchronization has not met continuous-service acceptance under the default 60-second / three-block policy.
+| HTTP p50 | **27 ms** | 438 ms | 530 ms |
+| HTTP p95 | **124 ms** | 883 ms | 1059 ms |
 
 | Fluxion output relative to competitor | ParaSwap | 1inch |
 |---|---:|---:|
-| Median delta | −0.000094% | +0.098762% |
-| Equal-weight mean delta | −0.028838% | −0.034276% |
-| Within ±0.5% | **88/90 (97.8%)** | **84/90 (93.3%)** |
-| Fluxion higher / equal / lower | 28 / 8 / 54 | 68 / 0 / 22 |
+| Median delta | −0.000943% | +0.096974% |
+| Equal-weight mean delta | −0.029784% | −0.042308% |
+| Within ±0.5% | **89/90 (98.9%)** | **84/90 (93.3%)** |
 
-Delta is `(Fluxion / competitor − 1)`. Most samples are close, but large trades still have gaps:
-100,000 DAI→WETH is **−1.128%** versus ParaSwap; 160,000 LDO→WETH and 33.333… WETH→SHIB are
-**−4.708% / −2.975%** versus 1inch. Its plan-dependent infrastructure fee may affect API amounts;
-no fee-adjusted quote was inferred. The 68 higher outputs do not establish superior routing alone.
-See the analysis for all outliers.
+Versions advance from 1 to 4 during roughly 211.67 seconds of observation. Concurrent `/health`
+probes succeed **3832/3832**, p95 **3.143 ms**, maximum **79.653 ms**. Bitmap expansion drops from
+roughly 5.2 seconds to 18–20 ms and state validation from 5.4 seconds to 24–27 ms; bounded writer
+execution isolates both from HTTP I/O workers.
 
-This run uses **`config.benchmark-local.yaml` / `local_snapshot`**, explicitly excluding only legacy
-Tricrypto. All remaining **209 pool/conversion records, 48 tokens and 426 edges** are retained and
-loaded, with full-range V3 bitmap/tick coverage. `split=true`, up to four branches; 35/90 rows selected
-splitting. Quote snapshot blocks **26332461–26332478**. All sides receive identical raw inputs, but
-external APIs are not pinned to the same block. Debug build, public RPC, local Fluxion HTTP; latency
-includes complete body receipt and excludes pacing sleeps. Background synchronization still uses
-RPC. Gas/service fees are not normalized and execution is not simulated.
+`config.benchmark-local.yaml` explicitly excludes only legacy Tricrypto, retaining and loading all
+other **209 pool/conversion records, 48 tokens and 426 edges**, with full-range V3 coverage.
+The original experiment policy remains **180 seconds / 15 blocks**; actual state age is
+**59–129 seconds, median 90 seconds**. Full public-RPC rebuilds still take 47.810–63.636 seconds;
+the default 60-second / three-block freshness target remains unresolved.
 
-[90-row report](docs/benchmarks/2026-11-03-local-threeway.md) ·
-[Raw JSON, state age and three-way routes](docs/benchmarks/2026-11-03-local-threeway.json) ·
-[Analysis and reproduction](docs/benchmarks/2026-11-03-local-threeway-analysis.md) (Chinese)
+Debug build, public RPC, local Fluxion HTTP; original 30 directions × three raw-input tiers,
+split=true. Latency includes complete body receipt and excludes pacing sleeps. External APIs are
+not pinned to one block; gas/service fees are not normalized and 1inch plan fees may affect outputs.
+Different runs do not establish same-state routing improvements.
+
+[Per-row report](docs/benchmarks/2026-11-03-writer-isolation-threeway.md) ·
+[Raw JSON and request IDs](docs/benchmarks/2026-11-03-writer-isolation-threeway.json) ·
+[Implementation, acceptance and analysis](docs/benchmarks/2026-11-03-writer-isolation-fix.md) (Chinese)
 
 ## Data/compute separation (#31–#35: V2/V3, wstETH, three stable pools and Tricrypto2)
 
@@ -57,7 +82,9 @@ publishes immutable block snapshots. Single-route, multi-hop and split calculati
 snapshot for coarse and exact pricing, with **zero RPC during request computation**. Offline
 operation, reorg/staleness/failure handling and integer parity with deployed Routers are verified.
 V3, wstETH and each Curve deployment use protocol-specific integer models checked against
-independent on-chain views. wstETH uses Lido internal ETH/shares; two-coin stable pools retain their
+independent on-chain views. #36 isolates writer synchronization/build/validation from HTTP execution;
+short-lock publication and writer-owned retirement preserve immutable reader snapshots.
+wstETH uses Lido internal ETH/shares; two-coin stable pools retain their
 distinct balance sources and rounding orders; Tricrypto2 uses stored D and dynamic fees. The latest
 local-snapshot comparison appears above; local model details are linked below.
 
@@ -77,9 +104,8 @@ cargo run --example local_curve_server -- --tricrypto2 --config config.local-tri
 cargo run --example local_curve_server -- --all-stable --config config.local-curve-stable.example.yaml
 ```
 
-The default remains `rpc`. The jointly integrated #34/#35 models cover four of the five discovered
-Curve deployments; the local experiment explicitly excludes the remaining legacy pool. Full-graph
-continuous service under the default freshness policy and tail latency still require optimization and acceptance.
+The default remains `rpc`. The local experiment explicitly excludes legacy Tricrypto;
+continuous service under the default freshness target remains to be accepted.
 Unsupported pools/protocol versions or missing V3 coverage are explicit rather
 than disappearing from the graph or falling back to request-time RPC. [Design/run guide](docs/LOCAL-STATE.md) ·
 [V3 measurements](docs/benchmarks/2026-11-03-local-state-v3.md) ·
@@ -498,8 +524,8 @@ For a paired control, run a second service with `config.benchmark-control.yaml` 
 `--control-service http://127.0.0.1:8082` to the benchmark invocation. It alternates quote order
 and reports stETH, SHIB, and other cohorts, retaining full routes in JSON.
 
-Add `--split` to compare multi-pool mode. Latest results appear in the **Benchmark** section near the
-top; data and reproduction steps are in the [latest local three-way analysis](docs/benchmarks/2026-11-03-local-threeway-analysis.md).
+Use `--split` for the multi-pool three-way comparison. Latest results appear above and in the
+[writer-isolation measurements](docs/benchmarks/2026-11-03-writer-isolation-fix.md).
 
 ## Testing
 

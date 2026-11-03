@@ -9,48 +9,74 @@ Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `tok
 
 > 开源、自托管：下载后用一份 YAML 配置 + 你自己的 RPC / Graph key 跑起来。
 
-## 最新 Benchmark：本地快照 / ParaSwap / 1inch（2026-11-03）
+## 接入规模
 
-**同轮 30 个交易方向 × 3 档金额，三方均 90/90 成功。Fluxion 与 ParaSwap 的输出差距在
-±0.5% 内为 88/90，与 1inch 为 84/90。Fluxion 每行请求计算均为 0 RPC。**
+2026-11-03 使用 `config.benchmark-local.yaml` 对真实服务 `/info` 与 `/graph` 的复核结果：
 
-| 指标 | Fluxion | ParaSwap | 1inch |
-|---|---:|---:|---:|
-| 报价成功 | **90/90** | **90/90** | **90/90** |
-| 端到端 HTTP p50 | **31 ms** | 390 ms | 467 ms |
-| 端到端 HTTP p95 | 3501 ms | **864 ms** | 1058 ms |
+| 指标 | 数量 |
+|---|---:|
+| Token | **48** |
+| 真实 AMM 池子 | **208** |
+| 去重直接 swap pair（不区分方向） | **106** |
+| 去重直接 swap 方向 | **212** |
+| 协议转换连接 | **1**（stETH↔wstETH） |
+| 池/转换记录合计 | **209** |
+| 有向图边（包含并行池） | **426** |
 
-**状态年龄为 50–112 秒**（中位数 76.5 秒），实验显式采用 180 秒 / 15 块上限。中位延迟
-已降到毫秒级，但尾延迟仍高，后台同步时效也尚未达到默认 60 秒 / 3 块策略的连续服务目标。
-
-| Fluxion 输出相对对手 | ParaSwap | 1inch |
+| 来源 | 池子 / 转换连接 | 来源内去重直接 pair |
 |---|---:|---:|
-| 差距中位数 | −0.000094% | +0.098762% |
-| 差距等权均值 | −0.028838% | −0.034276% |
-| 差距在 ±0.5% 内 | **88/90（97.8%）** | **84/90（93.3%）** |
-| Fluxion 输出更高 / 相同 / 更低 | 28 / 8 / 54 | 68 / 0 / 22 |
+| Uniswap V2 | 29 | 29 |
+| Uniswap V3 | 169 | 103 |
+| Curve | 4 | 7 |
+| ShibaSwap V2 | 6 | 6 |
+| Lido wstETH 转换 | 1 条连接 | 1 |
 
-输出差距为 `(Fluxion / 对手 − 1)`。多数样本接近，但大额仍有明显缺口：100,000 DAI→WETH
-相对 ParaSwap **−1.128%**；160,000 LDO→WETH 和 33.333… WETH→SHIB 相对 1inch 分别
-**−4.708% / −2.975%**。1inch 的 API 套餐基础设施费可能影响返回金额，未做去费反推；
-“68 组输出更高”不等于纯路由能力胜出。完整离群样本见分析。
+不同来源可以覆盖相同 pair，因此各来源 pair 数不能相加。包含转换时，合计为 **107 个
+去重直接连接 / 214 个方向**。这些是直接连接统计，不将多跳组合膨胀为“接入 pair 数”；
+下方 benchmark 的 30 个方向是测试语料子集。规模会随发现数据与配置变化；本地配置
+显式排除旧 Tricrypto，保留 Tricrypto2。[统计口径与快照](docs/benchmarks/2026-11-03-graph-inventory.json)。
 
-本轮使用 **`config.benchmark-local.yaml` / `local_snapshot`**，按地址明确排除旧 Tricrypto，
-其余 **209 条池/转换记录、48 个 token、426 条边**全部保留并装载，V3 使用全范围 bitmap/ticks。
-`split=true`、最多 4 分支，35/90 组选拆单；实际报价快照区块 **26332461–26332478**。
-三方使用相同 raw 输入，外部 API 未固定为同一区块。debug 构建、公共 RPC、本机 Fluxion HTTP；
-耗时包含完整响应体接收，不含主动限速等待。后台仍需 RPC，报价未统一核算 gas/服务费或模拟成交。
+## 最新 Benchmark：读写隔离修复后的三方对比（2026-11-03）
 
-[90 组逐行报告](docs/benchmarks/2026-11-03-local-threeway.md) ·
-[原始 JSON、状态年龄与三方路径](docs/benchmarks/2026-11-03-local-threeway.json) ·
-[结果分析与复现命令](docs/benchmarks/2026-11-03-local-threeway-analysis.md)
+**持续后台更新下，原始 90 组三方报价全部成功，Fluxion 每行请求计算均为 0 RPC。
+HTTP p95 从缺陷轮的 3501 ms 降至本轮 124 ms，最大 238 ms。**
+
+| 指标 | Fluxion 本地快照 | ParaSwap | 1inch |
+|---|---:|---:|---:|
+| 成功 | **90/90** | **90/90** | **90/90** |
+| HTTP p50 | **27 ms** | 438 ms | 530 ms |
+| HTTP p95 | **124 ms** | 883 ms | 1059 ms |
+
+| Fluxion 相对对手的输出 | ParaSwap | 1inch |
+|---|---:|---:|
+| 中位差距 | −0.000943% | +0.096974% |
+| 等权均值差距 | −0.029784% | −0.042308% |
+| 差距在 ±0.5% 内 | **89/90（98.9%）** | **84/90（93.3%）** |
+
+后台连续发布 1→4 个版本，观测约 211.67 秒；同期 `/health` **3832/3832 成功**，p95
+**3.143 ms**、最大 **79.653 ms**。位图展开从约 5.2 秒降至 18–20 ms，状态校验从约
+5.4 秒降至 24–27 ms，并由有界写侧 worker 执行，避免拖住 HTTP 调度。
+
+配置 `config.benchmark-local.yaml` 显式只排除旧 Tricrypto，其余 **209 条池/转换记录、
+48 个 token、426 条边**全部装载，V3 为全范围覆盖。维持原实验 **180 秒 / 15 块**策略，
+实际状态年龄 **59–129 秒，中位数 90 秒**；公共 RPC 全量同步仍需 47.810–63.636 秒，
+默认 60 秒 / 3 块的新鲜度目标仍待优化，不能把低请求延迟当成零状态年龄。
+
+debug 构建、公共 RPC、本机 Fluxion HTTP；原语料 30 方向 × 3 档 raw 输入，split=true。
+HTTP 耗时含完整响应体接收、不含主动限速等待。三方未强制同块、未统一核算 gas/服务费，
+1inch 套餐基础设施费也可能影响输出；不同轮次不能作为同状态路由改进证明。
+
+[逐行结果](docs/benchmarks/2026-11-03-writer-isolation-threeway.md) ·
+[原始 JSON 与请求 ID](docs/benchmarks/2026-11-03-writer-isolation-threeway.json) ·
+[修复、验收与完整分析](docs/benchmarks/2026-11-03-writer-isolation-fix.md)
 
 ## 数据与计算分层（#31–#35：V2/V3、wstETH、三个稳定池与 Tricrypto2）
 
 新增显式 `pricing_mode: local_snapshot`：后台同步 V2/ShibaSwap、V3、Lido v4、三个 Curve 稳定池和 Tricrypto2，发布不可变区块快照；
 单路径、多跳和拆单的粗选/精算都在同一快照本地完成，**请求计算 0 RPC**。
 已验证断网计算、重组/过期/同步失败，以及固定区块与部署 Router 的整数输出一致性。
-V3、wstETH 和各 Curve 部署分别使用协议整数模型，并以独立链上 view 核对。
+V3、wstETH 与各 Curve 部署分别使用协议整数模型，并以独立链上 view 核对。
+#36 将写侧同步/构建/校验与 HTTP 执行隔离；短锁发布完整快照，旧版本由写侧延迟回收。
 wstETH 使用 Lido 内部 ETH/shares；两币稳定池分别处理余额来源与取整顺序；Tricrypto2
 使用 stored D 与动态费用。最新本地快照三方对比见上方 benchmark，本地模型细节见下方文档。
 
@@ -70,8 +96,7 @@ cargo run --example local_curve_server -- --tricrypto2 --config config.local-tri
 cargo run --example local_curve_server -- --all-stable --config config.local-curve-stable.example.yaml
 ```
 
-默认仍为原有 `rpc` 模式。#34/#35 已联合集成，覆盖 4/5 Curve；本地实验显式排除剩余旧池，
-默认新鲜度策略下的全图连续服务与尾延迟仍待进一步优化和验收。
+默认仍为原有 `rpc` 模式。实验本地配置显式排除旧 Tricrypto，默认新鲜度下的连续服务仍待验收。
 未支持池型/协议版本、V3 覆盖不足会明确报告，不会静默删池或回退到请求内 RPC。
 [设计与运行方法](docs/LOCAL-STATE.md) · [V3 实测](docs/benchmarks/2026-11-03-local-state-v3.md) ·
 [wstETH 实测](docs/benchmarks/2026-11-03-local-state-wsteth.md) ·
@@ -463,8 +488,8 @@ ParaSwap 无需密钥；1inch/0x 可通过 `.env` 中的 `ONEINCH_API_KEY` / `ZE
 两实例使用相同语料、相同基础配置；对照实例关闭转换和 ShibaSwap。报告按 stETH、SHIB、其他样本分组，
 JSON 保留逐跳路径、对手拆单比例和池信息。详细实现见 [报价质量改进](docs/QUOTE-QUALITY.md)。
 
-加上 `--split` 可比较多池模式；最新结果展示在本文前部的 **Benchmark** 章节，完整数据与
-复现步骤见 [最新本地三方实测](docs/benchmarks/2026-11-03-local-threeway-analysis.md)。
+多池三方比较使用 `--split`。最新结果见本文前部的 **Benchmark** 章节及
+[读写隔离修复实测](docs/benchmarks/2026-11-03-writer-isolation-fix.md)。
 
 ## 测试
 

@@ -152,6 +152,18 @@ pub struct V3State {
     ticks: BTreeMap<i32, i128>,
 }
 
+/// Ascending initialized positions only; zero words require no bit tests.
+pub(crate) fn initialized_bits(mut bitmap: U256) -> impl Iterator<Item = i32> {
+    std::iter::from_fn(move || {
+        if bitmap.is_zero() {
+            return None;
+        }
+        let bit = bitmap.trailing_zeros() as i32;
+        bitmap &= bitmap - U256::from(1);
+        Some(bit)
+    })
+}
+
 impl V3State {
     pub fn new(
         sqrt_price: U256,
@@ -184,12 +196,10 @@ impl V3State {
             {
                 return Err(QuoteError::IncompleteState);
             }
-            for bit in 0..256 {
-                if (bitmap >> bit) & U256::from(1) != U256::ZERO {
-                    let t = (i32::from(word) * 256 + bit) * spacing;
-                    if !(MIN_TICK..=MAX_TICK).contains(&t) || !ticks.contains_key(&t) {
-                        return Err(QuoteError::IncompleteState);
-                    }
+            for bit in initialized_bits(bitmap) {
+                let t = (i32::from(word) * 256 + bit) * spacing;
+                if !(MIN_TICK..=MAX_TICK).contains(&t) || !ticks.contains_key(&t) {
+                    return Err(QuoteError::IncompleteState);
                 }
             }
         }

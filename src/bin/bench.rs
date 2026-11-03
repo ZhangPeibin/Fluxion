@@ -37,6 +37,8 @@ struct Corpus {
 
 #[derive(Debug, Clone, Serialize)]
 struct Side {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    request_id: Option<String>,
     amount_out: Option<String>,
     latency_ms: u128,
     hops: Option<usize>,
@@ -49,6 +51,7 @@ struct Side {
 impl Side {
     fn ok(amount_out: String, latency_ms: u128, hops: Option<usize>) -> Self {
         Self {
+            request_id: None,
             amount_out: Some(amount_out),
             latency_ms,
             hops,
@@ -60,6 +63,7 @@ impl Side {
 
     fn error(latency_ms: u128, error: String) -> Self {
         Self {
+            request_id: None,
             amount_out: None,
             latency_ms,
             hops: None,
@@ -533,9 +537,18 @@ async fn quote_fluxion(
     split: bool,
 ) -> Side {
     let url = format!("{}/quote", service.trim_end_matches('/'));
+    let request_id = format!(
+        "bench-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    );
     let started = Instant::now();
     let response = client
         .post(&url)
+        .header("x-diag-id", &request_id)
         .json(&json!({
             "token_in": token_in,
             "token_out": token_out,
@@ -546,7 +559,7 @@ async fn quote_fluxion(
         .await;
     let (text, latency) = match response_text(response, started).await {
         Ok(result) => result,
-        Err(side) => return side,
+        Err(side) => return *side,
     };
     let Ok(value) = serde_json::from_str::<Value>(&text) else {
         return Side::error(latency, format!("invalid JSON: {}", snippet(&text)));
@@ -586,6 +599,7 @@ async fn quote_fluxion(
     }
     // Keep block/state, allocations and search metrics alongside the exact output.
     side.route = Some(Box::new(value));
+    side.request_id = Some(request_id);
     side
 }
 
@@ -615,7 +629,7 @@ async fn quote_paraswap(
         .await;
     let (text, latency) = match response_text(response, started).await {
         Ok(result) => result,
-        Err(side) => return side,
+        Err(side) => return *side,
     };
     let Ok(value) = serde_json::from_str::<Value>(&text) else {
         return Side::error(latency, format!("invalid JSON: {}", snippet(&text)));
@@ -663,7 +677,7 @@ async fn quote_oneinch(
         .await;
     let (text, latency) = match response_text(response, started).await {
         Ok(result) => result,
-        Err(side) => return side,
+        Err(side) => return *side,
     };
     let Ok(value) = serde_json::from_str::<Value>(&text) else {
         return Side::error(latency, format!("invalid JSON: {}", snippet(&text)));
@@ -708,7 +722,7 @@ async fn quote_zerox(
         .await;
     let (text, latency) = match response_text(response, started).await {
         Ok(result) => result,
-        Err(side) => return side,
+        Err(side) => return *side,
     };
     let Ok(value) = serde_json::from_str::<Value>(&text) else {
         return Side::error(latency, format!("invalid JSON: {}", snippet(&text)));
@@ -1019,20 +1033,26 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
 async fn response_text(
     response: Result<reqwest::Response, reqwest::Error>,
     started: Instant,
-) -> Result<(String, u128), Side> {
-    let response = response
-        .map_err(|e| Side::error(started.elapsed().as_millis(), e.without_url().to_string()))?;
+) -> Result<(String, u128), Box<Side>> {
+    let response = response.map_err(|e| {
+        Box::new(Side::error(
+            started.elapsed().as_millis(),
+            e.without_url().to_string(),
+        ))
+    })?;
     let status = response.status();
-    let text = response
-        .text()
-        .await
-        .map_err(|e| Side::error(started.elapsed().as_millis(), e.without_url().to_string()))?;
+    let text = response.text().await.map_err(|e| {
+        Box::new(Side::error(
+            started.elapsed().as_millis(),
+            e.without_url().to_string(),
+        ))
+    })?;
     let elapsed = started.elapsed().as_millis();
     if !status.is_success() {
-        return Err(Side::error(
+        return Err(Box::new(Side::error(
             elapsed,
             format!("HTTP {status}: {}", snippet(&text)),
-        ));
+        )));
     }
     Ok((text, elapsed))
 }

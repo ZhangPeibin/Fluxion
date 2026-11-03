@@ -1,0 +1,26 @@
+{
+  "observed_unix": 1793695151,
+  "profile": "config.benchmark-local.yaml",
+  "pricing_mode": "local_snapshot",
+  "method": "GET /info and /graph; lowercase addresses; unordered pairs deduplicated by sorted token addresses; swap counts exclude wrap/unwrap",
+  "tokens": 48,
+  "records": 209,
+  "actual_amm_pools": 208,
+  "conversion_records": 1,
+  "unique_direct_swap_pairs": 106,
+  "unique_direct_swap_directions": 212,
+  "unique_direct_pairs_including_conversions": 107,
+  "unique_direct_directions_including_conversions": 214,
+  "directed_edges": 426,
+  "platforms": {
+    "curve": {"records": 4, "direct_unordered_pairs": 7, "directed_edges": 16},
+    "shibaswap-v2": {"records": 6, "direct_unordered_pairs": 6, "directed_edges": 12},
+    "uniswap-v2": {"records": 29, "direct_unordered_pairs": 29, "directed_edges": 58},
+    "uniswap-v3": {"records": 169, "direct_unordered_pairs": 103, "directed_edges": 338},
+    "wsteth": {"records": 1, "direct_unordered_pairs": 1, "directed_edges": 2}
+  },
+  "graph_identity_sha256": "6822cfbca8ec2815c2e8784d9ac6954972ba790565bf3c08c722be5fb0bf1ab4",
+  "graph_identity_encoding": "SHA256 of compact JSON array of sorted (lowercase from, lowercase to, platform, lowercase pool, operation) tuples",
+  "excluded_pools": ["0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5"],
+  "note": "Inventory is a dated live discovery check, not a claim that every pair/amount is covered by the 90-row benchmark. Pair totals across platforms overlap."
+}
