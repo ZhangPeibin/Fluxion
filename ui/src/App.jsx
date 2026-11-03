@@ -413,6 +413,12 @@ export default function App() {
                   <dd>{quote.price_impact_bps == null ? "—" : `${quote.price_impact_bps} bps`}</dd>
                 </div>
               </dl>
+              {quote.state && (
+                <p className="status">
+                  {quote.state.pricing_mode} · block {quote.quote_block} · age {quote.state.state_age_secs}s
+                  {` · lag ${quote.state.lag_blocks} block(s)`}
+                </p>
+              )}
               {quote.allocations ? (
                 <div>
                   <p className="status">

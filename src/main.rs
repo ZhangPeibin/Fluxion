@@ -8,6 +8,7 @@ use fluxion::adapters::CachingSource;
 use fluxion::api::{self, AppState, RateLimiter};
 use fluxion::config::Config;
 use fluxion::graph::Graph;
+use fluxion::local_state::{PricingMode, SnapshotStore, StateSynchronizer};
 use fluxion::model::{Pool, PoolKind};
 use fluxion::router::{PriceSnapshot, Router, RouterConfig};
 use fluxion::rpc::RpcClient;
@@ -53,28 +54,59 @@ async fn main() {
     let rpc = RpcClient::new(config.rpc_url.clone());
     let (graph, cached, refresher) = build_universe(&config, rpc.clone()).await;
 
-    if refresher.is_some() {
+    // Opt-in migration: a complete local universe is required. Unsupported
+    // venues are reported as unavailable, never silently removed from the graph.
+    let local_store = if config.pricing_mode == PricingMode::LocalSnapshot {
+        let store = Arc::new(
+            SnapshotStore::new(
+                graph.clone(),
+                RouterConfig {
+                    max_hops: config.max_hops,
+                    top_k: config.top_k,
+                    lambda: config.slippage_penalty_lambda,
+                    reserve_ratio_k: config.reserve_ratio_k,
+                },
+                config.local_state.clone(),
+            )
+            .expect("validated local state configuration"),
+        );
+        if refresher.is_some() {
+            let sync = StateSynchronizer::new(rpc.clone(), store.clone());
+            tokio::spawn(sync.run());
+        } else {
+            tracing::warn!(
+                "local_snapshot requires real chain data; no snapshot published for mock fallback"
+            );
+        }
+        Some(store)
+    } else {
+        None
+    };
+
+    if local_store.is_none() && refresher.is_some() {
         warm_coarse_prices(&graph, cached.as_ref(), &rpc).await;
     }
 
     // Build the initial coarse-stage price snapshot. With a large pool set this
     // can take a while, so log the cost instead of failing silently.
-    tracing::info!(
-        edges = graph.edge_count(),
-        tokens = graph.tokens().len(),
-        "building price snapshot"
-    );
-    let build_started = std::time::Instant::now();
-    let snapshot = PriceSnapshot::build(&graph, cached.as_ref()).await;
-    tracing::info!(
-        edges = graph.edge_count(),
-        elapsed_ms = build_started.elapsed().as_millis() as u64,
-        "snapshot ready"
-    );
-    router.set_snapshot(Arc::new(snapshot));
+    if local_store.is_none() {
+        tracing::info!(
+            edges = graph.edge_count(),
+            tokens = graph.tokens().len(),
+            "building price snapshot"
+        );
+        let build_started = std::time::Instant::now();
+        let snapshot = PriceSnapshot::build(&graph, cached.as_ref()).await;
+        tracing::info!(
+            edges = graph.edge_count(),
+            elapsed_ms = build_started.elapsed().as_millis() as u64,
+            "snapshot ready"
+        );
+        router.set_snapshot(Arc::new(snapshot));
+    }
 
     // Background: refresh hot V2 reserves on the fast interval.
-    {
+    if local_store.is_none() {
         let interval = Duration::from_secs(config.refresh_interval_secs.max(1));
         let refresher = refresher.clone();
         tokio::spawn(async move {
@@ -91,7 +123,7 @@ async fn main() {
 
     // Background: rebuild the full price snapshot on the slower interval. The
     // hot refresh above keeps V2 reserves warm in between rebuilds.
-    {
+    if local_store.is_none() {
         let bg_router = router.clone();
         let bg_graph = graph.clone();
         let bg_cached = cached.clone();
@@ -140,11 +172,12 @@ async fn main() {
         request_timeout: Duration::from_millis(config.request_timeout_ms.max(1)),
     });
 
-    let app = api::app_with_split(
-        state,
-        SplitOptimizer::new(config.split.clone()).expect("validated split configuration"),
-        refresher.is_some(),
-    )
+    let optimizer =
+        SplitOptimizer::new(config.split.clone()).expect("validated split configuration");
+    let app = match local_store {
+        Some(store) => api::app_with_local_state(state, optimizer, store),
+        None => api::app_with_split(state, optimizer, refresher.is_some()),
+    }
     .route(
         "/info",
         axum::routing::get(move || async move { axum::Json(info) }),

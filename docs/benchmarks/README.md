@@ -1,5 +1,12 @@
 # Quote benchmarks
 
+## Local-state V2 migration checkpoint (#31)
+
+[First-stage evidence](2026-11-02-local-state-v2.md) verifies local computation against deployed
+V2/ShibaSwap Routers and a continuously updating HTTP service. It is a restricted three-pool/four-case
+test, not a replacement for the full-venue 90-row comparison below. The default service remains RPC
+pricing until the later V3/Curve/conversion and full-coverage acceptance stages are complete.
+
 ## Latest: single / two-pool / multi-pool / ParaSwap (2 Nov 2026)
 
 Run without an HTTP server:

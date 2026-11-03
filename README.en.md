@@ -43,6 +43,24 @@ cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
 [gap analysis (Chinese)](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
 [algorithm and HTTP contract](docs/MULTI-POOL.md)
 
+## Data/compute separation (#31: first V2 stage)
+
+Opt-in `pricing_mode: local_snapshot` synchronizes V2/ShibaSwap reserves in the background and
+publishes immutable block snapshots. Single-route, multi-hop and split calculations use the same
+snapshot for coarse and exact pricing, with **zero RPC during request computation**. Offline
+operation, reorg/staleness/failure handling and integer parity with deployed Routers are verified.
+
+```bash
+# Restricted real ShibaSwap example on :8083, not the full-venue benchmark profile
+cargo run -- --config config.local-v2.example.yaml
+curl -s localhost:8083/state
+```
+
+The default remains `rpc`. V3/Curve/wstETH local math and full 90-row migration acceptance are
+subsequent stages. Unsupported pools produce explicit 503 errors rather than disappearing from
+the graph. [Design/run guide](docs/LOCAL-STATE.md) ·
+[first-stage measurements and scope](docs/benchmarks/2026-11-02-local-state-v2.md) (Chinese).
+
 ## Historical two-pool experiment (#30)
 
 `SplitOptimizer` and a fixed-block CLI compare two independent direct AMM pools against the
@@ -231,7 +249,15 @@ The benchmark uses this endpoint to verify mode and actually loaded venues.
 ### `GET /health` / `GET /ready`
 
 - `/health`: process liveness.
-- `/ready`: does an `eth_blockNumber` against upstream RPC; returns `503` if unreachable.
+- `/ready`: normally probes upstream `eth_blockNumber`; returns `503` if unreachable. Local mode
+  checks published snapshot availability without an RPC probe.
+
+### `GET /state`
+
+Local mode reports block/hash, age, lag relative to the last observed head, pool coverage, sync
+RPC/time, errors and reorg count. Successful local quotes add `state` metadata and `quote_block`;
+the Viewer displays mode/block/age/lag. Cold, stale, incomplete or unsupported local state returns
+an explicit 503 instead of falling back to request-time RPC. See [LOCAL-STATE](docs/LOCAL-STATE.md).
 
 ### Errors
 
@@ -475,6 +501,7 @@ docs/benchmarks/               methodology, raw routes and result analysis
 | `refresh_interval_secs` | V2 reserve TTL / hot refresh interval; hot = accessed in the last 5 minutes | 30 |
 | `snapshot_refresh_secs` | full price-snapshot rebuild interval | 120 |
 | `request_timeout_ms` | per-request timeout (ms) | 10000 |
+| `pricing_mode` / `local_state` | exact pricing mode / background synchronization and freshness policy | `rpc` / see example |
 | `split` | server-side opt-in allocation budgets; requests still need `split=true` | 4 branches / 4 pools / 20 segments / 256 calls / 8000 ms |
 | `token_allowlist` | override built-in major-token allowlist | empty (built-in) |
 

@@ -69,6 +69,18 @@ snapshot_refresh_secs: 120
 # Per-request timeout for /quote (milliseconds).
 request_timeout_ms: 10000
 
+# Migration opt-in: rpc (existing full-venue behavior) or local_snapshot.
+# Stage 1 local_snapshot requires a complete V2/ShibaSwap-only universe;
+# unsupported V3/Curve/conversion pools are reported, never silently dropped.
+# See config.local-v2.example.yaml for a runnable restricted profile.
+pricing_mode: rpc
+local_state:
+  poll_interval_ms: 2000
+  sync_timeout_ms: 30000
+  batch_size: 200
+  max_age_secs: 60 # block age, not time since the last successful poll
+  max_lag_blocks: 3 # relative to the most recently observed head
+
 # Opt-in HTTP split=true. Existing requests remain single-route.
 # A request may lower split_max_branches to 2, not exceed this server cap.
 split:
