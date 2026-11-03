@@ -175,6 +175,7 @@ struct SplitService {
     optimizer: Arc<SplitOptimizer>,
     pin_pricing: bool,
     local: Option<Arc<SnapshotStore>>,
+    compute_slots: Arc<tokio::sync::Semaphore>,
 }
 
 pub enum ApiError {
@@ -183,6 +184,7 @@ pub enum ApiError {
     RateLimited,
     Timeout,
     State(StateError),
+    ComputationFailed,
 }
 
 impl From<StateError> for ApiError {
@@ -208,9 +210,15 @@ impl IntoResponse for ApiError {
                     .into_response();
             }
             ApiError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "RateLimited", None),
+            ApiError::ComputationFailed => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "ComputationFailed", None)
+            }
             ApiError::Timeout => (StatusCode::GATEWAY_TIMEOUT, "Timeout", None),
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "InvalidRequest", Some(msg)),
             ApiError::Quote(e) => match e {
+                QuoteError::IncompleteState => {
+                    return ApiError::State(StateError::Incomplete).into_response();
+                }
                 QuoteError::NoPath => (StatusCode::NOT_FOUND, "NoPathFound", None),
                 QuoteError::AmountOutBelowMin => {
                     (StatusCode::UNPROCESSABLE_ENTITY, "AmountOutBelowMin", None)
@@ -320,35 +328,56 @@ async fn quote(
             return Err(QuoteError::ZeroAmount.into());
         }
         let optimizer = optimizer_for(&service, req.split_max_branches)?;
+        let permit = service
+            .compute_slots
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| ApiError::RateLimited)?;
         let snapshot = store.acquire()?;
+        let store = store.clone();
+        let timeout = state.request_timeout;
+        let http_deadline = tokio::time::Instant::now() + timeout;
         let deadline = tokio::time::Instant::now()
             + state
                 .request_timeout
                 .saturating_sub(Duration::from_millis(25));
-        let calculate = async {
-            let mut response = if req.split {
-                let mut baseline_request = request.clone();
-                baseline_request.amount_out_min = None;
-                let result = snapshot
-                    .split(&optimizer, &baseline_request, deadline)
-                    .await?;
-                if request
-                    .amount_out_min
-                    .is_some_and(|min| result.amount_out < min)
-                {
-                    return Err(ApiError::Quote(QuoteError::AmountOutBelowMin));
+        // V3 tick traversal is CPU work. Keep it off Tokio's network/sync
+        // workers and bound both running and abandoned-on-timeout jobs.
+        let mut calculate = tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut response = if req.split {
+                    let mut baseline_request = request.clone();
+                    baseline_request.amount_out_min = None;
+                    let result = snapshot
+                        .split(&optimizer, &baseline_request, deadline)
+                        .await?;
+                    if request
+                        .amount_out_min
+                        .is_some_and(|min| result.amount_out < min)
+                    {
+                        return Err(ApiError::Quote(QuoteError::AmountOutBelowMin));
+                    }
+                    split_to_dto(result, request.amount_in, Some(snapshot.block().number))
+                } else {
+                    route_to_dto(snapshot.route(&request).await?)
+                };
+                response.quote_block = Some(snapshot.block().number);
+                response.state = Some(store.quote_state(&snapshot)?);
+                if tokio::time::Instant::now() >= http_deadline {
+                    return Err(ApiError::Timeout);
                 }
-                split_to_dto(result, request.amount_in, Some(snapshot.block().number))
-            } else {
-                route_to_dto(snapshot.route(&request).await?)
-            };
-            response.quote_block = Some(snapshot.block().number);
-            response.state = Some(store.quote_state(&snapshot)?);
-            Ok::<_, ApiError>(Json(response))
+                Ok::<_, ApiError>(Json(response))
+            })
+        });
+        return match tokio::time::timeout(timeout, &mut calculate).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(ApiError::ComputationFailed),
+            Err(_) => {
+                calculate.abort();
+                Err(ApiError::Timeout)
+            }
         };
-        return tokio::time::timeout(state.request_timeout, calculate)
-            .await
-            .map_err(|_| ApiError::Timeout)?;
     }
 
     if req.split {
@@ -555,6 +584,11 @@ fn build_app(
     pin_pricing: bool,
     local: Option<Arc<SnapshotStore>>,
 ) -> AxumRouter {
+    let compute_slots = Arc::new(tokio::sync::Semaphore::new(
+        local
+            .as_ref()
+            .map_or(1, |store| store.compute_concurrency()),
+    ));
     AxumRouter::new()
         .route("/quote", post(quote))
         .route("/graph", get(graph))
@@ -565,6 +599,7 @@ fn build_app(
             optimizer: Arc::new(optimizer),
             pin_pricing,
             local,
+            compute_slots,
         })))
         .with_state(state)
 }

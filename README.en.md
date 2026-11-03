@@ -43,23 +43,27 @@ cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
 [gap analysis (Chinese)](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
 [algorithm and HTTP contract](docs/MULTI-POOL.md)
 
-## Data/compute separation (#31: first V2 stage)
+## Data/compute separation (#31: local V2/V3 pricing)
 
-Opt-in `pricing_mode: local_snapshot` synchronizes V2/ShibaSwap reserves in the background and
+Opt-in `pricing_mode: local_snapshot` synchronizes V2/ShibaSwap reserves and V3 bitmap/tick state, and
 publishes immutable block snapshots. Single-route, multi-hop and split calculations use the same
 snapshot for coarse and exact pricing, with **zero RPC during request computation**. Offline
 operation, reorg/staleness/failure handling and integer parity with deployed Routers are verified.
+All **30/30** V3 samples across five pools/four fee tiers match QuoterV2 exactly. A restricted
+four-pool, 20-request HTTP sample measured **31.05/31.33 ms** p50/p95; this is not the full 90-row regression.
 
 ```bash
 # Restricted real ShibaSwap example on :8083, not the full-venue benchmark profile
 cargo run -- --config config.local-v2.example.yaml
 curl -s localhost:8083/state
+# Mixed V2/V3/ShibaSwap profile on :8084 (requires a Graph key)
+cargo run -- --config config.local-v3.example.yaml
 ```
 
-The default remains `rpc`. V3/Curve/wstETH local math and full 90-row migration acceptance are
-subsequent stages. Unsupported pools produce explicit 503 errors rather than disappearing from
-the graph. [Design/run guide](docs/LOCAL-STATE.md) ·
-[first-stage measurements and scope](docs/benchmarks/2026-11-02-local-state-v2.md) (Chinese).
+The default remains `rpc`. Curve/wstETH local math and full 90-row migration acceptance are
+subsequent stages. Unsupported pools or missing V3 coverage produce explicit 503 errors rather
+than disappearing from the graph or falling back to request-time RPC. [Design/run guide](docs/LOCAL-STATE.md) ·
+[V3 measurements and scope](docs/benchmarks/2026-11-03-local-state-v3.md) (Chinese).
 
 ## Historical two-pool experiment (#30)
 

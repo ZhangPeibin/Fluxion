@@ -445,7 +445,7 @@ async fn http_distinguishes_cold_unsupported_and_stale_state_without_rpc_fallbac
     assert_eq!(get(app, "/health").await.0, 200);
     let mut unsupported = graph();
     unsupported.add_pool(Pool {
-        kind: PoolKind::UniswapV3 { fee: 3000 },
+        kind: PoolKind::Curve,
         address: Address::with_last_byte(50),
         coins: vec![Address::with_last_byte(1), Address::with_last_byte(2)],
     });
@@ -463,7 +463,7 @@ async fn http_distinguishes_cold_unsupported_and_stale_state_without_rpc_fallbac
         "UnsupportedLocalPool"
     );
     let (_, status) = get(app, "/state").await;
-    assert_eq!(status["unsupported_pools"][0]["platform"], "uniswap-v3");
+    assert_eq!(status["unsupported_pools"][0]["platform"], "curve");
     assert_eq!(rpc.request_count(), 0);
 
     let (rpc, chain, server) = chain_rpc().await;
