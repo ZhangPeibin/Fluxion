@@ -2,7 +2,7 @@
 //! V2/ShibaSwap reserves, covered V3 ticks, and Lido v4 conversion state.
 use std::collections::HashMap;
 use std::sync::{
-    Arc, RwLock,
+    Arc, Mutex, RwLock,
     atomic::{AtomicBool, Ordering},
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -44,6 +44,7 @@ pub struct LocalStateConfig {
     pub max_age_secs: u64,
     pub max_lag_blocks: u64,
     pub v3_bitmap_radius: i16,
+    pub v3_full_range: bool,
     pub v3_max_loaded_ticks: usize,
     pub compute_concurrency: usize,
 }
@@ -57,6 +58,7 @@ impl Default for LocalStateConfig {
             max_age_secs: 60,
             max_lag_blocks: 3,
             v3_bitmap_radius: 2,
+            v3_full_range: false,
             v3_max_loaded_ticks: 50_000,
             compute_concurrency: 4,
         }
@@ -397,6 +399,7 @@ impl QuoteSource for GuardedSource<'_> {
     ) -> Result<U256, QuoteError> {
         let result = self.inner.amount_out(pool, i, j, amount).await;
         if result == Err(QuoteError::IncompleteState) {
+            tracing::debug!(pool=%pool.address, i, j, input=%amount, "local quote exceeds loaded state coverage");
             self.incomplete.store(true, Ordering::Relaxed);
         }
         result
@@ -484,11 +487,12 @@ struct Published {
 }
 
 impl Published {
-    fn invalidate(&mut self) {
-        self.current = None;
+    fn invalidate(&mut self) -> Option<Arc<LocalSnapshot>> {
+        let retired = self.current.take();
         self.epoch += 1;
         self.last_error = Some(StateError::Reorg);
         self.reorgs += 1;
+        retired
     }
 }
 
@@ -497,8 +501,12 @@ pub struct SnapshotStore {
     router_config: RouterConfig,
     config: LocalStateConfig,
     state: RwLock<Published>,
-    sync_lock: tokio::sync::Mutex<()>,
+    sync_lock: Arc<tokio::sync::Mutex<()>>,
+    sync_admission: tokio::sync::Semaphore,
+    retired: Mutex<Vec<Arc<LocalSnapshot>>>,
     unsupported_pools: Vec<UnsupportedPool>,
+    #[cfg(test)]
+    build_probe: std::sync::Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
 }
 
 fn now_secs() -> u64 {
@@ -557,8 +565,12 @@ impl SnapshotStore {
             router_config,
             config,
             state: RwLock::new(Published::default()),
-            sync_lock: tokio::sync::Mutex::new(()),
+            sync_lock: Arc::new(tokio::sync::Mutex::new(())),
+            sync_admission: tokio::sync::Semaphore::new(1),
+            retired: Mutex::new(Vec::new()),
             unsupported_pools,
+            #[cfg(test)]
+            build_probe: std::sync::Mutex::new(None),
         })
     }
 
@@ -667,16 +679,71 @@ impl SnapshotStore {
     }
 
     fn invalidate(&self) {
-        self.state.write().unwrap().invalidate();
+        let retired = self.state.write().unwrap().invalidate();
+        self.retire(retired);
+    }
+
+    fn retire(&self, snapshot: Option<Arc<LocalSnapshot>>) {
+        if let Some(snapshot) = snapshot {
+            self.retired.lock().unwrap().push(snapshot);
+        }
+    }
+
+    /// Only called on the bounded writer. Keep one ownership reference while
+    /// readers exist, so their last drop cannot destroy large V3 maps on I/O.
+    fn reclaim_retired(&self) {
+        let retired = std::mem::take(&mut *self.retired.lock().unwrap());
+        let mut retained = Vec::new();
+        for snapshot in retired {
+            match Arc::try_unwrap(snapshot) {
+                Ok(snapshot) => drop(snapshot),
+                Err(snapshot) => retained.push(snapshot),
+            }
+        }
+        self.retired.lock().unwrap().extend(retained);
     }
 }
 
 /// The only component holding an RPC client. Each new block is fully reloaded
 /// in bounded Multicall batches in this first stage; there is no log-gap/cache
 /// assumption. Reinitializing from the new canonical head also handles reorgs.
+#[derive(Clone)]
 pub struct StateSynchronizer {
     rpc: RpcClient,
     store: Arc<SnapshotStore>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WritePhase {
+    Running,
+    Cancelled,
+    Published,
+}
+
+struct WriteOperation {
+    phase: Mutex<WritePhase>,
+    cancel: tokio::sync::Notify,
+    deadline: Instant,
+}
+
+impl WriteOperation {
+    /// Linearizes cancellation with the short publication critical section.
+    fn cancel(&self) -> bool {
+        let mut phase = self.phase.lock().unwrap();
+        if *phase == WritePhase::Published {
+            return true;
+        }
+        *phase = WritePhase::Cancelled;
+        self.cancel.notify_one();
+        false
+    }
+}
+
+struct CancelWriteOnDrop(Arc<WriteOperation>);
+impl Drop for CancelWriteOnDrop {
+    fn drop(&mut self) {
+        self.0.cancel();
+    }
 }
 
 impl StateSynchronizer {
@@ -698,23 +765,66 @@ impl StateSynchronizer {
     }
 
     pub async fn sync_once(&self) -> Result<(), StateError> {
-        let _guard = self.store.sync_lock.lock().await;
-        let before = self.rpc.request_count();
+        // At most one active caller may either run or wait for the previous
+        // cancelled worker. The worker retains its owned lock until it exits.
+        let _admission = self
+            .store
+            .sync_admission
+            .try_acquire()
+            .map_err(|_| StateError::SyncFailed)?;
         let started = Instant::now();
-        let result = tokio::time::timeout(
-            Duration::from_millis(self.store.config.sync_timeout_ms),
-            self.load(),
+        let timeout = Duration::from_millis(self.store.config.sync_timeout_ms);
+        let deadline = started + timeout;
+        let guard = tokio::time::timeout_at(
+            tokio::time::Instant::from_std(deadline),
+            self.store.sync_lock.clone().lock_owned(),
         )
         .await
-        .unwrap_or(Err(StateError::SyncFailed));
-        let mut state = self.store.state.write().unwrap();
-        state.sync_rpc_requests += self.rpc.request_count().saturating_sub(before);
-        state.last_sync_ms = started.elapsed().as_millis();
-        state.last_error = result.as_ref().err().copied();
-        result
+        .map_err(|_| StateError::SyncFailed)?;
+        let before = self.rpc.request_count();
+        let operation = Arc::new(WriteOperation {
+            phase: Mutex::new(WritePhase::Running),
+            cancel: tokio::sync::Notify::new(),
+            deadline,
+        });
+        let _cancel = CancelWriteOnDrop(operation.clone());
+        let sync = self.clone();
+        let runtime = tokio::runtime::Handle::current();
+        let active = operation.clone();
+        let worker = tokio::task::spawn_blocking(move || {
+            let _guard = guard;
+            sync.store.reclaim_retired();
+            let result = runtime.block_on(async {
+                tokio::select! {
+                    biased;
+                    _ = active.cancel.notified() => Err(StateError::SyncFailed),
+                    result = sync.load(&active) => result,
+                }
+            });
+            sync.store.reclaim_retired();
+            {
+                let mut state = sync.store.state.write().unwrap();
+                state.sync_rpc_requests += sync.rpc.request_count().saturating_sub(before);
+                state.last_sync_ms = started.elapsed().as_millis();
+                state.last_error = result.as_ref().err().copied();
+            }
+            result
+        });
+        match tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), worker).await {
+            Ok(Ok(result)) => result,
+            _ if operation.cancel() => Ok(()), // published before its deadline; cleanup may remain
+            _ => {
+                // The worker records final metrics after it exits. A deadline
+                // must never block the I/O caller behind a published-state lock.
+                if let Ok(mut state) = self.store.state.try_write() {
+                    state.last_error = Some(StateError::SyncFailed);
+                }
+                Err(StateError::SyncFailed)
+            }
+        }
     }
 
-    async fn load(&self) -> Result<(), StateError> {
+    async fn load(&self, operation: &WriteOperation) -> Result<(), StateError> {
         if !self.store.unsupported_pools.is_empty() {
             return Err(StateError::Unsupported);
         }
@@ -726,21 +836,24 @@ impl StateSynchronizer {
             .block_header(None)
             .await
             .map_err(|_| StateError::SyncFailed)?;
-        let old = {
+        let (old, retired) = {
             let mut state = self.store.state.write().unwrap();
             // A shorter head or a replacement at the published height already
             // proves a fork. Invalidate *all* leases under the same lock that
             // exposes that head, before any further network await.
-            if state
+            let retired = if state
                 .current
                 .as_ref()
                 .is_some_and(|old| old.block.number >= head.number && old.block != head)
             {
-                state.invalidate();
-            }
+                state.invalidate()
+            } else {
+                None
+            };
             state.head = Some(head.clone());
-            state.current.clone()
+            (state.current.clone(), retired)
         };
+        self.store.retire(retired);
         if let Some(old) = old {
             if old.block == head {
                 return Ok(());
@@ -805,6 +918,7 @@ impl StateSynchronizer {
             self.store.config.batch_size,
             self.store.config.v3_bitmap_radius,
             self.store.config.v3_max_loaded_ticks,
+            self.store.config.v3_full_range,
         )
         .await?;
         for pool in v3 {
@@ -861,11 +975,24 @@ impl StateSynchronizer {
                 return Err(StateError::Incomplete);
             }
         }
+        #[cfg(test)]
+        let probe = self.store.build_probe.lock().unwrap().clone();
+        #[cfg(test)]
+        if let Some(probe) = probe {
+            probe();
+        }
+        let phase = Instant::now();
+        tracing::debug!(phase = "coarse_build", "diag_sync_begin");
         let source = FrozenSource { pools };
         let router = Router::new(self.store.router_config);
         router.set_snapshot(Arc::new(
             PriceSnapshot::build(&self.store.graph, &source).await,
         ));
+        tracing::debug!(
+            phase = "coarse_build",
+            elapsed_ms = phase.elapsed().as_millis(),
+            "diag_sync_end"
+        );
         let canonical = self
             .rpc
             .block_header(Some(head.number))
@@ -875,7 +1002,18 @@ impl StateSynchronizer {
             self.store.invalidate();
             return Err(StateError::Reorg);
         }
+        let phase = Instant::now();
         let mut state = self.store.state.write().unwrap();
+        let mut write_phase = operation.phase.lock().unwrap();
+        if *write_phase == WritePhase::Cancelled || Instant::now() >= operation.deadline {
+            return Err(StateError::SyncFailed);
+        }
+        tracing::debug!(
+            phase = "publish_lock_wait",
+            elapsed_us = phase.elapsed().as_micros(),
+            "diag_sync_end"
+        );
+        let phase = Instant::now();
         let initial_age_secs = now_secs().saturating_sub(head.timestamp);
         let snapshot = Arc::new(LocalSnapshot {
             block: head,
@@ -886,8 +1024,309 @@ impl StateSynchronizer {
             published_at: Instant::now(),
             initial_age_secs,
         });
-        state.current = Some(snapshot);
+        let retired = state.current.replace(snapshot);
         state.versions += 1;
+        *write_phase = WritePhase::Published;
+        drop(state);
+        drop(write_phase);
+        self.store.retire(retired);
+        tracing::debug!(
+            phase = "publish_swap_and_drop",
+            elapsed_ms = phase.elapsed().as_millis(),
+            "diag_sync_end"
+        );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod writer_tests {
+    use super::*;
+    use crate::{
+        api::{self, AppState, RateLimiter},
+        source::FixedRate,
+        split::SplitConfig,
+    };
+    use alloy_primitives::Address;
+    use axum::{Json, Router as HttpRouter, routing::post};
+    use serde_json::{Value, json};
+    use std::sync::atomic::AtomicU64;
+    use tower::ServiceExt;
+
+    async fn fixture(
+        timeout_ms: u64,
+    ) -> (
+        Arc<SnapshotStore>,
+        Arc<StateSynchronizer>,
+        Arc<AtomicU64>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let head = Arc::new(AtomicU64::new(123));
+        let timestamp = now_secs();
+        let control = head.clone();
+        let mock = HttpRouter::new().route("/", post(move |Json(request): Json<Value>| {
+            let head = control.clone();
+            async move {
+                let result = if request["method"] == "eth_getBlockByNumber" {
+                    let tag = request["params"][0].as_str().unwrap();
+                    let n = if tag == "latest" { head.load(Ordering::SeqCst) } else { u64::from_str_radix(&tag[2..], 16).unwrap() };
+                    json!({"number":format!("0x{n:x}"),"hash":format!("0x{n:064x}"),"parentHash":format!("0x{:064x}",n-1),"timestamp":format!("0x{timestamp:x}")})
+                } else {
+                    assert_eq!(request["method"], "eth_call");
+                    assert_eq!(request["params"][1]["requireCanonical"], true);
+                    let reserve = if head.load(Ordering::SeqCst) == 123 { 100_000 } else { 200_000 };
+                    json!(format!("0x{:064x}{:064x}{:064x}{:064x}{:064x}{:064x}{:064x}{reserve:064x}{:064x}",32,1,32,1,64,96,1000,0))
+                };
+                Json(json!({"jsonrpc":"2.0","id":1,"result":result}))
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let rpc = RpcClient::new(format!("http://{}", listener.local_addr().unwrap()));
+        let server = tokio::spawn(async move { axum::serve(listener, mock).await.unwrap() });
+        let mut graph = Graph::new();
+        graph.add_pool(Pool {
+            kind: PoolKind::UniswapV2,
+            address: Address::with_last_byte(10),
+            coins: vec![Address::with_last_byte(1), Address::with_last_byte(2)],
+        });
+        let store = Arc::new(
+            SnapshotStore::new(
+                graph,
+                RouterConfig::default(),
+                LocalStateConfig {
+                    sync_timeout_ms: timeout_ms,
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
+        let sync = Arc::new(StateSynchronizer::new(rpc, store.clone()));
+        sync.sync_once().await.unwrap();
+        (store, sync, head, server)
+    }
+
+    fn app(store: Arc<SnapshotStore>) -> HttpRouter {
+        api::app_with_local_state(
+            Arc::new(AppState {
+                graph: store.graph.as_ref().clone(),
+                source: Arc::new(FixedRate::new(U256::from(1))),
+                router: Router::default(),
+                rpc: None,
+                limiter: RateLimiter::new(1000, Duration::from_secs(1)),
+                request_timeout: Duration::from_secs(3),
+            }),
+            SplitOptimizer::new(SplitConfig::multi_pool()).unwrap(),
+            store,
+        )
+    }
+
+    async fn quote(app: HttpRouter) -> Value {
+        let response = app.oneshot(axum::http::Request::builder().method("POST").uri("/quote")
+            .header("content-type","application/json").body(axum::body::Body::from(json!({"token_in":Address::with_last_byte(1),"token_out":Address::with_last_byte(2),"amount_in":"1001","split":true}).to_string())).unwrap()).await.unwrap();
+        assert_eq!(response.status(), 200);
+        serde_json::from_slice(
+            &axum::body::to_bytes(response.into_body(), 1_000_000)
+                .await
+                .unwrap(),
+        )
+        .unwrap()
+    }
+
+    struct BuildGate {
+        entered: Arc<tokio::sync::Notify>,
+        release: Arc<AtomicBool>,
+        watchdog_fired: Arc<AtomicBool>,
+    }
+    impl BuildGate {
+        fn install(store: &SnapshotStore) -> Self {
+            let entered = Arc::new(tokio::sync::Notify::new());
+            let release = Arc::new(AtomicBool::new(false));
+            let watchdog_fired = Arc::new(AtomicBool::new(false));
+            let (signal, gate) = (entered.clone(), release.clone());
+            *store.build_probe.lock().unwrap() = Some(Arc::new(move || {
+                signal.notify_one();
+                while !gate.load(Ordering::SeqCst) {
+                    std::hint::spin_loop();
+                }
+            }));
+            let (gate, fired) = (release.clone(), watchdog_fired.clone());
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_secs(1));
+                if !gate.load(Ordering::SeqCst) {
+                    fired.store(true, Ordering::SeqCst);
+                    gate.store(true, Ordering::SeqCst);
+                }
+            });
+            Self {
+                entered,
+                release,
+                watchdog_fired,
+            }
+        }
+    }
+    impl Drop for BuildGate {
+        fn drop(&mut self) {
+            self.release.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn deadline_can_cancel_while_publication_waits_for_a_reader_lock() {
+        let (store, sync, head, server) = fixture(80).await;
+        let released = Arc::new(AtomicBool::new(false));
+        let flag = released.clone();
+        let weak = Arc::downgrade(&store);
+        *store.build_probe.lock().unwrap() = Some(Arc::new(move || {
+            let store = weak.upgrade().unwrap();
+            let flag = flag.clone();
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let read = store.state.read().unwrap();
+                tx.send(()).unwrap();
+                std::thread::sleep(Duration::from_millis(400));
+                drop(read);
+                flag.store(true, Ordering::SeqCst);
+            });
+            rx.recv().unwrap();
+        }));
+        head.store(124, Ordering::SeqCst);
+        assert_eq!(sync.sync_once().await, Err(StateError::SyncFailed));
+        assert!(
+            !released.load(Ordering::SeqCst),
+            "cancellation must not wait on the published-state lock"
+        );
+        *store.build_probe.lock().unwrap() = None;
+        tokio::time::sleep(Duration::from_millis(450)).await;
+        assert_eq!(store.status().published_versions, 1);
+        head.store(125, Ordering::SeqCst);
+        sync.sync_once().await.unwrap();
+        assert_eq!(store.status().published_versions, 2);
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn aborting_sync_cancels_publication_without_stopping_the_running_worker_early() {
+        let (store, sync, head, server) = fixture(3000).await;
+        let gate = BuildGate::install(&store);
+        head.store(124, Ordering::SeqCst);
+        let first = sync.clone();
+        let pending = tokio::spawn(async move { first.sync_once().await });
+        gate.entered.notified().await;
+        pending.abort();
+        assert!(pending.await.unwrap_err().is_cancelled());
+        assert_eq!(store.acquire().unwrap().block().number, 123);
+        *store.build_probe.lock().unwrap() = None;
+        head.store(125, Ordering::SeqCst);
+        gate.release.store(true, Ordering::SeqCst);
+        sync.sync_once().await.unwrap();
+        assert_eq!(store.acquire().unwrap().block().number, 125);
+        assert_eq!(store.status().published_versions, 2);
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn old_payload_is_retained_until_readers_finish_then_reclaimed_by_writer() {
+        let (store, sync, head, server) = fixture(3000).await;
+        let old = store.acquire().unwrap();
+        let weak = Arc::downgrade(&old);
+        head.store(124, Ordering::SeqCst);
+        sync.sync_once().await.unwrap();
+        assert_eq!(old.block().number, 123);
+        assert_eq!(store.acquire().unwrap().block().number, 124);
+        drop(old);
+        assert!(
+            weak.upgrade().is_some(),
+            "dropping a reader must not reclaim its old payload on the read side"
+        );
+        sync.sync_once().await.unwrap();
+        assert!(
+            weak.upgrade().is_none(),
+            "writer should reclaim retired payloads once readers have left"
+        );
+        assert_eq!(store.status().published_versions, 2);
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn cancelled_running_writer_keeps_its_slot_and_only_one_retry_can_wait() {
+        let (store, sync, head, server) = fixture(100).await;
+        let gate = BuildGate::install(&store);
+        head.store(124, Ordering::SeqCst);
+        let first = sync.clone();
+        let pending = tokio::spawn(async move { first.sync_once().await });
+        gate.entered.notified().await;
+        assert_eq!(pending.await.unwrap(), Err(StateError::SyncFailed));
+        *store.build_probe.lock().unwrap() = None;
+        let next = sync.clone();
+        let waiting = tokio::spawn(async move { next.sync_once().await });
+        tokio::task::yield_now().await;
+        assert_eq!(
+            sync.sync_once().await,
+            Err(StateError::SyncFailed),
+            "excess retry must not join an unbounded writer queue"
+        );
+        assert!(!gate.watchdog_fired.load(Ordering::SeqCst));
+        assert_eq!(store.status().published_versions, 1);
+        assert_eq!(quote(app(store.clone())).await["quote_block"], 123);
+        gate.release.store(true, Ordering::SeqCst);
+        waiting.await.unwrap().unwrap();
+        assert_eq!(store.acquire().unwrap().block().number, 124);
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn timed_out_cpu_build_cannot_publish_its_late_result() {
+        let (store, sync, head, server) = fixture(80).await;
+        let gate = BuildGate::install(&store);
+        head.store(124, Ordering::SeqCst);
+        let first = sync.clone();
+        let pending = tokio::spawn(async move { first.sync_once().await });
+        gate.entered.notified().await;
+        assert_eq!(pending.await.unwrap(), Err(StateError::SyncFailed));
+        assert_eq!(store.acquire().unwrap().block().number, 123);
+        *store.build_probe.lock().unwrap() = None;
+        head.store(125, Ordering::SeqCst);
+        gate.release.store(true, Ordering::SeqCst);
+        sync.sync_once().await.unwrap();
+        assert_eq!(store.acquire().unwrap().block().number, 125);
+        assert_eq!(
+            store.status().published_versions,
+            2,
+            "the timed-out version must never be published"
+        );
+        server.abort();
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn readers_and_health_progress_while_a_new_snapshot_is_still_building() {
+        let (store, sync, head, server) = fixture(3000).await;
+        let http = app(store.clone());
+        let old = quote(http.clone()).await;
+        let gate = BuildGate::install(&store);
+        head.store(124, Ordering::SeqCst);
+        let pending = tokio::spawn(async move { sync.sync_once().await });
+        gate.entered.notified().await;
+        let health = http
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/health")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(health.status(), 200);
+        let during = quote(http.clone()).await;
+        assert!(
+            !gate.watchdog_fired.load(Ordering::SeqCst),
+            "HTTP must progress before the held CPU build is released"
+        );
+        assert_eq!(during["quote_block"], 123);
+        assert_eq!(during["amount_out"], old["amount_out"]);
+        gate.release.store(true, Ordering::SeqCst);
+        pending.await.unwrap().unwrap();
+        assert_eq!(quote(http).await["quote_block"], 124);
+        server.abort();
     }
 }

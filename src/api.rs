@@ -304,8 +304,16 @@ fn optimizer_for(
 async fn quote(
     State(state): State<Arc<AppState>>,
     Extension(service): Extension<Arc<SplitService>>,
+    headers: axum::http::HeaderMap,
     Json(req): Json<QuoteRequestDto>,
 ) -> Result<Json<QuoteResponseDto>, ApiError> {
+    let entered = Instant::now();
+    let diag_id = headers
+        .get("x-diag-id")
+        .and_then(|s| s.to_str().ok())
+        .unwrap_or("")
+        .to_owned();
+    tracing::debug!(id=%diag_id, "diag_quote_enter");
     if !state.limiter.allow() {
         return Err(ApiError::RateLimited);
     }
@@ -333,7 +341,9 @@ async fn quote(
             .clone()
             .try_acquire_owned()
             .map_err(|_| ApiError::RateLimited)?;
+        let acquire = Instant::now();
         let snapshot = store.acquire()?;
+        tracing::debug!(id=%diag_id, acquire_us=acquire.elapsed().as_micros(), entered_us=entered.elapsed().as_micros(), "diag_quote_acquired");
         let store = store.clone();
         let timeout = state.request_timeout;
         let http_deadline = tokio::time::Instant::now() + timeout;
@@ -343,7 +353,11 @@ async fn quote(
                 .saturating_sub(Duration::from_millis(25));
         // V3 tick traversal is CPU work. Keep it off Tokio's network/sync
         // workers and bound both running and abandoned-on-timeout jobs.
+        let queued = Instant::now();
+        let worker_id = diag_id.clone();
         let mut calculate = tokio::task::spawn_blocking(move || {
+            let worker_start = Instant::now();
+            tracing::debug!(id=%worker_id, queue_us=queued.elapsed().as_micros(), "diag_quote_worker_begin");
             let _permit = permit;
             tokio::runtime::Handle::current().block_on(async move {
                 let mut response = if req.split {
@@ -363,7 +377,9 @@ async fn quote(
                     route_to_dto(snapshot.route(&request).await?)
                 };
                 response.quote_block = Some(snapshot.block().number);
+                let metadata = Instant::now();
                 response.state = Some(store.quote_state(&snapshot)?);
+                tracing::debug!(id=%worker_id, metadata_us=metadata.elapsed().as_micros(), worker_us=worker_start.elapsed().as_micros(), "diag_quote_worker_end");
                 if tokio::time::Instant::now() >= http_deadline {
                     return Err(ApiError::Timeout);
                 }
@@ -371,7 +387,10 @@ async fn quote(
             })
         });
         return match tokio::time::timeout(timeout, &mut calculate).await {
-            Ok(Ok(result)) => result,
+            Ok(Ok(result)) => {
+                tracing::debug!(id=%diag_id, total_us=entered.elapsed().as_micros(), "diag_quote_return");
+                result
+            }
             Ok(Err(_)) => Err(ApiError::ComputationFailed),
             Err(_) => {
                 calculate.abort();

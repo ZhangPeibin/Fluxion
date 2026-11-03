@@ -1,0 +1,29 @@
+{
+  "observation_seconds": 211.669745583029,
+  "background_sync_continuous": true,
+  "versions_before": 1,
+  "versions_after": 4,
+  "health": {
+    "requests": 3832,
+    "success": 3832,
+    "p50_ms": 0.8835619955789298,
+    "p95_ms": 3.14250000519678,
+    "max_ms": 79.6528750215657,
+    "slowest_id": "fix-health-02077",
+    "slowest_sent_unix": 1793693742.343958
+  },
+  "quote_requests": 90,
+  "quote_admission_median_ms": 1.104116439819336,
+  "quote_admission_max_ms": 2.682924270629883,
+  "quote_http_processing_max_ms": 238.18612098693848,
+  "sync_duration_min_ms": 47810,
+  "sync_duration_max_ms": 63636,
+  "state_age_min_seconds": 59,
+  "state_age_median_seconds": 90,
+  "state_age_max_seconds": 129,
+  "expand_bitmap_bits_ms": [18, 19, 20],
+  "validate_states_ms": [27, 27, 24],
+  "publish_ms": [0, 0, 0],
+  "async_heartbeat_warnings_over_150_ms": 0,
+  "code_fingerprint": "5540fa530261b3fc09e25015a746c47cbacbcf49"
+}

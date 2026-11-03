@@ -38,6 +38,45 @@ fn missing_bitmap_words_are_not_assumed_to_have_no_liquidity() {
 }
 
 #[test]
+fn only_a_complete_global_empty_bitmap_proves_no_reachable_liquidity() {
+    let words = (-18..=17)
+        .map(|word| (word, U256::ZERO))
+        .collect::<BTreeMap<_, _>>();
+    let empty = V3State::new(
+        sqrt_ratio_at_tick(0).unwrap(),
+        0,
+        0,
+        10000,
+        200,
+        words.clone(),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    for direction in [true, false] {
+        assert_eq!(
+            empty.quote(U256::from(1000), direction).unwrap_err(),
+            QuoteError::InsufficientLiquidity
+        );
+    }
+    let mut missing = words;
+    missing.remove(&1);
+    let unknown = V3State::new(
+        sqrt_ratio_at_tick(0).unwrap(),
+        0,
+        0,
+        10000,
+        200,
+        missing,
+        BTreeMap::new(),
+    )
+    .unwrap();
+    assert_eq!(
+        unknown.quote(U256::from(1000), false).unwrap_err(),
+        QuoteError::IncompleteState
+    );
+}
+
+#[test]
 fn swaps_cross_signed_ticks_and_empty_liquidity_gaps() {
     let maps = BTreeMap::from([(-1, U256::from(1) << 255), (0, U256::from(1) << 1)]);
     let state = V3State::new(

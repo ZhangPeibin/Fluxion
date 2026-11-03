@@ -182,6 +182,39 @@ async fn main() {
         "/info",
         axum::routing::get(move || async move { axum::Json(info) }),
     );
+    let app = if std::env::var_os("FLUXION_DIAG").is_some() {
+        tracing::info!(threads=?std::thread::available_parallelism(), "diag_runtime");
+        tokio::spawn(async {
+            loop {
+                let at = std::time::Instant::now();
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                let elapsed_ms = at.elapsed().as_millis();
+                if elapsed_ms > 150 {
+                    tracing::warn!(elapsed_ms, "diag_async_heartbeat_late");
+                }
+            }
+        });
+        std::thread::spawn(|| {
+            loop {
+                let at = std::time::Instant::now();
+                std::thread::sleep(Duration::from_millis(50));
+                let elapsed_ms = at.elapsed().as_millis();
+                if elapsed_ms > 150 {
+                    tracing::warn!(elapsed_ms, "diag_os_heartbeat_late");
+                }
+            }
+        });
+        app.layer(axum::middleware::from_fn(|request: axum::extract::Request, next: axum::middleware::Next| async move {
+            let id = request.headers().get("x-diag-id").and_then(|s| s.to_str().ok()).unwrap_or("").to_owned();
+            let received = std::time::Instant::now();
+            if !id.is_empty() { tracing::info!(id=%id, "diag_http_enter"); }
+            let response = next.run(request).await;
+            if !id.is_empty() { tracing::info!(id=%id, elapsed_us=received.elapsed().as_micros(), "diag_http_response_ready"); }
+            response
+        }))
+    } else {
+        app
+    };
     let addr: std::net::SocketAddr = format!("{}:{}", config.host, config.port)
         .parse()
         .expect("invalid host/port in config");
