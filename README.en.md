@@ -43,9 +43,9 @@ cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
 [gap analysis (Chinese)](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
 [algorithm and HTTP contract](docs/MULTI-POOL.md)
 
-## Data/compute separation (#31 / #32: local V2/V3 and wstETH pricing)
+## Data/compute separation (#31–#33: V2/V3, wstETH and classic 3pool)
 
-Opt-in `pricing_mode: local_snapshot` synchronizes V2/ShibaSwap, V3 bitmap/ticks and Lido v4 state, and
+Opt-in `pricing_mode: local_snapshot` synchronizes V2/ShibaSwap, V3, Lido v4 and classic 3pool state, and
 publishes immutable block snapshots. Single-route, multi-hop and split calculations use the same
 snapshot for coarse and exact pricing, with **zero RPC during request computation**. Offline
 operation, reorg/staleness/failure handling and integer parity with deployed Routers are verified.
@@ -54,6 +54,9 @@ four-pool, 20-request HTTP sample measured **31.05/31.33 ms** p50/p95; this is n
 wstETH integer boundaries and conversion+V3 routes also match on-chain references. A restricted
 six-record HTTP sample (five requests per direction) measured **0.54–1.22 ms** p50. Exact internal
 ETH/shares avoid a demonstrated 1-wei error from substituting the public total-supply ratio.
+Classic Curve 3pool also matches 64 historical raw vectors and 18 live quotes, with independently
+checked multi-hop routes. Its single-deployment HTTP sample succeeded 30/30, per-direction p50
+**1.51–1.73 ms**. These restricted universes do not replace full-coverage acceptance.
 
 ```bash
 # Restricted real ShibaSwap example on :8083, not the full-venue benchmark profile
@@ -63,13 +66,16 @@ curl -s localhost:8083/state
 cargo run -- --config config.local-v3.example.yaml
 # stETH/wstETH + V3 multi-hop on :8085 (requires a Graph key)
 cargo run -- --config config.local-wsteth.example.yaml
+# Explicit single-deployment 3pool HTTP demo on :8086 (no Graph key/discovery)
+cargo run --example local_curve_server
 ```
 
-The default remains `rpc`. Curve support/local math and full 90-row migration acceptance are
-subsequent stages. Unsupported pools/protocol versions or missing V3 coverage are explicit rather
+The default remains `rpc`. The other two two-coin Curve stable pools, two crypto deployments and
+full 90-row migration acceptance remain subsequent stages. Unsupported pools/protocol versions or missing V3 coverage are explicit rather
 than disappearing from the graph or falling back to request-time RPC. [Design/run guide](docs/LOCAL-STATE.md) ·
 [V3 measurements](docs/benchmarks/2026-11-03-local-state-v3.md) ·
-[wstETH measurements and scope](docs/benchmarks/2026-11-03-local-state-wsteth.md) (Chinese).
+[wstETH measurements](docs/benchmarks/2026-11-03-local-state-wsteth.md) ·
+[Curve support matrix](docs/CURVE-SUPPORT.md) · [3pool measurements](docs/benchmarks/2026-11-03-local-state-curve.md) (Chinese).
 
 ## Historical two-pool experiment (#30)
 

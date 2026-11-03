@@ -2,6 +2,8 @@ pub mod adapters;
 pub mod api;
 pub mod config;
 pub mod conversion;
+pub mod curve_local;
+mod curve_sync;
 pub mod discovery;
 pub mod error;
 pub mod graph;

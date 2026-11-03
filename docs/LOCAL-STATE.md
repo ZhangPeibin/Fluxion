@@ -1,12 +1,12 @@
-# 数据与计算分层：V2/V3 与 wstETH 本地精算（#31 / #32）
+# 数据与计算分层：V2/V3、wstETH 与经典 3pool（#31–#33）
 
 ## 交付范围
 
-已打通真实 V2 / ShibaSwap 储备、Uniswap V3 bitmap/tick 和 Lido v4 转换状态的后台同步、不可变快照、
+已打通 V2 / ShibaSwap、V3 bitmap/tick、Lido v4 和经典 Curve 3pool 状态的后台同步、不可变快照、
 单路径/多跳/拆单本地计算、HTTP 状态与错误处理。通过 `pricing_mode: local_snapshot`
 显式启用，默认仍为 `rpc`。
 
-**这不是 #31 全部完成。** Curve 支持矩阵与本地数学、全量 90 组质量/
+**这不是 #31 全部完成。** 其他 Curve 稳定/crypto 部署的本地数学、全量 90 组质量/
 延迟对照仍待后续阶段。包含尚不支持池型的图会整体报告
 `UnsupportedLocalPool`，不会悄悄删掉这些池后宣称无损提速。
 
@@ -33,6 +33,10 @@ V2/V3/ShibaSwap 四池示例：`cargo run -- --config config.local-v3.example.ya
 不是默认全平台池集。把示例的 `enabled_platforms` 改成 `[]` 可在不需要 Graph key 的情况下
 只验证真实协议转换。
 
+经典 3pool 的固定部署 HTTP 示例：`cargo run --example local_curve_server`，默认 `:8086`，
+读取 `config.local-curve.example.yaml`，不需要 Graph key。这是显式单部署图，不运行注册表
+发现；普通 main 仍会把未支持的 Curve 部署保留并明确拒绝。见 [支持矩阵](CURVE-SUPPORT.md)。
+
 local 模式若进入 mock universe，不启动链上同步，也不会把 mock 地址拿去主网询价；
 状态保持 `SnapshotNotReady`。日常离线 mock 开发继续使用默认 rpc 模式，已有 mock 报价
 行为保持不变。没有成功快照也能访问 `/health`、`/info` 和 `/state`。
@@ -48,12 +52,12 @@ local 模式若进入 mock universe，不启动链上同步，也不会把 mock 
 2. 若与已发布版本完全一致，不重新加载，也不重置状态年龄。新区块到来时重新确认上一版
    的 canonical hash；发现分叉立即撤销当前版本，并推进重组代际。
 3. 用 EIP-1898 `blockHash + requireCanonical` 固定全部 `eth_call`。按 `batch_size` 分批
-   Multicall 读取当前图的 V2 储备、V3 header/bitmap/ticks 以及转换协议状态。任一必要子调用失败、ABI
+   Multicall 读取 V2 储备、V3 header/bitmap/ticks、转换协议及已支持 Curve 状态。任一必要子调用失败、ABI
    不完整、非法状态或身份不符都中止本次发布。
 4. 在新储备上构建本地粗选 `PriceSnapshot` 和独立 `Router`，发布前再校验目标区块 header。
 5. 原子替换整个 `Arc<LocalSnapshot>`；已持有旧版本的读者不受正常发布影响。
 
-**初版每个新区块重读 V2、覆盖窗口内的 V3 和转换协议状态**，没有引入日志增量缓存。
+**初版每个新区块重读 V2、覆盖窗口内的 V3、转换协议和 Curve 状态**，没有引入日志增量缓存。
 它用完整重建避开日志断档和重组回滚的缓存正确性问题；后续规模优化再引入有连续性证明的变更集合。不能把本阶段
 说成已经实现 #31 中完整的日志增量同步器。
 
@@ -132,6 +136,21 @@ Lido 的比例更新。仅复现报价 view，不代表模拟 wrap/unwrap 交易
 [Lido 源码](https://github.com/lidofinance/core/tree/2bd532298d85cdf520169fdc0c5fb0cc9baf03c3)，
 并以运行时版本和同块 view 验证部署语义。
 
+### 经典 Curve 3pool
+
+只支持明确核实的 DAI/USDC/USDT 3pool 地址，保持 get_dy 的整数与费用取整顺序。后台同块
+读取币序、存储余额、有效 A()/fee，构建并缓存该快照的 D，再以六币向 probe 核对。三币
+索引 0/1/2、六条边均可精算；Curve 作为完整基线，不新增独立拆单分支。
+
+`/state.curve_state` 与报价 `state.curve_state` 提供 profile、币序、raw 余额、A 精度、fee
+和流动性标志。图展示使用真实存储余额，粗选保持旧 Curve reserve 约定以兼容原有
+阈值/惩罚设置；没有 Curve 的旧报价不增加此字段。
+空余额属于已知无流动性，不等于漏读；畸形或模型不符不能部分发布。其他四个当前发现的
+Curve 部署仍 UnsupportedLocalPool，不会因为也有 get_dy/A() 就套用经典公式。
+
+完整公式、ABI/代码指纹清点、原始历史向量及受限示例见 [CURVE-SUPPORT](CURVE-SUPPORT.md)。
+当前仍保留原有 Curve 微量粗选采样；本票不声称交易模拟、任意部署支持或候选算法全局最优。
+
 ## HTTP 与可观测性
 
 原请求字段保持不变，`split=true`、分支 cap、整数输入守恒、最佳完整方案回退和最终
@@ -202,9 +221,13 @@ local 的不可用错误均为 HTTP 503，带 `pricing_mode: local_snapshot`：
   缺失/畸形状态、版本不符和 view 模型验证失败不部分发布，运行时版本恢复后可重试。
 - 主网 wstETH：18 个双向整数场景（含零输出）与协议 view 语义一致，另验证两向非法输入
   上界；四条二/三跳转换+V3 路径逐跳 raw 输出相等。六池 HTTP 四个方向各 5 次均成功。
+- Curve：两个历史块的 64 条 raw 向量离线完全相等；HTTP 断网、参数更新与旧读者、失败
+  不部分发布、min 输出、三币索引和未知部署可见性通过。主网六币向 18/18、组合路径及
+  30 次固定部署 HTTP 通过；它不等于五个 Curve 部署均已支持。
 - [V2 历史记录](benchmarks/2026-11-02-local-state-v2.md) ·
   [V3 阶段实测](benchmarks/2026-11-03-local-state-v3.md) ·
-  [wstETH 实测](benchmarks/2026-11-03-local-state-wsteth.md)。都不是原全平台 90 行回归。
+  [wstETH 实测](benchmarks/2026-11-03-local-state-wsteth.md) ·
+  [3pool 实测](benchmarks/2026-11-03-local-state-curve.md)。都不是原全平台 90 行回归。
 
-下一阶段是 Curve 支持矩阵与逐类本地精算。保持 #31 开放，待
+下一阶段是剩余两币稳定池与 crypto 的逐部署核实/本地精算。保持 #31 开放，待
 全部协议覆盖及同候选集质量对照通过后才能切换默认模式。

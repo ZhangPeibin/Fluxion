@@ -1,0 +1,110 @@
+{
+  "block": {
+    "hash": "0x71a65ca350e51d79469e037fb86aa86f098587988f7311b6b4e0017214c41618",
+    "number": 26331147,
+    "parent_hash": "0x8aed9d34b7998e6a1caf4edab0d5107e0230138eebe9d9748b8aebc2ad0a6c0b",
+    "timestamp": 1793671295
+  },
+  "hash_unchanged": true,
+  "pools": [
+    {
+      "address": "0x1005f7406f32a61bd760cfa14accd2737913d546",
+      "coins": [
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "0xdac17f958d2ee523a2206206994597c13d831ec7"
+      ],
+      "interface_values": {
+        "A()": "1500",
+        "A_precise()": "150000",
+        "fee()": "3000000",
+        "gamma()": null,
+        "mid_fee()": null,
+        "offpeg_fee_multiplier()": null,
+        "out_fee()": null,
+        "price_scale(uint256)": null
+      },
+      "runtime_code_hash": "0x3e1e48931484c6a34ef1bb8d501d9378817bec53c974424059d3d17c22536010"
+    },
+    {
+      "address": "0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5",
+      "coins": [
+        "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+        "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+      ],
+      "interface_values": {
+        "A()": "3645",
+        "A_precise()": "364500",
+        "fee()": "8812304",
+        "gamma()": "69999999999999",
+        "mid_fee()": "4000000",
+        "offpeg_fee_multiplier()": null,
+        "out_fee()": "40000000",
+        "price_scale(uint256)": "79574524413539952728328"
+      },
+      "runtime_code_hash": "0x30d9576eada454036a038074e5e9b89d14497fe06394753206e122152619a1e6"
+    },
+    {
+      "address": "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7",
+      "coins": [
+        "0x6b175474e89094c44da98b954eedeac495271d0f",
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "0xdac17f958d2ee523a2206206994597c13d831ec7"
+      ],
+      "interface_values": {
+        "A()": "4000",
+        "A_precise()": null,
+        "fee()": "1500000",
+        "gamma()": null,
+        "mid_fee()": null,
+        "offpeg_fee_multiplier()": null,
+        "out_fee()": null,
+        "price_scale(uint256)": null
+      },
+      "runtime_code_hash": "0x954a1e212c557c85043985931498ffa3e2fcbe7dfe9cd61513f36eb47d6f4dfc"
+    },
+    {
+      "address": "0xd51a44d3fae010294c616388b506acda1bfaae46",
+      "coins": [
+        "0xdac17f958d2ee523a2206206994597c13d831ec7",
+        "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+        "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+      ],
+      "interface_values": {
+        "A()": "1707629",
+        "A_precise()": null,
+        "fee()": "3917238",
+        "gamma()": "11809167828997",
+        "mid_fee()": "3000000",
+        "offpeg_fee_multiplier()": null,
+        "out_fee()": "30000000",
+        "price_scale(uint256)": "77135781115087975362923"
+      },
+      "runtime_code_hash": "0x9cb858c1d8e8ab8ba7dc273f146d428965b0ca686d05fb02cb4ffc62149ec928"
+    },
+    {
+      "address": "0xdcef968d416a41cdac0ed8702fac8128a64241a2",
+      "coins": [
+        "0x853d955acef822db058eb8505911ed77f175b99e",
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+      ],
+      "interface_values": {
+        "A()": "1500",
+        "A_precise()": "150000",
+        "fee()": "1000000",
+        "gamma()": null,
+        "mid_fee()": null,
+        "offpeg_fee_multiplier()": null,
+        "out_fee()": null,
+        "price_scale(uint256)": null
+      },
+      "runtime_code_hash": "0x304e2199bfe57413d95a53efb2f3df8ed69be12f7df5770b874c9b3a30d9cafd"
+    }
+  ],
+  "registry_ids": [
+    0,
+    5
+  ],
+  "rpc_attempts": 322,
+  "token_filter": "default all-token allowlist; unchanged discovery rules"
+}
