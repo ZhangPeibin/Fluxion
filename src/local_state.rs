@@ -214,7 +214,7 @@ impl FrozenSource {
                 Some(CurveStateInfo {
                     pool: pool.address,
                     profile: state.profile().name(),
-                    balance_source: "stored",
+                    balance_source: state.profile().balance_source(),
                     coins: pool.coins.clone(),
                     balances: state.balances().iter().map(ToString::to_string).collect(),
                     amplification: state.amplification().to_string(),

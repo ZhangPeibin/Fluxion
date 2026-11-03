@@ -3,6 +3,7 @@ use fluxion::{
     adapters::Curve,
     conversion::ProtocolConversions,
     curve_local::CurveProfile,
+    curve_plain::PlainProfile,
     graph::Graph,
     local_state::{LocalStateConfig, SnapshotStore, StateSynchronizer},
     model::{ConversionKind, Hop, Pool, PoolKind, QuoteRequest},
@@ -170,10 +171,12 @@ async fn independent_hop(rpc: &RpcClient, hop: &Hop) -> U256 {
 
 #[tokio::test]
 #[ignore]
-async fn tricrypto2_classic_stable_v3_and_wsteth_share_one_snapshot() {
+async fn all_four_curve_deployments_v3_and_wsteth_share_one_snapshot() {
     let crypto = tricrypto2_local::pool();
     let mut graph = Graph::new();
     graph.add_pool(CurveProfile::Classic3.pool());
+    graph.add_pool(PlainProfile::TwoCrv.pool());
+    graph.add_pool(PlainProfile::FraxUsdc.pool());
     graph.add_pool(crypto.clone());
     let usdc: Address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
         .parse()
@@ -267,7 +270,7 @@ async fn tricrypto2_classic_stable_v3_and_wsteth_share_one_snapshot() {
             path.iter().map(|h| h.pool.kind.name()).collect::<Vec<_>>()
         );
     }
-    assert_eq!(store.status().curve_state.len(), 2);
+    assert_eq!(store.status().curve_state.len(), 4);
     assert_eq!(rpc.request_count(), before);
     assert_eq!(
         oracle.block_hash(snapshot.block().number).await.unwrap(),

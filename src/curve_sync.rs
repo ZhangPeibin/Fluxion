@@ -40,8 +40,9 @@ pub async fn load(
     for pool in pools {
         let profile = curve_local::profile_for(pool).ok_or(StateError::Unsupported)?;
         let start = calls.len();
+        let count = pool.coins.len();
         for signature in ["coins(uint256)", "balances(uint256)"] {
-            for i in 0..3 {
+            for i in 0..count {
                 calls.push((
                     pool.address,
                     format!("{}{}", selector(signature), u256_word(U256::from(i))),
@@ -63,17 +64,18 @@ pub async fn load(
     let mut expected = Vec::new();
     for (pool, (start, end, profile)) in pools.iter().zip(layouts) {
         let words = &values[start..end];
-        for (word, coin) in words.iter().take(3).zip(&pool.coins) {
+        let count = pool.coins.len();
+        for (word, coin) in words.iter().take(count).zip(&pool.coins) {
             if *word != U256::from_be_slice(coin.as_slice()) {
                 return Err(StateError::Incomplete);
             }
         }
         let state = profile
-            .build(&words[3..])
+            .build(&words[count..])
             .map_err(|_| StateError::Incomplete)?;
         if state.is_liquid() {
             for (i, unit) in profile.units().into_iter().enumerate() {
-                for j in 0..3 {
+                for j in 0..count {
                     if i == j {
                         continue;
                     }
@@ -96,15 +98,13 @@ pub async fn load(
         states.push(state);
     }
     for (calls, expected) in probes.chunks(batch).zip(expected.chunks(batch)) {
-        for ((ok, data), expected) in multicall(rpc, calls)
+        let results = multicall(rpc, calls)
             .await
-            .map_err(|_| StateError::SyncFailed)?
-            .into_iter()
-            .zip(expected)
-        {
+            .map_err(|_| StateError::SyncFailed)?;
+        for ((ok, data), expected) in results.into_iter().zip(expected) {
             match expected {
                 Ok(value) if ok && data.len() == 32 && U256::from_be_slice(&data) == *value => {}
-                Err(_) if !ok => {}
+                Err(_) if !ok => {} // a modeled view revert is not missing metadata
                 _ => return Err(StateError::Incomplete),
             }
         }

@@ -89,3 +89,33 @@ debug 构建、公共 RPC、本机 HTTP；初始化与后台状态同步不在�
 - `cargo test --test local_tricrypto2_mainnet -- --ignored --nocapture`：2 项通过。
 - `cargo clippy --all-targets -- -D warnings`、`cargo build --bins --examples`、
   `cargo fmt --check` 和 `git diff --check` 均通过。
+
+## #34 / #35 联合集成复核
+
+两个分支整合后，完整离线测试为 **124 项通过**。新增同块 20000000 的四部署同批加载与
+断网 HTTP 回归，覆盖不同币数/字段数、两币池余额来源、固定/动态 fee 元数据和计算 0 RPC。
+完整五池发现图保留全部记录，只把旧 Tricrypto 报告为未支持。
+
+联合主网命令：
+
+```bash
+cargo test --test local_curve_plain_mainnet --test local_tricrypto2_mainnet -- --ignored --nocapture
+```
+
+**4 项测试通过**：两币池 29 个输出及各自 V3 组合、Tricrypto2 六向 52 场景
+（44 成功/8 预期拒绝），以及四个 Curve 部署 + 两个 V3 + wstETH 的七记录同块图。
+2CRV 检查使用区块 26331901，hash
+`0xdbe8f22617f5aba195ee7f941fd8983e841a2f4a078b8fa1ee8bc66615bbf0e8`；
+FRAX/USDC 与 Tricrypto2/七记录图使用区块 **26331902**，hash
+`0x30a05d64a0997ccb0428d82e91bb1708209bdc56bdf47356a693e8db8f9847e5`。
+
+七记录图初始化计数 15 RPC，计算仍 0 RPC，选中 hop 均与独立 get_dy/QuoterV2/协议 view 相等：
+
+| 输入方向 | raw 输出 | 本地 μs |
+|---|---|---:|
+| 100000 USDC→WBTC | 126231484 | 3365 |
+| 1.67 WBTC→USDC | 124872809222 | 3180 |
+| 0.167 WBTC→stETH | 5683351203215572087 | 1471 |
+
+联合版本的严格 Clippy、全部 bins/examples 构建与格式检查通过。上面的单部署 HTTP 数字
+保留为该阶段样本，未将它冒充七记录图的 HTTP 延迟或全平台 90 行结果。

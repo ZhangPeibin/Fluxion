@@ -1,8 +1,9 @@
-//! Explicit single-deployment HTTP demo; does not filter the production universe.
+//! Explicit verified-deployment HTTP demo; does not filter production discovery.
 use fluxion::{
     api::{self, AppState, RateLimiter},
     config::Config,
     curve_local::CurveProfile,
+    curve_plain::PlainProfile,
     discovery::token_allowed,
     graph::Graph,
     local_state::{PricingMode, SnapshotStore, StateSynchronizer},
@@ -17,12 +18,14 @@ use std::{sync::Arc, time::Duration};
 async fn main() {
     let mut args = std::env::args().skip(1);
     let mut path = "config.local-curve.example.yaml".to_string();
-    let mut profile = CurveProfile::Classic3;
+    let mut all_stable = false;
+    let mut tricrypto2 = false;
     while let Some(flag) = args.next() {
         match flag.as_str() {
             "--config" => path = args.next().expect("missing config"),
-            "--tricrypto2" => profile = CurveProfile::Tricrypto2,
-            _ => panic!("use --config PATH [--tricrypto2]"),
+            "--all-stable" => all_stable = true,
+            "--tricrypto2" => tricrypto2 = true,
+            _ => panic!("use --config PATH [--all-stable] [--tricrypto2]"),
         }
     }
     let config = Config::from_file(&path).expect("valid configuration");
@@ -36,13 +39,29 @@ async fn main() {
         platform_enabled(&config, "curve"),
         "the demo requires enabled curve pricing"
     );
-    let pool = profile.pool();
-    assert!(
-        pool.coins.iter().all(|coin| token_allowed(&config, *coin)),
-        "all selected pool coins must be allowed"
-    );
     let mut graph = Graph::new();
-    graph.add_pool(pool);
+    let mut profiles = if tricrypto2 && !all_stable {
+        vec![]
+    } else {
+        vec![CurveProfile::Classic3]
+    };
+    if all_stable {
+        profiles.extend([
+            CurveProfile::Plain(PlainProfile::TwoCrv),
+            CurveProfile::Plain(PlainProfile::FraxUsdc),
+        ]);
+    }
+    if tricrypto2 {
+        profiles.push(CurveProfile::Tricrypto2);
+    }
+    for profile in profiles {
+        let pool = profile.pool();
+        assert!(
+            pool.coins.iter().all(|c| token_allowed(&config, *c)),
+            "all selected pool coins must be allowed"
+        );
+        graph.add_pool(pool);
+    }
     let router_config = RouterConfig {
         max_hops: config.max_hops,
         top_k: config.top_k,
@@ -53,7 +72,13 @@ async fn main() {
         SnapshotStore::new(graph.clone(), router_config, config.local_state.clone()).unwrap(),
     );
     let (source, _) = pricing_source(&config, rpc.clone());
-    let info = serde_json::json!({"mode":"mainnet","profile":match profile {CurveProfile::Classic3=>"explicit-classic-3pool-only",CurveProfile::Tricrypto2=>"explicit-tricrypto2-only"},"discovery":"not run: fixed verified deployment demo", "config":config.public_settings(),"pools":1,"tokens":3,"edges":6,"platform_edges":{"curve":6}});
+    let profile = match (all_stable, tricrypto2) {
+        (true, true) => "explicit-verified-curve-only",
+        (true, false) => "explicit-verified-stable-only",
+        (false, true) => "explicit-tricrypto2-only",
+        (false, false) => "explicit-classic-3pool-only",
+    };
+    let info = serde_json::json!({"mode":"mainnet","profile":profile,"discovery":"not run: fixed verified deployment demo", "config":config.public_settings(),"pools":graph.pool_count(),"tokens":graph.tokens().len(),"edges":graph.edge_count(),"platform_edges":{"curve":graph.edge_count()}});
     let state = Arc::new(AppState {
         graph,
         source,

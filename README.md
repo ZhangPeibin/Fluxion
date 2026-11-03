@@ -41,9 +41,9 @@ cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
 [结果与剩余差距分析](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
 [多池算法与 HTTP 协议](docs/MULTI-POOL.md)
 
-## 数据与计算分层（#31 / #35：V2/V3、wstETH、3pool 与 Tricrypto2）
+## 数据与计算分层（#31–#35：V2/V3、wstETH、三个稳定池与 Tricrypto2）
 
-新增显式 `pricing_mode: local_snapshot`：后台同步 V2/ShibaSwap、V3、Lido v4、3pool 和 Tricrypto2，发布不可变区块快照；
+新增显式 `pricing_mode: local_snapshot`：后台同步 V2/ShibaSwap、V3、Lido v4、三个 Curve 稳定池和 Tricrypto2，发布不可变区块快照；
 单路径、多跳和拆单的粗选/精算都在同一快照本地完成，**请求计算 0 RPC**。
 已验证断网计算、重组/过期/同步失败，以及固定区块与部署 Router 的整数输出一致性。
 V3 五池、四档费率的 **30/30** 样本与 QuoterV2 完全一致；受限四池 HTTP 20 次样本
@@ -54,6 +54,8 @@ wstETH 双向整数边界及转换+V3 多跳也已核对；受限六池 HTTP 每
 30/30 成功，各方向 p50 **1.51–1.73 ms**。这些均为受限池集，不能代替全平台验收。
 Tricrypto2 的 **104 条历史成功/失败场景、52 条当前主网场景**与 view 一致；单部署 HTTP
 30/30 成功，各方向 p50 **0.74–0.84 ms**（最大样本 12.18 ms），动态费用与 stored D 按具体部署精算。
+两个两币池新增 **58 条历史向量、29 条主网场景**一致；三稳定池固定图 HTTP 25/25 成功，
+各方向 p50 **1.50–1.66 ms**。两者按部署分别处理余额与整数取整，不仅凭 A 精度归类。
 
 ```bash
 # 受限的真实 ShibaSwap 示例，默认 :8083；不是原全平台 benchmark 配置
@@ -67,15 +69,17 @@ cargo run -- --config config.local-wsteth.example.yaml
 cargo run --example local_curve_server
 # 显式 Tricrypto2 单部署图（无 Graph key，默认 :8088）
 cargo run --example local_curve_server -- --tricrypto2 --config config.local-tricrypto2.example.yaml
+# 三个已核实稳定池，固定图 :8087（不是全注册表发现）
+cargo run --example local_curve_server -- --all-stable --config config.local-curve-stable.example.yaml
 ```
 
-默认仍为原有 `rpc` 模式。#34 两币模型在独立工作区待整合；联合后覆盖 4/5 Curve，旧
-Tricrypto 与全平台 90 组验收仍待后续阶段。
+默认仍为原有 `rpc` 模式。#34/#35 已联合集成，覆盖 4/5 Curve；旧 Tricrypto 与全平台 90 组验收仍待后续阶段。
 未支持池型/协议版本、V3 覆盖不足会明确报告，不会静默删池或回退到请求内 RPC。
 [设计与运行方法](docs/LOCAL-STATE.md) · [V3 实测](docs/benchmarks/2026-11-03-local-state-v3.md) ·
 [wstETH 实测](docs/benchmarks/2026-11-03-local-state-wsteth.md) ·
 [Curve 支持矩阵](docs/CURVE-SUPPORT.md) · [3pool 实测](docs/benchmarks/2026-11-03-local-state-curve.md) ·
-[Tricrypto2 模型](docs/TRICRYPTO2.md) · [Tricrypto2 实测](docs/benchmarks/2026-11-03-local-state-tricrypto2.md)。
+[Tricrypto2 模型](docs/TRICRYPTO2.md) · [Tricrypto2 实测](docs/benchmarks/2026-11-03-local-state-tricrypto2.md) ·
+[两币池实测](docs/benchmarks/2026-11-03-local-state-curve-plain.md)。
 
 ## 历史：两池拆单实验（#30）
 

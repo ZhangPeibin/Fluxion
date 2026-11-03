@@ -87,6 +87,7 @@ cargo run --example local_curve_server -- --tricrypto2 --config config.local-tri
 两份固定块 fixture 共 104 条（90 成功、14 预期 revert），另有当前主网和组合路径核对。
 [实测记录](benchmarks/2026-11-03-local-state-tricrypto2.md) 明确区分初始化、计算和 HTTP。
 
-本分支基于已合并的经典 3pool 基础；#34 的两个两币模型在独立工作区待整合。联合集成后
-默认五个 Curve 部署可覆盖 4 个，旧 Tricrypto 仍需独立模型。当前不切换默认 RPC 模式，
+#34 两个两币模型与 #35 已联合集成，默认五个 Curve 部署可覆盖 4 个；离线 HTTP
+覆盖四模型同批装载，实时组合测试也同时装载四个 Curve 部署、V3 与 wstETH。
+旧 Tricrypto 仍需独立模型。当前不切换默认 RPC 模式，
 不以单部署短样本替代全平台 90 行迁移验收。

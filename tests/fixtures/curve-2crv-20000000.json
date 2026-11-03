@@ -1,0 +1,124 @@
+{
+  "a_precision": 100,
+  "amplification": "150000",
+  "balance_source": "erc20-minus-admin",
+  "balances": [
+    "98190674",
+    "111467649"
+  ],
+  "block": {
+    "hash": "0xd24fd73f794058a3807db926d8898c6481e902b7edb91ce0d479d6760f276183",
+    "number": 20000000,
+    "parent_hash": "0xb390d63aac03bbef75de888d16bd56b91c9291c2a7e38d36ac24731351522bd1",
+    "timestamp": 1717281407
+  },
+  "coins": [
+    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "0xdac17f958d2ee523a2206206994597c13d831ec7"
+  ],
+  "fee": "3000000",
+  "hash_unchanged": true,
+  "pool": "0x1005f7406f32a61bd760cfa14accd2737913d546",
+  "profile": "plain-2crv",
+  "quotes": [
+    {
+      "amount_in": "1",
+      "amount_out": "0",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "2",
+      "amount_out": "1",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000000",
+      "amount_out": "999778",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000001",
+      "amount_out": "999779",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000",
+      "amount_out": "111433421",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "10000000000",
+      "amount_out": "111434201",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "100000000000",
+      "amount_out": "111434208",
+      "i": 0,
+      "j": 1,
+      "success": true
+    },
+    {
+      "amount_in": "1",
+      "amount_out": "0",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "2",
+      "amount_out": "1",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "1000000",
+      "amount_out": "999608",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "1000001",
+      "amount_out": "999609",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "1000000000",
+      "amount_out": "98160450",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "10000000000",
+      "amount_out": "98161209",
+      "i": 1,
+      "j": 0,
+      "success": true
+    },
+    {
+      "amount_in": "100000000000",
+      "amount_out": "98161216",
+      "i": 1,
+      "j": 0,
+      "success": true
+    }
+  ],
+  "schema_version": 2
+}
