@@ -10,7 +10,33 @@ Opt in with `split=true` to allocate across independent direct AMM pools.
 
 > Open-source, self-hosted: download it, supply a YAML config plus your own RPC / Graph key, run it.
 
-## Latest benchmark: single / two-pool / multi-pool / ParaSwap
+## Latest benchmark: local snapshot computation (3 Nov 2026)
+
+**Tricrypto2-only HTTP succeeded on 30/30 requests, with per-direction p50 of 0.74–0.84 ms and
+zero RPC during request computation.** A seven-record graph containing four Curve deployments,
+two V3 pools and wstETH also matches independent on-chain outputs hop by hop at one block.
+
+| Scenario | Samples and result | Latency |
+|---|---|---:|
+| Tricrypto2-only HTTP | Five requests per direction, 30/30 successful | Per-direction p50 **0.74–0.84 ms**; maximum **12.18 ms** |
+| Seven-record graph: 100,000 USDC → WBTC | Exact same-block per-hop outputs | Local computation **3.365 ms** |
+| Seven-record graph: 1.67 WBTC → USDC | Exact same-block per-hop outputs | Local computation **3.180 ms** |
+| Seven-record graph: 0.167 WBTC → stETH | Exact same-block per-hop outputs | Local computation **1.471 ms** |
+
+HTTP samples used block **26331864**; the combined graph used block **26331902**. Both computed
+with zero RPC; combined-graph initialization required 15 RPC requests. Debug build, local HTTP;
+timings exclude initialization and background synchronization. Combined-graph rows are individual
+compute measurements, not HTTP percentiles. The maximum HTTP sample is retained without trimming.
+
+The integrated version passes **124 offline tests and four relevant mainnet tests**. Local models
+cover four of the five default Curve deployments; legacy Tricrypto is pending. The latest version
+has not completed the full-universe 90-row migration comparison, so these restricted graphs do not
+establish a full-platform speedup ratio. The default pricing mode remains `rpc`.
+
+[Full measurements, block hashes and reproduction commands](docs/benchmarks/2026-11-03-local-state-tricrypto2.md) ·
+[Curve support matrix](docs/CURVE-SUPPORT.md) (Chinese)
+
+## Latest full 90-row benchmark: single / two-pool / multi-pool / ParaSwap (2 Nov 2026)
 
 **All four modes succeeded on 90/90 rows; multi-pool output was within ±0.5% of ParaSwap on 88/90 (97.8%).**
 
@@ -57,10 +83,8 @@ ETH/shares avoid a demonstrated 1-wei error from substituting the public total-s
 Classic Curve 3pool also matches 64 historical raw vectors and 18 live quotes, with independently
 checked multi-hop routes. Its single-deployment HTTP sample succeeded 30/30, per-direction p50
 **1.51–1.73 ms**. These restricted universes do not replace full-coverage acceptance.
-Tricrypto2 matches 104 historical success/revert scenarios and 52 live scenarios exactly. Its
-single-deployment HTTP sample succeeded 30/30 with per-direction p50 **0.74–0.84 ms** (maximum sample
-12.18 ms), using stored
-D and amount-dependent fees rather than a stable-pool approximation.
+Tricrypto2 matches 104 historical success/revert scenarios and 52 live scenarios exactly, using
+stored D and amount-dependent fees. Latest HTTP and combined-graph measurements appear above.
 The two-coin deployments add 58 exact historical vectors and 29 matching live scenarios. A fixed
 three-stable-pool HTTP sample succeeded 25/25 with **1.50–1.66 ms** per-direction p50; distinct balance
 and integer-rounding semantics remain deployment-specific.
