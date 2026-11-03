@@ -4,7 +4,8 @@ use std::sync::{
 };
 use std::time::Duration;
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, B256};
+use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::error::QuoteError;
@@ -14,7 +15,7 @@ use crate::util::hex_decode;
 pub struct RpcClient {
     http: reqwest::Client,
     url: String,
-    block_tag: String,
+    block_tag: Value,
     requests: Arc<AtomicU64>,
 }
 
@@ -26,7 +27,7 @@ impl RpcClient {
                 .build()
                 .expect("HTTP client"),
             url,
-            block_tag: "latest".into(),
+            block_tag: json!("latest"),
             requests: Arc::new(AtomicU64::new(0)),
         }
     }
@@ -43,8 +44,46 @@ impl RpcClient {
     /// Pin read-only calls for reproducible adapter diagnostics. Aggregator
     /// endpoints do not support this, so live benchmark services use latest.
     pub fn at_block(mut self, block: u64) -> Self {
-        self.block_tag = format!("0x{block:x}");
+        self.block_tag = json!(format!("0x{block:x}"));
         self
+    }
+
+    /// EIP-1898: every read belongs to this exact canonical block, even if a
+    /// reorg occurs while a background snapshot is being assembled.
+    pub fn at_block_hash(mut self, hash: B256) -> Self {
+        self.block_tag = json!({"blockHash":hash,"requireCanonical":true});
+        self
+    }
+
+    pub async fn block_header(&self, number: Option<u64>) -> Result<BlockHeader, QuoteError> {
+        let tag = number.map_or_else(|| "latest".to_string(), |n| format!("0x{n:x}"));
+        let value = self.post(json!({"jsonrpc":"2.0","id":1,"method":"eth_getBlockByNumber","params":[tag,false]})).await?;
+        let result = &value["result"];
+        let hex = |key: &str| -> Result<u64, QuoteError> {
+            let text = result[key]
+                .as_str()
+                .and_then(|s| s.strip_prefix("0x"))
+                .ok_or_else(|| QuoteError::RpcError(format!("missing block {key}")))?;
+            u64::from_str_radix(text, 16)
+                .map_err(|_| QuoteError::RpcError(format!("invalid block {key}")))
+        };
+        let hash = |key: &str| -> Result<B256, QuoteError> {
+            result[key]
+                .as_str()
+                .ok_or_else(|| QuoteError::RpcError(format!("missing block {key}")))?
+                .parse()
+                .map_err(|_| QuoteError::RpcError(format!("invalid block {key}")))
+        };
+        let header = BlockHeader {
+            number: hex("number")?,
+            hash: hash("hash")?,
+            parent_hash: hash("parentHash")?,
+            timestamp: hex("timestamp")?,
+        };
+        if number.is_some_and(|n| n != header.number) {
+            return Err(QuoteError::RpcError("block number mismatch".into()));
+        }
+        Ok(header)
     }
 
     async fn post(&self, body: Value) -> Result<Value, QuoteError> {
@@ -123,4 +162,12 @@ impl RpcClient {
             .map(str::to_string)
             .ok_or_else(|| QuoteError::RpcError("missing block hash".into()))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BlockHeader {
+    pub number: u64,
+    pub hash: B256,
+    pub parent_hash: B256,
+    pub timestamp: u64,
 }

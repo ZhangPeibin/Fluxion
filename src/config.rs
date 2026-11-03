@@ -1,3 +1,4 @@
+use crate::local_state::{LocalStateConfig, PricingMode};
 use crate::model::{ConversionKind, Pool, PoolKind};
 use crate::split::{SplitConfig, SplitOptimizer};
 use alloy_primitives::Address;
@@ -74,6 +75,8 @@ pub struct Config {
     pub protocol_conversions: Vec<ProtocolConversionConfig>,
     #[serde(deserialize_with = "service_split_config")]
     pub split: SplitConfig,
+    pub pricing_mode: PricingMode,
+    pub local_state: LocalStateConfig,
 }
 
 fn service_split_config<'de, D: serde::Deserializer<'de>>(
@@ -118,6 +121,8 @@ impl Default for Config {
             request_timeout_ms: 10000,
             token_allowlist: Vec::new(),
             split: SplitConfig::multi_pool(),
+            pricing_mode: PricingMode::default(),
+            local_state: LocalStateConfig::default(),
             shibaswap_v2_factory: "0x115934131916C8b277DD010Ee02de363c09d037c"
                 .parse()
                 .unwrap(),
@@ -143,6 +148,7 @@ impl Default for Config {
 impl Config {
     pub fn validate(&self) -> Result<(), ConfigError> {
         SplitOptimizer::new(self.split.clone()).map_err(ConfigError::Invalid)?;
+        self.local_state.validate().map_err(ConfigError::Invalid)?;
         let mut contracts = std::collections::HashSet::new();
         for conversion in &self.protocol_conversions {
             if conversion.contract == Address::ZERO
@@ -225,5 +231,17 @@ mod tests {
         assert_eq!(config.split.max_quote_calls, 256);
         assert_eq!(config.split.timeout_ms, 1234);
         assert!(serde_yaml::from_str::<Config>("split:\n  unknown_setting: 1\n").is_err());
+    }
+
+    #[test]
+    fn local_profile_is_explicit_and_rejects_invalid_sync_policy() {
+        let config = Config::from_file("config.local-v2.example.yaml").unwrap();
+        assert_eq!(config.pricing_mode, PricingMode::LocalSnapshot);
+        assert!(config.protocol_conversions.is_empty());
+        assert_eq!(Config::default().pricing_mode, PricingMode::Rpc);
+        let mut invalid = config;
+        invalid.local_state.poll_interval_ms = 0;
+        assert!(invalid.validate().is_err());
+        assert!(serde_yaml::from_str::<Config>("local_state:\n  undocumented: 1\n").is_err());
     }
 }

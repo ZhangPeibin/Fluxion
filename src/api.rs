@@ -12,6 +12,7 @@ use serde_json::json;
 
 use crate::error::QuoteError;
 use crate::graph::Graph;
+use crate::local_state::{QuoteState, SnapshotStore, StateError};
 use crate::model::{Hop, QuoteRequest, Route};
 use crate::router::Router;
 use crate::rpc::RpcClient;
@@ -61,6 +62,8 @@ pub struct QuoteResponseDto {
     pub search: Option<SearchStats>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quote_block: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<QuoteState>,
 }
 
 #[derive(Debug, Serialize)]
@@ -106,6 +109,7 @@ fn split_to_dto(result: SplitResult, total: U256, block: Option<u64>) -> QuoteRe
         baseline_amount_out: Some(result.baseline.amount_out.to_string()),
         search: Some(result.stats),
         quote_block: block,
+        state: None,
     }
 }
 
@@ -170,6 +174,7 @@ pub struct AppState {
 struct SplitService {
     optimizer: Arc<SplitOptimizer>,
     pin_pricing: bool,
+    local: Option<Arc<SnapshotStore>>,
 }
 
 pub enum ApiError {
@@ -177,6 +182,13 @@ pub enum ApiError {
     BadRequest(String),
     RateLimited,
     Timeout,
+    State(StateError),
+}
+
+impl From<StateError> for ApiError {
+    fn from(error: StateError) -> Self {
+        Self::State(error)
+    }
 }
 
 impl From<QuoteError> for ApiError {
@@ -188,6 +200,13 @@ impl From<QuoteError> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, code, message) = match self {
+            ApiError::State(error) => {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(json!({"error":error.to_string(),"pricing_mode":"local_snapshot"})),
+                )
+                    .into_response();
+            }
             ApiError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "RateLimited", None),
             ApiError::Timeout => (StatusCode::GATEWAY_TIMEOUT, "Timeout", None),
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "InvalidRequest", Some(msg)),
@@ -248,6 +267,29 @@ fn route_to_dto(route: Route) -> QuoteResponseDto {
         baseline_amount_out: None,
         search: None,
         quote_block: None,
+        state: None,
+    }
+}
+
+fn optimizer_for(
+    service: &SplitService,
+    limit: Option<usize>,
+) -> Result<Arc<SplitOptimizer>, ApiError> {
+    let optimizer = service.optimizer.clone();
+    if let Some(limit) = limit {
+        if limit < 2 || limit > optimizer.config().max_branches {
+            return Err(ApiError::BadRequest(format!(
+                "split_max_branches must be 2..{}",
+                optimizer.config().max_branches
+            )));
+        }
+        let mut config = optimizer.config().clone();
+        config.max_branches = limit;
+        Ok(Arc::new(
+            SplitOptimizer::new(config).map_err(ApiError::BadRequest)?,
+        ))
+    } else {
+        Ok(optimizer)
     }
 }
 
@@ -268,24 +310,52 @@ async fn quote(
         amount_out_min: req.amount_out_min.as_deref().map(parse_u256).transpose()?,
     };
 
+    if !req.split && req.split_max_branches.is_some() {
+        return Err(ApiError::BadRequest(
+            "split_max_branches requires split=true".into(),
+        ));
+    }
+    if let Some(store) = &service.local {
+        if request.amount_in.is_zero() {
+            return Err(QuoteError::ZeroAmount.into());
+        }
+        let optimizer = optimizer_for(&service, req.split_max_branches)?;
+        let snapshot = store.acquire()?;
+        let deadline = tokio::time::Instant::now()
+            + state
+                .request_timeout
+                .saturating_sub(Duration::from_millis(25));
+        let calculate = async {
+            let mut response = if req.split {
+                let mut baseline_request = request.clone();
+                baseline_request.amount_out_min = None;
+                let result = snapshot
+                    .split(&optimizer, &baseline_request, deadline)
+                    .await?;
+                if request
+                    .amount_out_min
+                    .is_some_and(|min| result.amount_out < min)
+                {
+                    return Err(ApiError::Quote(QuoteError::AmountOutBelowMin));
+                }
+                split_to_dto(result, request.amount_in, Some(snapshot.block().number))
+            } else {
+                route_to_dto(snapshot.route(&request).await?)
+            };
+            response.quote_block = Some(snapshot.block().number);
+            response.state = Some(store.quote_state(&snapshot)?);
+            Ok::<_, ApiError>(Json(response))
+        };
+        return tokio::time::timeout(state.request_timeout, calculate)
+            .await
+            .map_err(|_| ApiError::Timeout)?;
+    }
+
     if req.split {
         if request.amount_in.is_zero() {
             return Err(ApiError::Quote(QuoteError::ZeroAmount));
         }
-        let optimizer = service.optimizer.clone();
-        let optimizer = if let Some(limit) = req.split_max_branches {
-            if limit < 2 || limit > optimizer.config().max_branches {
-                return Err(ApiError::BadRequest(format!(
-                    "split_max_branches must be 2..{}",
-                    optimizer.config().max_branches
-                )));
-            }
-            let mut config = optimizer.config().clone();
-            config.max_branches = limit;
-            Arc::new(SplitOptimizer::new(config).map_err(ApiError::BadRequest)?)
-        } else {
-            optimizer
-        };
+        let optimizer = optimizer_for(&service, req.split_max_branches)?;
         let deadline = tokio::time::Instant::now()
             + state
                 .request_timeout
@@ -344,12 +414,6 @@ async fn quote(
             Err(_) => Err(ApiError::Timeout),
         };
     }
-    if req.split_max_branches.is_some() {
-        return Err(ApiError::BadRequest(
-            "split_max_branches requires split=true".into(),
-        ));
-    }
-
     let route = match tokio::time::timeout(
         state.request_timeout,
         state
@@ -371,18 +435,31 @@ async fn quote(
     Ok(Json(route_to_dto(route)))
 }
 
-async fn graph(State(state): State<Arc<AppState>>) -> Json<GraphResponseDto> {
-    let snapshot = state.router.snapshot();
-    let tokens = state
-        .graph
+async fn graph(
+    State(state): State<Arc<AppState>>,
+    Extension(service): Extension<Arc<SplitService>>,
+) -> Result<Json<GraphResponseDto>, ApiError> {
+    let local = service
+        .local
+        .as_ref()
+        .map(|store| store.acquire())
+        .transpose()?;
+    let snapshot = local
+        .as_ref()
+        .map(|snapshot| snapshot.prices())
+        .or_else(|| state.router.snapshot());
+    let graph = local
+        .as_ref()
+        .map_or(&state.graph, |snapshot| snapshot.graph());
+    let tokens = graph
         .tokens()
         .iter()
         .map(|token| token.to_string())
         .collect();
-    let mut edges = Vec::with_capacity(state.graph.edge_count());
-    for idx in 0..state.graph.edge_count() {
-        let edge = state.graph.edge(idx);
-        let pool = state.graph.pool(edge.pool_idx);
+    let mut edges = Vec::with_capacity(graph.edge_count());
+    for idx in 0..graph.edge_count() {
+        let edge = graph.edge(idx);
+        let pool = graph.pool(edge.pool_idx);
         let price = snapshot
             .as_ref()
             .and_then(|snapshot| snapshot.edge_prices().get(idx));
@@ -404,14 +481,28 @@ async fn graph(State(state): State<Arc<AppState>>) -> Json<GraphResponseDto> {
             reserve: reserve.map(|reserve| reserve.to_string()),
         });
     }
-    Json(GraphResponseDto { tokens, edges })
+    Ok(Json(GraphResponseDto { tokens, edges }))
 }
 
 async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok" }))
 }
 
-async fn ready(State(state): State<Arc<AppState>>) -> (StatusCode, Json<serde_json::Value>) {
+async fn ready(
+    State(state): State<Arc<AppState>>,
+    Extension(service): Extension<Arc<SplitService>>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    if let Some(store) = &service.local {
+        let status = store.status();
+        return (
+            if status.ready {
+                StatusCode::OK
+            } else {
+                StatusCode::SERVICE_UNAVAILABLE
+            },
+            Json(json!(status)),
+        );
+    }
     match &state.rpc {
         Some(rpc) => {
             let check = tokio::time::timeout(Duration::from_secs(3), rpc.block_number()).await;
@@ -440,14 +531,40 @@ pub fn app_with_split(
     optimizer: SplitOptimizer,
     pin_pricing: bool,
 ) -> AxumRouter {
+    build_app(state, optimizer, pin_pricing, None)
+}
+
+pub fn app_with_local_state(
+    state: Arc<AppState>,
+    optimizer: SplitOptimizer,
+    store: Arc<SnapshotStore>,
+) -> AxumRouter {
+    build_app(state, optimizer, false, Some(store))
+}
+
+async fn state_status(Extension(service): Extension<Arc<SplitService>>) -> Json<serde_json::Value> {
+    Json(service.local.as_ref().map_or_else(
+        || json!({"pricing_mode":"rpc"}),
+        |store| json!(store.status()),
+    ))
+}
+
+fn build_app(
+    state: Arc<AppState>,
+    optimizer: SplitOptimizer,
+    pin_pricing: bool,
+    local: Option<Arc<SnapshotStore>>,
+) -> AxumRouter {
     AxumRouter::new()
         .route("/quote", post(quote))
         .route("/graph", get(graph))
         .route("/health", get(health))
         .route("/ready", get(ready))
+        .route("/state", get(state_status))
         .layer(Extension(Arc::new(SplitService {
             optimizer: Arc::new(optimizer),
             pin_pricing,
+            local,
         })))
         .with_state(state)
 }

@@ -41,6 +41,22 @@ cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
 [结果与剩余差距分析](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
 [多池算法与 HTTP 协议](docs/MULTI-POOL.md)
 
+## 数据与计算分层（#31：V2 第一阶段）
+
+新增显式 `pricing_mode: local_snapshot`：后台按区块同步 V2/ShibaSwap 储备，发布不可变快照；
+单路径、多跳和拆单的粗选/精算都在同一快照本地完成，**请求计算 0 RPC**。
+已验证断网计算、重组/过期/同步失败，以及固定区块与部署 Router 的整数输出一致性。
+
+```bash
+# 受限的真实 ShibaSwap 示例，默认 :8083；不是原全平台 benchmark 配置
+cargo run -- --config config.local-v2.example.yaml
+curl -s localhost:8083/state
+```
+
+默认仍为原有 `rpc` 模式。V3/Curve/wstETH 本地精算和全量 90 组切换验收属于后续阶段，
+未支持池型会明确返回 503，不会静默删池。[设计与运行方法](docs/LOCAL-STATE.md) ·
+[V2 阶段实测与范围](docs/benchmarks/2026-11-02-local-state-v2.md)。
+
 ## 历史：两池拆单实验（#30）
 
 新增 `SplitOptimizer` 与固定区块实验 CLI，自动比较“两个独立直连池拆单”和原有最佳单路径；
@@ -223,7 +239,14 @@ curl -s -X POST localhost:8080/quote \
 ### `GET /health` / `GET /ready`
 
 - `/health`：进程存活。
-- `/ready`：对上游 RPC 做一次 `eth_blockNumber`，不通返回 `503`。
+- `/ready`：默认对上游 RPC 做一次 `eth_blockNumber`，不通返回 `503`；local 模式只检查快照是否可服务。
+
+### `GET /state`
+
+local 模式返回快照区块/hash、年龄、相对最后观测链头的落后、池覆盖、同步 RPC/耗时、
+最近错误和重组次数。成功报价附加 `state` 元数据及 `quote_block`；Viewer 显示模式、
+区块、年龄和落后。冷启动、过期、不完整或不支持的本地状态返回明确的 503，不回退到请求内 RPC。
+字段、策略与首阶段支持范围见 [LOCAL-STATE](docs/LOCAL-STATE.md)。
 
 ### 错误
 
@@ -442,6 +465,7 @@ docs/benchmarks/               基准方法、原始路径数据与结果分析
 | `refresh_interval_secs` | 热池储备刷新间隔与储备 TTL；近 5 分钟访问过的池才是热池 | 30 |
 | `snapshot_refresh_secs` | 全量价格快照重建间隔 | 120 |
 | `request_timeout_ms` | 单请求超时（毫秒） | 10000 |
+| `pricing_mode` / `local_state` | 精算模式 / 后台同步与新鲜度策略 | `rpc` / 见示例 |
 | `split` | 可选拆单的服务预算；请求仍需 `split=true` | 4 分支 / 4 候选池 / 20 段 / 256 次 / 8000 ms |
 | `token_allowlist` | 覆盖内置主流币白名单 | 空（使用内置） |
 
