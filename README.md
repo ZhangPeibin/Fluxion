@@ -41,21 +41,25 @@ cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
 [结果与剩余差距分析](docs/benchmarks/2026-11-02-multi-pool-analysis.md) ·
 [多池算法与 HTTP 协议](docs/MULTI-POOL.md)
 
-## 数据与计算分层（#31：V2 第一阶段）
+## 数据与计算分层（#31：V2/V3 本地精算）
 
-新增显式 `pricing_mode: local_snapshot`：后台按区块同步 V2/ShibaSwap 储备，发布不可变快照；
+新增显式 `pricing_mode: local_snapshot`：后台按区块同步 V2/ShibaSwap 储备和 V3 bitmap/ticks，发布不可变快照；
 单路径、多跳和拆单的粗选/精算都在同一快照本地完成，**请求计算 0 RPC**。
 已验证断网计算、重组/过期/同步失败，以及固定区块与部署 Router 的整数输出一致性。
+V3 五池、四档费率的 **30/30** 样本与 QuoterV2 完全一致；受限四池 HTTP 20 次样本
+p50/p95 为 **31.05/31.33 ms**。这不是原全平台 90 行回归。
 
 ```bash
 # 受限的真实 ShibaSwap 示例，默认 :8083；不是原全平台 benchmark 配置
 cargo run -- --config config.local-v2.example.yaml
 curl -s localhost:8083/state
+# V2/V3/ShibaSwap 示例（需要 Graph key，默认 :8084）
+cargo run -- --config config.local-v3.example.yaml
 ```
 
-默认仍为原有 `rpc` 模式。V3/Curve/wstETH 本地精算和全量 90 组切换验收属于后续阶段，
-未支持池型会明确返回 503，不会静默删池。[设计与运行方法](docs/LOCAL-STATE.md) ·
-[V2 阶段实测与范围](docs/benchmarks/2026-11-02-local-state-v2.md)。
+默认仍为原有 `rpc` 模式。Curve/wstETH 本地精算和全量 90 组切换验收属于后续阶段；
+未支持池型、V3 覆盖不足会明确返回 503，不会静默删池或回退到请求内 RPC。
+[设计与运行方法](docs/LOCAL-STATE.md) · [V3 阶段实测](docs/benchmarks/2026-11-03-local-state-v3.md)。
 
 ## 历史：两池拆单实验（#30）
 

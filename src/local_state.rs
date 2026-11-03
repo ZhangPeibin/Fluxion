@@ -1,7 +1,10 @@
 //! Background-owned chain reads and immutable, network-free pricing contexts.
-//! The first migration stage covers complete V2/ShibaSwap universes only.
+//! V2/ShibaSwap reserves and explicitly covered V3 bitmap/tick state.
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{
+    Arc, RwLock,
+    atomic::{AtomicBool, Ordering},
+};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use alloy_primitives::{Address, U256};
@@ -18,6 +21,8 @@ use crate::{
     source::{QuoteSource, constant_product_out, ratio},
     split::{SplitOptimizer, SplitResult},
     state::{GET_RESERVES, multicall},
+    util::u256_to_f64,
+    v3_local::V3State,
 };
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -36,6 +41,9 @@ pub struct LocalStateConfig {
     pub batch_size: usize,
     pub max_age_secs: u64,
     pub max_lag_blocks: u64,
+    pub v3_bitmap_radius: i16,
+    pub v3_max_loaded_ticks: usize,
+    pub compute_concurrency: usize,
 }
 
 impl Default for LocalStateConfig {
@@ -46,6 +54,9 @@ impl Default for LocalStateConfig {
             batch_size: 200,
             max_age_secs: 60,
             max_lag_blocks: 3,
+            v3_bitmap_radius: 2,
+            v3_max_loaded_ticks: 50_000,
+            compute_concurrency: 4,
         }
     }
 }
@@ -56,8 +67,11 @@ impl LocalStateConfig {
             || !(1..=3_600_000).contains(&self.sync_timeout_ms)
             || self.max_age_secs == 0
             || !(1..=400).contains(&self.batch_size)
+            || !(1..=16).contains(&self.v3_bitmap_radius)
+            || !(1..=1_000_000).contains(&self.v3_max_loaded_ticks)
+            || !(1..=64).contains(&self.compute_concurrency)
         {
-            return Err("local_state needs poll_interval_ms 1..60000, sync_timeout_ms 1..3600000, positive max_age_secs and batch_size 1..400".into());
+            return Err("local_state needs poll_interval_ms 1..60000, sync_timeout_ms 1..3600000, positive max_age_secs, batch_size 1..400, v3_bitmap_radius 1..16, v3_max_loaded_ticks 1..1000000 and compute_concurrency 1..64".into());
         }
         Ok(())
     }
@@ -104,6 +118,15 @@ pub struct StateStatus {
     pub last_sync_ms: u128,
     pub published_versions: u64,
     pub reorgs: u64,
+    pub v3_coverage: Vec<V3Coverage>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct V3Coverage {
+    pub pool: Address,
+    pub first_bitmap_word: i16,
+    pub last_bitmap_word: i16,
+    pub initialized_ticks: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -114,27 +137,55 @@ pub struct QuoteState {
     pub block_timestamp: u64,
     pub state_age_secs: u64,
     pub lag_blocks: u64,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub v3_coverage: Vec<V3Coverage>,
 }
 
-struct FrozenV2 {
-    pools: HashMap<Address, (Pool, [U256; 2])>,
+enum PoolState {
+    V2([U256; 2]),
+    V3(V3State),
 }
 
-impl FrozenV2 {
-    fn reserves(&self, pool: &Pool) -> Result<[U256; 2], QuoteError> {
-        let (identity, reserves) = self
+struct FrozenSource {
+    pools: HashMap<Address, (Pool, PoolState)>,
+}
+
+impl FrozenSource {
+    fn state(&self, pool: &Pool) -> Result<&PoolState, QuoteError> {
+        let (identity, state) = self
             .pools
             .get(&pool.address)
             .ok_or(QuoteError::UnknownPool)?;
         if identity.kind != pool.kind || identity.coins != pool.coins {
             return Err(QuoteError::UnknownPool);
         }
-        Ok(*reserves)
+        Ok(state)
+    }
+
+    fn coverage(&self) -> Vec<V3Coverage> {
+        let mut coverage = self
+            .pools
+            .iter()
+            .filter_map(|(address, (_, state))| match state {
+                PoolState::V3(state) => {
+                    let (first_bitmap_word, last_bitmap_word) = state.covered_words();
+                    Some(V3Coverage {
+                        pool: *address,
+                        first_bitmap_word,
+                        last_bitmap_word,
+                        initialized_ticks: state.initialized_tick_count(),
+                    })
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        coverage.sort_by_key(|entry| entry.pool);
+        coverage
     }
 }
 
 #[async_trait]
-impl QuoteSource for FrozenV2 {
+impl QuoteSource for FrozenSource {
     async fn amount_out(
         &self,
         pool: &Pool,
@@ -142,27 +193,88 @@ impl QuoteSource for FrozenV2 {
         j: usize,
         amount: U256,
     ) -> Result<U256, QuoteError> {
-        let reserves = self.reserves(pool)?;
         if i > 1 || j > 1 || i == j {
             return Err(QuoteError::UnknownPool);
         }
-        if reserves.iter().any(U256::is_zero) {
-            return Err(QuoteError::InsufficientLiquidity);
+        match self.state(pool)? {
+            PoolState::V2(reserves) => {
+                if reserves.iter().any(U256::is_zero) {
+                    return Err(QuoteError::InsufficientLiquidity);
+                }
+                constant_product_out(reserves[i], reserves[j], amount)
+            }
+            PoolState::V3(state) => Ok(state.quote(amount, i == 0)?.amount_out),
         }
-        constant_product_out(reserves[i], reserves[j], amount)
     }
     async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
-        let reserves = self.reserves(pool)?;
         if i > 1 || j > 1 || i == j {
             return Err(QuoteError::UnknownPool);
         }
-        Ok(ratio(reserves[j], reserves[i]))
+        Ok(match self.state(pool)? {
+            PoolState::V2(reserves) => ratio(reserves[j], reserves[i]),
+            PoolState::V3(state) => {
+                let sqrt = u256_to_f64(state.sqrt_price()) / 79228162514264337593543950336.0;
+                if i == 0 {
+                    sqrt * sqrt
+                } else {
+                    1.0 / (sqrt * sqrt)
+                }
+            }
+        })
     }
     async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, QuoteError> {
-        self.reserves(pool)?
-            .get(i)
-            .copied()
-            .ok_or(QuoteError::UnknownPool)
+        if i > 1 {
+            return Err(QuoteError::UnknownPool);
+        }
+        Ok(match self.state(pool)? {
+            PoolState::V2(reserves) => reserves[i],
+            PoolState::V3(_) => U256::MAX,
+        })
+    }
+}
+
+/// The generic Router intentionally isolates ordinary failed candidates. State
+/// coverage failures are different: even if another route succeeds, they must
+/// invalidate the request rather than silently reduce the advertised universe.
+struct GuardedSource<'a> {
+    inner: &'a FrozenSource,
+    incomplete: AtomicBool,
+}
+impl<'a> GuardedSource<'a> {
+    fn new(inner: &'a FrozenSource) -> Self {
+        Self {
+            inner,
+            incomplete: AtomicBool::new(false),
+        }
+    }
+    fn finish<T>(&self, result: Result<T, QuoteError>) -> Result<T, QuoteError> {
+        if self.incomplete.load(Ordering::Relaxed) {
+            Err(QuoteError::IncompleteState)
+        } else {
+            result
+        }
+    }
+}
+#[async_trait]
+impl QuoteSource for GuardedSource<'_> {
+    async fn amount_out(
+        &self,
+        pool: &Pool,
+        i: usize,
+        j: usize,
+        amount: U256,
+    ) -> Result<U256, QuoteError> {
+        let result = self.inner.amount_out(pool, i, j, amount).await;
+        if result == Err(QuoteError::IncompleteState) {
+            self.incomplete.store(true, Ordering::Relaxed);
+        }
+        result
+    }
+    async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
+        self.inner.mid_price(pool, i, j).await
+    }
+    async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, QuoteError> {
+        self.inner.reserve_in(pool, i).await
     }
 }
 
@@ -171,7 +283,7 @@ impl QuoteSource for FrozenV2 {
 pub struct LocalSnapshot {
     block: BlockHeader,
     graph: Arc<Graph>,
-    source: FrozenV2,
+    source: FrozenSource,
     router: Router,
     epoch: u64,
     published_at: Instant,
@@ -192,7 +304,8 @@ impl LocalSnapshot {
         )
     }
     pub async fn route(&self, request: &QuoteRequest) -> Result<Route, QuoteError> {
-        self.router.route(&self.graph, &self.source, request).await
+        let source = GuardedSource::new(&self.source);
+        source.finish(self.router.route(&self.graph, &source, request).await)
     }
     pub async fn split(
         &self,
@@ -200,10 +313,12 @@ impl LocalSnapshot {
         request: &QuoteRequest,
         deadline: tokio::time::Instant,
     ) -> Result<SplitResult, QuoteError> {
-        let mut result = optimizer
-            .quote_until(&self.router, &self.graph, &self.source, request, deadline)
-            .await?;
-        // FrozenV2 and this Router contain no network-capable collaborators.
+        let source = GuardedSource::new(&self.source);
+        let result = optimizer
+            .quote_until(&self.router, &self.graph, &source, request, deadline)
+            .await;
+        let mut result = source.finish(result)?;
+        // FrozenSource and this Router contain no network-capable collaborators.
         result.stats.baseline_rpc_requests = Some(0);
         result.stats.additional_rpc_requests = Some(0);
         Ok(result)
@@ -251,6 +366,9 @@ fn now_secs() -> u64 {
 }
 
 impl SnapshotStore {
+    pub(crate) fn compute_concurrency(&self) -> usize {
+        self.config.compute_concurrency
+    }
     pub fn new(
         graph: Graph,
         router_config: RouterConfig,
@@ -261,7 +379,10 @@ impl SnapshotStore {
             .pools()
             .iter()
             .filter(|p| {
-                !matches!(p.kind, PoolKind::UniswapV2 | PoolKind::ShibaSwapV2) || p.coins.len() != 2
+                !matches!(
+                    p.kind,
+                    PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 | PoolKind::UniswapV3 { .. }
+                ) || p.coins.len() != 2
             })
             .map(|p| UnsupportedPool {
                 address: p.address,
@@ -330,6 +451,7 @@ impl SnapshotStore {
                 .head
                 .as_ref()
                 .map_or(0, |h| h.number.saturating_sub(snapshot.block.number)),
+            v3_coverage: snapshot.source.coverage(),
         })
     }
 
@@ -364,6 +486,10 @@ impl SnapshotStore {
             last_sync_ms: state.last_sync_ms,
             published_versions: state.versions,
             reorgs: state.reorgs,
+            v3_coverage: state
+                .current
+                .as_ref()
+                .map_or_else(Vec::new, |s| s.source.coverage()),
         }
     }
 
@@ -461,12 +587,14 @@ impl StateSynchronizer {
         }
         let rpc = self.rpc.clone().at_block_hash(head.hash);
         let mut pools = HashMap::new();
-        for chunk in self
+        let v2 = self
             .store
             .graph
             .pools()
-            .chunks(self.store.config.batch_size)
-        {
+            .iter()
+            .filter(|p| matches!(p.kind, PoolKind::UniswapV2 | PoolKind::ShibaSwapV2))
+            .collect::<Vec<_>>();
+        for chunk in v2.chunks(self.store.config.batch_size) {
             let calls = chunk
                 .iter()
                 .map(|p| (p.address, GET_RESERVES.to_string()))
@@ -483,14 +611,40 @@ impl StateSynchronizer {
                     return Err(StateError::Incomplete);
                 }
                 if pools
-                    .insert(pool.address, (pool.clone(), reserves))
+                    .insert(pool.address, ((*pool).clone(), PoolState::V2(reserves)))
                     .is_some()
                 {
                     return Err(StateError::Incomplete);
                 }
             }
         }
-        let source = FrozenV2 { pools };
+        let v3 = self
+            .store
+            .graph
+            .pools()
+            .iter()
+            .filter(|p| matches!(p.kind, PoolKind::UniswapV3 { .. }))
+            .collect::<Vec<_>>();
+        let mut v3_states = crate::v3_sync::load(
+            &v3,
+            &rpc,
+            self.store.config.batch_size,
+            self.store.config.v3_bitmap_radius,
+            self.store.config.v3_max_loaded_ticks,
+        )
+        .await?;
+        for pool in v3 {
+            let state = v3_states
+                .remove(&pool.address)
+                .ok_or(StateError::Incomplete)?;
+            if pools
+                .insert(pool.address, (pool.clone(), PoolState::V3(state)))
+                .is_some()
+            {
+                return Err(StateError::Incomplete);
+            }
+        }
+        let source = FrozenSource { pools };
         let router = Router::new(self.store.router_config);
         router.set_snapshot(Arc::new(
             PriceSnapshot::build(&self.store.graph, &source).await,

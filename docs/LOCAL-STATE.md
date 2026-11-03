@@ -1,12 +1,13 @@
-# 数据与计算分层：V2 纵向切片（#31）
+# 数据与计算分层：V2/V3 本地精算（#31）
 
 ## 交付范围
 
-本阶段打通真实 V2 / ShibaSwap 的后台同步、不可变快照、单路径/多跳/拆单本地计算、HTTP
-状态与错误处理。通过 `pricing_mode: local_snapshot` 显式启用，默认仍为 `rpc`。
+已打通真实 V2 / ShibaSwap 储备及 Uniswap V3 bitmap/tick 状态的后台同步、不可变快照、
+单路径/多跳/拆单本地计算、HTTP 状态与错误处理。通过 `pricing_mode: local_snapshot`
+显式启用，默认仍为 `rpc`。
 
-**这不是 #31 全部完成。** V3 tick 状态和本地数学、wstETH 整数转换、Curve 支持矩阵与本地
-数学、全量 90 组质量/延迟对照仍待后续阶段。包含尚不支持池型的图会整体报告
+**这不是 #31 全部完成。** wstETH 整数转换、Curve 支持矩阵与本地数学、全量 90 组质量/
+延迟对照仍待后续阶段。包含尚不支持池型的图会整体报告
 `UnsupportedLocalPool`，不会悄悄删掉这些池后宣称无损提速。
 
 ## 运行
@@ -24,6 +25,9 @@ curl -s localhost:8083/quote -H 'content-type: application/json' \
 Graph key。白名单仍双币过滤；发现规则不变。此受限示例不是原有全平台 benchmark 配置。
 只有一个池时拆单自然保留 100% 单路径，不会产生虚构分支。
 
+V2/V3/ShibaSwap 四池示例：`cargo run -- --config config.local-v3.example.yaml`，默认
+`:8084`，需要 Graph key。同样仅覆盖 WETH/SHIB，不包含 Curve 或转换。
+
 local 模式若进入 mock universe，不启动链上同步，也不会把 mock 地址拿去主网询价；
 状态保持 `SnapshotNotReady`。日常离线 mock 开发继续使用默认 rpc 模式，已有 mock 报价
 行为保持不变。没有成功快照也能访问 `/health`、`/info` 和 `/state`。
@@ -39,12 +43,13 @@ local 模式若进入 mock universe，不启动链上同步，也不会把 mock 
 2. 若与已发布版本完全一致，不重新加载，也不重置状态年龄。新区块到来时重新确认上一版
    的 canonical hash；发现分叉立即撤销当前版本，并推进重组代际。
 3. 用 EIP-1898 `blockHash + requireCanonical` 固定全部 `eth_call`。按 `batch_size` 分批
-   Multicall 读取当前图的全部 V2 储备。任一子调用失败、ABI 不完整或非法储备都中止本次发布。
+   Multicall 读取当前图的 V2 储备，以及 V3 header/bitmap/ticks。任一必要子调用失败、ABI
+   不完整、非法状态或身份不符都中止本次发布。
 4. 在新储备上构建本地粗选 `PriceSnapshot` 和独立 `Router`，发布前再校验目标区块 header。
 5. 原子替换整个 `Arc<LocalSnapshot>`；已持有旧版本的读者不受正常发布影响。
 
-**初版每个新区块全量重读 V2 状态**，没有引入日志增量缓存。它用完整重建避开日志断档和
-重组回滚的缓存正确性问题；后续 V3/规模优化再引入有连续性证明的变更集合。不能把本阶段
+**初版每个新区块重读 V2 状态和配置覆盖窗口内的 V3 状态**，没有引入日志增量缓存。
+它用完整重建避开日志断档和重组回滚的缓存正确性问题；后续规模优化再引入有连续性证明的变更集合。不能把本阶段
 说成已经实现 #31 中完整的日志增量同步器。
 
 同步超时/失败时，不发布半成品。上一版在新鲜度策略允许的范围内可以继续服务，状态端点
@@ -53,16 +58,37 @@ local 模式若进入 mock universe，不启动链上同步，也不会把 mock 
 
 ## 计算层
 
-`LocalSnapshot` 包含冻结储备、图、同版本粗选数据和路由器，**没有 RPC、TTL 冷加载或
+`LocalSnapshot` 包含冻结池状态、图、同版本粗选数据和路由器，**没有 RPC、TTL 冷加载或
 联网适配器**。复用现有 `QuoteSource`、Router 和 SplitOptimizer，避免产生第二套路由算法。
 
 一个 `/quote` 只获取一次快照。粗选、逐跳金额、基线、两池细化与多池 DP 都使用这个版本。
-不同金额在本地执行整数常数积计算，不是查询有限金额的报价缓存。空储备是流动性不足，
+不同金额在本地执行整数池数学，不是查询有限金额的报价缓存。空 V2 储备是流动性不足，
 不意味着缺少状态；未知/不支持的池型则在进入计算前拒绝。
 
 HTTP 返回前再次检查状态年龄、已观测链头落后和重组代际。发生重组后，即使请求拿的是
 比“被替换的当前版本”更老的句柄，也会被统一拒绝。正常新区块发布不会使旧句柄失效，
 但其年龄/落后仍须符合策略。
+
+### V3 状态与计算
+
+- 加载 slot0、活跃流动性、tickSpacing、fee、币序与 factory；核对实际合约身份和发现的池记录。
+- 在当前 compressed tick 所在 bitmap word 两侧装载配置的窗口（默认 ±2，即最多 5 words），
+  再读取每个置位 bit 对应的 tick liquidityNet。所有读取固定在同一 canonical block hash。
+- Q64.96 价格、TickMath 常量、完整 512-bit 中间乘积、token0/token1 的不同取整、费用和
+  跨 tick 流动性变化在本地计算。经过空 bitmap word 时也保留协议的分步取整，不直接跳到
+  任意远的下一个 initialized tick。负 tick 使用向负无穷的压缩/分组规则。
+- 到达全局价格边界后仍有未消耗输入时返回流动性不足，不能把 Quoter 可能返回的部分交换
+  输出冒充一个消耗完整输入的 exact-in 分支。
+- 只对已覆盖状态精算；未知 word、缺失 tick 或非法流动性返回 `SnapshotIncomplete`。
+  请求级 guard 会在基线和拆单搜索结束时检查这些失败：即便另一个 V2 候选成功，也不能
+  静默跳过 V3 后返回看似完整的结果。该 guard 不会污染后续请求。
+- `/state.v3_coverage` 和报价 `state.v3_coverage` 显示各池装载的 word 范围及 initialized tick 数。
+  ready 表示已发布窗口完整，不表示任意大输入都在窗口内。窗口超出时需调整后台配置并
+  重新装载；本阶段尚未实现按请求自动拓展、日志增量 tick 缓存或任意金额全区间覆盖。
+- tick 数上限是整个快照的硬限制。超过上限拒绝本次发布，不截断 ticks 或把缺失值当作零。
+
+HTTP 的本地计算使用有界 CPU worker，不占用 Tokio 的同步/RPC worker。并发额度用尽返回
+429，不建立无界 CPU 队列；超时任务的额度在工作实际结束/取消后才释放。RPC 模式沿用旧路径。
 
 ## HTTP 与可观测性
 
@@ -110,6 +136,9 @@ local 的不可用错误均为 HTTP 503，带 `pricing_mode: local_snapshot`：
 | `local_state.batch_size` | 200 | 每批 Multicall 子调用数，1–400 |
 | `local_state.max_age_secs` | 60 | 最大状态年龄，相对区块时间，不是刷新时间 |
 | `local_state.max_lag_blocks` | 3 | 相对最后观测链头的最大落后 |
+| `local_state.v3_bitmap_radius` | 2 | 当前 word 两侧的装载半径，1–16 |
+| `local_state.v3_max_loaded_ticks` | 50000 | 整个快照的 initialized tick 总上限 |
+| `local_state.compute_concurrency` | 4 | 本地 HTTP CPU worker 上限，1–64 |
 
 年龄同时受区块时间和发布后的单调时钟约束；重复读到旧 head 或本机时钟向后调整不能
 让旧快照恢复年轻。链头落后是“相对最后观测值”，不是离线时仍知道实时链头。
@@ -123,8 +152,12 @@ local 的不可用错误均为 HTTP 503，带 `pricing_mode: local_snapshot`：
   同步断档恢复；冷启动、缺失平台、过期/落后状态和 readiness 无 RPC。
 - 主网：同区块逐跳与部署的 Uniswap V2/ShibaSwap Router `getAmountsOut` 核对，覆盖
   WETH/SHIB 双向、多金额、拆单和 USDC→WETH→SHIB 多跳。
-- [第一阶段实测记录](benchmarks/2026-11-02-local-state-v2.md)。它不是原全平台 90 行回归，
-  也不证明 V3/Curve 已有本地计算能力。
+- V3：负 tick、bitmap word 边界、initialized tick 跨越、零流动性空段、微量/大整数和
+  取整测试；断开 RPC 后的 V2/V3 HTTP 拆单；覆盖不足不能躲在成功基线后；fee 不符不发布。
+- 主网 V3：五池、四档费率、双向三档金额 **30/30** raw 输出等于 QuoterV2；六池混合图的
+  拆单和多跳逐跳独立核对。四池 HTTP 20 次样本 p50/p95 约 **31.05/31.33 ms**。
+- [V2 历史记录](benchmarks/2026-11-02-local-state-v2.md) ·
+  [V3 阶段实测](benchmarks/2026-11-03-local-state-v3.md)。都不是原全平台 90 行回归。
 
-下一阶段是 V3 状态覆盖与整数跨 tick 计算；Curve 仍先建立支持矩阵。保持 #31 开放，待
+下一阶段是 wstETH 本地整数转换与 Curve 支持矩阵。保持 #31 开放，待
 全部协议覆盖及同候选集质量对照通过后才能切换默认模式。

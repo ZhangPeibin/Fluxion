@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum QuoteError {
+    #[error("local state coverage incomplete")]
+    IncompleteState,
     #[error("no path found")]
     NoPath,
     #[error("insufficient liquidity")]

@@ -1,0 +1,19 @@
+# #31 V3 checkpoint: restricted WETH/SHIB graph, NOT the full 90-row corpus.
+# Requires GRAPH_API_KEY in the gitignored .env for real Uniswap discovery.
+host: 127.0.0.1
+port: 8084
+pricing_mode: local_snapshot
+enabled_platforms: [uniswap-v2, uniswap-v3, shibaswap-v2]
+protocol_conversions: []
+token_allowlist:
+  - "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" # WETH
+  - "0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE" # SHIB
+local_state:
+  poll_interval_ms: 2000
+  sync_timeout_ms: 30000
+  batch_size: 200
+  max_age_secs: 60
+  max_lag_blocks: 3
+  v3_bitmap_radius: 2
+  v3_max_loaded_ticks: 50000
+  compute_concurrency: 4

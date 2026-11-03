@@ -70,9 +70,9 @@ snapshot_refresh_secs: 120
 request_timeout_ms: 10000
 
 # Migration opt-in: rpc (existing full-venue behavior) or local_snapshot.
-# Stage 1 local_snapshot requires a complete V2/ShibaSwap-only universe;
-# unsupported V3/Curve/conversion pools are reported, never silently dropped.
-# See config.local-v2.example.yaml for a runnable restricted profile.
+# Local mode supports V2/ShibaSwap and covered Uniswap V3 state.
+# Unsupported Curve/conversion pools are reported, never silently dropped.
+# See config.local-v2.example.yaml or config.local-v3.example.yaml.
 pricing_mode: rpc
 local_state:
   poll_interval_ms: 2000
@@ -80,6 +80,9 @@ local_state:
   batch_size: 200
   max_age_secs: 60 # block age, not time since the last successful poll
   max_lag_blocks: 3 # relative to the most recently observed head
+  v3_bitmap_radius: 2 # center word +/- radius; missing coverage fails explicitly
+  v3_max_loaded_ticks: 50000 # total across the snapshot; no silent truncation
+  compute_concurrency: 4 # CPU workers; saturation returns 429, not an unbounded queue
 
 # Opt-in HTTP split=true. Existing requests remain single-route.
 # A request may lower split_max_branches to 2, not exceed this server cap.
