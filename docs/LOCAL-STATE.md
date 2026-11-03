@@ -279,5 +279,9 @@ local 的不可用错误均为 HTTP 503，带 `pricing_mode: local_snapshot`：
   [Tricrypto2 实测](benchmarks/2026-11-03-local-state-tricrypto2.md) ·
   [两币稳定池实测](benchmarks/2026-11-03-local-state-curve-plain.md)。都不是原全平台 90 行回归。
 
-下一阶段是旧 Tricrypto 的逐部署核实/本地精算。保持 #31 开放，待
+`config.benchmark-local.yaml` 显式排除旧 Tricrypto 地址，保留其余发现池、启用全范围 V3。
+`excluded_pools` 是可见、按地址生效的配置策略，默认空；与因缺状态而静默删池不同。
+该全图实验使用声明过的 180 秒 / 15 块策略，逐行保留实际年龄；默认仍为 60 秒 / 3 块。
+
+下一阶段需降低全图后台同步成本，并验证目标新鲜度下的连续服务能力。保持 #31 开放，待
 全部协议覆盖及同候选集质量对照通过后才能切换默认模式。

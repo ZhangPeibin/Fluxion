@@ -84,6 +84,9 @@ operation, reorg/staleness/failure handling and integer parity with deployed Rou
 V3, wstETH and each Curve deployment use protocol-specific integer models checked against
 independent on-chain views. #36 isolates writer synchronization/build/validation from HTTP execution;
 short-lock publication and writer-owned retirement preserve immutable reader snapshots.
+wstETH uses Lido internal ETH/shares; two-coin stable pools retain their
+distinct balance sources and rounding orders; Tricrypto2 uses stored D and dynamic fees. The latest
+local-snapshot comparison appears above; local model details are linked below.
 
 ```bash
 # Restricted real ShibaSwap example on :8083, not the full-venue benchmark profile

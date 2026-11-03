@@ -22,6 +22,41 @@ cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchma
   --split --delay-ms 600 --out docs/benchmarks/writer-isolation-run.md
 ```
 
+## Pre-fix local snapshot reference (3 Nov 2026)
+
+[90-row report](2026-11-03-local-threeway.md) / [raw JSON](2026-11-03-local-threeway.json) /
+[analysis and reproduction](2026-11-03-local-threeway-analysis.md).
+
+All three succeed on 90/90. Fluxion HTTP p50/p95 is **31/3501 ms**, with **zero computation RPC
+on every row**. Output is within ±0.5% of ParaSwap on 88/90 and of 1inch on 84/90. This explicitly
+excludes only legacy Tricrypto, retaining the other 209 records with full-range V3 coverage.
+Actual state age is **50–112 seconds**, under an experiment policy of 180 seconds / 15 blocks;
+default-freshness continuous operation and tail latency remain unresolved.
+
+```bash
+cargo run -- --config config.benchmark-local.yaml
+cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchmark-local.yaml \
+  --split --delay-ms 600 --out docs/benchmarks/local-threeway-run.md
+```
+
+## RPC reference: Fluxion / ParaSwap / 1inch (3 Nov 2026)
+
+- [90-row three-way report](2026-11-03-threeway-aggregators.md)
+- [Raw JSON, full responses/routes and per-row timestamps](2026-11-03-threeway-aggregators.json)
+- [Results and comparison scope](2026-11-03-threeway-analysis.md)
+
+The full discovered graph has 210 records, 48 tokens and 432 directed edges. This run uses
+`pricing_mode: rpc` with `split=true`, up to four independent direct-pool branches, the original
+30 directions × three raw-input tiers, and both external APIs enabled. It is not a full-universe
+local-snapshot migration benchmark; legacy Tricrypto is still unsupported in local mode.
+
+```bash
+cargo run -- --config config.benchmark.yaml
+# In another terminal, with ONEINCH_API_KEY in the gitignored .env:
+cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchmark.yaml \
+  --split --delay-ms 600 --out docs/benchmarks/threeway-run.md
+```
+
 ## Tricrypto2 checkpoint (#35)
 
 [Tricrypto2 evidence](2026-11-03-local-state-tricrypto2.md): 104 independent historical success/revert
@@ -126,7 +161,7 @@ cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchma
 ```
 
 Options: `--service URL`, `--corpus PATH` (default `bench/corpus.yaml`), `--limit N`, `--split`
-(opt in to multi-pool Fluxion routing),
+(enable multi-pool Fluxion requests; omitted means single-route),
 `--delay-ms MS` (pause after each external request, default 250), `--config PATH` (local RPC
 configuration, default `config.yaml`). An output basename such as `--out run.md` also works.
 The harness requires the running service's `/info` endpoint and refuses mock mode.
@@ -183,7 +218,9 @@ Negative means Fluxion returned less. Output deltas use only successful pairs; l
 includes failures and measures request start through complete response-body receipt, without the
 pacing sleep. ParaSwap/1inch hop counts describe their first returned route; 0x fill counts are
 not directly comparable with sequential hop counts. Platform names are unique venue labels for
-external services and ordered per-hop labels for Fluxion.
+external services and ordered per-hop labels for Fluxion. In split mode Fluxion hops is the maximum
+branch length; JSON retains the full response, allocations, quote block and search metrics. 1inch
+responses include `protocols`; its public API does not provide a pinned block in these responses.
 
 This is a reproducible **procedure**, not deterministic replay: aggregator APIs do not pin a
 block; discovery, cached reserves, and live calls can observe different states. The before/after

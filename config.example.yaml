@@ -79,7 +79,9 @@ request_timeout_ms: 10000
 # Add --all-stable --config config.local-curve-stable.example.yaml for all three verified stable pools.
 # Combine --all-stable and --tricrypto2 for all four verified Curve deployments.
 pricing_mode: rpc
-excluded_pools: [] # explicit deployment addresses, also reported by /info.config
+# Explicit deployment exclusions (addresses), also reported in /info.config.
+# See config.benchmark-local.yaml for the legacy Tricrypto exclusion.
+excluded_pools: []
 local_state:
   poll_interval_ms: 2000
   sync_timeout_ms: 30000
