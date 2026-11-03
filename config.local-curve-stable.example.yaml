@@ -1,0 +1,15 @@
+# Run with: cargo run --example local_curve_server -- --all-stable --config config.local-curve-stable.example.yaml
+# Explicit classic 3pool + 2CRV + FRAX/USDC, not full registry discovery.
+# The normal server still reports both crypto deployments as unsupported.
+host: 127.0.0.1
+port: 8087
+pricing_mode: local_snapshot
+enabled_platforms: [curve]
+protocol_conversions: []
+local_state:
+  poll_interval_ms: 2000
+  sync_timeout_ms: 30000
+  batch_size: 200
+  max_age_secs: 60
+  max_lag_blocks: 3
+  compute_concurrency: 4

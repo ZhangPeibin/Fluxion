@@ -392,7 +392,10 @@ async fn real_historical_a_fee_and_balance_changes_do_not_mutate_old_snapshots()
         "2000"
     );
     assert_eq!(store.status().curve_state[0].amplification, "4000");
-    assert_eq!(store.status().curve_state[0].fee, "1500000");
+    assert_eq!(
+        store.status().curve_state[0].fee.as_deref(),
+        Some("1500000")
+    );
     server.abort();
 }
 
@@ -425,14 +428,19 @@ async fn other_curve_deployments_remain_visible_and_unsupported() {
     let mut graph = graph();
     graph.add_pool(Pool {
         kind: PoolKind::Curve,
-        address: "0xdcef968d416a41cdac0ed8702fac8128a64241a2"
+        address: "0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5"
             .parse()
             .unwrap(),
         coins: vec![
-            "0x853d955acef822db058eb8505911ed77f175b99e"
+            "0xdac17f958d2ee523a2206206994597c13d831ec7"
                 .parse()
                 .unwrap(),
-            COINS[1].parse().unwrap(),
+            "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+                .parse()
+                .unwrap(),
+            "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+                .parse()
+                .unwrap(),
         ],
     });
     let store = Arc::new(

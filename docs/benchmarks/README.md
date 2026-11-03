@@ -1,11 +1,27 @@
 # Quote benchmarks
 
+## Tricrypto2 checkpoint (#35)
+
+[Tricrypto2 evidence](2026-11-03-local-state-tricrypto2.md): 104 independent historical success/revert
+scenarios, 52 live cases (44 successful raw outputs and 8 expected reverts), classic/V3/wstETH
+composition, and a fixed-deployment HTTP sample (30/30, per-direction p50 0.74–0.84 ms, maximum
+sample 12.18 ms). #34/#35 are now jointly integrated; these restricted measurements do not replace
+full-universe 90-row migration acceptance.
+
+## Two-coin Curve stable pools (#34)
+
+[Two-coin evidence](2026-11-03-local-state-curve-plain.md): 58 independent historical vectors,
+29/29 live raw outputs (including zeros), forced V3 composition and a fixed three-stable-pool HTTP
+sample (25/25, per-direction p50 1.50–1.66 ms). At this checkpoint only the three stable pools were
+supported. Together with #35, local coverage is now four of five default Curve deployments;
+legacy Tricrypto remains explicitly unsupported.
+
 ## Classic Curve 3pool checkpoint (#33)
 
 [3pool evidence](2026-11-03-local-state-curve.md): 64 historical raw vectors, 18/18 mainnet
 six-direction quotes, independent mixed routes and a fixed-deployment HTTP sample (30/30,
 per-direction p50 1.51–1.73 ms). [Support matrix](../CURVE-SUPPORT.md) and
-[raw inventory](2026-11-03-curve-inventory.json) retain all five discovered deployments; four remain
+[raw inventory](2026-11-03-curve-inventory.json) retain all five discovered deployments; at that checkpoint four remained
 explicitly unsupported locally. This is not the full-universe 90-row migration acceptance.
 
 ## Local wstETH checkpoint (#32)

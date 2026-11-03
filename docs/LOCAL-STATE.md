@@ -1,12 +1,12 @@
-# 数据与计算分层：V2/V3、wstETH 与经典 3pool（#31–#33）
+# 数据与计算分层：V2/V3、wstETH、三个稳定池与 Tricrypto2（#31–#35）
 
 ## 交付范围
 
-已打通 V2 / ShibaSwap、V3 bitmap/tick、Lido v4 和经典 Curve 3pool 状态的后台同步、不可变快照、
+已打通 V2 / ShibaSwap、V3 bitmap/tick、Lido v4、三个 Curve 稳定池和 Tricrypto2 的后台同步、不可变快照、
 单路径/多跳/拆单本地计算、HTTP 状态与错误处理。通过 `pricing_mode: local_snapshot`
 显式启用，默认仍为 `rpc`。
 
-**这不是 #31 全部完成。** 其他 Curve 稳定/crypto 部署的本地数学、全量 90 组质量/
+**这不是 #31 全部完成。** 旧 Tricrypto 本地数学、全量 90 组质量/
 延迟对照仍待后续阶段。包含尚不支持池型的图会整体报告
 `UnsupportedLocalPool`，不会悄悄删掉这些池后宣称无损提速。
 
@@ -36,6 +36,14 @@ V2/V3/ShibaSwap 四池示例：`cargo run -- --config config.local-v3.example.ya
 经典 3pool 的固定部署 HTTP 示例：`cargo run --example local_curve_server`，默认 `:8086`，
 读取 `config.local-curve.example.yaml`，不需要 Graph key。这是显式单部署图，不运行注册表
 发现；普通 main 仍会把未支持的 Curve 部署保留并明确拒绝。见 [支持矩阵](CURVE-SUPPORT.md)。
+
+Tricrypto2 单部署示例：`cargo run --example local_curve_server -- --tricrypto2 --config
+config.local-tricrypto2.example.yaml`，默认 `:8088`，无 Graph key。与 3pool 示例一样，固定
+选择已验证部署而非过滤生产发现图。
+
+三个稳定池的固定图使用 `cargo run --example local_curve_server -- --all-stable --config
+config.local-curve-stable.example.yaml`，默认 `:8087`。它显式选择已核实部署，不过滤生产发现图。
+同时传入 `--all-stable --tricrypto2` 可组装四个已核实 Curve 部署，配置仍须允许所有币。
 
 local 模式若进入 mock universe，不启动链上同步，也不会把 mock 地址拿去主网询价；
 状态保持 `SnapshotNotReady`。日常离线 mock 开发继续使用默认 rpc 模式，已有 mock 报价
@@ -136,20 +144,35 @@ Lido 的比例更新。仅复现报价 view，不代表模拟 wrap/unwrap 交易
 [Lido 源码](https://github.com/lidofinance/core/tree/2bd532298d85cdf520169fdc0c5fb0cc9baf03c3)，
 并以运行时版本和同块 view 验证部署语义。
 
-### 经典 Curve 3pool
+### Curve：经典 3pool 与两个两币部署
 
-只支持明确核实的 DAI/USDC/USDT 3pool 地址，保持 get_dy 的整数与费用取整顺序。后台同块
+支持明确核实的 DAI/USDC/USDT 3pool 地址，保持 get_dy 的整数与费用取整顺序。后台同块
 读取币序、存储余额、有效 A()/fee，构建并缓存该快照的 D，再以六币向 probe 核对。三币
 索引 0/1/2、六条边均可精算；Curve 作为完整基线，不新增独立拆单分支。
 
 `/state.curve_state` 与报价 `state.curve_state` 提供 profile、币序、raw 余额、A 精度、fee
-和流动性标志。图展示使用真实存储余额，粗选保持旧 Curve reserve 约定以兼容原有
+和流动性标志，并区分 balance_source。图展示使用协议有效余额，粗选保持旧 Curve reserve 约定以兼容原有
 阈值/惩罚设置；没有 Curve 的旧报价不增加此字段。
-空余额属于已知无流动性，不等于漏读；畸形或模型不符不能部分发布。其他四个当前发现的
-Curve 部署仍 UnsupportedLocalPool，不会因为也有 get_dy/A() 就套用经典公式。
+空余额属于已知无流动性，不等于漏读；畸形或模型不符不能部分发布。除 Tricrypto2 专用
+模型外，不会因为其他部署也有 get_dy/A() 就套用经典公式。
+
+2CRV 与 FRAX/USDC 各有显式部署 profile。它们使用 A_precise/100、先规范化扣费再换输出
+单位，并保留不同 D product 除法次序；2CRV 读取 ERC20−admin 的净余额，FRAX/USDC 读取
+存储余额。不同币数同批装载和独立原始向量验证后才发布，不推断任意同 ABI 的工厂池等价。
 
 完整公式、ABI/代码指纹清点、原始历史向量及受限示例见 [CURVE-SUPPORT](CURVE-SUPPORT.md)。
 当前仍保留原有 Curve 微量粗选采样；本票不声称交易模拟、任意部署支持或候选算法全局最优。
+
+### Tricrypto2
+
+只接受具体 Tricrypto2/Views/Math 调用链，读取同块 A/gamma、stored D、两个 price_scale、
+mid/out/fee_gamma 与余额。精确复现 newton_y 的排序、逐步 checked uint256、halving 与
+范围/收敛检查；输出 raw 转换后按交易后 xp 扣动态费，不以常量 fee 或重算 D 替换。
+
+curve_state 使用 profile=tricrypto2、fee_model=dynamic-post-trade，不返回伪造静态 fee。
+crypto 对象保存全部必要参数和 helpers；amplification 是 ANN，a_precision=10000 为
+A_MULTIPLIER，不能把它当作稳定池的相同 A 归一化定义。旧经典池 fee 仍为同样的字符串。
+原始成功零输出和 view revert 不混淆。细节见 [TRICRYPTO2](TRICRYPTO2.md)。
 
 ## HTTP 与可观测性
 
@@ -224,10 +247,17 @@ local 的不可用错误均为 HTTP 503，带 `pricing_mode: local_snapshot`：
 - Curve：两个历史块的 64 条 raw 向量离线完全相等；HTTP 断网、参数更新与旧读者、失败
   不部分发布、min 输出、三币索引和未知部署可见性通过。主网六币向 18/18、组合路径及
   30 次固定部署 HTTP 通过；它不等于五个 Curve 部署均已支持。
+- Tricrypto2：104 条历史成功/失败场景、断网 HTTP、动态费用、stored D/价格更新与旧读者、
+  坏参数/身份/probe 拒绝通过。当前主网 52 个场景（44 成功、8 预期拒绝）及组合路径逐跳
+  相等；单部署 HTTP 30/30，仍不替代全部 Curve/全平台验收。
+- 两币 Curve：新增 58 条独立历史向量精确相等，原 3pool 64 条仍通过；主网 29/29（含零
+  输出）及各自强制 V3 组合通过；三稳定池固定图 HTTP 25/25，不能冒充含两个 crypto 的全图。
 - [V2 历史记录](benchmarks/2026-11-02-local-state-v2.md) ·
   [V3 阶段实测](benchmarks/2026-11-03-local-state-v3.md) ·
   [wstETH 实测](benchmarks/2026-11-03-local-state-wsteth.md) ·
-  [3pool 实测](benchmarks/2026-11-03-local-state-curve.md)。都不是原全平台 90 行回归。
+  [3pool 实测](benchmarks/2026-11-03-local-state-curve.md) ·
+  [Tricrypto2 实测](benchmarks/2026-11-03-local-state-tricrypto2.md) ·
+  [两币稳定池实测](benchmarks/2026-11-03-local-state-curve-plain.md)。都不是原全平台 90 行回归。
 
-下一阶段是剩余两币稳定池与 crypto 的逐部署核实/本地精算。保持 #31 开放，待
+下一阶段是旧 Tricrypto 的逐部署核实/本地精算。保持 #31 开放，待
 全部协议覆盖及同候选集质量对照通过后才能切换默认模式。

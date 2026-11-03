@@ -1,0 +1,14 @@
+# Run: cargo run --example local_curve_server -- --tricrypto2 --config config.local-tricrypto2.example.yaml
+# Explicit Tricrypto2-only graph, not full production discovery. No Graph key.
+host: 127.0.0.1
+port: 8088
+pricing_mode: local_snapshot
+enabled_platforms: [curve]
+protocol_conversions: []
+local_state:
+  poll_interval_ms: 2000
+  sync_timeout_ms: 30000
+  batch_size: 200
+  max_age_secs: 60
+  max_lag_blocks: 3
+  compute_concurrency: 4

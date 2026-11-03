@@ -1,8 +1,10 @@
-//! Network-free classic 3pool get_dy math. This profile deliberately does not
-//! stand in for A_PRECISION=100 pools, crypto, metapools, or exchange simulation.
+//! Verified deployment dispatch and unchanged classic 3pool arithmetic.
+//! Two-coin and crypto models remain deployment-specific.
 use crate::{
+    curve_plain::{Plain2Pool, PlainProfile},
     error::QuoteError,
     model::{Pool, PoolKind},
+    tricrypto2_local::{self, Tricrypto2Parameters, Tricrypto2State},
     util::u256_to_f64,
 };
 use alloy_primitives::{Address, U256};
@@ -16,9 +18,187 @@ pub const COINS: [&str; 3] = [
 ];
 
 pub(crate) fn supported(pool: &Pool) -> bool {
+    profile_for(pool).is_some()
+}
+pub(crate) fn profile_for(pool: &Pool) -> Option<CurveProfile> {
+    if classic_supported(pool) {
+        Some(CurveProfile::Classic3)
+    } else if tricrypto2_local::supported(pool) {
+        Some(CurveProfile::Tricrypto2)
+    } else {
+        PlainProfile::for_pool(pool).map(CurveProfile::Plain)
+    }
+}
+fn classic_supported(pool: &Pool) -> bool {
     pool.kind == PoolKind::Curve
         && pool.address == THREE_POOL.parse::<Address>().unwrap()
         && pool.coins == COINS.map(|c| c.parse::<Address>().unwrap())
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum CurveProfile {
+    Classic3,
+    Tricrypto2,
+    Plain(PlainProfile),
+}
+impl CurveProfile {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Classic3 => PROFILE,
+            Self::Tricrypto2 => tricrypto2_local::PROFILE,
+            Self::Plain(p) => p.name(),
+        }
+    }
+    pub fn pool(self) -> Pool {
+        match self {
+            Self::Classic3 => Pool {
+                kind: PoolKind::Curve,
+                address: THREE_POOL.parse().unwrap(),
+                coins: COINS.map(|c| c.parse().unwrap()).to_vec(),
+            },
+            Self::Tricrypto2 => tricrypto2_local::pool(),
+            Self::Plain(profile) => profile.pool(),
+        }
+    }
+    pub fn a_precision(self) -> u64 {
+        match self {
+            Self::Classic3 => 1,
+            Self::Tricrypto2 => 10000,
+            Self::Plain(_) => 100,
+        }
+    }
+    pub fn a_getter(self) -> &'static str {
+        match self {
+            Self::Classic3 | Self::Tricrypto2 => "A()",
+            Self::Plain(_) => "A_precise()",
+        }
+    }
+    pub fn balance_source(self) -> &'static str {
+        match self {
+            Self::Classic3 | Self::Tricrypto2 => "stored",
+            Self::Plain(p) => p.balance_source(),
+        }
+    }
+    pub fn units(self) -> Vec<U256> {
+        match self {
+            Self::Classic3 => vec![
+                U256::from(10u128.pow(18)),
+                U256::from(1_000_000),
+                U256::from(1_000_000),
+            ],
+            Self::Tricrypto2 => tricrypto2_local::units().to_vec(),
+            Self::Plain(p) => p.units().to_vec(),
+        }
+    }
+    pub fn get_dy_signature(self) -> &'static str {
+        match self {
+            Self::Classic3 | Self::Plain(_) => "get_dy(int128,int128,uint256)",
+            Self::Tricrypto2 => "get_dy(uint256,uint256,uint256)",
+        }
+    }
+    pub(crate) fn extra_fields(self) -> Vec<(&'static str, Option<usize>)> {
+        match self {
+            Self::Classic3 | Self::Plain(_) => vec![(self.a_getter(), None), ("fee()", None)],
+            Self::Tricrypto2 => vec![
+                ("A()", None),
+                ("gamma()", None),
+                ("D()", None),
+                ("price_scale(uint256)", Some(0)),
+                ("price_scale(uint256)", Some(1)),
+                ("mid_fee()", None),
+                ("out_fee()", None),
+                ("fee_gamma()", None),
+            ],
+        }
+    }
+    pub(crate) fn build(self, words: &[U256]) -> Result<CurveState, QuoteError> {
+        match self {
+            Self::Classic3 if words.len() == 5 => {
+                Classic3Pool::new([words[0], words[1], words[2]], words[3], words[4])
+                    .map(CurveState::Classic3)
+            }
+            Self::Plain(p) if words.len() == 4 => {
+                Plain2Pool::new(p, [words[0], words[1]], words[2], words[3]).map(CurveState::Plain)
+            }
+            Self::Tricrypto2 if words.len() == 11 => Tricrypto2State::new(
+                [words[0], words[1], words[2]],
+                Tricrypto2Parameters {
+                    amplification: words[3],
+                    gamma: words[4],
+                    stored_d: words[5],
+                    price_scale: [words[6], words[7]],
+                    mid_fee: words[8],
+                    out_fee: words[9],
+                    fee_gamma: words[10],
+                },
+            )
+            .map(CurveState::Tricrypto2),
+            _ => Err(QuoteError::IncompleteState),
+        }
+    }
+}
+
+pub enum CurveState {
+    Classic3(Classic3Pool),
+    Tricrypto2(Tricrypto2State),
+    Plain(Plain2Pool),
+}
+impl CurveState {
+    pub fn profile(&self) -> CurveProfile {
+        match self {
+            Self::Classic3(_) => CurveProfile::Classic3,
+            Self::Tricrypto2(_) => CurveProfile::Tricrypto2,
+            Self::Plain(p) => CurveProfile::Plain(p.profile()),
+        }
+    }
+    pub fn balances(&self) -> &[U256] {
+        match self {
+            Self::Classic3(s) => s.balances(),
+            Self::Tricrypto2(s) => s.balances(),
+            Self::Plain(s) => s.balances(),
+        }
+    }
+    pub fn amplification(&self) -> U256 {
+        match self {
+            Self::Classic3(s) => s.amplification(),
+            Self::Tricrypto2(s) => s.parameters().amplification,
+            Self::Plain(s) => s.amplification(),
+        }
+    }
+    pub fn fixed_fee(&self) -> Option<U256> {
+        match self {
+            Self::Classic3(s) => Some(s.fee()),
+            Self::Plain(s) => Some(s.fee()),
+            Self::Tricrypto2(_) => None,
+        }
+    }
+    pub fn crypto_parameters(&self) -> Option<&Tricrypto2Parameters> {
+        match self {
+            Self::Tricrypto2(s) => Some(s.parameters()),
+            _ => None,
+        }
+    }
+    pub fn is_liquid(&self) -> bool {
+        match self {
+            Self::Classic3(s) => s.is_liquid(),
+            Self::Tricrypto2(s) => s.is_liquid(),
+            Self::Plain(s) => s.is_liquid(),
+        }
+    }
+    pub fn amount_out(&self, i: usize, j: usize, amount: U256) -> Result<U256, QuoteError> {
+        match self {
+            Self::Classic3(s) => s.amount_out(i, j, amount),
+            Self::Tricrypto2(s) => s.amount_out(i, j, amount),
+            Self::Plain(s) => s.amount_out(i, j, amount),
+        }
+    }
+    pub fn mid_price(&self, i: usize, j: usize) -> Result<f64, QuoteError> {
+        match self {
+            Self::Classic3(s) => s.mid_price(i, j),
+            Self::Tricrypto2(s) => s.mid_price(i, j),
+            Self::Plain(s) => s.mid_price(i, j),
+        }
+    }
 }
 
 fn add(a: U256, b: U256) -> Result<U256, QuoteError> {
