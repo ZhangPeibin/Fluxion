@@ -1,5 +1,18 @@
 # Quote benchmarks
 
+## Latest per-quote freshness run (#37, 4 Nov 2026)
+
+[90-row report](quote-freshness-2026-11-04-publicnode.md) / [raw JSON](quote-freshness-2026-11-04-publicnode.json).
+
+Using the existing 30-pair × three-amount corpus against the 209-pool Ethereum local-snapshot
+service, all 90 quotes succeeded and all 90 head observations were available. Snapshot lag was
+5 blocks / 60 seconds at p50 and 7 blocks / 84 seconds at p95 and maximum. Fluxion quote HTTP
+latency was 24/107 ms p50/p95. The service used its configured dRPC endpoint; an independent
+PublicNode endpoint observed chain heads to avoid consuming the same free RPC quota twice.
+This measures snapshot block age, not a same-path quote recomputed against latest pool state.
+An initial same-dRPC observer attempt hit seven free-tier timeouts; the successful run uses an
+independent head-observation endpoint. The initial outcome is also noted in GitHub issue #37.
+
 ## Latest: writer-isolation fix (#36, 3 Nov 2026)
 
 [90-row three-way report](2026-11-03-writer-isolation-threeway.md) /
@@ -163,8 +176,16 @@ cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchma
 Options: `--service URL`, `--corpus PATH` (default `bench/corpus.yaml`), `--limit N`, `--split`
 (enable multi-pool Fluxion requests; omitted means single-route),
 `--delay-ms MS` (pause after each external request, default 250), `--config PATH` (local RPC
-configuration, default `config.yaml`). An output basename such as `--out run.md` also works.
+configuration, default `config.yaml`), and `--freshness-rpc-url URL` (optional independent
+Ethereum RPC used only for before/after head observations; the report records its hostname).
+An output basename such as `--out run.md` also works.
 The harness requires the running service's `/info` endpoint and refuses mock mode.
+
+Each Fluxion request is bracketed by Ethereum `latest` header reads. The freshness section
+reports the quote's `quote_block` and the observed before/after head lag in both blocks and
+block-timestamp seconds. Only responses marked `local_snapshot` with complete quote metadata and
+both head reads contribute to p50/p95/max; missing data and RPC errors remain visible per sample.
+This measures snapshot age, not the amount-out difference from recomputing on latest pool state.
 
 For a same-run feature-disabled control, start a second instance with
 `cargo run -- --config config.benchmark-control.yaml` (:8082), then add

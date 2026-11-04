@@ -70,6 +70,14 @@ HTTP 耗时含完整响应体接收、不含主动限速等待。三方未强制
 [原始 JSON 与请求 ID](docs/benchmarks/2026-11-03-writer-isolation-threeway.json) ·
 [修复、验收与完整分析](docs/benchmarks/2026-11-03-writer-isolation-fix.md)
 
+## 最新 Benchmark：每次 Quote 的状态新鲜度（2026-11-04）
+
+真实 Ethereum 主网 local snapshot 测试覆盖 **30 个交易对 × 3 档金额，共 90 次 quote**；209 个池全部报价成功，90/90 次链头观测有效。quote 使用的快照相对请求时最新链头落后 **p50 5 个区块 / 60 秒，p95 和最大值 7 个区块 / 84 秒**；HTTP quote 延迟 p50/p95 为 **24/107 ms**。
+
+**问题点在状态快照的新鲜度，不在报价计算速度。**本轮配置允许 `max_age_secs=180`、`max_lag_blocks=15`，所以这些报价仍符合实验配置；但落后程度已超过默认的 60 秒 / 3 块策略。当前同步器全量重建快照，新的已验证状态发布前继续服务上一版本，导致低 HTTP 延迟并不代表池状态接近链头。
+
+该 benchmark 测量快照区块相对链头的时间差，不等于报价金额相对“最新池状态重算”的偏差。完整逐次数据、链头范围、失败观测和运行配置见[实测报告](docs/benchmarks/quote-freshness-2026-11-04-publicnode.md)及[原始 JSON](docs/benchmarks/quote-freshness-2026-11-04-publicnode.json)；[基准索引](docs/benchmarks/README.md)另含首轮 dRPC 观测器超时记录。
+
 ## 数据与计算分层（#31–#35：V2/V3、wstETH、三个稳定池与 Tricrypto2）
 
 新增显式 `pricing_mode: local_snapshot`：后台同步 V2/ShibaSwap、V3、Lido v4、三个 Curve 稳定池和 Tricrypto2，发布不可变区块快照；

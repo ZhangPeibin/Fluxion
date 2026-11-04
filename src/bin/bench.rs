@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use fluxion::config::Config;
-use fluxion::rpc::RpcClient;
+use fluxion::rpc::{BlockHeader, RpcClient};
 
 const ONEINCH_URL: &str = "https://api.1inch.com/swap/v6.0/1/quote";
 const ZEROX_URL: &str = "https://api.0x.org/swap/allowance-holder/price";
@@ -90,10 +90,138 @@ struct Row {
     token_out: String,
     amount_in: String,
     fluxion: Side,
+    freshness: QuoteFreshness,
     control: Option<Side>,
     paraswap: Side,
     oneinch: Option<Side>,
     zerox: Option<Side>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct HeaderSample {
+    number: u64,
+    hash: String,
+    timestamp: u64,
+}
+
+impl From<BlockHeader> for HeaderSample {
+    fn from(header: BlockHeader) -> Self {
+        Self {
+            number: header.number,
+            hash: header.hash.to_string(),
+            timestamp: header.timestamp,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct QuoteFreshness {
+    quote_block: Option<u64>,
+    quote_block_timestamp: Option<u64>,
+    head_before: Option<HeaderSample>,
+    head_after: Option<HeaderSample>,
+    lag_blocks_before: Option<i64>,
+    lag_blocks_after: Option<i64>,
+    lag_secs_before: Option<i64>,
+    lag_secs_after: Option<i64>,
+    unavailable_reason: Option<String>,
+}
+
+impl QuoteFreshness {
+    #[cfg(test)]
+    fn unavailable(reason: impl Into<String>) -> Self {
+        Self {
+            quote_block: None,
+            quote_block_timestamp: None,
+            head_before: None,
+            head_after: None,
+            lag_blocks_before: None,
+            lag_blocks_after: None,
+            lag_secs_before: None,
+            lag_secs_after: None,
+            unavailable_reason: Some(reason.into()),
+        }
+    }
+
+    fn from_quote(
+        side: &Side,
+        before: Result<BlockHeader, String>,
+        after: Result<BlockHeader, String>,
+    ) -> Self {
+        let before_error = before.as_ref().err().cloned();
+        let after_error = after.as_ref().err().cloned();
+        let head_before = before.ok().map(HeaderSample::from);
+        let head_after = after.ok().map(HeaderSample::from);
+        let quote = side.route.as_deref();
+        let quote_block = quote
+            .and_then(|value| value.get("quote_block"))
+            .and_then(Value::as_u64);
+        let quote_block_timestamp = quote
+            .and_then(|value| value.get("state"))
+            .and_then(|state| state.get("block_timestamp"))
+            .and_then(Value::as_u64);
+        let local_snapshot = quote
+            .and_then(|value| value.get("state"))
+            .and_then(|state| state.get("pricing_mode"))
+            .and_then(Value::as_str)
+            == Some("local_snapshot");
+        let signed_diff = |head: u64, quote: u64| -> i64 {
+            if head >= quote {
+                i64::try_from(head - quote).unwrap_or(i64::MAX)
+            } else {
+                -i64::try_from(quote - head).unwrap_or(i64::MAX)
+            }
+        };
+        let block_lag =
+            |head: &Option<HeaderSample>| Some(signed_diff(head.as_ref()?.number, quote_block?));
+        let time_lag = |head: &Option<HeaderSample>| {
+            Some(signed_diff(
+                head.as_ref()?.timestamp,
+                quote_block_timestamp?,
+            ))
+        };
+        let mut reasons = Vec::new();
+        if quote_block.is_none() {
+            reasons.push("quote response missing quote_block".to_string());
+        }
+        if quote_block_timestamp.is_none() {
+            reasons.push("quote response missing state.block_timestamp".to_string());
+        }
+        if !local_snapshot {
+            reasons.push("quote response is not marked local_snapshot".to_string());
+        }
+        if head_before.is_none() {
+            reasons.push(format!(
+                "pre-quote latest-head RPC failed: {}",
+                before_error.as_deref().unwrap_or("unknown error")
+            ));
+        }
+        if head_after.is_none() {
+            reasons.push(format!(
+                "post-quote latest-head RPC failed: {}",
+                after_error.as_deref().unwrap_or("unknown error")
+            ));
+        }
+        Self {
+            quote_block,
+            quote_block_timestamp,
+            lag_blocks_before: block_lag(&head_before),
+            lag_blocks_after: block_lag(&head_after),
+            lag_secs_before: time_lag(&head_before),
+            lag_secs_after: time_lag(&head_after),
+            head_before,
+            head_after,
+            unavailable_reason: (!reasons.is_empty()).then(|| reasons.join("; ")),
+        }
+    }
+
+    fn measured(&self) -> bool {
+        self.unavailable_reason.is_none()
+            && self.lag_blocks_before.is_some()
+            && self.lag_blocks_after.is_some()
+            && self.lag_secs_before.is_some()
+            && self.lag_secs_after.is_some()
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -123,6 +251,14 @@ struct Summary {
     oneinch_latency_p95_ms: Option<u128>,
     zerox_latency_p50_ms: Option<u128>,
     zerox_latency_p95_ms: Option<u128>,
+    freshness_measured: usize,
+    freshness_unavailable: usize,
+    lag_blocks_p50: Option<i64>,
+    lag_blocks_p95: Option<i64>,
+    lag_blocks_max: Option<i64>,
+    lag_secs_p50: Option<i64>,
+    lag_secs_p95: Option<i64>,
+    lag_secs_max: Option<i64>,
     comparisons: HashMap<String, Comparison>,
     cohorts: HashMap<String, Cohort>,
 }
@@ -274,6 +410,8 @@ struct Meta {
     zerox_enabled: bool,
     working_tree_dirty: bool,
     service_info: Value,
+    pricing_mode: Option<String>,
+    freshness_rpc_host: Option<String>,
     corpus_snapshot: Corpus,
     pair_count: usize,
     delay_ms: u64,
@@ -296,6 +434,7 @@ struct Args {
     limit: Option<usize>,
     delay_ms: u64,
     config: String,
+    freshness_rpc_url: Option<String>,
     control_service: Option<String>,
     split: bool,
 }
@@ -313,6 +452,7 @@ fn print_help() {
             --split          enable Fluxion multi-pool routing\n\
             --delay-ms MS    pause after each external request (default 250)\n\
             --config PATH    local RPC config (default config.yaml)\n\
+            --freshness-rpc-url URL  separate Ethereum RPC for head observations\n\
          \n\
          Env (optional, .env works): ONEINCH_API_KEY, ZEROX_API_KEY"
     );
@@ -326,6 +466,7 @@ fn parse_args() -> Args {
         limit: None,
         delay_ms: 250,
         config: "config.yaml".to_string(),
+        freshness_rpc_url: None,
         control_service: None,
         split: false,
     };
@@ -340,6 +481,9 @@ fn parse_args() -> Args {
             "--corpus" => args.corpus = it.next().expect("--corpus needs a path"),
             "--out" => args.out = Some(it.next().expect("--out needs a path")),
             "--config" => args.config = it.next().expect("--config needs a path"),
+            "--freshness-rpc-url" => {
+                args.freshness_rpc_url = Some(it.next().expect("--freshness-rpc-url needs a URL"))
+            }
             "--split" => args.split = true,
             "--limit" => {
                 args.limit = Some(
@@ -474,6 +618,16 @@ fn summarize(rows: &[Row]) -> Summary {
     let mut paraswap_latencies = side_latencies(rows, |row| Some(&row.paraswap));
     let mut oneinch_latencies = side_latencies(rows, |row| row.oneinch.as_ref());
     let mut zerox_latencies = side_latencies(rows, |row| row.zerox.as_ref());
+    let mut lag_blocks = rows
+        .iter()
+        .filter(|row| row.freshness.measured())
+        .filter_map(|row| row.freshness.lag_blocks_after)
+        .collect::<Vec<_>>();
+    let mut lag_secs = rows
+        .iter()
+        .filter(|row| row.freshness.measured())
+        .filter_map(|row| row.freshness.lag_secs_after)
+        .collect::<Vec<_>>();
 
     let mean = |values: &[f64]| -> Option<f64> {
         if values.is_empty() {
@@ -516,6 +670,14 @@ fn summarize(rows: &[Row]) -> Summary {
         oneinch_latency_p95_ms: percentile(&mut oneinch_latencies, 0.95),
         zerox_latency_p50_ms: percentile(&mut zerox_latencies, 0.50),
         zerox_latency_p95_ms: percentile(&mut zerox_latencies, 0.95),
+        freshness_measured: rows.iter().filter(|row| row.freshness.measured()).count(),
+        freshness_unavailable: rows.iter().filter(|row| !row.freshness.measured()).count(),
+        lag_blocks_p50: percentile_signed(&mut lag_blocks, 0.50),
+        lag_blocks_p95: percentile_signed(&mut lag_blocks, 0.95),
+        lag_blocks_max: lag_blocks.iter().copied().max(),
+        lag_secs_p50: percentile_signed(&mut lag_secs, 0.50),
+        lag_secs_p95: percentile_signed(&mut lag_secs, 0.95),
+        lag_secs_max: lag_secs.iter().copied().max(),
         comparisons: HashMap::from([
             (
                 "paraswap".into(),
@@ -526,6 +688,19 @@ fn summarize(rows: &[Row]) -> Summary {
         ]),
         cohorts: cohorts(rows),
     }
+}
+
+fn percentile_signed(values: &mut [i64], fraction: f64) -> Option<i64> {
+    if values.is_empty() {
+        return None;
+    }
+    values.sort_unstable();
+    let rank = (fraction * values.len() as f64).ceil() as usize;
+    Some(values[rank.saturating_sub(1).min(values.len() - 1)])
+}
+
+fn format_signed(value: Option<i64>) -> String {
+    value.map_or_else(|| "-".to_string(), |n| n.to_string())
 }
 
 async fn quote_fluxion(
@@ -849,6 +1024,16 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
         meta.git_sha.as_deref().unwrap_or("unknown")
     );
     let _ = writeln!(out, "| service | {} |", meta.service);
+    let _ = writeln!(
+        out,
+        "| pricing mode | {} |",
+        meta.pricing_mode.as_deref().unwrap_or("unknown")
+    );
+    let _ = writeln!(
+        out,
+        "| freshness RPC host | {} |",
+        meta.freshness_rpc_host.as_deref().unwrap_or("unknown")
+    );
     let _ = writeln!(out, "| working tree dirty | {} |", meta.working_tree_dirty);
     let _ = writeln!(out, "| code fingerprint | {} |", meta.code_fingerprint);
     let _ = writeln!(out, "| start block | {} |", format_block(meta.start_block));
@@ -926,6 +1111,44 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
             format_latency(Some(row.paraswap.latency_ms)),
             format_latency(row.oneinch.as_ref().map(|side| side.latency_ms)),
             format_latency(row.zerox.as_ref().map(|side| side.latency_ms)),
+        );
+    }
+
+    let _ = writeln!(out, "\n## Per-quote snapshot freshness\n");
+    let _ = writeln!(
+        out,
+        "| pair | quote block | head before | head after | lag blocks before..after | lag seconds before..after | measurement |\n|---|---:|---:|---:|---:|---:|---|"
+    );
+    for row in rows {
+        let pair = format!(
+            "{} → {}",
+            symbol(corpus, &row.token_in),
+            symbol(corpus, &row.token_out)
+        );
+        let freshness = &row.freshness;
+        let header_number = |header: &Option<HeaderSample>| {
+            header
+                .as_ref()
+                .map_or_else(|| "-".to_string(), |h| h.number.to_string())
+        };
+        let interval = |before: Option<i64>, after: Option<i64>| match (before, after) {
+            (Some(before), Some(after)) => format!("{before}..{after}"),
+            _ => "-".to_string(),
+        };
+        let _ = writeln!(
+            out,
+            "| {pair} | {} | {} | {} | {} | {} | {} |",
+            freshness
+                .quote_block
+                .map_or_else(|| "-".to_string(), |n| n.to_string()),
+            header_number(&freshness.head_before),
+            header_number(&freshness.head_after),
+            interval(freshness.lag_blocks_before, freshness.lag_blocks_after),
+            interval(freshness.lag_secs_before, freshness.lag_secs_after),
+            freshness
+                .unavailable_reason
+                .as_deref()
+                .unwrap_or("measured"),
         );
     }
 
@@ -1025,7 +1248,19 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
     );
     let _ = writeln!(
         out,
-        "\nΔ bps = (fluxion - aggregator) / aggregator × 10000; negative means Fluxion returned less.\n\nQuotes use live state, not a pinned block. Block range and row timestamps describe skew, not deterministic replay. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations."
+        "- freshness: measured {}, unavailable {}; lag blocks p50/p95/max {}/{}/{}; lag seconds p50/p95/max {}/{}/{}",
+        summary.freshness_measured,
+        summary.freshness_unavailable,
+        format_signed(summary.lag_blocks_p50),
+        format_signed(summary.lag_blocks_p95),
+        format_signed(summary.lag_blocks_max),
+        format_signed(summary.lag_secs_p50),
+        format_signed(summary.lag_secs_p95),
+        format_signed(summary.lag_secs_max),
+    );
+    let _ = writeln!(
+        out,
+        "\nFreshness lag is bracketed by latest-chain headers read immediately before and after each Fluxion quote; the after value is the conservative observed bound, not an atomic chain-head sample. Seconds use Ethereum block timestamps. Negative values indicate the quote block/time is ahead of the observed head and should be treated as provider skew. Missing quote metadata or RPC reads are excluded from freshness percentiles and shown per row. This measures snapshot age, not amount_out deviation from a quote recomputed on latest state.\n\nΔ bps = (fluxion - aggregator) / aggregator × 10000; negative means Fluxion returned less. Quotes use live state, not a pinned block. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations."
     );
     out
 }
@@ -1176,6 +1411,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
+    let state_info: Value = client
+        .get(format!("{}/state", args.service.trim_end_matches('/')))
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let pricing_mode = state_info
+        .get("pricing_mode")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+
     let control_info = if let Some(service) = &args.control_service {
         let info: Value = client
             .get(format!("{}/info", service.trim_end_matches('/')))
@@ -1193,7 +1440,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let config = Config::load(&args.config)?;
-    let rpc = RpcClient::new(config.rpc_url.clone());
+    let freshness_rpc_url = args
+        .freshness_rpc_url
+        .clone()
+        .unwrap_or_else(|| config.rpc_url.clone());
+    let freshness_rpc_host = reqwest::Url::parse(&freshness_rpc_url)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_owned));
+    let rpc = RpcClient::new(freshness_rpc_url);
     let start_block = rpc.block_number().await.ok();
 
     eprintln!(
@@ -1226,6 +1480,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .await,
                 );
             }
+            let head_before = rpc.block_header(None).await.map_err(|e| e.to_string());
             let fluxion = quote_fluxion(
                 &client,
                 &args.service,
@@ -1235,6 +1490,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 args.split,
             )
             .await;
+            let head_after = rpc.block_header(None).await.map_err(|e| e.to_string());
+            let freshness = QuoteFreshness::from_quote(&fluxion, head_before, head_after);
             if !control_first && let Some(service) = &args.control_service {
                 control = Some(
                     quote_fluxion(&client, service, token_in, token_out, amount_in, args.split)
@@ -1291,6 +1548,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 token_out: token_out.clone(),
                 amount_in: amount_in.clone(),
                 fluxion,
+                freshness,
                 control,
                 paraswap,
                 oneinch,
@@ -1318,6 +1576,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|o| !o.stdout.is_empty())
             .unwrap_or(true),
         service_info,
+        pricing_mode,
+        freshness_rpc_host,
         pair_count: pairs.len(),
         delay_ms: args.delay_ms,
         code_fingerprint: code_fingerprint()?,
@@ -1389,6 +1649,50 @@ mod tests {
     }
 
     #[test]
+    fn freshness_brackets_quote_with_chain_heads_and_reports_timestamp_lag() {
+        let side = Side {
+            route: Some(Box::new(json!({
+                "quote_block": 100,
+                "state": {"pricing_mode":"local_snapshot", "block_timestamp": 1_000}
+            }))),
+            ..Side::ok("1".into(), 5, Some(1))
+        };
+        let header = |number, timestamp| BlockHeader {
+            number,
+            hash: alloy_primitives::B256::ZERO,
+            parent_hash: alloy_primitives::B256::ZERO,
+            timestamp,
+        };
+        let freshness =
+            QuoteFreshness::from_quote(&side, Ok(header(101, 1_012)), Ok(header(102, 1_024)));
+
+        assert!(freshness.measured());
+        assert_eq!(freshness.lag_blocks_before, Some(1));
+        assert_eq!(freshness.lag_blocks_after, Some(2));
+        assert_eq!(freshness.lag_secs_before, Some(12));
+        assert_eq!(freshness.lag_secs_after, Some(24));
+    }
+
+    #[test]
+    fn freshness_marks_missing_metadata_and_rpc_failures_unavailable() {
+        let side = Side::ok("1".into(), 5, Some(1));
+        let freshness =
+            QuoteFreshness::from_quote(&side, Err("offline".into()), Err("offline".into()));
+
+        assert!(!freshness.measured());
+        let reason = freshness.unavailable_reason.unwrap();
+        assert!(reason.contains("missing quote_block"));
+        assert!(reason.contains("offline"));
+    }
+
+    #[test]
+    fn signed_percentiles_keep_negative_provider_skew_visible() {
+        let mut values = vec![4, -2, 1, 8];
+        assert_eq!(percentile_signed(&mut values, 0.50), Some(1));
+        assert_eq!(percentile_signed(&mut [], 0.95), None);
+    }
+
+    #[test]
     fn comparison_keeps_failures_out_of_output_deltas() {
         let ok = || Side::ok("100".into(), 10, Some(1));
         let failed = || Side::error(30, "unavailable".into());
@@ -1406,6 +1710,7 @@ mod tests {
             token_out: "b".into(),
             amount_in: "1".into(),
             fluxion,
+            freshness: QuoteFreshness::unavailable("fixture"),
             control: None,
             paraswap,
             oneinch: None,
@@ -1443,6 +1748,7 @@ mod tests {
             token_out: "destination".into(),
             amount_in: "1".into(),
             fluxion: Side::ok("100".into(), 10, Some(2)),
+            freshness: QuoteFreshness::unavailable("fixture"),
             control: Some(Side::ok("50".into(), 5, Some(1))),
             paraswap: Side::ok("100".into(), 4, Some(1)),
             oneinch: None,
