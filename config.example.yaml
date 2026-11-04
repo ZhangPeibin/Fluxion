@@ -86,15 +86,15 @@ request_timeout_ms: 10000
 # Migration opt-in: rpc (existing full-venue behavior) or local_snapshot.
 # Local mode supports V2/ShibaSwap, covered V3, Lido v4, three Curve stable pools and Tricrypto2.
 # Other Curve deployments/protocol versions are explicit, never silently dropped.
-# See config.local-v2.example.yaml, config.local-v3.example.yaml,
-# or config.local-wsteth.example.yaml.
+# See tests/configs/v2.yaml, tests/configs/v3.yaml,
+# or tests/configs/wsteth.yaml.
 # The explicit 3pool HTTP demo uses: cargo run --example local_curve_server
-# For Tricrypto2: --tricrypto2 --config config.local-tricrypto2.example.yaml
-# Add --all-stable --config config.local-curve-stable.example.yaml for all three verified stable pools.
+# For Tricrypto2: --tricrypto2 --config tests/configs/tricrypto2.yaml
+# Add --all-stable --config tests/configs/curve-stable.yaml for all three verified stable pools.
 # Combine --all-stable and --tricrypto2 for all four verified Curve deployments.
 pricing_mode: rpc
 # Explicit deployment exclusions (addresses), also reported in /info.config.
-# See config.benchmark-local.yaml for the legacy Tricrypto exclusion.
+# See bench/configs/local.yaml for the legacy Tricrypto exclusion.
 excluded_pools: []
 local_state:
   poll_interval_ms: 2000

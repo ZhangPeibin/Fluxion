@@ -22,7 +22,7 @@ Tokio multi_thread worker
 
 ## 复现方法
 
-在 `.worktrees/oneinch-api-host` 中加入诊断埋点，以同一份 `config.benchmark-local.yaml`
+在 `.worktrees/oneinch-api-host` 中加入诊断埋点，以同一份 `bench/configs/local.yaml`
 启动 debug 服务，记录：HTTP 入口、handler 入口、取快照锁、blocking worker 排队/执行、
 响应元数据、完整响应就绪、同步阶段、发布锁和两种心跳。
 

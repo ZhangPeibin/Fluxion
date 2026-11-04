@@ -615,7 +615,7 @@ fn runtime_config() -> String {
     if let Ok(path) = env::var("FLUXION_CONFIG") {
         return path;
     }
-    for path in ["config.runtime.yaml", "config.yaml", "config.example.yaml"] {
+    for path in ["configs/runtime.yaml", "config.yaml", "config.example.yaml"] {
         if std::path::Path::new(path).exists() {
             return path.to_string();
         }
@@ -624,7 +624,7 @@ fn runtime_config() -> String {
     let path = dir.join("config.yaml");
     if !path.exists() {
         let _ = fs::create_dir_all(&dir);
-        let _ = fs::write(&path, include_str!("../config.runtime.yaml"));
+        let _ = fs::write(&path, include_str!("../configs/runtime.yaml"));
     }
     path.display().to_string()
 }

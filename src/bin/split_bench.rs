@@ -42,7 +42,7 @@ struct Args {
 
 fn args() -> Result<Args, Box<dyn std::error::Error>> {
     let mut args = Args {
-        config: "config.benchmark.yaml".into(),
+        config: "bench/configs/threeway.yaml".into(),
         corpus: "bench/corpus.yaml".into(),
         out: None,
         block: None,
@@ -61,7 +61,7 @@ fn args() -> Result<Args, Box<dyn std::error::Error>> {
         if flag == "--help" || flag == "-h" {
             println!(
                 "Usage: cargo run --bin split_bench -- [options]\n\
-              --config PATH       config profile (default config.benchmark.yaml)\n\
+              --config PATH       config profile (default bench/configs/threeway.yaml)\n\
               --corpus PATH       raw-unit corpus (default bench/corpus.yaml)\n\
               --out PATH.md       report and sibling JSON\n\
               --block NUMBER      pin this block; otherwise choose after discovery\n\

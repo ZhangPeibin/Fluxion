@@ -50,7 +50,7 @@ baseline allocation，转换未被当作独立 AMM 拆单池。初始化 **4443 
 
 ## 真实 HTTP
 
-`config.local-wsteth.example.yaml` 使用真实 Graph 发现，mode=mainnet，6 个图记录（含一个
+`tests/configs/wsteth.yaml` 使用真实 Graph 发现，mode=mainnet，6 个图记录（含一个
 wrapper）。V3 + stETH/wstETH/WETH/USDC 白名单，显式 100 万流动性门槛，不是原全图。
 每个方向串行 5 次、共 **20/20 成功**；均使用 split=true。以下为各方向末次响应，记录的
 代表区块为 `26331065`，hash

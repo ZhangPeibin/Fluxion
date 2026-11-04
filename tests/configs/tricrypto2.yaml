@@ -1,4 +1,4 @@
-# Run: cargo run --example local_curve_server -- --tricrypto2 --config config.local-tricrypto2.example.yaml
+# Run: cargo run --example local_curve_server -- --tricrypto2 --config tests/configs/tricrypto2.yaml
 # Explicit Tricrypto2-only graph, not full production discovery. No Graph key.
 host: 127.0.0.1
 port: 8088

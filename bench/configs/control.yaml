@@ -1,4 +1,4 @@
-# Feature-disabled control: same settings as config.benchmark.yaml, but only
+# Feature-disabled control: same settings as bench/configs/threeway.yaml, but only
 # the original three venues and no protocol conversions.
 host: 127.0.0.1
 port: 8082

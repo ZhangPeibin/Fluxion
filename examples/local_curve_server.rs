@@ -17,7 +17,7 @@ use std::{sync::Arc, time::Duration};
 #[tokio::main]
 async fn main() {
     let mut args = std::env::args().skip(1);
-    let mut path = "config.local-curve.example.yaml".to_string();
+    let mut path = "tests/configs/curve.yaml".to_string();
     let mut all_stable = false;
     let mut tricrypto2 = false;
     while let Some(flag) = args.next() {

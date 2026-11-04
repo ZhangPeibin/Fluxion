@@ -3,7 +3,7 @@
 ## 运行前约定的验证口径
 
 - 与缺陷轮保持同一个 debug 构建类型、原始 30 方向 × 3 档 raw 输入、split=true、四分支配置。
-- 使用 `config.benchmark-local.yaml`，仅排除旧 Tricrypto，预期保留 209 条池/转换记录和 169 个
+- 使用 `bench/configs/local.yaml`，仅排除旧 Tricrypto，预期保留 209 条池/转换记录和 169 个
   V3 池；按实际发现结果核实并记录。保留全范围 V3、180 秒 / 15 块的实验新鲜度策略。
 - 后台持续同步，不启用诊断中的停止同步对照，不改变初始化 tick 上限或请求超时。
 - 等待首次 ready 后，运行三方 90 行，同时每 50 ms 探测 /health、每秒记录同步状态；
@@ -96,9 +96,9 @@ JSONL 和服务端分段计时保留在本机临时目录，前缀 `fluxion-writ
 ## 复现
 
 ```bash
-cargo run -- --config config.benchmark-local.yaml
+cargo run -- --config bench/configs/local.yaml
 # .env 提供 GRAPH_API_KEY 与 ONEINCH_API_KEY；等 /ready 为 true 后：
-cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchmark-local.yaml \
+cargo run --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
   --split --delay-ms 600 --out docs/benchmarks/writer-isolation-run.md
 ```
 

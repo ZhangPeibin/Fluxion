@@ -14,7 +14,7 @@
 
 ```bash
 # 真实 ShibaSwap WETH/SHIB 示例，不需要 Graph key，默认 :8083
-cargo run -- --config config.local-v2.example.yaml
+cargo run -- --config tests/configs/v2.yaml
 curl -s localhost:8083/state
 curl -s localhost:8083/ready
 curl -s localhost:8083/quote -H 'content-type: application/json' \
@@ -25,24 +25,24 @@ curl -s localhost:8083/quote -H 'content-type: application/json' \
 Graph key。白名单仍双币过滤；发现规则不变。此受限示例不是原有全平台 benchmark 配置。
 只有一个池时拆单自然保留 100% 单路径，不会产生虚构分支。
 
-V2/V3/ShibaSwap 四池示例：`cargo run -- --config config.local-v3.example.yaml`，默认
+V2/V3/ShibaSwap 四池示例：`cargo run -- --config tests/configs/v3.yaml`，默认
 `:8084`，需要 Graph key。同样仅覆盖 WETH/SHIB，不包含 Curve 或转换。
 
-转换与多跳示例：`cargo run -- --config config.local-wsteth.example.yaml`，默认 `:8085`。
+转换与多跳示例：`cargo run -- --config tests/configs/wsteth.yaml`，默认 `:8085`。
 该示例显式使用 V3、stETH/wstETH/WETH/USDC 白名单和 100 万流动性门槛，需要 Graph key；
 不是默认全平台池集。把示例的 `enabled_platforms` 改成 `[]` 可在不需要 Graph key 的情况下
 只验证真实协议转换。
 
 经典 3pool 的固定部署 HTTP 示例：`cargo run --example local_curve_server`，默认 `:8086`，
-读取 `config.local-curve.example.yaml`，不需要 Graph key。这是显式单部署图，不运行注册表
+读取 `tests/configs/curve.yaml`，不需要 Graph key。这是显式单部署图，不运行注册表
 发现；普通 main 仍会把未支持的 Curve 部署保留并明确拒绝。见 [支持矩阵](CURVE-SUPPORT.md)。
 
 Tricrypto2 单部署示例：`cargo run --example local_curve_server -- --tricrypto2 --config
-config.local-tricrypto2.example.yaml`，默认 `:8088`，无 Graph key。与 3pool 示例一样，固定
+tests/configs/tricrypto2.yaml`，默认 `:8088`，无 Graph key。与 3pool 示例一样，固定
 选择已验证部署而非过滤生产发现图。
 
 三个稳定池的固定图使用 `cargo run --example local_curve_server -- --all-stable --config
-config.local-curve-stable.example.yaml`，默认 `:8087`。它显式选择已核实部署，不过滤生产发现图。
+tests/configs/curve-stable.yaml`，默认 `:8087`。它显式选择已核实部署，不过滤生产发现图。
 同时传入 `--all-stable --tricrypto2` 可组装四个已核实 Curve 部署，配置仍须允许所有币。
 
 local 模式若进入 mock universe，不启动链上同步，也不会把 mock 地址拿去主网询价；
@@ -89,7 +89,7 @@ local 模式若进入 mock universe，不启动链上同步，也不会把 mock 
 此时忽略半径，仍受 tick 总数硬上限约束。网络批次最多 8 并发且保持结果顺序；位图只
 遍历置位 bits，全零 word 仍验证合法边界。默认仍使用 ±2 words，未实现日志增量同步。
 
-`config.benchmark-local.yaml` 按地址显式排除旧 Tricrypto，保留其余发现池，排除策略通过
+`bench/configs/local.yaml` 按地址显式排除旧 Tricrypto，保留其余发现池，排除策略通过
 `/info.config.excluded_pools` 公开。该性能实验保持 180 秒 / 15 块策略，不能据此声称默认
 60 秒 / 3 块的新鲜度目标已完成；实际年龄与同步成本随结果一并记录。
 
@@ -321,7 +321,7 @@ tick 只在 `Mint`/`Burn` 事件出现时更新：先取日志涉及的 tick，�
   [Tricrypto2 实测](benchmarks/2026-11-03-local-state-tricrypto2.md) ·
   [两币稳定池实测](benchmarks/2026-11-03-local-state-curve-plain.md)。都不是原全平台 90 行回归。
 
-`config.benchmark-local.yaml` 显式排除旧 Tricrypto 地址，保留其余发现池、启用全范围 V3。
+`bench/configs/local.yaml` 显式排除旧 Tricrypto 地址，保留其余发现池、启用全范围 V3。
 `excluded_pools` 是可见、按地址生效的配置策略，默认空；与因缺状态而静默删池不同。
 该全图实验使用声明过的 180 秒 / 15 块策略，逐行保留实际年龄；默认仍为 60 秒 / 3 块。
 

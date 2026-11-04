@@ -56,7 +56,7 @@ cargo test --test local_tricrypto2_mainnet -- --ignored --nocapture
 ## 显式单部署 HTTP
 
 ```bash
-cargo run --example local_curve_server -- --tricrypto2 --config config.local-tricrypto2.example.yaml
+cargo run --example local_curve_server -- --tricrypto2 --config tests/configs/tricrypto2.yaml
 ```
 
 `profile=explicit-tricrypto2-only`，不运行全注册表发现。六方向各 5 次，共 **30/30 成功**，

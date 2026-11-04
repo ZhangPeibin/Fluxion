@@ -1,6 +1,6 @@
 {
   "observed_unix": 1793695151,
-  "profile": "config.benchmark-local.yaml",
+  "profile": "bench/configs/local.yaml",
   "pricing_mode": "local_snapshot",
   "method": "GET /info and /graph; lowercase addresses; unordered pairs deduplicated by sorted token addresses; swap counts exclude wrap/unwrap",
   "tokens": 48,

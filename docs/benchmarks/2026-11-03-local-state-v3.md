@@ -44,7 +44,7 @@ V2 Router 或 QuoterV2 独立核对，全部整数相等；输入/输出守恒�
 
 ## 真实 HTTP 四池样本
 
-运行 `config.local-v3.example.yaml`，使用真实 Graph 发现，`/info.mode=mainnet`，四个
+运行 `tests/configs/v3.yaml`，使用真实 Graph 发现，`/info.mode=mainnet`，四个
 WETH/SHIB 池。单机循环 20 次请求，均输入 33.333… WETH，`split=true`。
 
 - 20/20 成功，均使用区块 `26330938`、hash

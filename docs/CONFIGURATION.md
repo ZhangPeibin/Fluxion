@@ -1,0 +1,48 @@
+# Configuration
+
+产品配置集中在 `configs/`；benchmark 复现配置在 `bench/configs/`；本地测试 fixture 在 `tests/configs/`；根目录只保留 `config.example.yaml`。下表路径相对仓库根目录。
+
+| 文件 | 用途 |
+|---|---|
+| `config.example.yaml` | 通用模板，复制为 `config.yaml` 后使用 |
+| `configs/runtime.yaml` | CLI/MCP 默认暖 runtime（local snapshot + incremental） |
+| `bench/configs/threeway.yaml` | 三方 benchmark 主配置（:8081） |
+| `bench/configs/control.yaml` | 关闭转换/ShibaSwap 的对照配置（:8082） |
+| `bench/configs/local.yaml` | local snapshot benchmark（:8089） |
+| `tests/configs/v2.yaml` | 受限 V2/ShibaSwap 本地示例 |
+| `tests/configs/v3.yaml` | V2/V3/ShibaSwap 本地示例 |
+| `tests/configs/wsteth.yaml` | wstETH 转换与多跳示例 |
+| `tests/configs/curve.yaml` | 显式经典 3pool |
+| `tests/configs/curve-stable.yaml` | 三个已验证稳定池 |
+| `tests/configs/tricrypto2.yaml` | 显式 Tricrypto2 |
+
+| 键 | 说明 | 默认 |
+|---|---|---|
+| `host` / `port` | 监听地址 | `127.0.0.1` / `8080` |
+| `rpc_url` | 第三方 RPC | `https://eth.drpc.org` |
+| `uniswap_v2_subgraph_id` / `uniswap_v3_subgraph_id` | The Graph 去中心化网络部署 ID | 见示例 |
+| `curve_address_provider` | Curve AddressProvider | `0x0000…4383` |
+| `curve_registry_ids` | 枚举的 Curve 注册表 id（0=主 stableswap，5=crypto，7=MetaRegistry 全部） | `[0, 5]` |
+| `enabled_platforms` | 启用的 AMM 平台；与转换列表独立 | `uniswap-v2` / `uniswap-v3` / `curve` / `shibaswap-v2` |
+| `shibaswap_v2_factory` | ShibaSwap V2 工厂地址 | 见示例 |
+| `protocol_conversions` | 已支持接口类型的部署实例；`[]` 关闭转换 | Lido stETH↔wstETH，双向开启 |
+| `max_hops` / `top_k` / `max_pools` | 最大边数 / 每状态每能力组保留数 / 发现上限 | 3 / 8 / 10000 |
+| `min_liquidity` | 流动性下限（USD 量级） | 50000 |
+| `min_volume_24h` | 成交量下限（用 subgraph `volumeUSD` 作代理） | 0 |
+| `min_pool_age_days` | 最小池龄（天） | 0 |
+| `reserve_ratio_k` | 动态浅池阈值 `reserve_in ≥ k·amount_in`（0 = 关闭） | 0 |
+| `slippage_penalty_lambda` | 流动性惩罚系数 | 0.0 |
+| `refresh_interval_secs` | 热池储备刷新间隔与储备 TTL；近 5 分钟访问过的池才是热池 | 30 |
+| `snapshot_refresh_secs` | 全量价格快照重建间隔 | 120 |
+| `request_timeout_ms` | 单请求超时（毫秒） | 10000 |
+| `pricing_mode` / `local_state` | 精算模式 / 后台同步与新鲜度策略 | `rpc` / 见示例 |
+| `split` | 可选拆单的服务预算；请求仍需 `split=true` | 4 分支 / 4 候选池 / 20 段 / 1024 次 / 8000 ms |
+| `token_allowlist` | 覆盖内置主流币白名单 | 空（使用内置） |
+
+`GRAPH_API_KEY` 只放在 **gitignored 的 `.env`** 里，不进版本库。
+转换实例字段为 `kind`、`contract`、`underlying`、`wrapped`、`enabled`、`wrap`、`unwrap`；
+完整示例见 [config.example.yaml](../config.example.yaml)。汇率来自协议，不在 YAML 中填写固定价格。
+
+粗选价格缓存 TTL 取 `max(refresh_interval_secs, snapshot_refresh_secs)`。全图预热使用
+Multicall3 分批读取 V2 储备和 V3 `slot0`，不会将所有池标成热池；精算时才懒加载 V2 的短 TTL 储备。
+

@@ -124,12 +124,12 @@ cargo run --example curve_snapshot -- --pool frax-usdc --block 26331147
 cargo run --example local_curve_server
 curl -s localhost:8086/state
 # 显式 Tricrypto2-only HTTP 示例，默认 :8088，不运行全注册表发现
-cargo run --example local_curve_server -- --tricrypto2 --config config.local-tricrypto2.example.yaml
+cargo run --example local_curve_server -- --tricrypto2 --config tests/configs/tricrypto2.yaml
 # 三个已核实稳定池的固定图，默认 :8087，不运行全注册表发现
-cargo run --example local_curve_server -- --all-stable --config config.local-curve-stable.example.yaml
+cargo run --example local_curve_server -- --all-stable --config tests/configs/curve-stable.yaml
 ```
 
-HTTP 示例使用 `config.local-curve.example.yaml`，**显式只组装经典 3pool**，不运行注册表发现。
+HTTP 示例使用 `tests/configs/curve.yaml`，**显式只组装经典 3pool**，不运行注册表发现。
 `--all-stable` 显式选择三个稳定池，单独 `--tricrypto2` 仅选择 Tricrypto2，两者同时传入则
 选择四个已核实部署。不要把示例当作默认全图实例；直接用普通 main 发现五池时，旧
 Tricrypto 仍明确阻止完整本地快照。平台与 all-token allowlist

@@ -25,7 +25,7 @@ cargo test --test local_state_mainnet -- --ignored --nocapture
 ## 持续更新的 HTTP 冒烟
 
 ```bash
-cargo run -- --config config.local-v2.example.yaml
+cargo run -- --config tests/configs/v2.yaml
 ```
 
 示例发现一个真实 ShibaSwap WETH/SHIB 池，不需要 Graph key。

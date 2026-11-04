@@ -39,7 +39,7 @@ Modules (`src/`): `model`, `graph`, `discovery`, `source`, `adapters`, `state`, 
 Project-specific constraints:
 - Chain interaction uses **raw JSON-RPC via `reqwest`** with hand-written ABI encode/decode;
   only `alloy-primitives` (U256/Address) is used from alloy. Do not reintroduce the full `alloy` stack.
-- Config is YAML (`config.yaml`, see `config.example.yaml`). Secrets (`GRAPH_API_KEY`) live in a
+- Config is YAML (`config.yaml`, see `config.example.yaml`; extra profiles live in `configs/`). Secrets (`GRAPH_API_KEY`) live in a
   **gitignored `.env`** — never commit them or put them in YAML/README/docs.
 - Data sources: The Graph decentralized-network subgraph IDs for V2/V3 + Curve main stableswap
   registry (`AddressProvider.get_registry()`). Crypto/factory/metapool Curve registries are not yet covered.

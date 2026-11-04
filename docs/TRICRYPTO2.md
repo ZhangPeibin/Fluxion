@@ -81,7 +81,7 @@ cargo test --test local_tricrypto2 --test local_tricrypto2_http
 cargo test --test local_tricrypto2_mainnet -- --ignored --nocapture
 
 # 显式单部署 HTTP 图，默认 :8088，无 Graph key，不运行全注册表发现
-cargo run --example local_curve_server -- --tricrypto2 --config config.local-tricrypto2.example.yaml
+cargo run --example local_curve_server -- --tricrypto2 --config tests/configs/tricrypto2.yaml
 ```
 
 两份固定块 fixture 共 104 条（90 成功、14 预期 revert），另有当前主网和组合路径核对。

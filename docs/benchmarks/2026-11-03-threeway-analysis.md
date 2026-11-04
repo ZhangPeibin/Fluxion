@@ -43,7 +43,7 @@ ParaSwap 的相关路径出现 Synapse、BalancerV1、Curve StableNG 等当前�
 
 ## 实验口径
 
-- 使用当前代码、`config.benchmark.yaml` 与原始 `bench/corpus.yaml`，30 个方向 × 3 档
+- 使用当前代码、`bench/configs/threeway.yaml` 与原始 `bench/corpus.yaml`，30 个方向 × 3 档
   固定 raw 输入，共 90 行。档位是编写语料时的近似美元量级，不是实验时重新按美元换算。
 - Fluxion 完整发现图为 210 条池/转换记录、48 个 token、432 条有向边：V2 29 池、V3 169 池、
   Curve 5 池、ShibaSwap 6 池、wstETH 1 条转换记录。保留全部已发现平台和池。
@@ -67,9 +67,9 @@ ParaSwap 的相关路径出现 Synapse、BalancerV1、Curve StableNG 等当前�
 
 ```bash
 # .env 提供 GRAPH_API_KEY 和 ONEINCH_API_KEY
-cargo run -- --config config.benchmark.yaml
+cargo run -- --config bench/configs/threeway.yaml
 # 另一个终端
-cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchmark.yaml \
+cargo run --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml \
   --split --delay-ms 600 --out docs/benchmarks/threeway-run.md
 ```
 

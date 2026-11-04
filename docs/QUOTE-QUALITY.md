@@ -94,7 +94,7 @@ Regression tests use `top_k=1`: one proves a deep conversion+two-swap route surv
 better-looking thin AMM route; another proves a newly added thin ShibaSwap pool does not crowd
 out the deeper original-venue route. Both test public router outcomes, not just internal buckets.
 
-`config.benchmark.yaml` enables conversions + ShibaSwap; `config.benchmark-control.yaml` explicitly
+`bench/configs/threeway.yaml` enables conversions + ShibaSwap; `bench/configs/control.yaml` explicitly
 uses the original three venues with no conversions. Both use the same defaults, thresholds and
 corpus otherwise. `bench --control-service URL` alternates candidate/control call order, then asks
 ParaSwap. The JSON retains both local paths and the external `bestRoute`, including percentages

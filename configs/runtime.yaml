@@ -1,6 +1,10 @@
-# Three-way local snapshot benchmark. Same discovery settings as config.benchmark.yaml.
+# Warm local runtime for CLI and MCP clients.
+# Start with: cargo run --release -- serve --config configs/runtime.yaml
+# Wait until /ready returns 200 (first full snapshot takes a while), then:
+#   cargo run --release -- ldo-eth 100
+#   cargo run --release -- swap quote --in LDO --out ETH --amount 100 --json
 host: 127.0.0.1
-port: 8089
+port: 8080
 enabled_platforms: [uniswap-v2, uniswap-v3, curve, shibaswap-v2]
 max_pools: 10000
 min_liquidity: 50000
@@ -13,13 +17,11 @@ excluded_pools:
   # Legacy Tricrypto only; Tricrypto2 with identical coins remains enabled.
   - "0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5"
 pricing_mode: local_snapshot
-# Keep the benchmark universe fixed for reproducibility.
-universe_refresh_secs: 0
+# Refresh the discovered universe periodically while serving.
+universe_refresh_secs: 300
 local_state:
   sync_timeout_ms: 120000
   batch_size: 400
-  # Full-range V3 structure keeps large trades exact; only the structural load
-  # is slow, and incremental mode re-reads it on events instead of every block.
   max_age_secs: 60
   max_lag_blocks: 3
   v3_bitmap_radius: 16

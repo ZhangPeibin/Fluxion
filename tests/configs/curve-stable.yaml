@@ -1,4 +1,4 @@
-# Run with: cargo run --example local_curve_server -- --all-stable --config config.local-curve-stable.example.yaml
+# Run with: cargo run --example local_curve_server -- --all-stable --config tests/configs/curve-stable.yaml
 # Explicit classic 3pool + 2CRV + FRAX/USDC, not full registry discovery.
 # The normal server still reports both crypto deployments as unsupported.
 host: 127.0.0.1

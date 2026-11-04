@@ -61,7 +61,7 @@ V3→两币池两跳逐跳匹配独立 QuoterV2/get_dy：
 ## 三个已核实稳定池 HTTP
 
 ```bash
-cargo run --example local_curve_server -- --all-stable --config config.local-curve-stable.example.yaml
+cargo run --example local_curve_server -- --all-stable --config tests/configs/curve-stable.yaml
 ```
 
 固定三个已核实部署，不运行生产注册表发现，`profile=explicit-verified-stable-only`。

@@ -50,8 +50,8 @@ The service cold-starts with one full load, then publishes a snapshot per block:
 full loader. The benchmark universe was pinned with `universe_refresh_secs: 0`.
 
 ```bash
-cargo run -- --config config.benchmark-local.yaml
-cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchmark-local.yaml \
+cargo run -- --config bench/configs/local.yaml
+cargo run --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
   --split --delay-ms 600 --freshness-rpc-url https://ethereum-rpc.publicnode.com \
   --out docs/benchmarks/quote-freshness-2026-11-04-incremental.md
 ```
@@ -86,9 +86,9 @@ Actual state age remains 59–129 seconds under the unchanged 180-second / 15-bl
 default-freshness acceptance is separate from the fixed HTTP scheduling defect.
 
 ```bash
-cargo run -- --config config.benchmark-local.yaml
+cargo run -- --config bench/configs/local.yaml
 # After /ready, with ONEINCH_API_KEY in .env:
-cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchmark-local.yaml \
+cargo run --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
   --split --delay-ms 600 --out docs/benchmarks/writer-isolation-run.md
 ```
 
@@ -104,8 +104,8 @@ Actual state age is **50–112 seconds**, under an experiment policy of 180 seco
 default-freshness continuous operation and tail latency remain unresolved.
 
 ```bash
-cargo run -- --config config.benchmark-local.yaml
-cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchmark-local.yaml \
+cargo run -- --config bench/configs/local.yaml
+cargo run --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
   --split --delay-ms 600 --out docs/benchmarks/local-threeway-run.md
 ```
 
@@ -121,9 +121,9 @@ The full discovered graph has 210 records, 48 tokens and 432 directed edges. Thi
 local-snapshot migration benchmark; legacy Tricrypto is still unsupported in local mode.
 
 ```bash
-cargo run -- --config config.benchmark.yaml
+cargo run -- --config bench/configs/threeway.yaml
 # In another terminal, with ONEINCH_API_KEY in the gitignored .env:
-cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchmark.yaml \
+cargo run --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml \
   --split --delay-ms 600 --out docs/benchmarks/threeway-run.md
 ```
 
@@ -201,7 +201,7 @@ include setup, both optimizers and replay, so are not the cost of one production
 ## Fixed-block two-pool experiment (#30)
 
 This is an internal single-route vs split comparison, distinct from the live aggregator runs below.
-Run `cargo run --bin split_bench -- --config config.benchmark.yaml`; no HTTP server is required.
+Run `cargo run --bin split_bench -- --config bench/configs/threeway.yaml`; no HTTP server is required.
 Use `--focus SHIB`, `--block NUMBER` and `--help` for targeted runs and search-budget options.
 
 - [90-row fixed-block report](2026-11-02-split-mainnet.md) / [raw JSON](2026-11-02-split-mainnet.json)
@@ -223,11 +223,11 @@ endpoints for a fixed corpus of token pairs and amount tiers.
 
 ```bash
 # Terminal 1: real discovery requires GRAPH_API_KEY in the gitignored .env.
-cargo run -- --config config.benchmark.yaml
+cargo run -- --config bench/configs/threeway.yaml
 
 # Terminal 2: same public profile, service on :8081.
-cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchmark.yaml --limit 3
-cargo run --bin bench -- --service http://127.0.0.1:8081 --config config.benchmark.yaml
+cargo run --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml --limit 3
+cargo run --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml
 ```
 
 Options: `--service URL`, `--corpus PATH` (default `bench/corpus.yaml`), `--limit N`, `--split`
@@ -245,7 +245,7 @@ both head reads contribute to p50/p95/max; missing data and RPC errors remain vi
 This measures snapshot age, not the amount-out difference from recomputing on latest pool state.
 
 For a same-run feature-disabled control, start a second instance with
-`cargo run -- --config config.benchmark-control.yaml` (:8082), then add
+`cargo run -- --config bench/configs/control.yaml` (:8082), then add
 `--control-service http://127.0.0.1:8082` to the benchmark command. Candidate/control order
 alternates by row. Reports separate stETH, SHIB and other cohorts, and raw JSON includes both
 local paths plus ParaSwap's `bestRoute` (pool addresses and allocation percentages when returned).
@@ -345,7 +345,7 @@ See [full table](2026-11-02-mainnet.md), [raw data](2026-11-02-mainnet.json), an
 - Output delta median **−2.2 bps**, mean **−132.7 bps**, **73/90 (81.1%)** within ±50 bps.
 - Latency p50/p95: Fluxion **944/1629 ms**, ParaSwap **381/827 ms**.
 - Mainnet service: **203 pools, 48 tokens, 418 edges**, built-in both/all-token allowlist;
-  public profile in `config.benchmark.yaml`; debug build, not a release-performance claim.
+  public profile in `bench/configs/threeway.yaml`; debug build, not a release-performance claim.
 - The large negative tail remains significant: the $100k raw USDC→stETH sample returns about
   **41.14% less**. ParaSwap uses `wsteth` conversion + `uniswapv3` in the stETH samples;
   Fluxion does not model that conversion edge. Large SHIB orders also lag materially.

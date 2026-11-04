@@ -23,7 +23,7 @@
 
 ## 池集、同步与覆盖
 
-- `config.benchmark-local.yaml` 保留原 benchmark 的平台、白名单、50,000 流动性门槛、
+- `bench/configs/local.yaml` 保留原 benchmark 的平台、白名单、50,000 流动性门槛、
   max_hops=3、top_k=8 与四分支搜索配置，只按地址排除旧 Tricrypto
   `0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5`。Tricrypto2 仍保留。
 - 实际图为 209 条池/转换记录、48 个 token、426 条边：29 V2、169 V3、4 Curve、6 ShibaSwap、
@@ -88,9 +88,9 @@ CPU 采样和同进程停止同步对照已确认，主要干扰来自后台 V3 
 
 ```bash
 # .env 提供 GRAPH_API_KEY 与 ONEINCH_API_KEY
-cargo run -- --config config.benchmark-local.yaml
+cargo run -- --config bench/configs/local.yaml
 # 等待 /ready 为 true，另一个终端：
-cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchmark-local.yaml \
+cargo run --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
   --split --delay-ms 600 --out docs/benchmarks/local-threeway-run.md
 ```
 
