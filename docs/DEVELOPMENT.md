@@ -1,5 +1,15 @@
 # Development and testing
 
+## Self-hosted HTTP server
+
+```bash
+cp .env.example .env        # 填入 GRAPH_API_KEY
+cp config.example.yaml config.yaml
+cargo run -- serve --config config.yaml
+```
+
+接口、请求/响应和错误见 [HTTP API](API.md)；配置项见 [Configuration](CONFIGURATION.md)。
+
 ```bash
 # 单独配置启动一个真实主网实例（默认 :8081；需要 GRAPH_API_KEY）
 cargo run -- --config bench/configs/threeway.yaml
@@ -15,15 +25,14 @@ cargo run --bin graph -- --service http://127.0.0.1:8081 --out graph
 `/quote` 的每跳与 `/graph` 的每条边增加 `operation: swap | wrap | unwrap`；转换边的
 `pool` 字段为 wrapper 合约地址，`/graph` 不为转换边伪造储备值。Viewer 为转换边使用虚线。
 ParaSwap 无需密钥；1inch/0x 可通过 `.env` 中的 `ONEINCH_API_KEY` / `ZEROX_API_KEY` 启用。
-方法、结果与限制见 [docs/benchmarks/README.md](benchmarks/README.md)。
+方法、结果与限制见 [benchmarks/README.md](benchmarks/README.md)。
 
 同轮对照：另启动 `cargo run -- --config bench/configs/control.yaml`（:8082），然后运行
 `cargo run --bin bench -- --service http://127.0.0.1:8081 --control-service http://127.0.0.1:8082 --config bench/configs/threeway.yaml`。
 两实例使用相同语料、相同基础配置；对照实例关闭转换和 ShibaSwap。报告按 stETH、SHIB、其他样本分组，
 JSON 保留逐跳路径、对手拆单比例和池信息。详细实现见 [报价质量改进](QUOTE-QUALITY.md)。
 
-多池三方比较使用 `--split`。最新结果见本文前部的 **Benchmark** 章节及
-[读写隔离修复实测](benchmarks/2026-11-03-writer-isolation-fix.md)。
+多池三方比较使用 `--split`。最新结果见 [benchmark index](benchmarks/README.md)。
 
 ## 测试
 

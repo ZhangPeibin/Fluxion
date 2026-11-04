@@ -119,6 +119,24 @@ Important fields:
 Warm local-snapshot quotes are typically 5–30 ms in the current benchmark environment. State
 freshness is measured separately from latency.
 
+## Latest benchmark
+
+90 rows on 4 Nov 2026, 209 pool/conversion records, full-range V3:
+
+| Metric | Result |
+|---|---:|
+| Snapshot lag blocks p50/p95/max | **0 / 1 / 1** |
+| Snapshot lag seconds p50/p95/max | **0 / 12 / 12 s** |
+| Fluxion HTTP p50/p95 | **49 / 133 ms** |
+| Success | **90 / 90** |
+| ParaSwap mean delta / within ±50 bps | **−2.6 bps / 89** |
+| 1inch mean delta / within ±50 bps | **−8.7 bps / 82** |
+
+Split allocation includes disjoint multi-hop routes. Remaining large-order gaps are mostly venue
+coverage limits (for example LDO and SHIB), not freshness or allocation. Full methodology:
+[90-row report](../../benchmarks/quote-freshness-2026-11-04-route-split.md) ·
+[benchmark index](../../benchmarks/README.md).
+
 ## Errors
 
 Errors use stable codes rather than free-form text:
