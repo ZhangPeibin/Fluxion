@@ -36,6 +36,54 @@ fluxion swap quote --in LDO --out ETH --amount 100 --json
 MCP tool: `swap_quote` with `token_in`, `token_out`, `amount`, optional `provider`,
 `max_hops`, `split`, `split_max_branches`, `decimals_in`, `decimals_out`.
 
+## MCP client setup
+
+`fluxion mcp` speaks MCP over stdio. Register the binary as a local MCP server in your agent
+client. `fluxion` must be on `PATH` (`cargo install --path .`). For the local provider, export
+`GRAPH_API_KEY` in the agent's environment; `fluxion mcp` will auto-start the warm runtime if it
+is not already running.
+
+Claude Code (`.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "fluxion": {
+      "command": "fluxion",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Codex (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.fluxion]
+command = "fluxion"
+args = ["mcp"]
+```
+
+OpenCode (`opencode.json`):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "fluxion": {
+      "type": "local",
+      "command": ["fluxion", "mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Use `fluxion mcp --url http://127.0.0.1:8080 --no-auto-start` when the runtime is managed
+separately. The agent should call the `swap_quote` tool; it should not manage `fluxion start` or
+`fluxion stop` itself. Exact config keys vary by client version; check the client's MCP
+documentation if the snippet is rejected.
+
 ## Inputs
 
 | Field | Required | Description |
