@@ -2,7 +2,7 @@
 //! protocol rounding, and bitmap-word boundaries are all kept in integers.
 //! Formula reference: Uniswap V3 TickMath, SqrtPriceMath and SwapMath definitions.
 use std::collections::BTreeMap;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use crate::error::QuoteError;
 use alloy_primitives::{U256, U512};
@@ -142,14 +142,73 @@ pub struct V3Quote {
     pub steps: usize,
 }
 
-pub struct V3State {
-    sqrt_price: U256,
-    tick: i32,
-    liquidity: u128,
+/// Immutable per-pool structure. `Mint`/`Burn`/`Initialize` change it, while
+/// swaps only change the market fields below. Sharing this behind an `Arc`
+/// keeps per-block snapshot publication cheap: unchanged pools do not clone
+/// their initialized-tick tables.
+#[derive(Debug)]
+pub struct V3Structure {
     fee: u32,
     spacing: i32,
     bitmaps: BTreeMap<i16, U256>,
     ticks: BTreeMap<i32, i128>,
+}
+
+impl V3Structure {
+    pub fn fee(&self) -> u32 {
+        self.fee
+    }
+    pub fn spacing(&self) -> i32 {
+        self.spacing
+    }
+    pub fn bitmaps(&self) -> &BTreeMap<i16, U256> {
+        &self.bitmaps
+    }
+    pub fn ticks(&self) -> &BTreeMap<i32, i128> {
+        &self.ticks
+    }
+
+    /// Apply tick liquidity changes discovered from pool events. `None`
+    /// removes a tick whose gross liquidity reached zero. Only the affected
+    /// structures are cloned; the caller is expected to have read the new
+    /// `liquidityNet` from the pinned block.
+    pub fn with_tick_updates(&self, updates: &[(i32, Option<i128>)]) -> Result<Self, QuoteError> {
+        let mut bitmaps = self.bitmaps.clone();
+        let mut ticks = self.ticks.clone();
+        for &(tick, net) in updates {
+            if tick % self.spacing != 0 || !(MIN_TICK..=MAX_TICK).contains(&tick) {
+                return Err(QuoteError::IncompleteState);
+            }
+            let compressed = tick.div_euclid(self.spacing);
+            let word = i16::try_from(compressed.div_euclid(256))
+                .map_err(|_| QuoteError::IncompleteState)?;
+            let mask = U256::from(1) << compressed.rem_euclid(256) as usize;
+            let bitmap = bitmaps.get(&word).copied().unwrap_or(U256::ZERO);
+            match net {
+                Some(net) => {
+                    ticks.insert(tick, net);
+                    bitmaps.insert(word, bitmap | mask);
+                }
+                None => {
+                    ticks.remove(&tick);
+                    bitmaps.insert(word, bitmap & !mask);
+                }
+            }
+        }
+        Ok(Self {
+            fee: self.fee,
+            spacing: self.spacing,
+            bitmaps,
+            ticks,
+        })
+    }
+}
+
+pub struct V3State {
+    sqrt_price: U256,
+    tick: i32,
+    liquidity: u128,
+    structure: Arc<V3Structure>,
 }
 
 /// Ascending initialized positions only; zero words require no bit tests.
@@ -220,32 +279,78 @@ impl V3State {
             sqrt_price,
             tick,
             liquidity,
-            fee,
-            spacing,
-            bitmaps,
-            ticks,
+            structure: Arc::new(V3Structure {
+                fee,
+                spacing,
+                bitmaps,
+                ticks,
+            }),
+        })
+    }
+
+    /// Fast path used by per-block refreshes: only the market fields were
+    /// re-read; the structure was validated when it was loaded or updated.
+    pub fn with_shared_structure(
+        sqrt_price: U256,
+        tick: i32,
+        liquidity: u128,
+        structure: Arc<V3Structure>,
+    ) -> Result<Self, QuoteError> {
+        if !(MIN_TICK..MAX_TICK).contains(&tick)
+            || sqrt_price < sqrt_ratio_at_tick(tick)?
+            || sqrt_price > sqrt_ratio_at_tick(tick + 1)?
+            || sqrt_price >= sqrt_ratio_at_tick(MAX_TICK)?
+        {
+            return Err(QuoteError::IncompleteState);
+        }
+        let center = i16::try_from(tick.div_euclid(structure.spacing).div_euclid(256))
+            .map_err(|_| QuoteError::IncompleteState)?;
+        if !structure.bitmaps.contains_key(&center) {
+            return Err(QuoteError::IncompleteState);
+        }
+        Ok(Self {
+            sqrt_price,
+            tick,
+            liquidity,
+            structure,
         })
     }
 
     pub fn sqrt_price(&self) -> U256 {
         self.sqrt_price
     }
+    pub fn tick(&self) -> i32 {
+        self.tick
+    }
+    pub fn liquidity(&self) -> u128 {
+        self.liquidity
+    }
+    pub fn fee(&self) -> u32 {
+        self.structure.fee
+    }
+    pub fn structure(&self) -> &Arc<V3Structure> {
+        &self.structure
+    }
     pub fn covered_words(&self) -> (i16, i16) {
         (
-            *self.bitmaps.first_key_value().unwrap().0,
-            *self.bitmaps.last_key_value().unwrap().0,
+            *self.structure.bitmaps.first_key_value().unwrap().0,
+            *self.structure.bitmaps.last_key_value().unwrap().0,
         )
     }
     pub fn initialized_tick_count(&self) -> usize {
-        self.ticks.len()
+        self.structure.ticks.len()
     }
 
     fn next_tick(&self, tick: i32, zero_for_one: bool) -> Result<(i32, bool), QuoteError> {
-        let compressed = tick.div_euclid(self.spacing) + i32::from(!zero_for_one);
+        let compressed = tick.div_euclid(self.structure.spacing) + i32::from(!zero_for_one);
         let word =
             i16::try_from(compressed.div_euclid(256)).map_err(|_| QuoteError::IncompleteState)?;
         let bit = compressed.rem_euclid(256) as usize;
-        let bitmap = *self.bitmaps.get(&word).ok_or(QuoteError::IncompleteState)?;
+        let bitmap = *self
+            .structure
+            .bitmaps
+            .get(&word)
+            .ok_or(QuoteError::IncompleteState)?;
         let masked = bitmap
             & if zero_for_one {
                 U256::MAX >> (255 - bit)
@@ -264,7 +369,7 @@ impl V3State {
         } else {
             255
         };
-        let next = (i32::from(word) * 256 + position) * self.spacing;
+        let next = (i32::from(word) * 256 + position) * self.structure.spacing;
         Ok((next.clamp(MIN_TICK, MAX_TICK), initialized))
     }
 
@@ -277,11 +382,11 @@ impl V3State {
         } // protocol uses signed amountSpecified
         // A complete, empty global bitmap proves that no liquidity can be
         // reached. A partial window (including one with a hole) cannot prove it.
-        if self.liquidity == 0 && self.ticks.is_empty() {
-            let low = MIN_TICK.div_euclid(self.spacing).div_euclid(256) as i16;
-            let high = MAX_TICK.div_euclid(self.spacing).div_euclid(256) as i16;
+        if self.liquidity == 0 && self.structure.ticks.is_empty() {
+            let low = MIN_TICK.div_euclid(self.structure.spacing).div_euclid(256) as i16;
+            let high = MAX_TICK.div_euclid(self.structure.spacing).div_euclid(256) as i16;
             if self.covered_words() == (low, high)
-                && self.bitmaps.len() == usize::from((high - low) as u16) + 1
+                && self.structure.bitmaps.len() == usize::from((high - low) as u16) + 1
             {
                 return Err(QuoteError::InsufficientLiquidity);
             }
@@ -308,7 +413,7 @@ impl V3State {
             };
             let available = mul_div(
                 remaining,
-                U256::from(1_000_000 - self.fee),
+                U256::from(1_000_000 - self.structure.fee),
                 U256::from(1_000_000),
                 false,
             )?;
@@ -339,8 +444,8 @@ impl V3State {
             } else {
                 mul_div(
                     used,
-                    U256::from(self.fee),
-                    U256::from(1_000_000 - self.fee),
+                    U256::from(self.structure.fee),
+                    U256::from(1_000_000 - self.structure.fee),
                     true,
                 )?
             };
@@ -353,6 +458,7 @@ impl V3State {
             if next == boundary {
                 if initialized {
                     let net = *self
+                        .structure
                         .ticks
                         .get(&next_tick)
                         .ok_or(QuoteError::IncompleteState)?;

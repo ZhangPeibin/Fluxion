@@ -148,21 +148,44 @@ async fn main() {
         });
     }
 
-    let mut platform_edges: std::collections::BTreeMap<&str, usize> =
-        std::collections::BTreeMap::new();
-    for idx in 0..graph.edge_count() {
-        *platform_edges
-            .entry(graph.pool(graph.edge(idx).pool_idx).kind.name())
-            .or_default() += 1;
+    // Add-only universe refresh: discovered pools are loaded into a candidate
+    // graph and atomically published by the synchronizer, so existing quotes
+    // keep using the old complete world until the swap.
+    if let Some(store) = local_store.as_ref()
+        && refresher.is_some()
+        && config.universe_refresh_secs > 0
+    {
+        let store = store.clone();
+        let config = config.clone();
+        let rpc = rpc.clone();
+        tokio::spawn(async move {
+            let interval = Duration::from_secs(config.universe_refresh_secs.max(1));
+            loop {
+                tokio::time::sleep(interval).await;
+                let key = std::env::var("GRAPH_API_KEY")
+                    .ok()
+                    .filter(|key| !key.trim().is_empty());
+                match discover_pools(&config, &rpc, key.as_deref()).await {
+                    Ok(pools) => {
+                        let added = store.queue_new_pools(pools);
+                        if added > 0 {
+                            tracing::info!(added, "queued discovered pools for next snapshot");
+                        }
+                    }
+                    Err(error) => tracing::warn!(%error, "universe refresh failed"),
+                }
+            }
+        });
     }
-    let info = serde_json::json!({
-        "mode": if refresher.is_some() { "mainnet" } else { "mock" },
-        "config": config.public_settings(),
-        "pools": graph.pools().len(),
-        "tokens": graph.tokens().len(),
-        "edges": graph.edge_count(),
-        "platform_edges": platform_edges,
-    });
+
+    let info_mode = if refresher.is_some() {
+        "mainnet"
+    } else {
+        "mock"
+    };
+    let info_config = config.clone();
+    let info_store = local_store.clone();
+    let info_graph = graph.clone();
     let state = Arc::new(AppState {
         graph,
         source: cached,
@@ -180,7 +203,13 @@ async fn main() {
     }
     .route(
         "/info",
-        axum::routing::get(move || async move { axum::Json(info) }),
+        axum::routing::get(move || {
+            let graph = info_store.as_ref().map_or_else(
+                || std::sync::Arc::new(info_graph.clone()),
+                |store| store.graph(),
+            );
+            async move { axum::Json(service_info(info_mode, &info_config, &graph)) }
+        }),
     );
     let app = if std::env::var_os("FLUXION_DIAG").is_some() {
         tracing::info!(threads=?std::thread::available_parallelism(), "diag_runtime");
@@ -222,6 +251,24 @@ async fn main() {
     tracing::info!("listening on http://{addr}");
     println!("listening on http://{addr}");
     axum::serve(listener, app).await.unwrap();
+}
+
+fn service_info(mode: &str, config: &Config, graph: &Graph) -> serde_json::Value {
+    let mut platform_edges: std::collections::BTreeMap<&str, usize> =
+        std::collections::BTreeMap::new();
+    for idx in 0..graph.edge_count() {
+        *platform_edges
+            .entry(graph.pool(graph.edge(idx).pool_idx).kind.name())
+            .or_default() += 1;
+    }
+    serde_json::json!({
+        "mode": mode,
+        "config": config.public_settings(),
+        "pools": graph.pools().len(),
+        "tokens": graph.tokens().len(),
+        "edges": graph.edge_count(),
+        "platform_edges": platform_edges,
+    })
 }
 
 async fn build_universe(

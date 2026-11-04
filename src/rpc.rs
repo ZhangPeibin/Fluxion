@@ -179,6 +179,99 @@ impl RpcClient {
             .map(str::to_string)
             .ok_or_else(|| QuoteError::RpcError("missing block hash".into()))
     }
+
+    /// Read canonical logs for an inclusive block range. The caller is
+    /// responsible for pinning range boundaries to a verified head and for
+    /// discarding results after a reorg.
+    pub async fn get_logs(
+        &self,
+        addresses: &[Address],
+        topics: &[B256],
+        from_block: u64,
+        to_block: u64,
+    ) -> Result<Vec<RpcLog>, QuoteError> {
+        if addresses.is_empty() {
+            return Ok(Vec::new());
+        }
+        let address = addresses
+            .iter()
+            .map(|address| format!("{address:#x}"))
+            .collect::<Vec<_>>();
+        let topic_filter = if topics.is_empty() {
+            Vec::new()
+        } else {
+            vec![
+                topics
+                    .iter()
+                    .map(|topic| format!("{topic:#x}"))
+                    .collect::<Vec<_>>(),
+            ]
+        };
+        let value = self
+            .post(json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "eth_getLogs",
+                "params": [{
+                    "address": address,
+                    "fromBlock": format!("0x{from_block:x}"),
+                    "toBlock": format!("0x{to_block:x}"),
+                    "topics": topic_filter,
+                }]
+            }))
+            .await?;
+        let entries = value["result"]
+            .as_array()
+            .ok_or_else(|| QuoteError::RpcError("missing logs result".into()))?;
+        entries.iter().map(RpcLog::from_value).collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RpcLog {
+    pub address: Address,
+    pub topics: Vec<B256>,
+    pub data: Vec<u8>,
+    pub block_number: u64,
+    pub removed: bool,
+}
+
+impl RpcLog {
+    fn from_value(value: &Value) -> Result<Self, QuoteError> {
+        let address = value["address"]
+            .as_str()
+            .ok_or_else(|| QuoteError::RpcError("log missing address".into()))?
+            .parse()
+            .map_err(|_| QuoteError::RpcError("invalid log address".into()))?;
+        let topics = value["topics"]
+            .as_array()
+            .ok_or_else(|| QuoteError::RpcError("log missing topics".into()))?
+            .iter()
+            .map(|topic| {
+                topic
+                    .as_str()
+                    .ok_or_else(|| QuoteError::RpcError("invalid log topic".into()))?
+                    .parse()
+                    .map_err(|_| QuoteError::RpcError("invalid log topic".into()))
+            })
+            .collect::<Result<Vec<B256>, QuoteError>>()?;
+        let data = value["data"]
+            .as_str()
+            .ok_or_else(|| QuoteError::RpcError("log missing data".into()))
+            .and_then(|data| hex_decode(data).map_err(QuoteError::RpcError))?;
+        let block_number = value["blockNumber"]
+            .as_str()
+            .and_then(|number| number.strip_prefix("0x"))
+            .and_then(|number| u64::from_str_radix(number, 16).ok())
+            .ok_or_else(|| QuoteError::RpcError("invalid log block number".into()))?;
+        Ok(Self {
+            address,
+            topics,
+            data,
+            block_number,
+            removed: value["removed"].as_bool().unwrap_or(false),
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

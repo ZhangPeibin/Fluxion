@@ -33,6 +33,18 @@ enabled_platforms:
 # Factory discovery cannot apply volume/age filters: nonzero values disable it with a warning.
 shibaswap_v2_factory: "0x115934131916C8b277DD010Ee02de363c09d037c"
 
+# Same-interface deployments, config-only. Each V2 fork is discovered through
+# its getPair factory; set shibaswap: true only for the ShibaSwap math variant.
+v2_forks: []
+#  - name: my-v2-fork
+#    factory: "0x..."
+#    shibaswap: false
+
+# Additional V3-compatible deployments, discovered through their own subgraph.
+v3_subgraphs: []
+#  - name: my-v3-fork
+#    subgraph_id: "..."
+
 # Typed protocol conversion instances. [] disables all conversions.
 # This is a live protocol exchange rate, not a fixed 1:1 or a static config rate.
 # wrap/unwrap are independently configurable; each operation counts as one hop.
@@ -65,6 +77,8 @@ token_allowlist: []
 refresh_interval_secs: 30
 # Full price-snapshot rebuild interval. Keep this well above the rebuild cost.
 snapshot_refresh_secs: 120
+# Re-run pool discovery while serving; new pools are queued add-only. 0 disables.
+universe_refresh_secs: 300
 
 # Per-request timeout for /quote (milliseconds).
 request_timeout_ms: 10000
@@ -92,6 +106,10 @@ local_state:
   v3_full_range: false # opt-in full global bitmap/ticks; higher sync cost, ignores radius
   v3_max_loaded_ticks: 50000 # total across the snapshot; no silent truncation
   compute_concurrency: 4 # CPU workers; saturation returns 429, not an unbounded queue
+  sync_mode: incremental # full | incremental; full reloads still reconcile on reorg/gap
+  full_reload_interval_secs: 900 # periodic reconciliation with a complete rebuild
+  max_incremental_gap_blocks: 64 # larger gaps rebuild instead of chasing logs
+  v3_log_chunk_blocks: 5000 # inclusive eth_getLogs range while catching up
 
 # Opt-in HTTP split=true. Existing requests remain single-route.
 # A request may lower split_max_branches to 2, not exceed this server cap.

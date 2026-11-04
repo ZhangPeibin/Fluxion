@@ -72,11 +72,11 @@ HTTP 耗时含完整响应体接收、不含主动限速等待。三方未强制
 
 ## 最新 Benchmark：每次 Quote 的状态新鲜度（2026-11-04）
 
-真实 Ethereum 主网 local snapshot 测试覆盖 **30 个交易对 × 3 档金额，共 90 次 quote**；209 个池全部报价成功，90/90 次链头观测有效。quote 使用的快照相对请求时最新链头落后 **p50 5 个区块 / 60 秒，p95 和最大值 7 个区块 / 84 秒**；HTTP quote 延迟 p50/p95 为 **24/107 ms**。
+真实 Ethereum 主网 local snapshot 测试覆盖 **30 个交易对 × 3 档金额，共 90 次 quote**；209 个池全部报价成功，90/90 次链头观测有效。启用 `local_state.sync_mode: incremental` 后，快照相对请求时最新链头落后 **p50 0 个区块 / 0 秒，p95 和最大值 1 个区块 / 12 秒**；HTTP quote 延迟 p50/p95 为 **40/101 ms**，不与外部聚合器竞争请求内 RPC。
 
-**问题点在状态快照的新鲜度，不在报价计算速度。**本轮配置允许 `max_age_secs=180`、`max_lag_blocks=15`，所以这些报价仍符合实验配置；但落后程度已超过默认的 60 秒 / 3 块策略。当前同步器全量重建快照，新的已验证状态发布前继续服务上一版本，导致低 HTTP 延迟并不代表池状态接近链头。
+**新鲜度由按块增量同步解决，不是靠放宽阈值。**冷启动做一次全量装载，之后每块重读 V2/V3/Curve/wstETH 快变量，并用 `Mint`/`Burn` 日志增量维护 V3 tick 结构；reorg、跨块 gap 超限和周期性校准回退全量装载。旧的全量重建测试（p50 5 块 / p95 7 块，配置 180 秒 / 15 块）保留为历史对照。
 
-该 benchmark 测量快照区块相对链头的时间差，不等于报价金额相对“最新池状态重算”的偏差。完整逐次数据、链头范围、失败观测和运行配置见[实测报告](docs/benchmarks/quote-freshness-2026-11-04-publicnode.md)及[原始 JSON](docs/benchmarks/quote-freshness-2026-11-04-publicnode.json)；[基准索引](docs/benchmarks/README.md)另含首轮 dRPC 观测器超时记录。
+该 benchmark 测量快照区块相对链头的时间差，不等于报价金额相对“最新池状态重算”的偏差。完整逐次数据、链头范围、失败观测和运行配置见[增量实测报告](docs/benchmarks/quote-freshness-2026-11-04-incremental.md)及[原始 JSON](docs/benchmarks/quote-freshness-2026-11-04-incremental.json)；[基准索引](docs/benchmarks/README.md)另含历史全量重建与 dRPC 观测器记录。
 
 ## 数据与计算分层（#31–#35：V2/V3、wstETH、三个稳定池与 Tricrypto2）
 
@@ -85,6 +85,10 @@ HTTP 耗时含完整响应体接收、不含主动限速等待。三方未强制
 已验证断网计算、重组/过期/同步失败，以及固定区块与部署 Router 的整数输出一致性。
 V3、wstETH 与各 Curve 部署分别使用协议整数模型，并以独立链上 view 核对。
 #36 将写侧同步/构建/校验与 HTTP 执行隔离；短锁发布完整快照，旧版本由写侧延迟回收。
+`local_state.sync_mode: incremental` 在此之上按块刷新 V2/V3/Curve/wstETH 快变量，并用
+`Mint`/`Burn` 日志增量维护 V3 tick 结构；reorg、gap 超限和周期性校准回退全量装载。
+`universe_refresh_secs` 周期性重新发现池子，新池冷装载后与现有池原子换图（add-only）。
+同接口的 V2/V3 fork 可通过 `v2_forks` / `v3_subgraphs` 配置接入。
 wstETH 使用 Lido 内部 ETH/shares；两币稳定池分别处理余额来源与取整顺序；Tricrypto2
 使用 stored D 与动态费用。最新本地快照三方对比见上方 benchmark，本地模型细节见下方文档。
 

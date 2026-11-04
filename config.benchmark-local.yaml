@@ -13,13 +13,20 @@ excluded_pools:
   # Legacy Tricrypto only; Tricrypto2 with identical coins remains enabled.
   - "0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5"
 pricing_mode: local_snapshot
+# Keep the benchmark universe fixed for reproducibility.
+universe_refresh_secs: 0
 local_state:
   sync_timeout_ms: 120000
   batch_size: 400
-  # Full-range public-RPC rebuilds take ~55s; record actual age for every quote.
-  # This is a declared benchmark policy, not the default service freshness target.
-  max_age_secs: 180
-  max_lag_blocks: 15
+  # Full-range V3 structure keeps large trades exact; only the structural load
+  # is slow, and incremental mode re-reads it on events instead of every block.
+  max_age_secs: 60
+  max_lag_blocks: 3
   v3_bitmap_radius: 16
   v3_full_range: true
   v3_max_loaded_ticks: 250000
+  sync_mode: incremental
+  poll_interval_ms: 1000
+  full_reload_interval_secs: 900
+  max_incremental_gap_blocks: 64
+  v3_log_chunk_blocks: 5000

@@ -69,6 +69,46 @@ pub async fn discover_pools(
             Err(error) => tracing::warn!(%error, "v3 discovery failed"),
         }
     }
+    for fork in &config.v2_forks {
+        let kind = if fork.shibaswap {
+            PoolKind::ShibaSwapV2
+        } else {
+            PoolKind::UniswapV2
+        };
+        match discovery::discover_factory_v2(config, rpc, fork.factory, kind, &fork.name).await {
+            Ok(p) => {
+                tracing::info!(
+                    platform = %fork.name,
+                    count = p.len(),
+                    "discovered V2 fork pools"
+                );
+                pools.extend(p);
+            }
+            Err(error) => tracing::warn!(%error, platform=%fork.name, "V2 fork discovery failed"),
+        }
+    }
+    for subgraph in &config.v3_subgraphs {
+        let Some(key) = key.filter(|key| !key.trim().is_empty()) else {
+            tracing::warn!(
+                platform = %subgraph.name,
+                "GRAPH_API_KEY missing; skipping configured V3 subgraph"
+            );
+            continue;
+        };
+        match discovery::discover_v3_subgraph(config, key, &subgraph.subgraph_id).await {
+            Ok(p) => {
+                tracing::info!(
+                    platform = %subgraph.name,
+                    count = p.len(),
+                    "discovered V3 subgraph pools"
+                );
+                pools.extend(p);
+            }
+            Err(error) => {
+                tracing::warn!(%error, platform=%subgraph.name, "V3 subgraph discovery failed")
+            }
+        }
+    }
     if platform_enabled(config, "curve") {
         match discovery::discover_curve(config, rpc).await {
             Ok(p) => {

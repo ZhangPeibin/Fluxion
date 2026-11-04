@@ -11,7 +11,7 @@ use crate::rpc::RpcClient;
 use crate::util::{u256_to_usize, u256_word};
 
 mod shibaswap;
-pub use shibaswap::discover_shibaswap_v2;
+pub use shibaswap::{discover_factory_v2, discover_shibaswap_v2};
 
 pub fn token_allowed(config: &Config, token: Address) -> bool {
     allowlist(config)
@@ -166,6 +166,14 @@ pub async fn discover_v2(
     config: &Config,
     graph_api_key: &str,
 ) -> Result<Vec<Pool>, DiscoveryError> {
+    discover_v2_subgraph(config, graph_api_key, &config.uniswap_v2_subgraph_id).await
+}
+
+pub async fn discover_v2_subgraph(
+    config: &Config,
+    graph_api_key: &str,
+    subgraph_id: &str,
+) -> Result<Vec<Pool>, DiscoveryError> {
     if config.max_pools == 0 {
         return Ok(Vec::new());
     }
@@ -173,10 +181,8 @@ pub async fn discover_v2(
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| DiscoveryError::Request(e.to_string()))?;
-    let url = format!(
-        "https://gateway.thegraph.com/api/{graph_api_key}/subgraphs/id/{}",
-        config.uniswap_v2_subgraph_id
-    );
+    let url =
+        format!("https://gateway.thegraph.com/api/{graph_api_key}/subgraphs/id/{subgraph_id}");
 
     let allow = allowlist(config);
     let where_clause = discovery_where(config, "reserveUSD");
@@ -262,6 +268,14 @@ pub async fn discover_v3(
     config: &Config,
     graph_api_key: &str,
 ) -> Result<Vec<Pool>, DiscoveryError> {
+    discover_v3_subgraph(config, graph_api_key, &config.uniswap_v3_subgraph_id).await
+}
+
+pub async fn discover_v3_subgraph(
+    config: &Config,
+    graph_api_key: &str,
+    subgraph_id: &str,
+) -> Result<Vec<Pool>, DiscoveryError> {
     if config.max_pools == 0 {
         return Ok(Vec::new());
     }
@@ -269,10 +283,8 @@ pub async fn discover_v3(
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| DiscoveryError::Request(e.to_string()))?;
-    let url = format!(
-        "https://gateway.thegraph.com/api/{graph_api_key}/subgraphs/id/{}",
-        config.uniswap_v3_subgraph_id
-    );
+    let url =
+        format!("https://gateway.thegraph.com/api/{graph_api_key}/subgraphs/id/{subgraph_id}");
 
     let allow = allowlist(config);
     let where_clause = discovery_where(config, "totalValueLockedUSD");

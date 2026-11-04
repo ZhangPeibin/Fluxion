@@ -49,6 +49,22 @@ impl ProtocolConversionConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct V2ForkConfig {
+    pub name: String,
+    pub factory: Address,
+    #[serde(default)]
+    pub shibaswap: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct V3SubgraphConfig {
+    pub name: String,
+    pub subgraph_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub host: String,
@@ -69,11 +85,17 @@ pub struct Config {
     pub slippage_penalty_lambda: f64,
     pub refresh_interval_secs: u64,
     pub snapshot_refresh_secs: u64,
+    /// Re-run pool discovery at this interval; `0` disables runtime refresh.
+    pub universe_refresh_secs: u64,
     pub request_timeout_ms: u64,
     pub token_allowlist: Vec<String>,
     /// Explicit deployment exclusions, visible in public experiment settings.
     pub excluded_pools: Vec<Address>,
     pub shibaswap_v2_factory: Address,
+    /// Additional same-interface V2 deployments discovered through their factory.
+    pub v2_forks: Vec<V2ForkConfig>,
+    /// Additional same-interface V3 deployments discovered through a subgraph.
+    pub v3_subgraphs: Vec<V3SubgraphConfig>,
     pub protocol_conversions: Vec<ProtocolConversionConfig>,
     #[serde(deserialize_with = "service_split_config")]
     pub split: SplitConfig,
@@ -120,6 +142,7 @@ impl Default for Config {
             slippage_penalty_lambda: 0.0,
             refresh_interval_secs: 30,
             snapshot_refresh_secs: 120,
+            universe_refresh_secs: 300,
             request_timeout_ms: 10000,
             token_allowlist: Vec::new(),
             excluded_pools: Vec::new(),
@@ -129,6 +152,8 @@ impl Default for Config {
             shibaswap_v2_factory: "0x115934131916C8b277DD010Ee02de363c09d037c"
                 .parse()
                 .unwrap(),
+            v2_forks: Vec::new(),
+            v3_subgraphs: Vec::new(),
             protocol_conversions: vec![ProtocolConversionConfig {
                 kind: ConversionKind::WstEth,
                 contract: "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
@@ -214,6 +239,18 @@ mod tests {
         let c = Config::from_file("config.example.yaml").unwrap();
         assert_eq!(c.max_hops, 3);
         assert!(!c.enabled_platforms.is_empty());
+    }
+
+    #[test]
+    fn same_interface_forks_are_config_only() {
+        let config: Config = serde_yaml::from_str(
+            "v2_forks:\n  - name: fork\n    factory: '0x0000000000000000000000000000000000000010'\n    shibaswap: false\nv3_subgraphs:\n  - name: fork-v3\n    subgraph_id: abc\n",
+        )
+        .unwrap();
+        assert_eq!(config.v2_forks.len(), 1);
+        assert!(!config.v2_forks[0].shibaswap);
+        assert_eq!(config.v3_subgraphs[0].subgraph_id, "abc");
+        assert!(serde_yaml::from_str::<Config>("v2_forks:\n  - name: x\n").is_err());
     }
 
     #[test]

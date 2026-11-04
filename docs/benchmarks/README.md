@@ -1,5 +1,30 @@
 # Quote benchmarks
 
+## Latest: incremental local snapshot (#38–#40, 4 Nov 2026)
+
+[90-row report](quote-freshness-2026-11-04-incremental.md) /
+[raw JSON](quote-freshness-2026-11-04-incremental.json).
+
+With `local_state.sync_mode: incremental` on the same 30-pair × three-amount corpus and the same
+209-pool full-range V3 universe, all 90 quotes and all 90 head observations succeeded. Snapshot
+lag fell from the earlier 5/7-block (60/84 s) result to **0 blocks at p50 and 1 block at p95 and
+maximum (0/12/12 s)**. Fluxion HTTP latency was **40/101 ms p50/p95**; ParaSwap and 1inch stayed
+at 312/521 ms and 455/741 ms. Output deltas were within ±50 bps for 86/90 (ParaSwap) and 80/90
+(1inch) rows, and Fluxion computed with zero request-time RPC.
+
+The service cold-starts with one full load, then publishes a snapshot per block: V2 reserves, V3
+`slot0`/`liquidity`, Curve and wstETH state are re-read; V3 bitmap/tick structure changes only on
+`Mint`/`Burn` logs. Reorgs, large gaps and a periodic reconciliation interval fall back to the
+full loader. The benchmark universe was pinned with `universe_refresh_secs: 0`.
+
+```bash
+cargo run -- --config config.benchmark-local.yaml
+cargo run --bin bench -- --service http://127.0.0.1:8089 --config config.benchmark-local.yaml \
+  --split --delay-ms 600 --freshness-rpc-url https://ethereum-rpc.publicnode.com \
+  --out docs/benchmarks/quote-freshness-2026-11-04-incremental.md
+```
+
+
 ## Latest per-quote freshness run (#37, 4 Nov 2026)
 
 [90-row report](quote-freshness-2026-11-04-publicnode.md) / [raw JSON](quote-freshness-2026-11-04-publicnode.json).

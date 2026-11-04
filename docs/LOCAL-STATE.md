@@ -243,11 +243,41 @@ local 的不可用错误均为 HTTP 503，带 `pricing_mode: local_snapshot`：
 | `local_state.v3_bitmap_radius` | 2 | 当前 word 两侧的装载半径，1–16 |
 | `local_state.v3_max_loaded_ticks` | 50000 | 整个快照的 initialized tick 总上限 |
 | `local_state.compute_concurrency` | 4 | 本地 HTTP CPU worker 上限，1–64 |
+| `local_state.sync_mode` | `full` | `full` 每轮全量重建；`incremental` 冷启动后按块增量 |
+| `local_state.full_reload_interval_secs` | 900 | 增量模式下的周期性全量校准 |
+| `local_state.max_incremental_gap_blocks` | 64 | 超过该跨度直接全量重建 |
+| `local_state.v3_log_chunk_blocks` | 5000 | 追块时单次 `eth_getLogs` 的区块范围 |
+| `universe_refresh_secs` | 300 | 运行时重新发现池子的间隔；`0` 关闭 |
 
 年龄同时受区块时间和发布后的单调时钟约束；重复读到旧 head 或本机时钟向后调整不能
 让旧快照恢复年轻。链头落后是“相对最后观测值”，不是离线时仍知道实时链头。
 这些是可配置策略默认值，不是生产 SLA。RPC 必须支持 EIP-1898；不支持时明确同步失败，
 不偷偷改用 `latest` 或只有区块号的弱一致性读取。
+
+## 增量同步与运行时发现
+
+`sync_mode: incremental` 在冷启动全量装载后，每个新块只重读快变量：V2/ShibaSwap 储备、
+V3 `slot0` 与 `liquidity`、Curve 余额/动态字段、wstETH 比例。V3 的 bitmap 与 initialized
+tick 只在 `Mint`/`Burn` 事件出现时更新：先取日志涉及的 tick，再在固定块高下批量读取
+最新 `liquidityGross`/`liquidityNet`。未变化的池通过 `Arc` 共享慢状态，不复制整棵 tick 表。
+
+- 父哈希不匹配、链头回退、跨块 gap 超限、日志/tick 读取失败时回退全量装载；旧快照继续
+  服务，失败不会部分发布。
+- `full_reload_interval_secs` 提供周期性全量校准，纠正长期增量漂移。
+- `universe_refresh_secs` 周期性重新发现池子；新池先过滤 allowlist/流动性/不支持类型，
+  再离线冷装载并与现有池原子换图。默认 add-only，不自动移除旧池。
+- `/state` 增加 `sync_mode`、`last_full_reload_secs`、`applied_logs`、`full_reloads`、
+  `skipped_pools`；`/info` 与 `/graph` 反映当前 universe。
+
+### 同接口部署（配置级）
+
+- `v2_forks`：为每个 V2 兼容部署配置 `name`、`factory`、`shibaswap`（是否使用
+  ShibaSwap 的储备/汇率口径）。通过工厂 `getPair` 发现，不需要改核心代码。
+- `v3_subgraphs`：为每个 V3 兼容部署配置 `name` 与 `subgraph_id`。fee tier 仍由
+  subgraph 返回并写入 `PoolKind::UniswapV3 { fee }`。
+- 不同价格数学的新平台（Solidly、Balancer、Algebra、新的 Curve crypto 变体）仍需要
+  实现本地状态装载与报价模型；它们不会被同接口配置静默纳入，缺少实现时会在状态接口
+  中给出不支持原因。
 
 ## 验证与后续
 

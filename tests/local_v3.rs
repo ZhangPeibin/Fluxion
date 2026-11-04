@@ -172,3 +172,36 @@ fn wide_tick_spacing_and_large_inputs_keep_full_width_integer_arithmetic() {
         "a global price limit cannot turn partially consumed input into a full exact-in quote"
     );
 }
+
+#[test]
+fn shared_structure_updates_only_affected_ticks() {
+    let sqrt = sqrt_ratio_at_tick(0).unwrap();
+    let state = V3State::new(
+        sqrt,
+        0,
+        1_000_000_000_000_000_000,
+        3000,
+        60,
+        BTreeMap::from([(0, U256::from(2))]),
+        BTreeMap::from([(60, 7)]),
+    )
+    .unwrap();
+    let structure = state.structure().clone();
+    let shared = V3State::with_shared_structure(sqrt, 0, 1, structure.clone()).unwrap();
+    assert_eq!(shared.initialized_tick_count(), 1);
+
+    let cleared = structure.with_tick_updates(&[(60, None)]).unwrap();
+    assert!(cleared.ticks().is_empty());
+    assert_eq!(
+        V3State::with_shared_structure(sqrt, 0, 1, std::sync::Arc::new(cleared))
+            .unwrap()
+            .initialized_tick_count(),
+        0
+    );
+    // The previous structure is untouched and still usable by old readers.
+    assert_eq!(structure.ticks().get(&60), Some(&7));
+
+    let added = structure.with_tick_updates(&[(120, Some(-3))]).unwrap();
+    assert_eq!(added.ticks().get(&120), Some(&-3));
+    assert_eq!(added.ticks().get(&60), Some(&7));
+}

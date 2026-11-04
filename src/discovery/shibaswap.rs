@@ -134,13 +134,34 @@ pub async fn discover_shibaswap_v2(
     config: &Config,
     rpc: &RpcClient,
 ) -> Result<Vec<Pool>, DiscoveryError> {
+    discover_factory_v2(
+        config,
+        rpc,
+        config.shibaswap_v2_factory,
+        PoolKind::ShibaSwapV2,
+        "ShibaSwap",
+    )
+    .await
+}
+
+/// Discover a V2-compatible deployment through its `getPair` factory. This is
+/// the config-only path for same-interface forks.
+pub async fn discover_factory_v2(
+    config: &Config,
+    rpc: &RpcClient,
+    factory: Address,
+    kind: PoolKind,
+    label: &str,
+) -> Result<Vec<Pool>, DiscoveryError> {
     if config.max_pools == 0 {
         return Ok(Vec::new());
     }
     // Volume and age are not available from getPair/getReserves. Do not silently
     // promise filters this discovery source cannot evaluate.
     if config.min_volume_24h > 0 || config.min_pool_age_days > 0 {
-        return Err(DiscoveryError::Request("ShibaSwap factory discovery cannot evaluate volume/age filters; disable this platform or use zero thresholds".into()));
+        return Err(DiscoveryError::Request(format!(
+            "{label} factory discovery cannot evaluate volume/age filters; disable this platform or use zero thresholds"
+        )));
     }
     let pairs = allowlisted_pairs(config)?;
     let mut discovered = Vec::new();
@@ -149,7 +170,7 @@ pub async fn discover_shibaswap_v2(
             .iter()
             .map(|coins| {
                 (
-                    config.shibaswap_v2_factory,
+                    factory,
                     format!(
                         "{GET_PAIR}{}{}",
                         pad_address(coins[0]),
@@ -164,7 +185,7 @@ pub async fn discover_shibaswap_v2(
         {
             if ok && let Some(pool) = address(&data).filter(|a| *a != Address::ZERO) {
                 discovered.push(Pool {
-                    kind: PoolKind::ShibaSwapV2,
+                    kind,
                     address: pool,
                     coins: coins.to_vec(),
                 });

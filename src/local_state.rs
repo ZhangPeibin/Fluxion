@@ -1,6 +1,6 @@
 //! Background-owned chain reads and immutable, network-free pricing contexts.
 //! V2/ShibaSwap reserves, covered V3 ticks, and Lido v4 conversion state.
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{
     Arc, Mutex, RwLock,
     atomic::{AtomicBool, Ordering},
@@ -35,6 +35,14 @@ pub enum PricingMode {
     LocalSnapshot,
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SyncMode {
+    #[default]
+    Full,
+    Incremental,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct LocalStateConfig {
@@ -47,6 +55,14 @@ pub struct LocalStateConfig {
     pub v3_full_range: bool,
     pub v3_max_loaded_ticks: usize,
     pub compute_concurrency: usize,
+    pub sync_mode: SyncMode,
+    /// Reconcile incremental updates with a full rebuild at least this often.
+    pub full_reload_interval_secs: u64,
+    /// Beyond this many missed blocks, rebuild from scratch instead of chasing
+    /// the gap with logs.
+    pub max_incremental_gap_blocks: u64,
+    /// Inclusive block range per log query while catching up.
+    pub v3_log_chunk_blocks: u64,
 }
 
 impl Default for LocalStateConfig {
@@ -61,6 +77,10 @@ impl Default for LocalStateConfig {
             v3_full_range: false,
             v3_max_loaded_ticks: 50_000,
             compute_concurrency: 4,
+            sync_mode: SyncMode::Full,
+            full_reload_interval_secs: 900,
+            max_incremental_gap_blocks: 64,
+            v3_log_chunk_blocks: 5_000,
         }
     }
 }
@@ -74,8 +94,11 @@ impl LocalStateConfig {
             || !(1..=16).contains(&self.v3_bitmap_radius)
             || !(1..=1_000_000).contains(&self.v3_max_loaded_ticks)
             || !(1..=64).contains(&self.compute_concurrency)
+            || self.full_reload_interval_secs == 0
+            || self.max_incremental_gap_blocks == 0
+            || self.v3_log_chunk_blocks == 0
         {
-            return Err("local_state needs poll_interval_ms 1..60000, sync_timeout_ms 1..3600000, positive max_age_secs, batch_size 1..400, v3_bitmap_radius 1..16, v3_max_loaded_ticks 1..1000000 and compute_concurrency 1..64".into());
+            return Err("local_state needs poll_interval_ms 1..60000, sync_timeout_ms 1..3600000, positive max_age_secs, batch_size 1..400, v3_bitmap_radius 1..16, v3_max_loaded_ticks 1..1000000, compute_concurrency 1..64 and positive full_reload_interval_secs/max_incremental_gap_blocks/v3_log_chunk_blocks".into());
         }
         Ok(())
     }
@@ -117,9 +140,14 @@ pub struct StateStatus {
     pub loaded_pools: usize,
     pub total_pools: usize,
     pub unsupported_pools: Vec<UnsupportedPool>,
+    pub skipped_pools: Vec<UnsupportedPool>,
     pub last_sync_error: Option<String>,
+    pub sync_mode: &'static str,
     pub sync_rpc_requests: u64,
     pub last_sync_ms: u128,
+    pub last_full_reload_secs: Option<u64>,
+    pub applied_logs: u64,
+    pub full_reloads: u64,
     pub published_versions: u64,
     pub reorgs: u64,
     pub v3_coverage: Vec<V3Coverage>,
@@ -481,6 +509,9 @@ struct Published {
     last_error: Option<StateError>,
     sync_rpc_requests: u64,
     last_sync_ms: u128,
+    last_full_reload: Option<Instant>,
+    applied_logs: u64,
+    full_reloads: u64,
     versions: u64,
     reorgs: u64,
     epoch: u64,
@@ -497,7 +528,9 @@ impl Published {
 }
 
 pub struct SnapshotStore {
-    graph: Arc<Graph>,
+    graph: RwLock<Arc<Graph>>,
+    pending_graph: Mutex<Option<Arc<Graph>>>,
+    skipped_pools: RwLock<Vec<UnsupportedPool>>,
     router_config: RouterConfig,
     config: LocalStateConfig,
     state: RwLock<Published>,
@@ -516,6 +549,33 @@ fn now_secs() -> u64 {
         .as_secs()
 }
 
+fn unsupported_pool(pool: &Pool) -> bool {
+    if pool.kind == PoolKind::Curve {
+        return !curve_local::supported(pool);
+    }
+    let supported = matches!(
+        pool.kind,
+        PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 | PoolKind::UniswapV3 { .. }
+    ) || matches!(
+        pool.kind,
+        PoolKind::Conversion {
+            kind: ConversionKind::WstEth,
+            wrap: true,
+            ..
+        } | PoolKind::Conversion {
+            kind: ConversionKind::WstEth,
+            unwrap: true,
+            ..
+        }
+    );
+    !supported
+        || pool.coins.len() != 2
+        || (pool.kind.is_conversion()
+            && (pool.coins[1] != pool.address
+                || pool.coins[0] == Address::ZERO
+                || pool.coins[0] == pool.coins[1]))
+}
+
 impl SnapshotStore {
     pub(crate) fn compute_concurrency(&self) -> usize {
         self.config.compute_concurrency
@@ -529,39 +589,16 @@ impl SnapshotStore {
         let unsupported_pools = graph
             .pools()
             .iter()
-            .filter(|p| {
-                if p.kind == PoolKind::Curve {
-                    return !curve_local::supported(p);
-                }
-                let supported = matches!(
-                    p.kind,
-                    PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 | PoolKind::UniswapV3 { .. }
-                ) || matches!(
-                    p.kind,
-                    PoolKind::Conversion {
-                        kind: ConversionKind::WstEth,
-                        wrap: true,
-                        ..
-                    } | PoolKind::Conversion {
-                        kind: ConversionKind::WstEth,
-                        unwrap: true,
-                        ..
-                    }
-                );
-                !supported
-                    || p.coins.len() != 2
-                    || (p.kind.is_conversion()
-                        && (p.coins[1] != p.address
-                            || p.coins[0] == Address::ZERO
-                            || p.coins[0] == p.coins[1]))
-            })
+            .filter(|pool| unsupported_pool(pool))
             .map(|p| UnsupportedPool {
                 address: p.address,
                 platform: p.kind.name(),
             })
             .collect();
         Ok(Self {
-            graph: Arc::new(graph),
+            graph: RwLock::new(Arc::new(graph)),
+            pending_graph: Mutex::new(None),
+            skipped_pools: RwLock::new(Vec::new()),
             router_config,
             config,
             state: RwLock::new(Published::default()),
@@ -574,10 +611,76 @@ impl SnapshotStore {
         })
     }
 
-    fn check(&self, state: &Published, snapshot: &LocalSnapshot) -> Result<(), StateError> {
-        if !Arc::ptr_eq(&self.graph, &snapshot.graph) {
-            return Err(StateError::Incomplete);
+    /// Current published universe. Background work uses `graph_for_sync` so a
+    /// queued universe is loaded before it becomes visible.
+    pub fn graph(&self) -> Arc<Graph> {
+        self.graph.read().unwrap().clone()
+    }
+
+    fn graph_for_sync(&self) -> (Arc<Graph>, bool) {
+        let pending = self.pending_graph.lock().unwrap().clone();
+        match pending {
+            Some(graph) => (graph, true),
+            None => (self.graph.read().unwrap().clone(), false),
         }
+    }
+
+    pub fn has_pending_universe(&self) -> bool {
+        self.pending_graph.lock().unwrap().is_some()
+    }
+
+    fn clear_pending_universe(&self) {
+        let pending = self.pending_graph.lock().unwrap().take();
+        if pending.is_some() {
+            tracing::warn!("discarded an unloadable queued universe");
+        }
+    }
+
+    /// Add newly discovered pools without touching the currently served graph.
+    /// The next full load builds and publishes a snapshot for the merged graph,
+    /// so existing readers keep their complete old world until the swap.
+    pub fn queue_new_pools(&self, pools: Vec<Pool>) -> usize {
+        let mut pending = self.pending_graph.lock().unwrap();
+        let base = pending
+            .clone()
+            .unwrap_or_else(|| self.graph.read().unwrap().clone());
+        let mut known = base
+            .pools()
+            .iter()
+            .map(|pool| pool.address)
+            .collect::<HashSet<_>>();
+        let mut merged: Option<Graph> = None;
+        let mut skipped = Vec::new();
+        let mut added = 0usize;
+        for pool in pools {
+            if !known.insert(pool.address) {
+                continue;
+            }
+            if unsupported_pool(&pool) {
+                skipped.push(UnsupportedPool {
+                    address: pool.address,
+                    platform: pool.kind.name(),
+                });
+                continue;
+            }
+            merged
+                .get_or_insert_with(|| base.as_ref().clone())
+                .add_pool(pool);
+            added += 1;
+        }
+        if let Some(graph) = merged {
+            tracing::info!(
+                added,
+                pools = graph.pool_count(),
+                "queued universe refresh with new pools"
+            );
+            *pending = Some(Arc::new(graph));
+        }
+        *self.skipped_pools.write().unwrap() = skipped;
+        added
+    }
+
+    fn check(&self, state: &Published, snapshot: &LocalSnapshot) -> Result<(), StateError> {
         if snapshot.epoch != state.epoch {
             return Err(StateError::Reorg);
         }
@@ -656,11 +759,19 @@ impl SnapshotStore {
                 .zip(state.head.as_ref())
                 .map(|(s, h)| h.number.saturating_sub(s.block.number)),
             loaded_pools: state.current.as_ref().map_or(0, |s| s.source.pools.len()),
-            total_pools: self.graph.pool_count(),
+            total_pools: self.graph.read().unwrap().pool_count(),
             unsupported_pools,
+            skipped_pools: self.skipped_pools.read().unwrap().clone(),
             last_sync_error: state.last_error.map(|e| e.to_string()),
+            sync_mode: match self.config.sync_mode {
+                SyncMode::Full => "full",
+                SyncMode::Incremental => "incremental",
+            },
             sync_rpc_requests: state.sync_rpc_requests,
             last_sync_ms: state.last_sync_ms,
+            last_full_reload_secs: state.last_full_reload.map(|at| at.elapsed().as_secs()),
+            applied_logs: state.applied_logs,
+            full_reloads: state.full_reloads,
             published_versions: state.versions,
             reorgs: state.reorgs,
             v3_coverage: state
@@ -753,8 +864,15 @@ impl StateSynchronizer {
 
     pub async fn run(self) {
         loop {
-            if let Err(error) = self.sync_once().await {
+            let result = match self.store.config.sync_mode {
+                SyncMode::Full => self.sync_step(false).await,
+                SyncMode::Incremental => self.sync_step(true).await,
+            };
+            if let Err(error) = result {
                 tracing::warn!(%error,"local state sync incomplete");
+                if matches!(error, StateError::Incomplete | StateError::Unsupported) {
+                    self.store.clear_pending_universe();
+                }
                 if error == StateError::Unsupported && !self.store.unsupported_pools.is_empty() {
                     return;
                 } // Only statically unsupported topology is permanent. A protocol
@@ -765,6 +883,14 @@ impl StateSynchronizer {
     }
 
     pub async fn sync_once(&self) -> Result<(), StateError> {
+        self.sync_step(false).await
+    }
+
+    pub async fn sync_incremental_once(&self) -> Result<(), StateError> {
+        self.sync_step(true).await
+    }
+
+    async fn sync_step(&self, incremental: bool) -> Result<(), StateError> {
         // At most one active caller may either run or wait for the previous
         // cancelled worker. The worker retains its owned lock until it exits.
         let _admission = self
@@ -798,7 +924,13 @@ impl StateSynchronizer {
                 tokio::select! {
                     biased;
                     _ = active.cancel.notified() => Err(StateError::SyncFailed),
-                    result = sync.load(&active) => result,
+                    result = async {
+                        if incremental {
+                            sync.incremental(&active).await
+                        } else {
+                            sync.load(&active).await
+                        }
+                    } => result,
                 }
             });
             sync.store.reclaim_retired();
@@ -824,11 +956,234 @@ impl StateSynchronizer {
         }
     }
 
+    async fn incremental(&self, operation: &WriteOperation) -> Result<(), StateError> {
+        let (current, last_full) = {
+            let state = self.store.state.read().unwrap();
+            (state.current.clone(), state.last_full_reload)
+        };
+        let Some(current) = current else {
+            return self.load(operation).await;
+        };
+        if self.store.has_pending_universe()
+            || last_full.is_none_or(|at| {
+                at.elapsed() >= Duration::from_secs(self.store.config.full_reload_interval_secs)
+            })
+        {
+            return self.load(operation).await;
+        }
+
+        let head = self
+            .rpc
+            .block_header(None)
+            .await
+            .map_err(|_| StateError::SyncFailed)?;
+        if head == current.block {
+            self.store.state.write().unwrap().head = Some(head);
+            return Ok(());
+        }
+        if head.number < current.block.number
+            || (head.number == current.block.number && head.hash != current.block.hash)
+        {
+            self.store.invalidate();
+            return self.load(operation).await;
+        }
+        let gap = head.number - current.block.number;
+        if (gap == 1 && head.parent_hash != current.block.hash)
+            || gap > self.store.config.max_incremental_gap_blocks
+        {
+            self.store.invalidate();
+            return self.load(operation).await;
+        }
+        // A multi-block step has no intermediate hashes; prove the base is
+        // still canonical before applying logs across the range.
+        if gap > 1 {
+            let canonical = self
+                .rpc
+                .block_header(Some(current.block.number))
+                .await
+                .map_err(|_| StateError::SyncFailed)?;
+            if canonical != current.block {
+                self.store.invalidate();
+                return self.load(operation).await;
+            }
+        }
+
+        match self.incremental_pools(&current, &head).await {
+            Ok((pools, applied_logs)) => {
+                self.publish(
+                    operation,
+                    head,
+                    self.store.graph(),
+                    pools,
+                    false,
+                    applied_logs,
+                )
+                .await
+            }
+            Err(StateError::Incomplete) => {
+                tracing::warn!("incremental state incomplete; rebuilding full snapshot");
+                self.load(operation).await
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn incremental_pools(
+        &self,
+        current: &LocalSnapshot,
+        head: &BlockHeader,
+    ) -> Result<(HashMap<Address, (Pool, PoolState)>, u64), StateError> {
+        let batch = self.store.config.batch_size;
+        let graph = self.store.graph();
+
+        let mut v3_pools = Vec::new();
+        for pool in graph.pools() {
+            if matches!(pool.kind, PoolKind::UniswapV3 { .. }) {
+                let (_, state) = current
+                    .source
+                    .pools
+                    .get(&pool.address)
+                    .ok_or(StateError::Incomplete)?;
+                let PoolState::V3(state) = state else {
+                    return Err(StateError::Incomplete);
+                };
+                v3_pools.push((pool, state.structure().clone()));
+            }
+        }
+
+        let mut affected: HashMap<Address, Vec<i32>> = HashMap::new();
+        let mut applied_logs = 0u64;
+        if !v3_pools.is_empty() {
+            let addresses = v3_pools
+                .iter()
+                .map(|(pool, _)| pool.address)
+                .collect::<Vec<_>>();
+            let topics = crate::v3_sync::structural_topics();
+            let mut block = current.block.number.saturating_add(1);
+            loop {
+                let to = block
+                    .saturating_add(self.store.config.v3_log_chunk_blocks.saturating_sub(1))
+                    .min(head.number);
+                let logs = self
+                    .rpc
+                    .get_logs(&addresses, &topics, block, to)
+                    .await
+                    .map_err(|_| StateError::SyncFailed)?;
+                applied_logs += logs.len() as u64;
+                for log in logs {
+                    match crate::v3_sync::decode_event(&log) {
+                        Some(crate::v3_sync::V3Event::Mint {
+                            tick_lower,
+                            tick_upper,
+                        })
+                        | Some(crate::v3_sync::V3Event::Burn {
+                            tick_lower,
+                            tick_upper,
+                        }) => {
+                            let entry = affected.entry(log.address).or_default();
+                            entry.push(tick_lower);
+                            entry.push(tick_upper);
+                        }
+                        _ => {}
+                    }
+                }
+                if to >= head.number {
+                    break;
+                }
+                block = to + 1;
+            }
+        }
+
+        let rpc = self.rpc.clone().at_block_hash(head.hash);
+        let requests = affected.into_iter().collect::<Vec<_>>();
+        let updates = if requests.is_empty() {
+            HashMap::new()
+        } else {
+            crate::v3_sync::read_tick_updates(&requests, &rpc, batch).await?
+        };
+        let mut refreshed = Vec::with_capacity(v3_pools.len());
+        for (pool, structure) in v3_pools {
+            let structure = match updates.get(&pool.address) {
+                Some(entries) if !entries.is_empty() => Arc::new(
+                    structure
+                        .with_tick_updates(entries)
+                        .map_err(|_| StateError::Incomplete)?,
+                ),
+                _ => structure,
+            };
+            refreshed.push((pool, structure));
+        }
+        let mut v3_market = crate::v3_sync::refresh_market(&refreshed, &rpc, batch).await?;
+
+        let mut v2_calls = Vec::new();
+        for pool in graph.pools().iter().filter(|pool| pool.kind.is_v2()) {
+            v2_calls.push((pool.address, GET_RESERVES.to_string()));
+        }
+        let mut v2_reserves = HashMap::with_capacity(v2_calls.len());
+        for chunk in v2_calls.chunks(batch) {
+            let results = multicall(&rpc, chunk)
+                .await
+                .map_err(|_| StateError::SyncFailed)?;
+            for ((address, _), (ok, data)) in chunk.iter().zip(results) {
+                if !ok {
+                    return Err(StateError::Incomplete);
+                }
+                let reserves = decode_reserves(&data).map_err(|_| StateError::Incomplete)?;
+                if reserves.iter().any(|n| n.bit_len() > 112) {
+                    return Err(StateError::Incomplete);
+                }
+                v2_reserves.insert(*address, reserves);
+            }
+        }
+
+        let curves = graph
+            .pools()
+            .iter()
+            .filter(|pool| pool.kind == PoolKind::Curve)
+            .collect::<Vec<_>>();
+        let mut curve_states = crate::curve_sync::load(&curves, &rpc, batch).await?;
+        let conversions = graph
+            .pools()
+            .iter()
+            .filter(|pool| pool.kind.is_conversion())
+            .collect::<Vec<_>>();
+        let mut conversion_states = crate::wsteth_sync::load(&conversions, &rpc, batch).await?;
+
+        let mut pools = HashMap::with_capacity(graph.pool_count());
+        for pool in graph.pools() {
+            let state = match pool.kind {
+                PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 => PoolState::V2(
+                    *v2_reserves
+                        .get(&pool.address)
+                        .ok_or(StateError::Incomplete)?,
+                ),
+                PoolKind::UniswapV3 { .. } => PoolState::V3(
+                    v3_market
+                        .remove(&pool.address)
+                        .ok_or(StateError::Incomplete)?,
+                ),
+                PoolKind::Curve => PoolState::Curve(Box::new(
+                    curve_states
+                        .remove(&pool.address)
+                        .ok_or(StateError::Incomplete)?,
+                )),
+                PoolKind::Conversion { .. } => PoolState::WstEth(
+                    conversion_states
+                        .remove(&pool.address)
+                        .ok_or(StateError::Incomplete)?,
+                ),
+            };
+            pools.insert(pool.address, (pool.clone(), state));
+        }
+        Ok((pools, applied_logs))
+    }
+
     async fn load(&self, operation: &WriteOperation) -> Result<(), StateError> {
         if !self.store.unsupported_pools.is_empty() {
             return Err(StateError::Unsupported);
         }
-        if self.store.graph.pools().is_empty() {
+        let (graph, _) = self.store.graph_for_sync();
+        if graph.pools().is_empty() {
             return Err(StateError::Incomplete);
         }
         let head = self
@@ -855,7 +1210,7 @@ impl StateSynchronizer {
         };
         self.store.retire(retired);
         if let Some(old) = old {
-            if old.block == head {
+            if old.block == head && !self.store.has_pending_universe() {
                 return Ok(());
             }
             let canonical = self
@@ -874,9 +1229,7 @@ impl StateSynchronizer {
         }
         let rpc = self.rpc.clone().at_block_hash(head.hash);
         let mut pools = HashMap::new();
-        let v2 = self
-            .store
-            .graph
+        let v2 = graph
             .pools()
             .iter()
             .filter(|p| matches!(p.kind, PoolKind::UniswapV2 | PoolKind::ShibaSwapV2))
@@ -905,9 +1258,7 @@ impl StateSynchronizer {
                 }
             }
         }
-        let v3 = self
-            .store
-            .graph
+        let v3 = graph
             .pools()
             .iter()
             .filter(|p| matches!(p.kind, PoolKind::UniswapV3 { .. }))
@@ -932,9 +1283,7 @@ impl StateSynchronizer {
                 return Err(StateError::Incomplete);
             }
         }
-        let conversions = self
-            .store
-            .graph
+        let conversions = graph
             .pools()
             .iter()
             .filter(|p| p.kind.is_conversion())
@@ -952,9 +1301,7 @@ impl StateSynchronizer {
                 return Err(StateError::Incomplete);
             }
         }
-        let curves = self
-            .store
-            .graph
+        let curves = graph
             .pools()
             .iter()
             .filter(|p| p.kind == PoolKind::Curve)
@@ -981,13 +1328,23 @@ impl StateSynchronizer {
         if let Some(probe) = probe {
             probe();
         }
+        self.publish(operation, head, graph, pools, true, 0).await
+    }
+
+    async fn publish(
+        &self,
+        operation: &WriteOperation,
+        head: BlockHeader,
+        graph: Arc<Graph>,
+        pools: HashMap<Address, (Pool, PoolState)>,
+        full_reload: bool,
+        applied_logs: u64,
+    ) -> Result<(), StateError> {
         let phase = Instant::now();
         tracing::debug!(phase = "coarse_build", "diag_sync_begin");
         let source = FrozenSource { pools };
         let router = Router::new(self.store.router_config);
-        router.set_snapshot(Arc::new(
-            PriceSnapshot::build(&self.store.graph, &source).await,
-        ));
+        router.set_snapshot(Arc::new(PriceSnapshot::build(&graph, &source).await));
         tracing::debug!(
             phase = "coarse_build",
             elapsed_ms = phase.elapsed().as_millis(),
@@ -1015,9 +1372,25 @@ impl StateSynchronizer {
         );
         let phase = Instant::now();
         let initial_age_secs = now_secs().saturating_sub(head.timestamp);
+        {
+            let mut pending = self.store.pending_graph.lock().unwrap();
+            if pending
+                .as_ref()
+                .is_some_and(|pending| Arc::ptr_eq(pending, &graph))
+            {
+                *self.store.graph.write().unwrap() = graph.clone();
+                *pending = None;
+            }
+        }
+        state.head = Some(head.clone());
+        if full_reload {
+            state.last_full_reload = Some(Instant::now());
+            state.full_reloads += 1;
+        }
+        state.applied_logs = state.applied_logs.saturating_add(applied_logs);
         let snapshot = Arc::new(LocalSnapshot {
             block: head,
-            graph: self.store.graph.clone(),
+            graph: graph.clone(),
             source,
             router,
             epoch: state.epoch,
@@ -1108,7 +1481,7 @@ mod writer_tests {
     fn app(store: Arc<SnapshotStore>) -> HttpRouter {
         api::app_with_local_state(
             Arc::new(AppState {
-                graph: store.graph.as_ref().clone(),
+                graph: store.graph().as_ref().clone(),
                 source: Arc::new(FixedRate::new(U256::from(1))),
                 router: Router::default(),
                 rpc: None,
@@ -1328,5 +1701,131 @@ mod writer_tests {
         pending.await.unwrap().unwrap();
         assert_eq!(quote(http).await["quote_block"], 124);
         server.abort();
+    }
+    #[tokio::test]
+    async fn incremental_publishes_each_head_and_falls_back_on_reorg_and_gap() {
+        let head = Arc::new(AtomicU64::new(100));
+        let fork = Arc::new(AtomicU64::new(0));
+        let reserve = Arc::new(AtomicU64::new(1_000));
+        let timestamp = now_secs();
+        let (h, f, r) = (head.clone(), fork.clone(), reserve.clone());
+        let mock = HttpRouter::new().route("/", post(move |Json(request): Json<Value>| {
+            let (h, f, r) = (h.clone(), f.clone(), r.clone());
+            async move {
+                let result = match request["method"].as_str().unwrap() {
+                    "eth_getBlockByNumber" => {
+                        let tag = request["params"][0].as_str().unwrap();
+                        let n = if tag == "latest" {
+                            h.load(Ordering::SeqCst)
+                        } else {
+                            u64::from_str_radix(&tag[2..], 16).unwrap()
+                        };
+                        let fork = f.load(Ordering::SeqCst);
+                        json!({
+                            "number": format!("0x{n:x}"),
+                            "hash": format!("0x{:064x}", n * 1000 + fork + 1),
+                            "parentHash": format!("0x{:064x}", (n - 1) * 1000 + fork + 1),
+                            "timestamp": format!("0x{timestamp:x}"),
+                        })
+                    }
+                    "eth_getLogs" => json!([]),
+                    "eth_call" => {
+                        let reserve = r.load(Ordering::SeqCst);
+                        json!(format!(
+                            "0x{:064x}{:064x}{:064x}{:064x}{:064x}{:064x}{:064x}{reserve:064x}{:064x}",
+                            32, 1, 32, 1, 64, 96, 1000, 0
+                        ))
+                    }
+                    other => panic!("unexpected method {other}"),
+                };
+                Json(json!({"jsonrpc":"2.0","id":1,"result":result}))
+            }
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let rpc = RpcClient::new(format!("http://{}", listener.local_addr().unwrap()));
+        let server = tokio::spawn(async move { axum::serve(listener, mock).await.unwrap() });
+        let mut graph = Graph::new();
+        graph.add_pool(Pool {
+            kind: PoolKind::UniswapV2,
+            address: Address::with_last_byte(10),
+            coins: vec![Address::with_last_byte(1), Address::with_last_byte(2)],
+        });
+        let store = Arc::new(
+            SnapshotStore::new(
+                graph,
+                RouterConfig::default(),
+                LocalStateConfig {
+                    sync_mode: SyncMode::Incremental,
+                    max_incremental_gap_blocks: 2,
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
+        let sync = Arc::new(StateSynchronizer::new(rpc, store.clone()));
+        sync.sync_once().await.unwrap();
+        assert_eq!(store.status().block.unwrap().number, 100);
+        assert_eq!(store.status().full_reloads, 1);
+
+        reserve.store(2_000, Ordering::SeqCst);
+        head.store(101, Ordering::SeqCst);
+        sync.sync_step(true).await.unwrap();
+        let status = store.status();
+        assert_eq!(status.block.unwrap().number, 101);
+        assert_eq!(status.lag_blocks, Some(0));
+        assert_eq!(status.full_reloads, 1);
+        assert_eq!(status.published_versions, 2);
+
+        let versions = store.status().published_versions;
+        sync.sync_step(true).await.unwrap();
+        assert_eq!(store.status().published_versions, versions);
+
+        fork.store(1, Ordering::SeqCst);
+        sync.sync_step(true).await.unwrap();
+        let status = store.status();
+        assert_eq!(status.block.unwrap().number, 101);
+        assert_eq!(status.reorgs, 1);
+
+        reserve.store(3_000, Ordering::SeqCst);
+        head.store(110, Ordering::SeqCst);
+        sync.sync_step(true).await.unwrap();
+        assert_eq!(store.status().block.unwrap().number, 110);
+        server.abort();
+    }
+    #[test]
+    fn queued_universe_is_add_only_and_filters_unsupported_pools() {
+        let mut graph = Graph::new();
+        graph.add_pool(Pool {
+            kind: PoolKind::UniswapV2,
+            address: Address::with_last_byte(10),
+            coins: vec![Address::with_last_byte(1), Address::with_last_byte(2)],
+        });
+        let store = SnapshotStore::new(graph, RouterConfig::default(), LocalStateConfig::default())
+            .unwrap();
+        let added = store.queue_new_pools(vec![
+            Pool {
+                kind: PoolKind::UniswapV2,
+                address: Address::with_last_byte(11),
+                coins: vec![Address::with_last_byte(1), Address::with_last_byte(2)],
+            },
+            Pool {
+                kind: PoolKind::UniswapV3 { fee: 500 },
+                address: Address::with_last_byte(12),
+                coins: vec![
+                    Address::with_last_byte(1),
+                    Address::with_last_byte(2),
+                    Address::with_last_byte(3),
+                ],
+            },
+            Pool {
+                kind: PoolKind::UniswapV2,
+                address: Address::with_last_byte(10),
+                coins: vec![Address::with_last_byte(1), Address::with_last_byte(2)],
+            },
+        ]);
+        assert_eq!(added, 1);
+        assert!(store.has_pending_universe());
+        assert_eq!(store.graph().pool_count(), 1);
+        assert_eq!(store.skipped_pools.read().unwrap().len(), 1);
     }
 }

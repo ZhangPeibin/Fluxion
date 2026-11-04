@@ -16,5 +16,7 @@ top_k: 8
 reserve_ratio_k: 0
 refresh_interval_secs: 30
 snapshot_refresh_secs: 120
+# Keep the benchmark universe fixed for reproducibility.
+universe_refresh_secs: 0
 request_timeout_ms: 10000
 token_allowlist: [] # Built-in major-token universe; both/all coins must match.
