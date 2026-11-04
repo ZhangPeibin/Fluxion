@@ -39,6 +39,22 @@
 | `split` | 可选拆单的服务预算；请求仍需 `split=true` | 4 分支 / 4 候选池 / 20 段 / 1024 次 / 8000 ms |
 | `token_allowlist` | 覆盖内置主流币白名单 | 空（使用内置） |
 
+## Execution routing
+
+`swap.quote` 的执行位置由 Fluxion 内部决定，Agent 不选择 local/remote。
+
+| 环境变量 | 默认 | 含义 |
+|---|---|---|
+| `FLUXION_MODE` | `auto` | `auto` / `managed` / `self_hosted` |
+| `FLUXION_REMOTE_URL` | 空 | managed 模式使用的托管服务地址 |
+| `FLUXION_API_KEY` | 空 | managed 模式的服务认证 |
+| `FLUXION_URL` | `http://127.0.0.1:8080` | self-hosted/local runtime 地址 |
+| `GRAPH_API_KEY` | 空 | self-hosted 本地 discovery 所需 |
+
+`auto` 在配置了 `FLUXION_REMOTE_URL` 时走 remote，否则走 local。managed 模式不需要
+`GRAPH_API_KEY`；self-hosted/开发模式才需要。CLI 的 `--url` 只覆盖 local runtime 地址，
+不是 provider 选择。
+
 `GRAPH_API_KEY` 只放在 **gitignored 的 `.env`** 里，不进版本库。
 转换实例字段为 `kind`、`contract`、`underlying`、`wrapped`、`enabled`、`wrap`、`unwrap`；
 完整示例见 [config.example.yaml](../config.example.yaml)。汇率来自协议，不在 YAML 中填写固定价格。

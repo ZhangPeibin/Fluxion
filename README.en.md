@@ -3,22 +3,23 @@
 English | [中文](README.md)
 
 **Runtime for the Web3 Agent Capability Infrastructure.** Fluxion exposes Web3 actions as stable
-capabilities for local CLIs, MCP agents, and future remote providers. The first delivered
-capability is `swap.quote`: exact-in multi-hop quotes, split allocation and state freshness on
-Ethereum mainnet.
+capabilities for local CLIs and MCP agents. Execution location (remote service or local runtime)
+is decided internally by Fluxion. The first delivered capability is `swap.quote`: exact-in
+multi-hop quotes, split allocation and state freshness on Ethereum mainnet.
 
 > Open-source and self-hosted. See the full
 > [Web3 Agent Capability Infrastructure whitepaper](docs/WHITEPAPER.md).
 
 ## Capabilities
 
-| Capability | Status | Providers | Docs |
-|---|---|---|---|
-| `swap.quote` | available | `local-cli`, `local-mcp`; `remote-mcp` planned | [swap.quote](docs/capabilities/swap/README.md) |
+| Capability | Status | Docs |
+|---|---|---|
+| `swap.quote` | available | [swap.quote](docs/capabilities/swap/README.md) |
 
-A capability defines *what* the agent wants; a provider defines *where and how* it runs. Only
-local providers are implemented; `--provider remote` returns `UNSUPPORTED` without silent
-fallback. See the [capability index](docs/capabilities/README.md).
+A capability defines *what* the agent wants; execution location is a Fluxion implementation
+detail. Agents do not select local/remote. `swap.quote` defaults to the managed service;
+development/self-hosting uses `FLUXION_MODE=self_hosted`. See the
+[execution model](docs/capabilities/README.md).
 
 ## Quick start
 
@@ -27,15 +28,15 @@ fallback. See the [capability index](docs/capabilities/README.md).
 Start a warm runtime once; later quotes reuse state:
 
 ```bash
-export GRAPH_API_KEY=...     # local providers use your own Graph/RPC quota
-fluxion start                # background warmup; first start takes about a minute
-
 fluxion swap ldo-eth 100
 fluxion swap ldo-eth 100 --json
 fluxion ldo-eth 100
 
-fluxion status               # readiness / lag
+# Development/self-hosted: use the local runtime
+FLUXION_MODE=self_hosted GRAPH_API_KEY=... fluxion start
+fluxion status
 fluxion stop
+
 fluxion mcp                  # local MCP stdio server
 ```
 
@@ -51,7 +52,7 @@ default endpoint is `http://127.0.0.1:8080`. If no config exists in the current 
 first `start` writes the embedded default to `~/.fluxion/config.yaml`; logs go to
 `~/.fluxion/runtime.log`.
 
-### HTTP server
+### Self-hosted HTTP server
 
 ```bash
 cp .env.example .env        # set GRAPH_API_KEY
@@ -61,12 +62,15 @@ cargo run -- serve --config config.yaml
 
 See [HTTP API](docs/API.md) and [Configuration](docs/CONFIGURATION.md) (Chinese).
 
-## Providers and keys
+## Execution and keys
 
-| Provider | Data key | Caller auth | Status |
+| Internal mode | `swap.quote` execution | Key |
 |---|---|---|---|
-| `local-cli` / `local-mcp` | user-supplied `GRAPH_API_KEY` + RPC | none | available |
-| `remote-mcp` | Fluxion holds Graph/RPC keys | Fluxion API key / quota | planned |
+| `managed` (`FLUXION_REMOTE_URL` set) | Fluxion hosted service | `FLUXION_API_KEY` |
+| `self_hosted` | local runtime | `GRAPH_API_KEY` + RPC |
+
+`FLUXION_MODE=auto` (default) uses remote when `FLUXION_REMOTE_URL` is configured, otherwise
+local. This is deployment/operator configuration, not an agent provider choice.
 
 The repository `.env` is development-only and is not distributed. Never commit secrets.
 

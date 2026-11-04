@@ -17,12 +17,13 @@ use crate::split::PlanKind;
 use crate::swap::quote::{AllocationResponse, HopResponse, QuoteRequest, QuoteResponse};
 use crate::token;
 
-pub struct LocalClient {
+pub struct RuntimeClient {
     base_url: String,
     http: reqwest::Client,
+    api_key: Option<String>,
 }
 
-impl LocalClient {
+impl RuntimeClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into().trim_end_matches('/').to_string(),
@@ -30,7 +31,14 @@ impl LocalClient {
                 .timeout(std::time::Duration::from_secs(15))
                 .build()
                 .expect("HTTP client"),
+            api_key: None,
         }
+    }
+
+    pub fn with_api_key(base_url: impl Into<String>, api_key: Option<String>) -> Self {
+        let mut client = Self::new(base_url);
+        client.api_key = api_key.filter(|key| !key.trim().is_empty());
+        client
     }
 
     pub fn base_url(&self) -> &str {
@@ -76,19 +84,20 @@ impl LocalClient {
             "split_max_branches": request.split_max_branches,
         });
         let started = Instant::now();
-        let response = self
+        let mut http_request = self
             .http
             .post(format!("{}/quote", self.base_url))
-            .json(&body)
-            .send()
-            .await
-            .map_err(|error| {
-                CapabilityError::new(
-                    CapabilityErrorCode::RpcError,
-                    format!("local runtime unavailable: {error}"),
-                    true,
-                )
-            })?;
+            .json(&body);
+        if let Some(key) = &self.api_key {
+            http_request = http_request.header("authorization", format!("Bearer {key}"));
+        }
+        let response = http_request.send().await.map_err(|error| {
+            CapabilityError::new(
+                CapabilityErrorCode::RpcError,
+                format!("local runtime unavailable: {error}"),
+                true,
+            )
+        })?;
         let status = response.status();
         let text = response.text().await.map_err(|error| {
             CapabilityError::new(

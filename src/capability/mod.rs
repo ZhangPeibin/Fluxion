@@ -38,8 +38,8 @@ pub enum ProviderId {
     LocalCli,
     #[serde(rename = "local-mcp")]
     LocalMcp,
-    #[serde(rename = "remote-mcp")]
-    RemoteMcp,
+    #[serde(rename = "fluxion-remote")]
+    Remote,
 }
 
 impl ProviderId {
@@ -47,7 +47,7 @@ impl ProviderId {
         match self {
             Self::LocalCli => "local-cli",
             Self::LocalMcp => "local-mcp",
-            Self::RemoteMcp => "remote-mcp",
+            Self::Remote => "fluxion-remote",
         }
     }
 }

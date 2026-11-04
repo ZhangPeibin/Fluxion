@@ -25,22 +25,12 @@ Inputs:
 | `max_hops` | no | Maximum hops |
 | `split` | no | Default `true`; allocate across independent pools/routes |
 | `split_max_branches` | no | Maximum split branches |
-| `provider` | no | `local` (default) or `remote` |
 
-## Providers
+## Execution model
 
-| Provider | Status | Invocation |
-|---|---|---|
-| `local-cli` | available | `fluxion swap quote ... --json` |
-| `local-mcp` | available | MCP tool `swap_quote` |
-| `remote-mcp` | not implemented | returns `UNSUPPORTED` |
-
-`local-cli` and `local-mcp` require a warm local runtime. The runtime is managed by the host or
-by `fluxion start`; an agent must not treat `fluxion start` as a capability. `fluxion mcp`
-auto-starts the local runtime when needed.
-
-Local providers require the operator to supply `RPC`/`GRAPH_API_KEY`. A future remote provider
-will hold those keys server-side and require a Fluxion API key instead.
+Do not choose local/remote. Fluxion routes `swap.quote` internally: managed mode uses the hosted
+service; self-hosted mode uses the local runtime. An agent must not manage `fluxion start` or
+`fluxion stop`; the MCP/host process does that.
 
 ## CLI
 
@@ -60,8 +50,7 @@ Tool name: `swap_quote`.
   "arguments": {
     "token_in": "LDO",
     "token_out": "ETH",
-    "amount": "100",
-    "provider": "local"
+    "amount": "100"
   }
 }
 ```
@@ -74,7 +63,7 @@ failures. Prefer parsing the JSON, not the human text.
 - `amount_out.raw` / `amount_out.decimal`: exact integer and display amount
 - `plan_kind`: `baseline`, `direct`, or `split`
 - `allocations`: per-branch exact inputs, outputs and hop paths
-- `provenance.provider`: actual provider (`local-cli`, `local-mcp`, ...)
+- `provenance.provider`: diagnostic execution label (for example `local-mcp` or `fluxion-remote`)
 - `provenance.pricing_mode`: `rpc` or `local_snapshot`
 - `quote_block`, `state_age_secs`, `lag_blocks`: state freshness
 - `latency_ms`: runtime quote latency
@@ -86,16 +75,16 @@ gas and user authorization before building or executing a transaction.
 
 | Code | Meaning | Agent action |
 |---|---|---|
-| `INVALID_ARGUMENT` | Bad token, amount or provider | Fix the request |
+| `INVALID_ARGUMENT` | Bad token or amount | Fix the request |
 | `NO_PATH` / `INSUFFICIENT_LIQUIDITY` | No usable route | Try another amount/pair |
-| `RPC_ERROR` | Runtime or chain data unavailable | Retry or switch provider |
+| `RPC_ERROR` | Runtime or upstream service unavailable | Retry later |
 | `STALE_STATE` / `STATE_INCOMPLETE` | Snapshot not ready or too old | Wait/retry; do not execute |
-| `UNSUPPORTED` | Provider or capability unavailable | Use a supported provider |
+| `UNSUPPORTED` | Capability unavailable in this deployment | Check capability support |
 | `TIMEOUT` | Quote took too long | Retry with a smaller amount or later |
 
 ## Boundaries
 
 - This skill is documentation, not a security boundary.
-- Signing and authorization belong to the Local Runtime; never let a remote provider sign.
+- Signing and authorization belong to the Local Runtime; never let the remote service sign.
 - `swap.build`, `swap.simulate` and `swap.execute` are separate local-only capabilities and are
   not part of this skill.

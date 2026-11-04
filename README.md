@@ -3,20 +3,21 @@
 [English](README.en.md) | 中文
 
 **Web3 Agent Capability Infrastructure 的 runtime。** Fluxion 把 Web3 动作暴露为稳定的
-capability，供本机 CLI、MCP Agent 或后续的 remote provider 调用。第一个交付的 capability
-是 `swap.quote`：Ethereum 主网的 exact-in 多跳报价、拆单和状态新鲜度。
+capability，由本机 CLI 或 MCP Agent 接入；执行位置（remote 服务或 local runtime）由 Fluxion
+内部决定。第一个交付的 capability 是 `swap.quote`：Ethereum 主网的 exact-in 多跳报价、拆单和
+状态新鲜度。
 
 > 开源、自托管。完整产品愿景见 [Web3 Agent Capability Infrastructure 白皮书](docs/WHITEPAPER.md)。
 
 ## Capabilities
 
-| Capability | 状态 | Providers | 文档 |
-|---|---|---|---|
-| `swap.quote` | available | `local-cli`, `local-mcp`；`remote-mcp` planned | [swap.quote](docs/capabilities/swap/README.md) |
+| Capability | 状态 | 文档 |
+|---|---|---|
+| `swap.quote` | available | [swap.quote](docs/capabilities/swap/README.md) |
 
-Capability 定义“做什么”，provider 定义“在哪、怎么调用”。当前只实现 local provider；
-`--provider remote` 返回 `UNSUPPORTED`，不会自动 fallback。完整矩阵见
-[docs/capabilities/README.md](docs/capabilities/README.md)。
+Capability 定义“做什么”；执行位置是 Fluxion 的内部实现，Agent 不需要也不应该选择
+local/remote。`swap.quote` 默认走托管服务，开发/自托管时可通过 `FLUXION_MODE=self_hosted`
+切到本地 runtime。详见 [execution model](docs/capabilities/README.md)。
 
 ## Quick start
 
@@ -25,15 +26,15 @@ Capability 定义“做什么”，provider 定义“在哪、怎么调用”。
 首次启动暖 runtime，之后 quote 复用热状态：
 
 ```bash
-export GRAPH_API_KEY=...     # local provider 使用你自己的 Graph/RPC 额度
-fluxion start                # 后台预热，首次约 1 分钟
-
 fluxion swap ldo-eth 100
 fluxion swap ldo-eth 100 --json
 fluxion ldo-eth 100          # 顶层简写
 
-fluxion status               # readiness / lag
+# 开发/自托管：切到本地 runtime
+FLUXION_MODE=self_hosted GRAPH_API_KEY=... fluxion start
+fluxion status
 fluxion stop
+
 fluxion mcp                  # 本机 Agent 的 MCP stdio server
 ```
 
@@ -48,7 +49,7 @@ fluxion capability describe swap.quote --json
 `http://127.0.0.1:8080`。如果当前目录没有配置，首次 `start` 会把内置默认配置写到
 `~/.fluxion/config.yaml`；日志在 `~/.fluxion/runtime.log`。
 
-### HTTP server
+### Self-hosted HTTP server
 
 保留原有 HTTP 服务：
 
@@ -61,12 +62,15 @@ cargo run -- serve --config config.yaml
 接口、请求/响应和错误见 [HTTP API](docs/API.md)；配置项见
 [Configuration](docs/CONFIGURATION.md)。
 
-## Providers and keys
+## Execution and keys
 
-| Provider | 数据 key | 调用方认证 | 状态 |
+| 内部模式 | `swap.quote` 执行位置 | Key |
 |---|---|---|---|
-| `local-cli` / `local-mcp` | 用户提供 `GRAPH_API_KEY` + RPC | 无 | available |
-| `remote-mcp` | Fluxion 服务端持有 | Fluxion API key / 配额 | planned |
+| `managed`（配置 `FLUXION_REMOTE_URL`） | Fluxion 托管服务 | `FLUXION_API_KEY` |
+| `self_hosted` | 本地 runtime | `GRAPH_API_KEY` + RPC |
+
+`FLUXION_MODE=auto`（默认）会在配置了 `FLUXION_REMOTE_URL` 时使用 remote，否则使用 local。
+这是部署/运维配置，不是 Agent 的 provider 选择。
 
 仓库 `.env` 仅用于开发，不分发；不要把任何 secret 写进配置或提交到仓库。
 

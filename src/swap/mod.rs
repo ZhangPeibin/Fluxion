@@ -27,12 +27,12 @@ pub fn describe() -> CapabilityDescriptor {
                 requires: vec!["rpc_url", "graph_api_key"],
             },
             ProviderDescriptor {
-                id: ProviderId::RemoteMcp,
+                id: ProviderId::Remote,
                 location: "remote",
-                transport: "mcp-http",
-                available: false,
-                unavailable_reason: Some("remote provider is not implemented yet"),
-                requires: vec!["fluxion_api_key"],
+                transport: "http",
+                available: true,
+                unavailable_reason: None,
+                requires: vec!["fluxion_remote_url", "fluxion_api_key"],
             },
         ],
     }
@@ -62,9 +62,9 @@ mod tests {
         let remote = descriptor
             .providers
             .iter()
-            .find(|provider| provider.id == ProviderId::RemoteMcp)
+            .find(|provider| provider.id == ProviderId::Remote)
             .unwrap();
-        assert!(!remote.available);
-        assert!(remote.unavailable_reason.is_some());
+        assert!(remote.available);
+        assert_eq!(remote.id.as_str(), "fluxion-remote");
     }
 }

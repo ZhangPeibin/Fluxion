@@ -4,26 +4,34 @@
 amounts, split allocations, hop paths and state provenance. It is read-only and never signs,
 approves, or broadcasts.
 
-## Status
+## Execution model
 
-| Provider | Status | Invocation |
+Execution location is an internal Fluxion decision; agents do not choose local/remote.
+
+| Mode | `swap.quote` execution | Requirements |
 |---|---|---|
-| `local-cli` | available | `fluxion swap quote ...` / `fluxion ldo-eth 100` |
-| `local-mcp` | available | MCP tool `swap_quote` |
-| `remote-mcp` | planned | returns `UNSUPPORTED` until implemented |
+| `managed` (default when `FLUXION_REMOTE_URL` is set) | Fluxion hosted service | `FLUXION_API_KEY` |
+| `self_hosted` | local runtime | `GRAPH_API_KEY` + RPC |
 
-Local providers require a warm Fluxion runtime. The runtime performs discovery and snapshot sync;
-`fluxion start` (or CLI auto-start) manages it. An agent should call the capability, not manage the
-process.
+`FLUXION_MODE=auto` is the default: remote when `FLUXION_REMOTE_URL` is configured, otherwise
+local. `FLUXION_MODE` is operator configuration, not an agent input.
 
 ## Quick start
 
+Managed mode:
+
 ```bash
-export GRAPH_API_KEY=...        # local providers use the operator's Graph/RPC credentials
-fluxion start                   # warm runtime; first start takes roughly 1 minute
 fluxion swap ldo-eth 100
 fluxion swap ldo-eth 100 --json
 fluxion capability describe swap.quote --json
+```
+
+Development / self-hosted:
+
+```bash
+export GRAPH_API_KEY=...
+FLUXION_MODE=self_hosted fluxion start   # warm runtime; first start takes about a minute
+FLUXION_MODE=self_hosted fluxion swap ldo-eth 100
 fluxion stop
 ```
 
@@ -33,15 +41,15 @@ Machine interface:
 fluxion swap quote --in LDO --out ETH --amount 100 --json
 ```
 
-MCP tool: `swap_quote` with `token_in`, `token_out`, `amount`, optional `provider`,
-`max_hops`, `split`, `split_max_branches`, `decimals_in`, `decimals_out`.
+MCP tool: `swap_quote` with `token_in`, `token_out`, `amount`, optional `max_hops`, `split`,
+`split_max_branches`, `decimals_in`, `decimals_out`.
 
 ## MCP client setup
 
 `fluxion mcp` speaks MCP over stdio. Register the binary as a local MCP server in your agent
-client. `fluxion` must be on `PATH` (`cargo install --path .`). For the local provider, export
-`GRAPH_API_KEY` in the agent's environment; `fluxion mcp` will auto-start the warm runtime if it
-is not already running.
+client. `fluxion` must be on `PATH` (`cargo install --path .`). Managed mode needs no
+`GRAPH_API_KEY`. For `FLUXION_MODE=self_hosted`, export `GRAPH_API_KEY` in the agent's environment;
+`fluxion mcp` will auto-start the warm runtime if it is not already running.
 
 Claude Code (`.mcp.json`):
 
@@ -79,8 +87,8 @@ OpenCode (`opencode.json`):
 }
 ```
 
-Use `fluxion mcp --url http://127.0.0.1:8080 --no-auto-start` when the runtime is managed
-separately. The agent should call the `swap_quote` tool; it should not manage `fluxion start` or
+For a self-hosted runtime managed separately, use
+`FLUXION_MODE=self_hosted fluxion mcp --url http://127.0.0.1:8080 --no-auto-start`. The agent should call the `swap_quote` tool; it should not manage `fluxion start` or
 `fluxion stop` itself. Exact config keys vary by client version; check the client's MCP
 documentation if the snippet is rejected.
 
@@ -91,7 +99,6 @@ documentation if the snippet is rejected.
 | `token_in` / `token_out` | yes | Symbol (`LDO`, `ETH`, `USDC`) or `0x` address |
 | `amount` | yes | Human units, e.g. `100` or `0.5` |
 | `decimals_in` / `decimals_out` | no | Required for unknown `0x` addresses |
-| `provider` | no | `local` (default); `remote` is not implemented |
 | `max_hops` | no | Maximum route hops |
 | `split` | no | Default true; allocate across independent pools/routes |
 | `split_max_branches` | no | Maximum split branches |
@@ -104,7 +111,7 @@ Important fields:
 - `amount_in`, `amount_out`: exact `raw` integer and display `decimal`
 - `plan_kind`: `baseline`, `direct`, or `split`
 - `allocations`: exact per-branch inputs, outputs and hop paths
-- `provenance.provider`: actual provider (`local-cli`, `local-mcp`)
+- `provenance.provider`: diagnostic execution label (for example `local-mcp` or `fluxion-remote`)
 - `provenance.pricing_mode`: `rpc` or `local_snapshot`
 - `quote_block`, `state_age_secs`, `lag_blocks`: freshness
 - `latency_ms`: runtime quote latency

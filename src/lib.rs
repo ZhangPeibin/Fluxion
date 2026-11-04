@@ -16,6 +16,7 @@ pub mod mcp;
 pub mod model;
 pub mod reference;
 pub mod router;
+pub mod routing;
 pub mod rpc;
 pub mod source;
 pub mod split;

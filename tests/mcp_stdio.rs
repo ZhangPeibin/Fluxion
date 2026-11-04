@@ -117,33 +117,6 @@ async fn mcp_stdio_initializes_lists_and_calls_swap_quote() {
     assert_eq!(capability["provenance"]["provider"], "local-mcp");
     assert_eq!(capability["provenance"]["quote_block"], 100);
 
-    let remote = request(
-        &mut stdin,
-        &mut stdout,
-        json!({
-            "jsonrpc": "2.0",
-            "id": 4,
-            "method": "tools/call",
-            "params": {
-                "name": "swap_quote",
-                "arguments": {
-                    "token_in": "LDO",
-                    "token_out": "ETH",
-                    "amount": "100",
-                    "provider": "remote"
-                }
-            }
-        }),
-    )
-    .await;
-    assert_eq!(remote["result"]["isError"], true);
-    assert!(
-        remote["result"]["content"][0]["text"]
-            .as_str()
-            .unwrap()
-            .contains("UNSUPPORTED")
-    );
-
     child.kill().await.unwrap();
     server.abort();
 }

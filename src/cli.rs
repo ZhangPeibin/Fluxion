@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use crate::capability::{CapabilityError, CapabilityErrorCode};
-use crate::client::{LocalClient, request_id};
+use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
 
@@ -77,22 +77,21 @@ fn print_help() {
     println!(
         "Fluxion — Web3 agent capabilities\n\n\
 Usage:\n  \
-fluxion start                           Start the warm runtime in the background\n  \
-fluxion stop                            Stop the background runtime\n  \
-fluxion status                          Show runtime readiness and state\n  \
-fluxion swap ldo-eth 100                Shorthand quote (auto-starts runtime)\n  \
+fluxion start                           Start the self-hosted local runtime\n  \
+fluxion stop                            Stop the self-hosted local runtime\n  \
+fluxion status                          Show local runtime readiness and state\n  \
+fluxion swap ldo-eth 100                Shorthand quote\n  \
 fluxion ldo-eth 100                     Top-level shorthand alias\n  \
 fluxion capability list                  List capabilities\n  \
-fluxion capability describe NAME        Show capability and provider matrix\n  \
+fluxion capability describe NAME        Show capability and execution details\n  \
 fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
-fluxion mcp [--url URL]                 Expose the runtime over MCP stdio\n  \
-fluxion serve [--config PATH]           Run the warm runtime in the foreground\n  \
+fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
+fluxion serve [--config PATH]           Run the local runtime in the foreground\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
 Quote options:\n  \
 --json                    Print the swap.quote JSON response\n  \
 --url URL                 Runtime URL (default {DEFAULT_URL}, env FLUXION_URL)\n  \
---provider local|remote    Provider selection (default local)\n  \
 --no-auto-start           Fail instead of starting a local runtime\n  \
 --no-split                Disable split allocation\n  \
 --max-hops N              Maximum hops\n  \
@@ -112,24 +111,6 @@ fn print_tokens() {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ProviderChoice {
-    Local,
-    Remote,
-}
-
-impl ProviderChoice {
-    fn parse(value: &str) -> Result<Self, CapabilityError> {
-        match value.to_ascii_lowercase().as_str() {
-            "local" | "local-cli" | "local-mcp" => Ok(Self::Local),
-            "remote" | "remote-mcp" => Ok(Self::Remote),
-            other => Err(CapabilityError::invalid_argument(format!(
-                "unknown provider: {other}; use local or remote"
-            ))),
-        }
-    }
-}
-
 #[derive(Debug)]
 struct QuoteArgs {
     token_in: String,
@@ -143,7 +124,6 @@ struct QuoteArgs {
     decimals_in: Option<u8>,
     decimals_out: Option<u8>,
     auto_start: bool,
-    provider: ProviderChoice,
 }
 
 fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
@@ -158,16 +138,12 @@ fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
     let mut decimals_in = None;
     let mut decimals_out = None;
     let mut auto_start = true;
-    let mut provider = ProviderChoice::Local;
     let mut index = 0;
     while index < raw.len() {
         let arg = raw[index].as_str();
         match arg {
             "--json" => json = true,
             "--no-auto-start" => auto_start = false,
-            "--provider" => {
-                provider = ProviderChoice::parse(&value(raw, &mut index, "--provider")?)?
-            }
             "--no-split" => split = false,
             "--split" => split = true,
             "--in" => token_in = Some(value(raw, &mut index, "--in")?),
@@ -222,7 +198,6 @@ fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
         decimals_in,
         decimals_out,
         auto_start,
-        provider,
     })
 }
 
@@ -282,15 +257,6 @@ async fn run_quote(raw: &[String]) -> i32 {
             return exit_code(error.code);
         }
     };
-    if args.provider == ProviderChoice::Remote {
-        let error = CapabilityError::new(
-            CapabilityErrorCode::Unsupported,
-            "remote-mcp provider is not implemented yet",
-            false,
-        );
-        report_error(&error, args.json);
-        return exit_code(error.code);
-    }
     let token_in = match token::resolve(&args.token_in, args.decimals_in) {
         Ok(token) => token,
         Err(error) => {
@@ -321,13 +287,22 @@ async fn run_quote(raw: &[String]) -> i32 {
         split: args.split,
         split_max_branches: args.split_max_branches,
     };
-    let client = LocalClient::new(args.url.clone());
-    if let Err(error) = ensure_runtime(&client, args.auto_start).await {
+    let backend = match crate::routing::from_env("local-cli", &args.url) {
+        Ok(backend) => backend,
+        Err(error) => {
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let client = RuntimeClient::with_api_key(backend.base_url.clone(), backend.api_key.clone());
+    if backend.is_local()
+        && let Err(error) = ensure_runtime(&client, args.auto_start).await
+    {
         report_error(&error, args.json);
         return exit_code(error.code);
     }
     match client
-        .swap_quote(&request, token_in, token_out, "ethereum", "local-cli")
+        .swap_quote(&request, token_in, token_out, "ethereum", backend.provider)
         .await
     {
         Ok(response) => {
@@ -509,7 +484,7 @@ async fn run_up(raw: &[String]) -> i32 {
         }
         index += 1;
     }
-    let client = LocalClient::new(url);
+    let client = RuntimeClient::new(url);
     if client.ready().await {
         println!("runtime already ready at {}", client.base_url());
         return 0;
@@ -579,7 +554,7 @@ async fn run_status(raw: &[String]) -> i32 {
         }
         index += 1;
     }
-    let client = LocalClient::new(url);
+    let client = RuntimeClient::new(url);
     if !client.ready().await {
         eprintln!("runtime not ready at {}", client.base_url());
         return 5;
@@ -688,7 +663,7 @@ fn spawn_runtime(config: &str) -> Result<(), CapabilityError> {
     Ok(())
 }
 
-async fn wait_ready(client: &LocalClient) -> Result<(), CapabilityError> {
+async fn wait_ready(client: &RuntimeClient) -> Result<(), CapabilityError> {
     for _ in 0..360 {
         if client.ready().await {
             return Ok(());
@@ -702,7 +677,7 @@ async fn wait_ready(client: &LocalClient) -> Result<(), CapabilityError> {
     ))
 }
 
-async fn ensure_runtime(client: &LocalClient, auto_start: bool) -> Result<(), CapabilityError> {
+async fn ensure_runtime(client: &RuntimeClient, auto_start: bool) -> Result<(), CapabilityError> {
     if client.ready().await {
         return Ok(());
     }
@@ -753,12 +728,21 @@ async fn run_mcp(raw: &[String]) -> i32 {
         }
         index += 1;
     }
-    let client = LocalClient::new(url);
-    if let Err(error) = ensure_runtime(&client, auto_start).await {
+    let backend = match crate::routing::from_env("local-mcp", &url) {
+        Ok(backend) => backend,
+        Err(error) => {
+            report_error(&error, false);
+            return exit_code(error.code);
+        }
+    };
+    let client = RuntimeClient::with_api_key(backend.base_url.clone(), backend.api_key.clone());
+    if backend.is_local()
+        && let Err(error) = ensure_runtime(&client, auto_start).await
+    {
         report_error(&error, false);
         return exit_code(error.code);
     }
-    crate::mcp::run_stdio(client).await
+    crate::mcp::run_stdio(client, backend.provider).await
 }
 
 #[cfg(test)]
@@ -778,23 +762,6 @@ mod tests {
     }
 
     #[test]
-    fn parses_provider_selection() {
-        assert_eq!(
-            ProviderChoice::parse("local").unwrap(),
-            ProviderChoice::Local
-        );
-        assert_eq!(
-            ProviderChoice::parse("remote").unwrap(),
-            ProviderChoice::Remote
-        );
-        assert_eq!(
-            ProviderChoice::parse("local-mcp").unwrap(),
-            ProviderChoice::Local
-        );
-        assert!(ProviderChoice::parse("bogus").is_err());
-    }
-
-    #[test]
     fn parses_quote_arguments() {
         let args = [
             "--in".to_string(),
@@ -805,14 +772,11 @@ mod tests {
             "100".to_string(),
             "--json".to_string(),
             "--no-split".to_string(),
-            "--provider".to_string(),
-            "remote".to_string(),
         ];
         let parsed = parse_quote_args(&args).unwrap();
         assert_eq!(parsed.token_in, "LDO");
         assert_eq!(parsed.amount, "100");
         assert!(parsed.json);
         assert!(!parsed.split);
-        assert_eq!(parsed.provider, ProviderChoice::Remote);
     }
 }

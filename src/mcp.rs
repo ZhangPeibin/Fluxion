@@ -1,18 +1,18 @@
 //! Minimal MCP stdio server exposing the `swap_quote` tool.
 //!
-//! This is a local provider: it forwards to the warm local runtime over its
-//! internal HTTP endpoint, so repeated tool calls do not pay discovery or
-//! snapshot warmup.
+//! The MCP adapter is the agent-facing transport. It forwards to Fluxion's
+//! internal execution backend (hosted service or local runtime), so repeated
+//! tool calls do not pay discovery or snapshot warmup.
 
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-use crate::capability::{CapabilityError, CapabilityErrorCode};
-use crate::client::{LocalClient, request_id};
+use crate::capability::CapabilityError;
+use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
 
-pub async fn run_stdio(client: LocalClient) -> i32 {
+pub async fn run_stdio(client: RuntimeClient, provider: &'static str) -> i32 {
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     let mut out = tokio::io::stdout();
     loop {
@@ -22,7 +22,7 @@ pub async fn run_stdio(client: LocalClient) -> i32 {
                 if line.is_empty() {
                     continue;
                 }
-                if let Some(response) = handle_line(line, &client).await {
+                if let Some(response) = handle_line(line, &client, provider).await {
                     let mut text = match serde_json::to_string(&response) {
                         Ok(text) => text,
                         Err(error) => {
@@ -45,7 +45,7 @@ pub async fn run_stdio(client: LocalClient) -> i32 {
     }
 }
 
-async fn handle_line(line: &str, client: &LocalClient) -> Option<Value> {
+async fn handle_line(line: &str, client: &RuntimeClient, provider: &'static str) -> Option<Value> {
     let value: Value = match serde_json::from_str(line) {
         Ok(value) => value,
         Err(error) => {
@@ -56,10 +56,14 @@ async fn handle_line(line: &str, client: &LocalClient) -> Option<Value> {
             }));
         }
     };
-    handle_request(value, client).await
+    handle_request(value, client, provider).await
 }
 
-async fn handle_request(value: Value, client: &LocalClient) -> Option<Value> {
+async fn handle_request(
+    value: Value,
+    client: &RuntimeClient,
+    provider: &'static str,
+) -> Option<Value> {
     let method = value
         .get("method")
         .and_then(Value::as_str)
@@ -81,7 +85,7 @@ async fn handle_request(value: Value, client: &LocalClient) -> Option<Value> {
         })),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(tools_list()),
-        "tools/call" => Ok(call_tool(params, client).await),
+        "tools/call" => Ok(call_tool(params, client, provider).await),
         other => Err((-32601, format!("method not found: {other}"))),
     };
     Some(match result {
@@ -107,7 +111,6 @@ fn tools_list() -> Value {
                     "amount": {"type": "string", "description": "Human amount, e.g. 100 or 0.5"},
                     "decimals_in": {"type": "integer", "minimum": 0, "maximum": 38},
                     "decimals_out": {"type": "integer", "minimum": 0, "maximum": 38},
-                    "provider": {"type": "string", "enum": ["local", "remote"], "default": "local"},
                     "split": {"type": "boolean", "default": true},
                     "max_hops": {"type": "integer", "minimum": 1},
                     "split_max_branches": {"type": "integer", "minimum": 2, "maximum": 8}
@@ -118,7 +121,7 @@ fn tools_list() -> Value {
     })
 }
 
-async fn call_tool(params: Value, client: &LocalClient) -> Value {
+async fn call_tool(params: Value, client: &RuntimeClient, provider: &'static str) -> Value {
     let name = params
         .get("name")
         .and_then(Value::as_str)
@@ -129,30 +132,17 @@ async fn call_tool(params: Value, client: &LocalClient) -> Value {
         )));
     }
     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-    match quote_tool(&arguments, client).await {
+    match quote_tool(&arguments, client, provider).await {
         Ok(response) => tool_result(serde_json::to_value(response).unwrap_or(Value::Null)),
         Err(error) => tool_error(error),
     }
 }
 
-async fn quote_tool(arguments: &Value, client: &LocalClient) -> Result<Value, CapabilityError> {
-    let provider = arguments
-        .get("provider")
-        .and_then(Value::as_str)
-        .unwrap_or("local")
-        .to_ascii_lowercase();
-    if matches!(provider.as_str(), "remote" | "remote-mcp") {
-        return Err(CapabilityError::new(
-            CapabilityErrorCode::Unsupported,
-            "remote-mcp provider is not implemented yet",
-            false,
-        ));
-    }
-    if !matches!(provider.as_str(), "local" | "local-cli" | "local-mcp") {
-        return Err(CapabilityError::invalid_argument(format!(
-            "unknown provider: {provider}"
-        )));
-    }
+async fn quote_tool(
+    arguments: &Value,
+    client: &RuntimeClient,
+    provider: &'static str,
+) -> Result<Value, CapabilityError> {
     let token_in = string_arg(arguments, "token_in")?;
     let token_out = string_arg(arguments, "token_out")?;
     let amount = string_arg(arguments, "amount")?;
@@ -172,7 +162,7 @@ async fn quote_tool(arguments: &Value, client: &LocalClient) -> Result<Value, Ca
         split_max_branches: optional_usize(arguments, "split_max_branches")?,
     };
     let response = client
-        .swap_quote(&request, token_in, token_out, "ethereum", "local-mcp")
+        .swap_quote(&request, token_in, token_out, "ethereum", provider)
         .await?;
     Ok(serde_json::to_value(response).unwrap_or(Value::Null))
 }
@@ -235,34 +225,25 @@ mod tests {
     use crate::capability::CapabilityErrorCode;
 
     #[test]
-    fn exposes_swap_quote_tool() {
+    fn exposes_swap_quote_tool_without_provider_selection() {
         let tools = tools_list();
         assert_eq!(tools["tools"][0]["name"], "swap_quote");
         assert_eq!(tools["tools"][0]["inputSchema"]["required"][0], "token_in");
+        assert!(
+            tools["tools"][0]["inputSchema"]["properties"]
+                .get("provider")
+                .is_none()
+        );
     }
 
     #[test]
     fn rejects_unknown_tool() {
         let result = futures::executor::block_on(call_tool(
             json!({"name": "nope", "arguments": {}}),
-            &LocalClient::new("http://127.0.0.1:1"),
+            &RuntimeClient::new("http://127.0.0.1:1"),
+            "local-mcp",
         ));
         assert_eq!(result["isError"], true);
-    }
-
-    #[test]
-    fn remote_provider_is_unsupported() {
-        let error = futures::executor::block_on(quote_tool(
-            &json!({
-                "token_in": "LDO",
-                "token_out": "ETH",
-                "amount": "100",
-                "provider": "remote"
-            }),
-            &LocalClient::new("http://127.0.0.1:1"),
-        ))
-        .unwrap_err();
-        assert_eq!(error.code, CapabilityErrorCode::Unsupported);
     }
 
     #[test]
