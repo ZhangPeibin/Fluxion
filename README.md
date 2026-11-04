@@ -9,6 +9,9 @@ Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `tok
 
 > 开源、自托管：下载后用一份 YAML 配置 + 你自己的 RPC / Graph key 跑起来。
 
+> 产品愿景：本仓库是更大型 **Web3 Agent Capability Infrastructure** 的 `swap.quote` 引擎；
+> 完整白皮书见 [docs/WHITEPAPER.md](docs/WHITEPAPER.md)。
+
 ## 接入规模
 
 2026-11-03 使用 `config.benchmark-local.yaml` 对真实服务 `/info` 与 `/graph` 的复核结果：

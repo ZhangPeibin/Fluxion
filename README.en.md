@@ -10,6 +10,9 @@ Opt in with `split=true` to allocate across independent direct AMM pools.
 
 > Open-source, self-hosted: download it, supply a YAML config plus your own RPC / Graph key, run it.
 
+> Product vision: this repository implements the `swap.quote` engine of a broader **Web3 Agent
+> Capability Infrastructure**. See the full [whitepaper](docs/WHITEPAPER.md).
+
 ## Integrated liquidity
 
 Live `/info` and `/graph` inventory on 3 Nov 2026 with `config.benchmark-local.yaml`:
