@@ -12,6 +12,15 @@ maximum (0/12/12 s)**. Fluxion HTTP latency was **40/101 ms p50/p95**; ParaSwap 
 at 312/521 ms and 455/741 ms. Output deltas were within ±50 bps for 86/90 (ParaSwap) and 80/90
 (1inch) rows, and Fluxion computed with zero request-time RPC.
 
+| timing | full rebuild (previous) | incremental (this run) |
+|---|---:|---:|
+| snapshot lag blocks p50 / p95 / max | 5 / 7 / 7 | **0 / 1 / 1** |
+| snapshot lag seconds p50 / p95 / max | 60 / 84 / 84 s | **0 / 12 / 12 s** |
+| Fluxion HTTP latency p50 / p95 | 24 / 107 ms | **40 / 101 ms** |
+| success | 90 / 90 | **90 / 90** |
+| ParaSwap within ±50 bps | 86 / 90 | 86 / 90 |
+| 1inch within ±50 bps | 82 / 90 | 80 / 90 |
+
 The service cold-starts with one full load, then publishes a snapshot per block: V2 reserves, V3
 `slot0`/`liquidity`, Curve and wstETH state are re-read; V3 bitmap/tick structure changes only on
 `Mint`/`Burn` logs. Reorgs, large gaps and a periodic reconciliation interval fall back to the

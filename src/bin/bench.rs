@@ -1153,6 +1153,51 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
     }
 
     let _ = writeln!(out, "\n## Summary\n");
+    let _ = writeln!(out, "| timing | p50 | p95 | max |\n|---|---:|---:|---:|");
+    let _ = writeln!(
+        out,
+        "| snapshot lag blocks | {} | {} | {} |",
+        format_signed(summary.lag_blocks_p50),
+        format_signed(summary.lag_blocks_p95),
+        format_signed(summary.lag_blocks_max)
+    );
+    let _ = writeln!(
+        out,
+        "| snapshot lag seconds | {} | {} | {} |",
+        format_signed(summary.lag_secs_p50),
+        format_signed(summary.lag_secs_p95),
+        format_signed(summary.lag_secs_max)
+    );
+    for (name, p50, p95) in [
+        (
+            "fluxion latency ms",
+            summary.fluxion_latency_p50_ms,
+            summary.fluxion_latency_p95_ms,
+        ),
+        (
+            "paraswap latency ms",
+            summary.paraswap_latency_p50_ms,
+            summary.paraswap_latency_p95_ms,
+        ),
+        (
+            "1inch latency ms",
+            summary.oneinch_latency_p50_ms,
+            summary.oneinch_latency_p95_ms,
+        ),
+        (
+            "0x latency ms",
+            summary.zerox_latency_p50_ms,
+            summary.zerox_latency_p95_ms,
+        ),
+    ] {
+        let _ = writeln!(
+            out,
+            "| {name} | {} | {} | - |",
+            format_latency(p50),
+            format_latency(p95)
+        );
+    }
+    let _ = writeln!(out);
     if meta.control_service.is_some() {
         let _ = writeln!(
             out,

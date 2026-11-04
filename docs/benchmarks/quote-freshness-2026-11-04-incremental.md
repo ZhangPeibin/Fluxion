@@ -298,6 +298,15 @@ Service mode, graph size and effective public configuration:
 
 ## Summary
 
+| timing | p50 | p95 | max |
+|---|---:|---:|---:|
+| snapshot lag blocks | 0 | 1 | 1 |
+| snapshot lag seconds | 0 | 12 | 12 |
+| fluxion latency ms | 40 | 101 | - |
+| paraswap latency ms | 312 | 521 | - |
+| 1inch latency ms | 455 | 741 | - |
+| 0x latency ms | - | - | - |
+
 - rows: 90
 - paraswap: both success 90, Fluxion only 0, aggregator only 0, both failed 0
 - 1inch: both success 90, Fluxion only 0, aggregator only 0, both failed 0
