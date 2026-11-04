@@ -12,6 +12,26 @@ Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `tok
 > 产品愿景：本仓库是更大型 **Web3 Agent Capability Infrastructure** 的 `swap.quote` 引擎；
 > 完整白皮书见 [docs/WHITEPAPER.md](docs/WHITEPAPER.md)。
 
+## CLI / MCP
+
+CLI 和 MCP 都是**暖 runtime 的薄客户端**。先启动一次运行时，之后每次 quote 复用热状态：
+
+```bash
+# 终端 1：常驻本地运行时（冷启动一次）
+cargo run -- serve --config config.yaml
+
+# 终端 2：CLI 调用
+fluxion ldo-eth 100
+fluxion swap quote --in LDO --out ETH --amount 100 --json
+
+# 给本机 Agent 的 MCP stdio server
+fluxion mcp --url http://127.0.0.1:8080
+```
+
+默认运行时地址是 `http://127.0.0.1:8080`，可通过 `--url` 或 `FLUXION_URL` 覆盖。MCP 暴露
+`swap_quote` tool；CLI/MCP 输出都带 `schema_version`、`provider`、`quote_block`、
+`state_age_secs` 和 `lag_blocks`。未启动 runtime 时返回结构化 `RPC_ERROR`，不会静默退回冷启动。
+
 ## 接入规模
 
 2026-11-03 使用 `config.benchmark-local.yaml` 对真实服务 `/info` 与 `/graph` 的复核结果：

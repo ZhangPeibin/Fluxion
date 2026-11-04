@@ -27,7 +27,28 @@ pub struct CapabilityError {
     pub retryable: bool,
 }
 
+impl CapabilityErrorCode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::InvalidArgument => "INVALID_ARGUMENT",
+            Self::NoPath => "NO_PATH",
+            Self::InsufficientLiquidity => "INSUFFICIENT_LIQUIDITY",
+            Self::AmountOutBelowMin => "AMOUNT_OUT_BELOW_MIN",
+            Self::RpcError => "RPC_ERROR",
+            Self::StaleState => "STALE_STATE",
+            Self::StateIncomplete => "STATE_INCOMPLETE",
+            Self::Unsupported => "UNSUPPORTED",
+            Self::Timeout => "TIMEOUT",
+            Self::Internal => "INTERNAL",
+        }
+    }
+}
+
 impl CapabilityError {
+    pub fn code_string(&self) -> &'static str {
+        self.code.as_str()
+    }
+
     pub fn new(code: CapabilityErrorCode, message: impl Into<String>, retryable: bool) -> Self {
         Self {
             code,

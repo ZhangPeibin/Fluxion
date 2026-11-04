@@ -26,7 +26,16 @@ async fn main() {
         .init();
     dotenvy::dotenv().ok();
 
-    let mut args = std::env::args().skip(1);
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let (server_args, handled) = fluxion::cli::dispatch(args).await;
+    if let Some(code) = handled {
+        std::process::exit(code);
+    }
+    run_server(server_args).await;
+}
+
+async fn run_server(server_args: Vec<String>) {
+    let mut args = server_args.into_iter();
     let config_path = match args.next().as_deref() {
         None => "config.yaml".to_string(),
         Some("--config") => args.next().expect("--config needs a YAML path"),

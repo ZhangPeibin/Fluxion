@@ -46,6 +46,16 @@ impl Default for SplitConfig {
     }
 }
 
+impl PlanKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Baseline => "baseline",
+            Self::Direct => "direct",
+            Self::Split => "split",
+        }
+    }
+}
+
 impl SplitConfig {
     pub fn multi_pool() -> Self {
         Self {
@@ -56,7 +66,7 @@ impl SplitConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PlanKind {
     Baseline,

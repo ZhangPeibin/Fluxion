@@ -73,8 +73,8 @@ pub struct QuoteContext {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct HopResponse {
-    pub operation: &'static str,
-    pub platform: &'static str,
+    pub operation: String,
+    pub platform: String,
     pub pool: String,
     pub i: usize,
     pub j: usize,
@@ -121,8 +121,8 @@ impl QuoteResponse {
                     .hops
                     .iter()
                     .map(|hop| HopResponse {
-                        operation: hop.pool.kind.operation(hop.i),
-                        platform: hop.pool.kind.name(),
+                        operation: hop.pool.kind.operation(hop.i).to_string(),
+                        platform: hop.pool.kind.name().to_string(),
                         pool: hop.pool.address.to_string(),
                         i: hop.i,
                         j: hop.j,
