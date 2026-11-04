@@ -4,12 +4,13 @@
 
 **Project Whitepaper · Version 1.0 · November 2026**
 
-> **Repository context.** This repository currently implements **Fluxion**, the `swap.quote`
-> engine behind this vision: pool discovery, exact-in routing, split allocation, and local
-> snapshot freshness on Ethereum mainnet. The Local Runtime, wallet/execution capabilities,
-> Skills, and hosted Remote Intelligence described here are the broader platform direction.
-> See also [README](../README.md), [architecture](ARCHITECTURE.md), and
-> [local state](LOCAL-STATE.md).
+> **Repository context.** This repository implements **Fluxion**, the capability runtime for this
+> vision. Its first capability is `swap.quote`: pool discovery, exact-in routing, split allocation,
+> and local snapshot freshness on Ethereum mainnet. The Local Runtime, wallet/execution
+> capabilities, Skills, and hosted Remote Intelligence described here are the broader platform
+> direction.
+> See also [README](../README.md), [capabilities](capabilities/README.md),
+> [architecture](ARCHITECTURE.md), and [local state](LOCAL-STATE.md).
 
 ## Abstract
 

@@ -2,16 +2,60 @@
 
 English | [中文](README.md)
 
-Ethereum mainnet multi-hop routing quote (RFQ) HTTP service. Given `token_in` / `token_out` /
-`amount_in`, it builds a **directed multigraph** of Uniswap V2 / V3, Curve, ShibaSwap V2 pools,
-and configured protocol conversions. Bounded multi-hop search and exact refinement return the
-highest-output single candidate path (exact-in). The first conversion adapter supports stETH↔wstETH.
-Opt in with `split=true` to allocate across independent direct AMM pools.
+**Runtime for the Web3 Agent Capability Infrastructure.** Fluxion exposes Web3 actions as stable
+capabilities; the first delivered capability is `swap.quote`, callable by a local CLI or an MCP
+agent.
+
+Underneath is an Ethereum mainnet exact-in routing engine: it builds a **directed multigraph** of
+Uniswap V2 / V3, Curve, ShibaSwap V2 pools, and configured protocol conversions. Bounded multi-hop
+search and exact refinement return the highest-output single candidate path; `split=true` allocates
+across independent pools and disjoint routes. The first conversion adapter supports stETH↔wstETH.
 
 > Open-source, self-hosted: download it, supply a YAML config plus your own RPC / Graph key, run it.
 
 > Product vision: this repository implements the `swap.quote` engine of a broader **Web3 Agent
 > Capability Infrastructure**. See the full [whitepaper](docs/WHITEPAPER.md).
+
+## Capabilities
+
+| Capability | Status | Providers | Docs |
+|---|---|---|---|
+| `swap.quote` | available | `local-cli`, `local-mcp`; `remote-mcp` planned | [docs/capabilities/swap/README.md](docs/capabilities/swap/README.md) |
+
+Capability defines *what* the agent wants; provider defines *where and how* it runs. Only local
+providers are implemented; `--provider remote` returns `UNSUPPORTED` without silent fallback.
+See the [capability index](docs/capabilities/README.md).
+
+## CLI / MCP
+
+Start a warm runtime once; subsequent quotes reuse state:
+
+```bash
+cargo install --path .
+fluxion start               # background warmup; first start takes about a minute
+
+fluxion swap ldo-eth 100
+fluxion swap ldo-eth 100 --json
+fluxion ldo-eth 100
+
+fluxion status              # readiness / lag
+fluxion stop
+fluxion mcp                 # local MCP stdio server
+
+fluxion capability list
+fluxion capability describe swap.quote --json
+```
+
+The machine interface is:
+
+```bash
+fluxion swap quote --in LDO --out ETH --amount 100 --json
+```
+
+Local providers need `GRAPH_API_KEY` (env or local `.env`). The default runtime config is
+`config.runtime.yaml` (local snapshot + incremental); the default endpoint is
+`http://127.0.0.1:8080`. Warm quotes are typically 5–30 ms. Responses include `schema_version`,
+`provider`, `quote_block`, `state_age_secs` and `lag_blocks`.
 
 ## Integrated liquidity
 
@@ -41,42 +85,30 @@ the benchmark below tests a 30-direction subset. Counts depend on discovery and 
 This local profile explicitly excludes legacy Tricrypto and retains Tricrypto2.
 [Inventory definitions and snapshot](docs/benchmarks/2026-11-03-graph-inventory.json).
 
-## Latest benchmark: three-way comparison after writer isolation (3 Nov 2026)
+## Latest benchmark: disjoint multi-route split (4 Nov 2026)
 
-**All three succeed on the original 90 rows under continuous background updates. Every Fluxion
-request computes with zero RPC. HTTP p95 falls from the defect run’s 3501 ms to 124 ms; maximum 238 ms.**
+All 90 rows succeed under the incremental local snapshot. Snapshot lag is **0/1/1 blocks**
+(p50/p95/max) or **0/12/12 seconds**, and Fluxion HTTP latency is **49/133 ms** p50/p95.
+Disjoint multi-hop route allocation improves large-order accuracy: ParaSwap is within ±50 bps on
+**89/90** rows (mean −2.6 bps) and 1inch on **82/90** (mean −8.7 bps), up from 86/90 and 80/90
+in the previous incremental run.
 
-| Metric | Fluxion local snapshots | ParaSwap | 1inch |
-|---|---:|---:|---:|
-| Successful quotes | **90/90** | **90/90** | **90/90** |
-| HTTP p50 | **27 ms** | 438 ms | 530 ms |
-| HTTP p95 | **124 ms** | 883 ms | 1059 ms |
-
-| Fluxion output relative to competitor | ParaSwap | 1inch |
+| Metric | Previous incremental | Multi-route split |
 |---|---:|---:|
-| Median delta | −0.000943% | +0.096974% |
-| Equal-weight mean delta | −0.029784% | −0.042308% |
-| Within ±0.5% | **89/90 (98.9%)** | **84/90 (93.3%)** |
+| Snapshot lag blocks p50 / p95 / max | 0 / 1 / 1 | **0 / 1 / 1** |
+| Snapshot lag seconds p50 / p95 / max | 0 / 12 / 12 | **0 / 12 / 12** |
+| Fluxion HTTP p50 / p95 | 40 / 101 ms | **49 / 133 ms** |
+| Success | 90 / 90 | **90 / 90** |
+| ParaSwap mean delta / within ±50 bps | −10.5 bps / 86 | **−2.6 bps / 89** |
+| 1inch mean delta / within ±50 bps | −17.3 bps / 80 | **−8.7 bps / 82** |
 
-Versions advance from 1 to 4 during roughly 211.67 seconds of observation. Concurrent `/health`
-probes succeed **3832/3832**, p95 **3.143 ms**, maximum **79.653 ms**. Bitmap expansion drops from
-roughly 5.2 seconds to 18–20 ms and state validation from 5.4 seconds to 24–27 ms; bounded writer
-execution isolates both from HTTP I/O workers.
+Remaining large-order outliers are mostly venue coverage limits (for example LDO and SHIB) rather
+than the allocation algorithm. Freshness and route allocation are measured separately from
+execution, gas and MEV.
 
-`config.benchmark-local.yaml` explicitly excludes only legacy Tricrypto, retaining and loading all
-other **209 pool/conversion records, 48 tokens and 426 edges**, with full-range V3 coverage.
-The original experiment policy remains **180 seconds / 15 blocks**; actual state age is
-**59–129 seconds, median 90 seconds**. Full public-RPC rebuilds still take 47.810–63.636 seconds;
-the default 60-second / three-block freshness target remains unresolved.
-
-Debug build, public RPC, local Fluxion HTTP; original 30 directions × three raw-input tiers,
-split=true. Latency includes complete body receipt and excludes pacing sleeps. External APIs are
-not pinned to one block; gas/service fees are not normalized and 1inch plan fees may affect outputs.
-Different runs do not establish same-state routing improvements.
-
-[Per-row report](docs/benchmarks/2026-11-03-writer-isolation-threeway.md) ·
-[Raw JSON and request IDs](docs/benchmarks/2026-11-03-writer-isolation-threeway.json) ·
-[Implementation, acceptance and analysis](docs/benchmarks/2026-11-03-writer-isolation-fix.md) (Chinese)
+[90-row report](docs/benchmarks/quote-freshness-2026-11-04-route-split.md) ·
+[Raw JSON](docs/benchmarks/quote-freshness-2026-11-04-route-split.json) ·
+[Previous incremental run](docs/benchmarks/quote-freshness-2026-11-04-incremental.md)
 
 ## Data/compute separation (#31–#35: V2/V3, wstETH, three stable pools and Tricrypto2)
 
@@ -402,19 +434,28 @@ src/
   reference.rs   ParaSwap quotes and pinned allocation replay; diagnostics without graph expansion
   universe.rs    shared discovery, pricing assembly and batch prefetch
   api.rs         /quote, /graph, /health, /ready; DTOs, error mapping and rate limits
+  capability/    capability contract, provider descriptors, shared types and stable errors
+  swap/          swap.quote DTOs and provider matrix
+  client.rs      thin client for the warm runtime
+  cli.rs         CLI dispatch, runtime lifecycle and provider selection
+  mcp.rs         MCP stdio server (swap_quote)
+  token.rs       built-in token registry and decimal amount parsing
   error.rs       shared quote errors
   config.rs      YAML config, typed conversion instances and validation
   util.rs        ABI encoding, hex, numeric conversion
-  main.rs        startup assembly, /info, background refresh and HTTP service
+  main.rs        CLI dispatch plus server startup/assembly
   bin/
     bench.rs     paired benchmarks, aggregator comparison, routes, JSON / Markdown reports
     split_bench.rs pinned single/two/multi/ParaSwap comparison and cost reporting
     graph.rs     Mermaid / HTML export from a running service
 
 config.example.yaml           complete configuration example
+config.runtime.yaml           default CLI/MCP warm runtime (local snapshot)
 config.benchmark.yaml         candidate with new capabilities (:8081)
 config.benchmark-control.yaml control without conversions or ShibaSwap (:8082)
 bench/corpus.yaml             fixed pairs and raw input amounts
+schemas/                      capability JSON schemas
+skills/                       agent skills (currently swap)
 tests/                        routing/conversion behavior, mainnet tests, pinned-block fixture
 ui/                           standalone React + Vite + vis-network viewer
 docs/QUOTE-QUALITY.md          conversion, ShibaSwap and candidate-diversity design
@@ -553,10 +594,10 @@ cd ui && npm install && npm run build   # frontend build
 
 ## Limitations
 
-- Ethereum mainnet only; exact-in; single-route by default, optional independent direct-pool
-  splitting. No market-wide global-optimality guarantee.
-- Allocation has candidate/grid/call budgets; arbitrary multi-hop branches and shared-pool state
-  interactions are not supported.
+- Ethereum mainnet only; exact-in; single-route by default, optional splitting across independent
+  direct pools or disjoint multi-hop routes. No market-wide global-optimality guarantee.
+- Allocation has candidate/grid/call budgets; disjoint multi-hop routes are supported, while
+  shared-pool state interactions are not supported.
 - Native ETH unsupported; callers handle ETH↔WETH wrapping. stETH↔wstETH is a separate supported conversion.
 - The Curve adapter supports both stableswap (`get_dy(int128,…)`) and crypto (`get_dy(uint256,…)`);
   **discovery** covers the main stableswap + crypto registries by default (`curve_registry_ids: [0, 5]`);
@@ -572,6 +613,10 @@ cd ui && npm install && npm run build   # frontend build
 
 ## Docs
 
+- [`docs/WHITEPAPER.md`](docs/WHITEPAPER.md): Web3 Agent Capability Infrastructure whitepaper.
+- [`docs/capabilities/`](docs/capabilities/README.md): capability index and provider matrix.
+- [`docs/capabilities/swap/README.md`](docs/capabilities/swap/README.md): `swap.quote` contract, CLI/MCP usage and errors.
+- [`skills/swap/SKILL.md`](skills/swap/SKILL.md): agent-facing `swap.quote` instructions.
 - [`docs/MULTI-POOL.md`](docs/MULTI-POOL.md): allocation DP, pinned HTTP pricing, Viewer and reference-replay boundaries.
 - [`docs/SPLIT-ROUTING.md`](docs/SPLIT-ROUTING.md): allocation, budgets, memoization and fixed-state experiment.
 - [`docs/QUOTE-QUALITY.md`](docs/QUOTE-QUALITY.md): current conversion, ShibaSwap and candidate-family design.

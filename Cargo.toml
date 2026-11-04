@@ -3,6 +3,9 @@ name = "fluxion"
 version = "0.1.0"
 edition = "2024"
 default-run = "fluxion"
+description = "Web3 agent capability runtime for exact-in swap quotes via CLI and MCP"
+repository = "https://github.com/ZhangPeibin/Fluxion"
+readme = "README.md"
 
 [dependencies]
 alloy-primitives = { version = "1.7.3", features = ["serde"] }

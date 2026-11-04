@@ -2,15 +2,27 @@
 
 [English](README.en.md) | 中文
 
-Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `token_out` / `amount_in`，
-将 Uniswap V2 / V3、Curve、ShibaSwap V2 的池子和可配置的协议转换统一建成**有向多重图**，
-搜索多跳候选并精算（exact-in）；默认返回最佳单路径，`split=true` 可在独立直连池间拆单。
-首个协议转换适配器支持 stETH↔wstETH。
+**Web3 Agent Capability Infrastructure 的 runtime。** Fluxion 把 Web3 动作暴露为稳定
+capability；第一个交付的是 `swap.quote`，可被本机 CLI 或 MCP Agent 调用。
+
+底层是 Ethereum 主网多跳路由询价引擎：将 Uniswap V2 / V3、Curve、ShibaSwap V2 的池子和
+可配置的协议转换统一建成**有向多重图**，搜索多跳候选并精算（exact-in）；默认返回最佳单路径，
+`split=true` 可在独立池/路径间拆单。首个协议转换适配器支持 stETH↔wstETH。
 
 > 开源、自托管：下载后用一份 YAML 配置 + 你自己的 RPC / Graph key 跑起来。
 
 > 产品愿景：本仓库是更大型 **Web3 Agent Capability Infrastructure** 的 `swap.quote` 引擎；
 > 完整白皮书见 [docs/WHITEPAPER.md](docs/WHITEPAPER.md)。
+
+## Capabilities
+
+| Capability | 状态 | Providers | 文档 |
+|---|---|---|---|
+| `swap.quote` | available | `local-cli`, `local-mcp`；`remote-mcp` planned | [docs/capabilities/swap/README.md](docs/capabilities/swap/README.md) |
+
+Capability 定义“做什么”，provider 定义“在哪、怎么调用”。当前只实现 local provider；
+`--provider remote` 返回 `UNSUPPORTED`，不会自动 fallback。完整矩阵见
+[docs/capabilities/README.md](docs/capabilities/README.md)。
 
 ## CLI / MCP
 
@@ -432,19 +444,28 @@ src/
   reference.rs   ParaSwap 报价与同区块分配回放（覆盖诊断，不扩展生产图）
   universe.rs    服务与实验共享的池发现、报价源装配和批量预热
   api.rs         /quote、/graph、/health、/ready；DTO、错误映射与限流
+  capability/    capability 契约、provider 描述、公共类型与稳定错误码
+  swap/          swap.quote DTO 与 provider 矩阵
+  client.rs      暖 runtime 的薄 HTTP 客户端
+  cli.rs         CLI dispatch、runtime 生命周期与 provider 选择
+  mcp.rs         MCP stdio server（swap_quote）
+  token.rs       内置 token registry 与十进制金额解析
   error.rs       共享报价错误类型
   config.rs      YAML 配置、类型化转换实例与校验
   util.rs        ABI 编码、hex、数值转换
-  main.rs        启动装配、/info、后台刷新与 HTTP 服务
+  main.rs        CLI dispatch + server 启动装配
   bin/
     bench.rs     配对基准；聚合器对比、完整路径、JSON / Markdown 报告
     split_bench.rs 固定区块单路径/两池/多池/ParaSwap 比较与调用成本报告
     graph.rs     从运行实例导出 Mermaid / HTML
 
 config.example.yaml           全部配置示例
+config.runtime.yaml           CLI/MCP 默认暖 runtime（local snapshot）
 config.benchmark.yaml         开启新能力的基准实例（:8081）
 config.benchmark-control.yaml  关闭转换与 ShibaSwap 的对照实例（:8082）
 bench/corpus.yaml             固定交易对与 raw 输入金额
+schemas/                      capability JSON Schema
+skills/                       Agent skills（当前为 swap）
 tests/                        路由 / 转换行为、主网集成测试与固定区块 fixture
 ui/                           独立 React + Vite + vis-network 查看器
 docs/QUOTE-QUALITY.md          转换、ShibaSwap 和候选多样性的实现说明
@@ -574,8 +595,8 @@ cd ui && npm install && npm run build   # 前端构建
 
 ## 边界与限制
 
-- 仅 Ethereum 主网；exact-in；默认单路径，可选独立直连 AMM 池拆单；不保证全市场最优。
-- 多池分配有候选、网格和调用预算限制；不支持任意多跳分支拆单或共享池状态联动。
+- 仅 Ethereum 主网；exact-in；默认单路径，可选独立直连池或互不共享池的多跳路径拆单；不保证全市场最优。
+- 多池分配有候选、网格和调用预算限制；支持互不共享池的多跳路径拆单，不支持共享池状态联动。
 - 原生 ETH 不支持；ETH↔WETH 包装由调用方处理。stETH↔wstETH 是独立的、已支持的协议转换。
 - Curve 适配器同时支持 stableswap（`get_dy(int128,…)`）与 crypto（`get_dy(uint256,…)`）；
   **发现**默认覆盖主 stableswap + crypto 注册表（`curve_registry_ids: [0, 5]`）；
@@ -588,6 +609,10 @@ cd ui && npm install && npm run build   # 前端构建
 
 ## 相关文档
 
+- [docs/WHITEPAPER.md](docs/WHITEPAPER.md)：Web3 Agent Capability Infrastructure 白皮书。
+- [docs/capabilities/](docs/capabilities/README.md)：capability 索引与 provider 矩阵。
+- [docs/capabilities/swap/README.md](docs/capabilities/swap/README.md)：`swap.quote` 契约、CLI/MCP 用法和错误码。
+- [skills/swap/SKILL.md](skills/swap/SKILL.md)：给 Agent 的 `swap.quote` 使用说明。
 - [docs/MULTI-POOL.md](docs/MULTI-POOL.md)：多池分配、固定区块 HTTP、Viewer 与对手回放的保证边界。
 - [docs/SPLIT-ROUTING.md](docs/SPLIT-ROUTING.md)：两池实验算法、预算、缓存和固定区块保证。
 - [docs/QUOTE-QUALITY.md](docs/QUOTE-QUALITY.md)：本轮转换、ShibaSwap、候选分组的设计与验证。

@@ -4,6 +4,10 @@ Use this capability when an agent needs an **exact-in swap quote** on Ethereum b
 whether to build or execute a transaction. It is read-only: it returns amounts, routes and state
 provenance, and never signs, approves, or broadcasts.
 
+Human-facing capability documentation is in
+[docs/capabilities/swap/README.md](../../docs/capabilities/swap/README.md); the JSON contract is
+[schemas/swap_quote.v1.json](../../schemas/swap_quote.v1.json).
+
 ## Capability
 
 ```text
