@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/swap_quote.v1.json",
+  "title": "Fluxion swap.quote v1",
+  "oneOf": [
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "amount": {
+      "type": "object",
+      "required": ["raw", "decimal"],
+      "additionalProperties": false,
+      "properties": {
+        "raw": { "type": "string", "pattern": "^[0-9]+$" },
+        "decimal": { "type": "string" }
+      }
+    },
+    "token": {
+      "type": "object",
+      "required": ["address", "decimals"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "type": "string" },
+        "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 38 }
+      }
+    },
+    "hop": {
+      "type": "object",
+      "required": [
+        "operation", "platform", "pool", "i", "j",
+        "token_in", "token_out", "amount_in", "amount_out"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "operation": { "type": "string" },
+        "platform": { "type": "string" },
+        "pool": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "i": { "type": "integer", "minimum": 0 },
+        "j": { "type": "integer", "minimum": 0 },
+        "token_in": { "type": "string" },
+        "token_out": { "type": "string" },
+        "amount_in": { "$ref": "#/$defs/amount" },
+        "amount_out": { "$ref": "#/$defs/amount" }
+      }
+    },
+    "allocation": {
+      "type": "object",
+      "required": ["amount_in", "amount_out", "hops"],
+      "additionalProperties": false,
+      "properties": {
+        "amount_in": { "$ref": "#/$defs/amount" },
+        "amount_out": { "$ref": "#/$defs/amount" },
+        "hops": { "type": "array", "items": { "$ref": "#/$defs/hop" } }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["provider", "pricing_mode"],
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "type": "string" },
+        "pricing_mode": { "type": "string" },
+        "quote_block": { "type": "integer", "minimum": 0 },
+        "block_hash": { "type": "string" },
+        "state_age_secs": { "type": "integer", "minimum": 0 },
+        "lag_blocks": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "success": {
+      "type": "object",
+      "required": [
+        "schema_version", "capability", "request_id", "chain",
+        "token_in", "token_out", "amount_in", "amount_out",
+        "plan_kind", "allocations", "provenance", "latency_ms"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": 1 },
+        "capability": { "const": "swap.quote" },
+        "request_id": { "type": "string" },
+        "chain": { "type": "string" },
+        "token_in": { "$ref": "#/$defs/token" },
+        "token_out": { "$ref": "#/$defs/token" },
+        "amount_in": { "$ref": "#/$defs/amount" },
+        "amount_out": { "$ref": "#/$defs/amount" },
+        "plan_kind": { "type": "string", "enum": ["baseline", "direct", "split"] },
+        "price_impact_bps": { "type": ["integer", "null"] },
+        "allocations": { "type": "array", "items": { "$ref": "#/$defs/allocation" } },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "latency_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["schema_version", "capability", "request_id", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": 1 },
+        "capability": { "const": "swap.quote" },
+        "request_id": { "type": "string" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message", "retryable"],
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "INVALID_ARGUMENT", "NO_PATH", "INSUFFICIENT_LIQUIDITY",
+                "AMOUNT_OUT_BELOW_MIN", "RPC_ERROR", "STALE_STATE",
+                "STATE_INCOMPLETE", "UNSUPPORTED", "TIMEOUT", "INTERNAL"
+              ]
+            },
+            "message": { "type": "string" },
+            "retryable": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}
