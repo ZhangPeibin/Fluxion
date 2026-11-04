@@ -1,5 +1,6 @@
 pub mod adapters;
 pub mod api;
+pub mod capability;
 pub mod config;
 pub mod conversion;
 pub mod curve_local;
@@ -16,6 +17,7 @@ pub mod rpc;
 pub mod source;
 pub mod split;
 pub mod state;
+pub mod swap;
 pub mod tricrypto2_local;
 pub mod universe;
 pub mod util;
