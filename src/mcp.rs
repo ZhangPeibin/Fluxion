@@ -7,7 +7,7 @@
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-use crate::capability::CapabilityError;
+use crate::capability::{CapabilityError, CapabilityErrorCode};
 use crate::client::{LocalClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
@@ -107,6 +107,7 @@ fn tools_list() -> Value {
                     "amount": {"type": "string", "description": "Human amount, e.g. 100 or 0.5"},
                     "decimals_in": {"type": "integer", "minimum": 0, "maximum": 38},
                     "decimals_out": {"type": "integer", "minimum": 0, "maximum": 38},
+                    "provider": {"type": "string", "enum": ["local", "remote"], "default": "local"},
                     "split": {"type": "boolean", "default": true},
                     "max_hops": {"type": "integer", "minimum": 1},
                     "split_max_branches": {"type": "integer", "minimum": 2, "maximum": 8}
@@ -135,6 +136,23 @@ async fn call_tool(params: Value, client: &LocalClient) -> Value {
 }
 
 async fn quote_tool(arguments: &Value, client: &LocalClient) -> Result<Value, CapabilityError> {
+    let provider = arguments
+        .get("provider")
+        .and_then(Value::as_str)
+        .unwrap_or("local")
+        .to_ascii_lowercase();
+    if matches!(provider.as_str(), "remote" | "remote-mcp") {
+        return Err(CapabilityError::new(
+            CapabilityErrorCode::Unsupported,
+            "remote-mcp provider is not implemented yet",
+            false,
+        ));
+    }
+    if !matches!(provider.as_str(), "local" | "local-cli" | "local-mcp") {
+        return Err(CapabilityError::invalid_argument(format!(
+            "unknown provider: {provider}"
+        )));
+    }
     let token_in = string_arg(arguments, "token_in")?;
     let token_out = string_arg(arguments, "token_out")?;
     let amount = string_arg(arguments, "amount")?;
@@ -230,6 +248,21 @@ mod tests {
             &LocalClient::new("http://127.0.0.1:1"),
         ));
         assert_eq!(result["isError"], true);
+    }
+
+    #[test]
+    fn remote_provider_is_unsupported() {
+        let error = futures::executor::block_on(quote_tool(
+            &json!({
+                "token_in": "LDO",
+                "token_out": "ETH",
+                "amount": "100",
+                "provider": "remote"
+            }),
+            &LocalClient::new("http://127.0.0.1:1"),
+        ))
+        .unwrap_err();
+        assert_eq!(error.code, CapabilityErrorCode::Unsupported);
     }
 
     #[test]

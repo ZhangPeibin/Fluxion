@@ -37,6 +37,27 @@ impl LocalClient {
         &self.base_url
     }
 
+    pub async fn ready(&self) -> bool {
+        self.http
+            .get(format!("{}/ready", self.base_url))
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await
+            .map(|response| response.status().is_success())
+            .unwrap_or(false)
+    }
+
+    pub async fn state(&self) -> Option<serde_json::Value> {
+        let response = self
+            .http
+            .get(format!("{}/state", self.base_url))
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await
+            .ok()?;
+        response.json().await.ok()
+    }
+
     pub async fn swap_quote(
         &self,
         request: &QuoteRequest,

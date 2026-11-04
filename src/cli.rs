@@ -1,6 +1,10 @@
 //! Agent-facing CLI. Commands are thin clients over a warm local runtime.
 
 use std::env;
+use std::fs::{self, OpenOptions};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::time::Duration;
 
 use crate::capability::{CapabilityError, CapabilityErrorCode};
 use crate::client::{LocalClient, request_id};
@@ -21,16 +25,36 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
             print_help();
             (args, Some(0))
         }
+        "capability" => {
+            let code = run_capability(&args[1..]).await;
+            (args, Some(code))
+        }
         "tokens" => {
             print_tokens();
             (args, Some(0))
+        }
+        "start" | "up" => {
+            let code = run_up(&args[1..]).await;
+            (args, Some(code))
+        }
+        "stop" | "down" => {
+            let code = run_down();
+            (args, Some(code))
+        }
+        "status" => {
+            let code = run_status(&args[1..]).await;
+            (args, Some(code))
         }
         "mcp" => {
             let code = run_mcp(&args[1..]).await;
             (args, Some(code))
         }
-        "swap" if args.get(1).map(String::as_str) == Some("quote") => {
-            let code = run_quote(&args[2..]).await;
+        "swap" => {
+            let code = match args.get(1).map(String::as_str) {
+                Some("quote") => run_quote(&args[2..]).await,
+                Some(value) if !value.starts_with('-') => run_alias(&args[1..]).await,
+                _ => run_quote(&args[1..]).await,
+            };
             (args, Some(code))
         }
         other if !other.starts_with('-') && other.contains('-') => {
@@ -53,15 +77,23 @@ fn print_help() {
     println!(
         "Fluxion — Web3 agent capabilities\n\n\
 Usage:\n  \
-fluxion serve [--config PATH]           Run the warm local runtime\n  \
-fluxion mcp [--url URL]                 Expose the runtime over MCP stdio\n  \
+fluxion start                           Start the warm runtime in the background\n  \
+fluxion stop                            Stop the background runtime\n  \
+fluxion status                          Show runtime readiness and state\n  \
+fluxion swap ldo-eth 100                Shorthand quote (auto-starts runtime)\n  \
+fluxion ldo-eth 100                     Top-level shorthand alias\n  \
+fluxion capability list                  List capabilities\n  \
+fluxion capability describe NAME        Show capability and provider matrix\n  \
 fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
-fluxion <token-in>-<token-out> [amount] [options]\n  \
+fluxion mcp [--url URL]                 Expose the runtime over MCP stdio\n  \
+fluxion serve [--config PATH]           Run the warm runtime in the foreground\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
 Quote options:\n  \
 --json                    Print the swap.quote JSON response\n  \
 --url URL                 Runtime URL (default {DEFAULT_URL}, env FLUXION_URL)\n  \
+--provider local|remote    Provider selection (default local)\n  \
+--no-auto-start           Fail instead of starting a local runtime\n  \
 --no-split                Disable split allocation\n  \
 --max-hops N              Maximum hops\n  \
 --split-max-branches N    Maximum split branches\n  \
@@ -80,6 +112,24 @@ fn print_tokens() {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProviderChoice {
+    Local,
+    Remote,
+}
+
+impl ProviderChoice {
+    fn parse(value: &str) -> Result<Self, CapabilityError> {
+        match value.to_ascii_lowercase().as_str() {
+            "local" | "local-cli" | "local-mcp" => Ok(Self::Local),
+            "remote" | "remote-mcp" => Ok(Self::Remote),
+            other => Err(CapabilityError::invalid_argument(format!(
+                "unknown provider: {other}; use local or remote"
+            ))),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct QuoteArgs {
     token_in: String,
@@ -92,6 +142,8 @@ struct QuoteArgs {
     split_max_branches: Option<usize>,
     decimals_in: Option<u8>,
     decimals_out: Option<u8>,
+    auto_start: bool,
+    provider: ProviderChoice,
 }
 
 fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
@@ -105,11 +157,17 @@ fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
     let mut split_max_branches = None;
     let mut decimals_in = None;
     let mut decimals_out = None;
+    let mut auto_start = true;
+    let mut provider = ProviderChoice::Local;
     let mut index = 0;
     while index < raw.len() {
         let arg = raw[index].as_str();
         match arg {
             "--json" => json = true,
+            "--no-auto-start" => auto_start = false,
+            "--provider" => {
+                provider = ProviderChoice::parse(&value(raw, &mut index, "--provider")?)?
+            }
             "--no-split" => split = false,
             "--split" => split = true,
             "--in" => token_in = Some(value(raw, &mut index, "--in")?),
@@ -163,6 +221,8 @@ fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
         split_max_branches,
         decimals_in,
         decimals_out,
+        auto_start,
+        provider,
     })
 }
 
@@ -222,6 +282,15 @@ async fn run_quote(raw: &[String]) -> i32 {
             return exit_code(error.code);
         }
     };
+    if args.provider == ProviderChoice::Remote {
+        let error = CapabilityError::new(
+            CapabilityErrorCode::Unsupported,
+            "remote-mcp provider is not implemented yet",
+            false,
+        );
+        report_error(&error, args.json);
+        return exit_code(error.code);
+    }
     let token_in = match token::resolve(&args.token_in, args.decimals_in) {
         Ok(token) => token,
         Err(error) => {
@@ -252,7 +321,11 @@ async fn run_quote(raw: &[String]) -> i32 {
         split: args.split,
         split_max_branches: args.split_max_branches,
     };
-    let client = LocalClient::new(args.url);
+    let client = LocalClient::new(args.url.clone());
+    if let Err(error) = ensure_runtime(&client, args.auto_start).await {
+        report_error(&error, args.json);
+        return exit_code(error.code);
+    }
     match client
         .swap_quote(&request, token_in, token_out, "ethereum", "local-cli")
         .await
@@ -329,11 +402,338 @@ fn exit_code(code: CapabilityErrorCode) -> i32 {
     }
 }
 
-async fn run_mcp(raw: &[String]) -> i32 {
+async fn run_capability(raw: &[String]) -> i32 {
+    match raw.first().map(String::as_str) {
+        Some("list") => {
+            let json = raw.iter().any(|arg| arg == "--json");
+            if json {
+                let value = serde_json::json!({
+                    "schema_version": crate::capability::SCHEMA_VERSION,
+                    "capabilities": crate::capability::names().collect::<Vec<_>>(),
+                });
+                println!("{}", serde_json::to_string_pretty(&value).unwrap());
+            } else {
+                for name in crate::capability::names() {
+                    println!("{name}");
+                }
+            }
+            0
+        }
+        Some("describe") => {
+            let Some(name) = raw.get(1).filter(|value| !value.starts_with('-')) else {
+                eprintln!("usage: fluxion capability describe NAME [--json]");
+                return 2;
+            };
+            let json = raw.iter().any(|arg| arg == "--json");
+            let descriptor = match name.as_str() {
+                "swap.quote" => crate::swap::describe(),
+                other => {
+                    let error = CapabilityError::new(
+                        CapabilityErrorCode::Unsupported,
+                        format!("unknown capability: {other}"),
+                        false,
+                    );
+                    report_error(&error, json);
+                    return exit_code(error.code);
+                }
+            };
+            if json {
+                println!("{}", serde_json::to_string_pretty(&descriptor).unwrap());
+            } else {
+                println!(
+                    "{} (schema v{})",
+                    descriptor.name, descriptor.schema_version
+                );
+                for provider in &descriptor.providers {
+                    if provider.available {
+                        println!(
+                            "  {:<12} {:<7} {:<10} available",
+                            provider.id.as_str(),
+                            provider.location,
+                            provider.transport
+                        );
+                    } else {
+                        println!(
+                            "  {:<12} {:<7} {:<10} unavailable: {}",
+                            provider.id.as_str(),
+                            provider.location,
+                            provider.transport,
+                            provider.unavailable_reason.unwrap_or("not available")
+                        );
+                    }
+                }
+            }
+            0
+        }
+        Some("--help") | Some("-h") | None => {
+            print_help();
+            0
+        }
+        Some(other) => {
+            eprintln!("unknown capability command: {other}");
+            2
+        }
+    }
+}
+
+async fn run_up(raw: &[String]) -> i32 {
+    let mut url = env::var("FLUXION_URL").unwrap_or_else(|_| DEFAULT_URL.to_string());
+    let mut config = runtime_config();
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--config" => {
+                index += 1;
+                let Some(value) = raw.get(index) else {
+                    eprintln!("--config needs a value");
+                    return 2;
+                };
+                config = value.clone();
+            }
+            "--url" => {
+                index += 1;
+                let Some(value) = raw.get(index) else {
+                    eprintln!("--url needs a value");
+                    return 2;
+                };
+                url = value.clone();
+            }
+            "--help" | "-h" => {
+                print_help();
+                return 0;
+            }
+            other => {
+                eprintln!("unknown up option: {other}");
+                return 2;
+            }
+        }
+        index += 1;
+    }
+    let client = LocalClient::new(url);
+    if client.ready().await {
+        println!("runtime already ready at {}", client.base_url());
+        return 0;
+    }
+    if let Err(error) = spawn_runtime(&config) {
+        report_error(&error, false);
+        return exit_code(error.code);
+    }
+    match wait_ready(&client).await {
+        Ok(()) => {
+            println!("runtime ready at {}", client.base_url());
+            0
+        }
+        Err(error) => {
+            report_error(&error, false);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn run_down() -> i32 {
+    let pid_path = pid_file();
+    let Ok(text) = fs::read_to_string(&pid_path) else {
+        println!("runtime is not running");
+        return 0;
+    };
+    let pid = text.trim();
+    if pid.is_empty() {
+        println!("runtime is not running");
+        return 0;
+    }
+    let status = Command::new("kill").arg(pid).status();
+    let _ = fs::remove_file(&pid_path);
+    match status {
+        Ok(status) if status.success() => {
+            println!("stopped runtime pid {pid}");
+            0
+        }
+        _ => {
+            println!("runtime pid {pid} was not running");
+            0
+        }
+    }
+}
+
+async fn run_status(raw: &[String]) -> i32 {
     let mut url = env::var("FLUXION_URL").unwrap_or_else(|_| DEFAULT_URL.to_string());
     let mut index = 0;
     while index < raw.len() {
         match raw[index].as_str() {
+            "--url" => {
+                index += 1;
+                let Some(value) = raw.get(index) else {
+                    eprintln!("--url needs a value");
+                    return 2;
+                };
+                url = value.clone();
+            }
+            "--help" | "-h" => {
+                print_help();
+                return 0;
+            }
+            other => {
+                eprintln!("unknown status option: {other}");
+                return 2;
+            }
+        }
+        index += 1;
+    }
+    let client = LocalClient::new(url);
+    if !client.ready().await {
+        eprintln!("runtime not ready at {}", client.base_url());
+        return 5;
+    }
+    match client.state().await {
+        Some(state) => {
+            println!("{}", serde_json::to_string_pretty(&state).unwrap());
+            0
+        }
+        None => {
+            eprintln!("runtime ready but /state is unavailable");
+            1
+        }
+    }
+}
+
+fn runtime_dir() -> PathBuf {
+    let base = env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(env::temp_dir);
+    base.join(".fluxion")
+}
+
+fn pid_file() -> PathBuf {
+    runtime_dir().join("runtime.pid")
+}
+
+fn log_file() -> PathBuf {
+    runtime_dir().join("runtime.log")
+}
+
+fn runtime_config() -> String {
+    if let Ok(path) = env::var("FLUXION_CONFIG") {
+        return path;
+    }
+    for path in ["config.runtime.yaml", "config.yaml", "config.example.yaml"] {
+        if std::path::Path::new(path).exists() {
+            return path.to_string();
+        }
+    }
+    let dir = runtime_dir();
+    let path = dir.join("config.yaml");
+    if !path.exists() {
+        let _ = fs::create_dir_all(&dir);
+        let _ = fs::write(&path, include_str!("../config.runtime.yaml"));
+    }
+    path.display().to_string()
+}
+
+fn is_local_url(url: &str) -> bool {
+    let url = url.to_ascii_lowercase();
+    url.starts_with("http://127.0.0.1")
+        || url.starts_with("http://localhost")
+        || url.starts_with("http://[::1]")
+}
+
+fn spawn_runtime(config: &str) -> Result<(), CapabilityError> {
+    if !std::path::Path::new(config).exists() {
+        return Err(CapabilityError::invalid_argument(format!(
+            "runtime config not found: {config}; run `fluxion start --config PATH`"
+        )));
+    }
+    let parsed = crate::config::Config::load(config).map_err(|error| {
+        CapabilityError::invalid_argument(format!("invalid config {config}: {error}"))
+    })?;
+    let needs_graph_key = parsed.enabled_platforms.is_empty()
+        || parsed
+            .enabled_platforms
+            .iter()
+            .any(|platform| platform == "uniswap-v2" || platform == "uniswap-v3");
+    let has_graph_key = env::var("GRAPH_API_KEY")
+        .ok()
+        .is_some_and(|key| !key.trim().is_empty());
+    if needs_graph_key && !has_graph_key {
+        return Err(CapabilityError::invalid_argument(
+            "GRAPH_API_KEY is required before `fluxion start`; export it or put it in .env",
+        ));
+    }
+    let dir = runtime_dir();
+    fs::create_dir_all(&dir)
+        .map_err(|error| CapabilityError::internal(format!("cannot create {dir:?}: {error}")))?;
+    let log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_file())
+        .map_err(|error| CapabilityError::internal(format!("cannot open runtime log: {error}")))?;
+    let stderr = log
+        .try_clone()
+        .map_err(|error| CapabilityError::internal(format!("cannot clone log handle: {error}")))?;
+    let exe = env::current_exe().map_err(|error| {
+        CapabilityError::internal(format!("cannot locate fluxion binary: {error}"))
+    })?;
+    let child = Command::new(exe)
+        .args(["serve", "--config", config])
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(stderr))
+        .spawn()
+        .map_err(|error| CapabilityError::internal(format!("cannot start runtime: {error}")))?;
+    let _ = fs::write(pid_file(), child.id().to_string());
+    eprintln!(
+        "warming Fluxion runtime (pid {}, log {})",
+        child.id(),
+        log_file().display()
+    );
+    Ok(())
+}
+
+async fn wait_ready(client: &LocalClient) -> Result<(), CapabilityError> {
+    for _ in 0..360 {
+        if client.ready().await {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    Err(CapabilityError::new(
+        CapabilityErrorCode::Timeout,
+        "runtime did not become ready within 180s; check ~/.fluxion/runtime.log",
+        true,
+    ))
+}
+
+async fn ensure_runtime(client: &LocalClient, auto_start: bool) -> Result<(), CapabilityError> {
+    if client.ready().await {
+        return Ok(());
+    }
+    if !auto_start {
+        return Err(CapabilityError::new(
+            CapabilityErrorCode::RpcError,
+            format!("runtime not ready at {}", client.base_url()),
+            true,
+        ));
+    }
+    if !is_local_url(client.base_url()) {
+        return Err(CapabilityError::new(
+            CapabilityErrorCode::RpcError,
+            format!(
+                "remote runtime not reachable at {}; start it or pass --no-auto-start",
+                client.base_url()
+            ),
+            true,
+        ));
+    }
+    spawn_runtime(&runtime_config())?;
+    wait_ready(client).await
+}
+
+async fn run_mcp(raw: &[String]) -> i32 {
+    let mut url = env::var("FLUXION_URL").unwrap_or_else(|_| DEFAULT_URL.to_string());
+    let mut auto_start = true;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--no-auto-start" => auto_start = false,
             "--url" => {
                 index += 1;
                 let Some(value) = raw.get(index) else {
@@ -353,7 +753,12 @@ async fn run_mcp(raw: &[String]) -> i32 {
         }
         index += 1;
     }
-    crate::mcp::run_stdio(LocalClient::new(url)).await
+    let client = LocalClient::new(url);
+    if let Err(error) = ensure_runtime(&client, auto_start).await {
+        report_error(&error, false);
+        return exit_code(error.code);
+    }
+    crate::mcp::run_stdio(client).await
 }
 
 #[cfg(test)]
@@ -373,6 +778,23 @@ mod tests {
     }
 
     #[test]
+    fn parses_provider_selection() {
+        assert_eq!(
+            ProviderChoice::parse("local").unwrap(),
+            ProviderChoice::Local
+        );
+        assert_eq!(
+            ProviderChoice::parse("remote").unwrap(),
+            ProviderChoice::Remote
+        );
+        assert_eq!(
+            ProviderChoice::parse("local-mcp").unwrap(),
+            ProviderChoice::Local
+        );
+        assert!(ProviderChoice::parse("bogus").is_err());
+    }
+
+    #[test]
     fn parses_quote_arguments() {
         let args = [
             "--in".to_string(),
@@ -383,11 +805,14 @@ mod tests {
             "100".to_string(),
             "--json".to_string(),
             "--no-split".to_string(),
+            "--provider".to_string(),
+            "remote".to_string(),
         ];
         let parsed = parse_quote_args(&args).unwrap();
         assert_eq!(parsed.token_in, "LDO");
         assert_eq!(parsed.amount, "100");
         assert!(parsed.json);
         assert!(!parsed.split);
+        assert_eq!(parsed.provider, ProviderChoice::Remote);
     }
 }

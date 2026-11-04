@@ -1,0 +1,34 @@
+# Warm local runtime for CLI and MCP clients.
+# Start with: cargo run --release -- serve --config config.cli.example.yaml
+# Wait until /ready returns 200 (first full snapshot takes a while), then:
+#   cargo run --release -- ldo-eth 100
+#   cargo run --release -- swap quote --in LDO --out ETH --amount 100 --json
+host: 127.0.0.1
+port: 8080
+enabled_platforms: [uniswap-v2, uniswap-v3, curve, shibaswap-v2]
+max_pools: 10000
+min_liquidity: 50000
+max_hops: 3
+top_k: 8
+reserve_ratio_k: 0
+request_timeout_ms: 10000
+token_allowlist: []
+excluded_pools:
+  # Legacy Tricrypto only; Tricrypto2 with identical coins remains enabled.
+  - "0x80466c64868e1ab14a1ddf27a676c3fcbe638fe5"
+pricing_mode: local_snapshot
+# Refresh the discovered universe periodically while serving.
+universe_refresh_secs: 300
+local_state:
+  sync_timeout_ms: 120000
+  batch_size: 400
+  max_age_secs: 60
+  max_lag_blocks: 3
+  v3_bitmap_radius: 16
+  v3_full_range: true
+  v3_max_loaded_ticks: 250000
+  sync_mode: incremental
+  poll_interval_ms: 1000
+  full_reload_interval_secs: 900
+  max_incremental_gap_blocks: 64
+  v3_log_chunk_blocks: 5000

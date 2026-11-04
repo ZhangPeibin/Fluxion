@@ -14,23 +14,41 @@ Ethereum 主网多跳路由询价（RFQ）HTTP 服务。给定 `token_in` / `tok
 
 ## CLI / MCP
 
-CLI 和 MCP 都是**暖 runtime 的薄客户端**。先启动一次运行时，之后每次 quote 复用热状态：
+安装后先启动一次暖 runtime，之后所有 quote 复用热状态：
 
 ```bash
-# 终端 1：常驻本地运行时（冷启动一次）
-cargo run -- serve --config config.yaml
+cargo install --path .      # 或使用已安装的 fluxion
+fluxion start               # 后台启动，首次约 1 分钟
 
-# 终端 2：CLI 调用
-fluxion ldo-eth 100
-fluxion swap quote --in LDO --out ETH --amount 100 --json
+fluxion swap ldo-eth 100
+fluxion swap ldo-eth 100 --json
+fluxion ldo-eth 100         # 顶层简写
 
-# 给本机 Agent 的 MCP stdio server
-fluxion mcp --url http://127.0.0.1:8080
+fluxion status              # readiness / lag
+fluxion stop                # 停止后台 runtime
+fluxion mcp                 # 本机 Agent 的 MCP stdio server
+
+fluxion capability list
+fluxion capability describe swap.quote --json
 ```
 
-默认运行时地址是 `http://127.0.0.1:8080`，可通过 `--url` 或 `FLUXION_URL` 覆盖。MCP 暴露
-`swap_quote` tool；CLI/MCP 输出都带 `schema_version`、`provider`、`quote_block`、
-`state_age_secs` 和 `lag_blocks`。未启动 runtime 时返回结构化 `RPC_ERROR`，不会静默退回冷启动。
+`fluxion swap <pair> [amount]` 和 `fluxion <pair> [amount]` 是同一路径的人类简写；
+机器接口使用：
+
+```bash
+fluxion swap quote --in LDO --out ETH --amount 100 --json
+```
+
+默认配置 `config.runtime.yaml`（local snapshot + incremental），默认地址
+`http://127.0.0.1:8080`。如果当前目录没有配置，首次 `start` 会把内置默认配置写到
+`~/.fluxion/config.yaml`。安装后需要先提供 `GRAPH_API_KEY`（环境变量或当前目录的 `.env`），
+否则 `start` 会立即失败而不是等待 180 秒；日志在 `~/.fluxion/runtime.log`。
+CLI 在 runtime 未启动时也会自动拉起；`--no-auto-start` 可禁用。
+
+单次 warm quote 约 5–30ms。`swap.quote` 当前只实现 local provider：
+`--provider local` 可用，`--provider remote` 返回 `UNSUPPORTED`，不会自动 fallback。
+MCP 暴露 `swap_quote` tool；CLI/MCP 输出都带 `schema_version`、`provider`、`quote_block`、
+`state_age_secs` 和 `lag_blocks`。
 
 ## 接入规模
 
