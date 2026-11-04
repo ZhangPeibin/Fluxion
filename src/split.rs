@@ -50,7 +50,7 @@ impl SplitConfig {
     pub fn multi_pool() -> Self {
         Self {
             max_branches: 4,
-            max_quote_calls: 256,
+            max_quote_calls: 1024,
             ..Self::default()
         }
     }
@@ -94,6 +94,9 @@ pub struct SearchStats {
     pub stop_reason: StopReason,
     pub multi_pool_search: bool,
     pub multi_pool_completed: bool,
+    pub multi_route_search: bool,
+    pub multi_route_completed: bool,
+    pub route_branches: usize,
     pub allocation_plans_evaluated: usize,
 }
 
@@ -179,6 +182,83 @@ struct DirectPool {
     pool: Pool,
     i: usize,
     j: usize,
+}
+
+#[derive(Clone)]
+struct RouteBranch {
+    hops: Vec<(Pool, usize, usize)>,
+}
+
+/// Greedy disjoint set of exact-quoted routes. Independent quotes may only be
+/// added when the routes do not share a pool; otherwise summing them would
+/// double-count the same reserves.
+fn select_disjoint_routes(routes: Vec<Route>, limit: usize) -> Vec<RouteBranch> {
+    let mut selected = Vec::new();
+    let mut used = HashSet::new();
+    for route in routes {
+        if route.hops.is_empty() {
+            continue;
+        }
+        let pools = route
+            .hops
+            .iter()
+            .map(|hop| hop.pool.address)
+            .collect::<HashSet<_>>();
+        if !pools.is_disjoint(&used) {
+            continue;
+        }
+        used.extend(pools.iter().copied());
+        selected.push(RouteBranch {
+            hops: route
+                .hops
+                .into_iter()
+                .map(|hop| (hop.pool, hop.i, hop.j))
+                .collect(),
+        });
+        if selected.len() >= limit {
+            break;
+        }
+    }
+    selected
+}
+
+async fn route_out(
+    branch: &RouteBranch,
+    amount: U256,
+    source: &ObservedSource<'_>,
+) -> Result<U256, QuoteError> {
+    let mut current = amount;
+    for (pool, i, j) in &branch.hops {
+        current = source.amount_out(pool, *i, *j, current).await?;
+    }
+    Ok(current)
+}
+
+async fn route_allocation(
+    branch: &RouteBranch,
+    amount_in: U256,
+    source: &ObservedSource<'_>,
+) -> Result<Allocation, QuoteError> {
+    let mut current = amount_in;
+    let mut hops = Vec::with_capacity(branch.hops.len());
+    for (pool, i, j) in &branch.hops {
+        let out = source.amount_out(pool, *i, *j, current).await?;
+        hops.push(Hop {
+            pool: pool.clone(),
+            i: *i,
+            j: *j,
+            token_in: pool.coins[*i],
+            token_out: pool.coins[*j],
+            amount_in: current,
+            amount_out: out,
+        });
+        current = out;
+    }
+    Ok(Allocation {
+        amount_in,
+        amount_out: current,
+        hops,
+    })
 }
 
 struct Pair {
@@ -305,6 +385,47 @@ async fn fill_quotes(
     } else {
         StopReason::Completed
     }
+}
+
+async fn fill_route_quotes(
+    branches: &[RouteBranch],
+    source: &ObservedSource<'_>,
+    jobs: Vec<(usize, U256)>,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+) -> (HashMap<(usize, U256), Result<U256, QuoteError>>, StopReason) {
+    let results = Mutex::new(HashMap::new());
+    if tokio::time::Instant::now() >= deadline {
+        return (results.into_inner().unwrap(), StopReason::TimeBudget);
+    }
+    let remaining = config
+        .max_quote_calls
+        .saturating_sub(source.calls.load(Ordering::Relaxed) - baseline_calls);
+    let truncated = jobs.len() > remaining;
+    let mut pending = stream::iter(jobs.into_iter().take(remaining))
+        .map(|(idx, amount): (usize, U256)| {
+            let results = &results;
+            async move {
+                let out = route_out(&branches[idx], amount, source).await;
+                results.lock().unwrap().insert((idx, amount), out);
+            }
+        })
+        .buffer_unordered(config.concurrency);
+    let stop = loop {
+        match tokio::time::timeout_at(deadline, pending.next()).await {
+            Ok(Some(())) => {}
+            Ok(None) => break None,
+            Err(_) => break Some(StopReason::TimeBudget),
+        }
+    };
+    let stop = stop.unwrap_or(if truncated {
+        StopReason::QuoteBudget
+    } else {
+        StopReason::Completed
+    });
+    drop(pending);
+    (results.into_inner().unwrap(), stop)
 }
 
 #[derive(Clone)]
@@ -496,6 +617,149 @@ async fn multi_pool(
     }
 }
 
+async fn multi_route(
+    branches: &[RouteBranch],
+    source: &ObservedSource<'_>,
+    amount: U256,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+    result: &mut SplitResult,
+) -> StopReason {
+    let segments = config.allocation_segments;
+    let mut jobs = Vec::new();
+    let mut keys = HashSet::new();
+    for (idx, _) in branches.iter().enumerate() {
+        for k in 1..=segments {
+            let input = fraction(amount, k, segments);
+            if !input.is_zero() && keys.insert((idx, input)) {
+                jobs.push((idx, input));
+            }
+        }
+    }
+    let (mut results, table_stop) =
+        fill_route_quotes(branches, source, jobs, config, baseline_calls, deadline).await;
+    let tables = branches
+        .iter()
+        .enumerate()
+        .map(|(idx, _)| {
+            (0..=segments)
+                .map(|k| {
+                    if k == 0 {
+                        Some(U256::ZERO)
+                    } else {
+                        results
+                            .get(&(idx, fraction(amount, k, segments)))
+                            .and_then(|result| result.as_ref().ok().copied())
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let allocations = match allocation_dp(
+        &tables,
+        segments,
+        config.max_branches.min(branches.len()),
+        deadline,
+    ) {
+        Ok(plans) => plans,
+        Err(stop) => return stop,
+    };
+    let mut plans = HashSet::new();
+    for units in allocations {
+        let inputs = units
+            .into_iter()
+            .map(|k| fraction(amount, k, segments))
+            .collect::<Vec<_>>();
+        let Some(sum) = inputs
+            .iter()
+            .try_fold(U256::ZERO, |sum, x| sum.checked_add(*x))
+        else {
+            continue;
+        };
+        let Some(remainder) = amount.checked_sub(sum) else {
+            continue;
+        };
+        if remainder.is_zero() {
+            plans.insert(inputs);
+            continue;
+        }
+        for idx in 0..inputs.len() {
+            if inputs[idx].is_zero() && inputs.iter().any(|x| !x.is_zero()) {
+                continue;
+            }
+            let mut adjusted = inputs.clone();
+            adjusted[idx] += remainder;
+            plans.insert(adjusted);
+        }
+    }
+    let mut plans = plans.into_iter().collect::<Vec<_>>();
+    plans.sort();
+    let mut jobs = Vec::new();
+    let mut keys = HashSet::new();
+    for inputs in &plans {
+        for (idx, input) in inputs.iter().copied().enumerate() {
+            if input.is_zero() {
+                continue;
+            }
+            if !results.contains_key(&(idx, input)) && keys.insert((idx, input)) {
+                jobs.push((idx, input));
+            }
+        }
+    }
+    let (more, final_stop) =
+        fill_route_quotes(branches, source, jobs, config, baseline_calls, deadline).await;
+    results.extend(more);
+    for inputs in plans {
+        let mut allocations = Vec::new();
+        let mut total = Some(U256::ZERO);
+        let mut complete = true;
+        for (idx, input) in inputs.into_iter().enumerate() {
+            if input.is_zero() {
+                continue;
+            }
+            let out = match results.get(&(idx, input)) {
+                Some(Ok(out)) => *out,
+                _ => {
+                    complete = false;
+                    break;
+                }
+            };
+            total = total.and_then(|sum| sum.checked_add(out));
+            match route_allocation(&branches[idx], input, source).await {
+                Ok(allocation) => allocations.push(allocation),
+                Err(_) => {
+                    complete = false;
+                    break;
+                }
+            }
+        }
+        if !complete {
+            continue;
+        }
+        result.stats.allocation_plans_evaluated += 1;
+        result.stats.evaluated_plans += 1;
+        let Some(out) = total else {
+            continue;
+        };
+        result.stats.valid_plans += 1;
+        if out > result.amount_out {
+            result.kind = if allocations.len() > 1 {
+                PlanKind::Split
+            } else {
+                PlanKind::Direct
+            };
+            result.amount_out = out;
+            result.allocations = allocations;
+        }
+    }
+    if final_stop != StopReason::Completed {
+        final_stop
+    } else {
+        table_stop
+    }
+}
+
 #[derive(Clone)]
 pub struct SplitOptimizer {
     config: SplitConfig,
@@ -579,6 +843,7 @@ impl SplitOptimizer {
         };
         let started = Instant::now();
         let baseline = router.route(graph, &source, request).await?;
+        let route_candidates = router.candidates(graph, &source, request).await?;
         let rpc_after_baseline = rpc_requests.map(|counter| counter());
         let baseline_calls = source.calls.load(Ordering::Relaxed);
         let baseline_completed = source.completed.load(Ordering::Relaxed);
@@ -737,6 +1002,32 @@ impl SplitOptimizer {
                 if truncated {
                     result.stats.stop_reason = StopReason::QuoteBudget;
                     break;
+                }
+            }
+        }
+        if self.config.max_branches > 2
+            && matches!(
+                result.stats.stop_reason,
+                StopReason::Completed | StopReason::NoPairs
+            )
+        {
+            let branches = select_disjoint_routes(route_candidates, self.config.max_branches);
+            if branches.len() >= 2 && branches.iter().any(|branch| branch.hops.len() > 1) {
+                result.stats.multi_route_search = true;
+                result.stats.route_branches = branches.len();
+                let stop = multi_route(
+                    &branches,
+                    &source,
+                    request.amount_in,
+                    &self.config,
+                    baseline_calls,
+                    deadline,
+                    &mut result,
+                )
+                .await;
+                result.stats.multi_route_completed = stop == StopReason::Completed;
+                if stop != StopReason::Completed {
+                    result.stats.stop_reason = stop;
                 }
             }
         }

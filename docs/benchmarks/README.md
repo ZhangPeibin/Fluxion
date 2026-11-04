@@ -1,6 +1,29 @@
 # Quote benchmarks
 
-## Latest: incremental local snapshot (#38–#40, 4 Nov 2026)
+## Latest: disjoint multi-route split for large inputs (4 Nov 2026)
+
+[90-row report](quote-freshness-2026-11-04-route-split.md) /
+[raw JSON](quote-freshness-2026-11-04-route-split.json).
+
+The allocator now also evaluates disjoint multi-hop routes as independent branches, not only
+direct pools. Routes are exact-quoted at sampled fractions, greedily filtered to share no pool,
+and allocated with the same sampled DP. This is a gross-output optimization; shared-pool
+allocations remain unsupported because their independent quotes would double-count reserves.
+
+| timing | previous incremental | multi-route split |
+|---|---:|---:|
+| snapshot lag blocks p50 / p95 / max | 0 / 1 / 1 | **0 / 1 / 1** |
+| snapshot lag seconds p50 / p95 / max | 0 / 12 / 12 | **0 / 12 / 12** |
+| Fluxion HTTP latency p50 / p95 | 40 / 101 ms | **49 / 133 ms** |
+| success | 90 / 90 | **90 / 90** |
+| ParaSwap mean delta / within ±50 bps | -10.5 bps / 86 | **-2.6 bps / 89** |
+| 1inch mean delta / within ±50 bps | -17.3 bps / 80 | **-8.7 bps / 82** |
+
+The remaining large outliers are coverage-limited rather than algorithm-limited: LDO and SHIB
+large orders still lack enough disjoint venues in the discovered 209-pool universe to match the
+aggregators' deeper inventory. Freshness is unchanged at 0/1/1 blocks.
+
+## Previous: incremental local snapshot (#38–#40, 4 Nov 2026)
 
 [90-row report](quote-freshness-2026-11-04-incremental.md) /
 [raw JSON](quote-freshness-2026-11-04-incremental.json).

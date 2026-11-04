@@ -161,29 +161,15 @@ impl Router {
         self.snapshot.read().unwrap().clone()
     }
 
-    pub async fn route(
+    /// Exact-quoted candidate routes, best output first. Callers that need
+    /// multi-route allocation can reuse this list instead of re-running the
+    /// coarse path search.
+    pub async fn candidates(
         &self,
         graph: &Graph,
         source: &(dyn QuoteSource + Send + Sync),
         request: &QuoteRequest,
-    ) -> Result<Route, QuoteError> {
-        if request.amount_in.is_zero() {
-            return Err(QuoteError::ZeroAmount);
-        }
-        if request.token_in == request.token_out {
-            if request
-                .amount_out_min
-                .is_some_and(|min| request.amount_in < min)
-            {
-                return Err(QuoteError::AmountOutBelowMin);
-            }
-            return Ok(Route {
-                hops: Vec::new(),
-                amount_out: request.amount_in,
-                price_impact_bps: 0,
-            });
-        }
-
+    ) -> Result<Vec<Route>, QuoteError> {
         let max_hops = request.max_hops.unwrap_or(self.config.max_hops).max(1);
 
         // Use the precomputed snapshot if installed; otherwise build one.
@@ -337,26 +323,52 @@ impl Router {
                 price_impact_bps: 0,
             })
         });
-        let mut best: Option<Route> = None;
+        let mut routes = Vec::new();
         let mut refined = refine.buffer_unordered(16);
         while let Some(result) = refined.next().await {
-            let Ok(route) = result else {
-                continue;
-            };
-            if best
-                .as_ref()
-                .is_none_or(|r| route.amount_out > r.amount_out)
-            {
-                best = Some(route);
+            if let Ok(route) = result {
+                routes.push(route);
             }
         }
+        routes.sort_by_key(|route| std::cmp::Reverse(route.amount_out));
         tracing::debug!(
             refine_ms = __t0.elapsed().as_millis() as u64,
             candidates = candidate_count,
+            routes = routes.len(),
             "refine done"
         );
+        Ok(routes)
+    }
 
-        let mut route = best.ok_or(QuoteError::NoPath)?;
+    pub async fn route(
+        &self,
+        graph: &Graph,
+        source: &(dyn QuoteSource + Send + Sync),
+        request: &QuoteRequest,
+    ) -> Result<Route, QuoteError> {
+        if request.amount_in.is_zero() {
+            return Err(QuoteError::ZeroAmount);
+        }
+        if request.token_in == request.token_out {
+            if request
+                .amount_out_min
+                .is_some_and(|min| request.amount_in < min)
+            {
+                return Err(QuoteError::AmountOutBelowMin);
+            }
+            return Ok(Route {
+                hops: Vec::new(),
+                amount_out: request.amount_in,
+                price_impact_bps: 0,
+            });
+        }
+
+        let mut route = self
+            .candidates(graph, source, request)
+            .await?
+            .into_iter()
+            .next()
+            .ok_or(QuoteError::NoPath)?;
         route.price_impact_bps = self.price_impact_bps(source, request, &route).await;
         if let Some(min) = request.amount_out_min
             && route.amount_out < min

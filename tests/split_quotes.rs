@@ -285,3 +285,45 @@ async fn baseline_errors_are_preserved() {
         .unwrap_err();
     assert_eq!(error, QuoteError::ZeroAmount);
 }
+
+#[tokio::test]
+async fn route_split_uses_disjoint_multi_hop_paths_for_large_inputs() {
+    let mut graph = Graph::new();
+    graph.add_pool(pool(10, 1, 2));
+    graph.add_pool(pool(11, 1, 3));
+    graph.add_pool(pool(12, 3, 2));
+    graph.add_pool(pool(13, 1, 4));
+    graph.add_pool(pool(14, 4, 2));
+    let big = [U256::from(1_000_000), U256::from(1_000_000)];
+    let tiny = [U256::from(1_000), U256::from(1_000)];
+    let source = MockV2::new(HashMap::from([
+        (addr(10), tiny),
+        (addr(11), big),
+        (addr(12), big),
+        (addr(13), big),
+        (addr(14), big),
+    ]));
+    let result = SplitOptimizer::new(SplitConfig::multi_pool())
+        .unwrap()
+        .quote(
+            &Router::default(),
+            &graph,
+            &source,
+            &request(U256::from(2_000_000)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.kind, PlanKind::Split);
+    assert!(result.amount_out > result.baseline.amount_out);
+    assert_eq!(result.allocations.len(), 2);
+    assert!(
+        result
+            .allocations
+            .iter()
+            .all(|allocation| allocation.hops.len() == 2)
+    );
+    assert_eq!(
+        result.allocations.iter().map(|a| a.amount_in).sum::<U256>(),
+        U256::from(2_000_000)
+    );
+}

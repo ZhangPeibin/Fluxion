@@ -268,7 +268,7 @@ mod tests {
     fn partial_service_split_settings_preserve_multi_pool_defaults() {
         let config: Config = serde_yaml::from_str("split:\n  timeout_ms: 1234\n").unwrap();
         assert_eq!(config.split.max_branches, 4);
-        assert_eq!(config.split.max_quote_calls, 256);
+        assert_eq!(config.split.max_quote_calls, 1024);
         assert_eq!(config.split.timeout_ms, 1234);
         assert!(serde_yaml::from_str::<Config>("split:\n  unknown_setting: 1\n").is_err());
     }

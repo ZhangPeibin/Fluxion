@@ -4,9 +4,10 @@
 
 The allocator extends the two-pool experiment with a sampled multi-pool allocation stage. It
 retains the full existing Router baseline and the best evaluated two-pool plan. Selected gross
-output only changes on strict improvement. The candidate set still uses independent direct
-Uniswap V2/V3 and ShibaSwap V2 pools; multi-hop and conversion routes remain available as the
-baseline. This is not arbitrary multi-hop branch optimization or gas-adjusted execution routing.
+output only changes on strict improvement. The candidate set uses independent direct
+Uniswap V2/V3 and ShibaSwap V2 pools plus disjoint multi-hop routes. Multi-hop and conversion
+routes also remain available as the baseline. This is not arbitrary shared-pool optimization or
+gas-adjusted execution routing.
 
 ## Discrete resource allocation
 
@@ -30,7 +31,21 @@ The additional stage shares quote memoization, call quota, concurrency and deadl
 two-pool stage. Budget exhaustion retains a complete known plan; `multi_pool_search` and
 `multi_pool_completed` distinguish whether this stage actually ran/finished. The standalone
 library/CLI defaults remain two-pool; `SplitConfig::multi_pool()` and service defaults allow four
-branches, twenty allocation segments, four candidate pools and 256 additional adapter calls.
+branches, twenty allocation segments, four candidate pools and 1024 additional adapter calls.
+
+## Disjoint multi-hop route allocation
+
+Large orders often need to split across paths that are not direct pools. The optimizer asks the
+Router for its exact-quoted candidate routes, sorts them by full-input output, and greedily keeps
+a set whose physical pools are pairwise disjoint. Each kept route becomes a branch; sampled
+fractions are executed hop by hop through the same request-local quote cache, then distributed by
+the existing DP. Shared-pool routes are excluded because adding independent quotes for the same
+reserves would double-count liquidity.
+
+This stage is reported as `multi_route_search` / `multi_route_completed`, with `route_branches`
+showing the selected branch count. It shares the call quota, concurrency and deadline with the
+direct-pool stages. With the local snapshot the default additional budget is 1024 quotes; the
+extra CPU cost stays small relative to external aggregators (measured p50/p95 49/133 ms).
 
 ## HTTP opt-in
 
