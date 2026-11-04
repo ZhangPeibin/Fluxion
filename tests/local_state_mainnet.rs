@@ -7,7 +7,7 @@ use std::{
 use alloy_primitives::{Address, U256};
 use fluxion::{
     graph::Graph,
-    local_state::{LocalStateConfig, SnapshotStore, StateSynchronizer},
+    local_state::{LocalStateConfig, SnapshotStore, StateSynchronizer, SyncMode},
     model::{Pool, PoolKind, QuoteRequest},
     router::RouterConfig,
     rpc::RpcClient,
@@ -163,5 +163,86 @@ async fn local_v2_snapshots_match_mainnet_routers_for_splits_and_multi_hop() {
         snapshot.block().hash,
         initialization.as_millis(),
         store.status().sync_rpc_requests
+    );
+}
+
+#[tokio::test]
+#[ignore]
+async fn runtime_queued_pool_is_quoted_after_atomic_universe_swap() {
+    let rpc = RpcClient::new("https://eth.drpc.org".into());
+    let weth: Address = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        .parse()
+        .unwrap();
+    let usdc: Address = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+        .parse()
+        .unwrap();
+    let shib: Address = "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
+        .parse()
+        .unwrap();
+    let usdc_weth: Address = "0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc"
+        .parse()
+        .unwrap();
+    let shib_weth: Address = "0x811beed0119b4afce20d2583eb608c6f7af1954f"
+        .parse()
+        .unwrap();
+
+    let mut graph = Graph::new();
+    graph.add_pool(Pool {
+        kind: PoolKind::UniswapV2,
+        address: usdc_weth,
+        coins: vec![usdc, weth],
+    });
+    let store = Arc::new(
+        SnapshotStore::new(
+            graph,
+            RouterConfig::default(),
+            LocalStateConfig {
+                sync_mode: SyncMode::Incremental,
+                max_age_secs: 300,
+                ..Default::default()
+            },
+        )
+        .unwrap(),
+    );
+    let sync = StateSynchronizer::new(rpc, store.clone());
+    sync.sync_once().await.unwrap();
+    let before_swap = store.acquire().unwrap();
+    assert_eq!(before_swap.graph().pool_count(), 1);
+
+    let added = store.queue_new_pools(vec![Pool {
+        kind: PoolKind::UniswapV2,
+        address: shib_weth,
+        coins: vec![shib, weth],
+    }]);
+    assert_eq!(added, 1);
+    assert!(store.has_pending_universe());
+    sync.sync_incremental_once().await.unwrap();
+
+    let after_swap = store.acquire().unwrap();
+    assert_eq!(after_swap.graph().pool_count(), 2);
+    let request = QuoteRequest {
+        token_in: weth,
+        token_out: shib,
+        amount_in: U256::from(10u128.pow(18)),
+        max_hops: None,
+        amount_out_min: None,
+    };
+    let route = after_swap.route(&request).await.unwrap();
+    assert!(!route.hops.is_empty());
+
+    let old_request = QuoteRequest {
+        token_in: weth,
+        token_out: usdc,
+        amount_in: U256::from(10u128.pow(18)),
+        max_hops: None,
+        amount_out_min: None,
+    };
+    assert!(
+        !before_swap
+            .route(&old_request)
+            .await
+            .unwrap()
+            .hops
+            .is_empty()
     );
 }

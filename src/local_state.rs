@@ -7,7 +7,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, B256, U256};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +18,7 @@ use crate::{
     graph::Graph,
     model::{ConversionKind, Pool, PoolKind, QuoteRequest, Route},
     router::{PriceSnapshot, Router, RouterConfig},
-    rpc::{BlockHeader, RpcClient},
+    rpc::{BlockHeader, RpcClient, RpcLog},
     source::{QuoteSource, constant_product_out, ratio},
     split::{SplitOptimizer, SplitResult},
     state::{GET_RESERVES, multicall},
@@ -226,6 +226,265 @@ enum PoolState {
     V3(V3State),
     WstEth(WstEthState),
     Curve(Box<CurveState>),
+}
+
+type LoadedStates = HashMap<Address, PoolState>;
+type StructuralUpdates = HashMap<Address, Vec<(i32, Option<i128>)>>;
+
+/// Per-platform seam for discovery-independent state loading. The incremental
+/// scheduler only calls these methods; adding a same-interface deployment means
+/// registering another implementation instead of editing the scheduler.
+#[async_trait]
+trait LocalPlatform: Send + Sync {
+    fn matches(&self, pool: &Pool) -> bool;
+    async fn full_load(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+    ) -> Result<LoadedStates, StateError>;
+    fn structural_topics(&self) -> Vec<B256> {
+        Vec::new()
+    }
+    async fn structural_updates(
+        &self,
+        _logs: &[RpcLog],
+        _rpc: &RpcClient,
+        _config: &LocalStateConfig,
+    ) -> Result<StructuralUpdates, StateError> {
+        Ok(HashMap::new())
+    }
+    async fn refresh_fast(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+        previous: &HashMap<Address, (Pool, PoolState)>,
+        updates: &StructuralUpdates,
+    ) -> Result<LoadedStates, StateError>;
+}
+
+struct V2Platform;
+
+#[async_trait]
+impl LocalPlatform for V2Platform {
+    fn matches(&self, pool: &Pool) -> bool {
+        pool.kind.is_v2()
+    }
+
+    async fn full_load(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+    ) -> Result<LoadedStates, StateError> {
+        let calls = pools
+            .iter()
+            .map(|pool| (pool.address, GET_RESERVES.to_string()))
+            .collect::<Vec<_>>();
+        let mut states = HashMap::with_capacity(calls.len());
+        for chunk in calls.chunks(config.batch_size) {
+            let results = multicall(rpc, chunk)
+                .await
+                .map_err(|_| StateError::SyncFailed)?;
+            for ((address, _), (ok, data)) in chunk.iter().zip(results) {
+                if !ok || data.len() != 96 {
+                    return Err(StateError::Incomplete);
+                }
+                let reserves = decode_reserves(&data).map_err(|_| StateError::Incomplete)?;
+                if reserves.iter().any(|n| n.bit_len() > 112) {
+                    return Err(StateError::Incomplete);
+                }
+                states.insert(*address, PoolState::V2(reserves));
+            }
+        }
+        Ok(states)
+    }
+
+    async fn refresh_fast(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+        _previous: &HashMap<Address, (Pool, PoolState)>,
+        _updates: &StructuralUpdates,
+    ) -> Result<LoadedStates, StateError> {
+        self.full_load(pools, rpc, config).await
+    }
+}
+
+struct V3Platform;
+
+#[async_trait]
+impl LocalPlatform for V3Platform {
+    fn matches(&self, pool: &Pool) -> bool {
+        matches!(pool.kind, PoolKind::UniswapV3 { .. })
+    }
+
+    async fn full_load(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+    ) -> Result<LoadedStates, StateError> {
+        let states = crate::v3_sync::load(
+            pools,
+            rpc,
+            config.batch_size,
+            config.v3_bitmap_radius,
+            config.v3_max_loaded_ticks,
+            config.v3_full_range,
+        )
+        .await?;
+        Ok(states
+            .into_iter()
+            .map(|(address, state)| (address, PoolState::V3(state)))
+            .collect())
+    }
+
+    fn structural_topics(&self) -> Vec<B256> {
+        crate::v3_sync::structural_topics().to_vec()
+    }
+
+    async fn structural_updates(
+        &self,
+        logs: &[RpcLog],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+    ) -> Result<StructuralUpdates, StateError> {
+        let mut affected: HashMap<Address, Vec<i32>> = HashMap::new();
+        for log in logs {
+            match crate::v3_sync::decode_event(log) {
+                Some(crate::v3_sync::V3Event::Mint {
+                    tick_lower,
+                    tick_upper,
+                })
+                | Some(crate::v3_sync::V3Event::Burn {
+                    tick_lower,
+                    tick_upper,
+                }) => {
+                    let entry = affected.entry(log.address).or_default();
+                    entry.push(tick_lower);
+                    entry.push(tick_upper);
+                }
+                _ => {}
+            }
+        }
+        if affected.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let requests = affected.into_iter().collect::<Vec<_>>();
+        crate::v3_sync::read_tick_updates(&requests, rpc, config.batch_size).await
+    }
+
+    async fn refresh_fast(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+        previous: &HashMap<Address, (Pool, PoolState)>,
+        updates: &StructuralUpdates,
+    ) -> Result<LoadedStates, StateError> {
+        let mut refreshed = Vec::with_capacity(pools.len());
+        for pool in pools {
+            let (_, state) = previous.get(&pool.address).ok_or(StateError::Incomplete)?;
+            let PoolState::V3(state) = state else {
+                return Err(StateError::Incomplete);
+            };
+            let structure = match updates.get(&pool.address) {
+                Some(entries) if !entries.is_empty() => Arc::new(
+                    state
+                        .structure()
+                        .with_tick_updates(entries)
+                        .map_err(|_| StateError::Incomplete)?,
+                ),
+                _ => state.structure().clone(),
+            };
+            refreshed.push((*pool, structure));
+        }
+        Ok(
+            crate::v3_sync::refresh_market(&refreshed, rpc, config.batch_size)
+                .await?
+                .into_iter()
+                .map(|(address, state)| (address, PoolState::V3(state)))
+                .collect(),
+        )
+    }
+}
+
+struct CurvePlatform;
+
+#[async_trait]
+impl LocalPlatform for CurvePlatform {
+    fn matches(&self, pool: &Pool) -> bool {
+        pool.kind == PoolKind::Curve
+    }
+
+    async fn full_load(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+    ) -> Result<LoadedStates, StateError> {
+        Ok(crate::curve_sync::load(pools, rpc, config.batch_size)
+            .await?
+            .into_iter()
+            .map(|(address, state)| (address, PoolState::Curve(Box::new(state))))
+            .collect())
+    }
+
+    async fn refresh_fast(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+        _previous: &HashMap<Address, (Pool, PoolState)>,
+        _updates: &StructuralUpdates,
+    ) -> Result<LoadedStates, StateError> {
+        self.full_load(pools, rpc, config).await
+    }
+}
+
+struct WstEthPlatform;
+
+#[async_trait]
+impl LocalPlatform for WstEthPlatform {
+    fn matches(&self, pool: &Pool) -> bool {
+        pool.kind.is_conversion()
+    }
+
+    async fn full_load(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+    ) -> Result<LoadedStates, StateError> {
+        Ok(crate::wsteth_sync::load(pools, rpc, config.batch_size)
+            .await?
+            .into_iter()
+            .map(|(address, state)| (address, PoolState::WstEth(state)))
+            .collect())
+    }
+
+    async fn refresh_fast(
+        &self,
+        pools: &[&Pool],
+        rpc: &RpcClient,
+        config: &LocalStateConfig,
+        _previous: &HashMap<Address, (Pool, PoolState)>,
+        _updates: &StructuralUpdates,
+    ) -> Result<LoadedStates, StateError> {
+        self.full_load(pools, rpc, config).await
+    }
+}
+
+fn default_platforms() -> Vec<Arc<dyn LocalPlatform>> {
+    vec![
+        Arc::new(V2Platform),
+        Arc::new(V3Platform),
+        Arc::new(CurvePlatform),
+        Arc::new(WstEthPlatform),
+    ]
 }
 
 struct FrozenSource {
@@ -531,6 +790,7 @@ pub struct SnapshotStore {
     graph: RwLock<Arc<Graph>>,
     pending_graph: Mutex<Option<Arc<Graph>>>,
     skipped_pools: RwLock<Vec<UnsupportedPool>>,
+    platforms: Vec<Arc<dyn LocalPlatform>>,
     router_config: RouterConfig,
     config: LocalStateConfig,
     state: RwLock<Published>,
@@ -599,6 +859,7 @@ impl SnapshotStore {
             graph: RwLock::new(Arc::new(graph)),
             pending_graph: Mutex::new(None),
             skipped_pools: RwLock::new(Vec::new()),
+            platforms: default_platforms(),
             router_config,
             config,
             state: RwLock::new(Published::default()),
@@ -1033,36 +1294,29 @@ impl StateSynchronizer {
         current: &LocalSnapshot,
         head: &BlockHeader,
     ) -> Result<(HashMap<Address, (Pool, PoolState)>, u64), StateError> {
-        let batch = self.store.config.batch_size;
+        let config = &self.store.config;
         let graph = self.store.graph();
-
-        let mut v3_pools = Vec::new();
-        for pool in graph.pools() {
-            if matches!(pool.kind, PoolKind::UniswapV3 { .. }) {
-                let (_, state) = current
-                    .source
-                    .pools
-                    .get(&pool.address)
-                    .ok_or(StateError::Incomplete)?;
-                let PoolState::V3(state) = state else {
-                    return Err(StateError::Incomplete);
-                };
-                v3_pools.push((pool, state.structure().clone()));
-            }
-        }
-
-        let mut affected: HashMap<Address, Vec<i32>> = HashMap::new();
+        let rpc = self.rpc.clone().at_block_hash(head.hash);
+        let mut updates = StructuralUpdates::new();
         let mut applied_logs = 0u64;
-        if !v3_pools.is_empty() {
-            let addresses = v3_pools
+        for platform in &self.store.platforms {
+            let topics = platform.structural_topics();
+            if topics.is_empty() {
+                continue;
+            }
+            let addresses = graph
+                .pools()
                 .iter()
-                .map(|(pool, _)| pool.address)
+                .filter(|pool| platform.matches(pool))
+                .map(|pool| pool.address)
                 .collect::<Vec<_>>();
-            let topics = crate::v3_sync::structural_topics();
+            if addresses.is_empty() {
+                continue;
+            }
             let mut block = current.block.number.saturating_add(1);
             loop {
                 let to = block
-                    .saturating_add(self.store.config.v3_log_chunk_blocks.saturating_sub(1))
+                    .saturating_add(config.v3_log_chunk_blocks.saturating_sub(1))
                     .min(head.number);
                 let logs = self
                     .rpc
@@ -1070,23 +1324,7 @@ impl StateSynchronizer {
                     .await
                     .map_err(|_| StateError::SyncFailed)?;
                 applied_logs += logs.len() as u64;
-                for log in logs {
-                    match crate::v3_sync::decode_event(&log) {
-                        Some(crate::v3_sync::V3Event::Mint {
-                            tick_lower,
-                            tick_upper,
-                        })
-                        | Some(crate::v3_sync::V3Event::Burn {
-                            tick_lower,
-                            tick_upper,
-                        }) => {
-                            let entry = affected.entry(log.address).or_default();
-                            entry.push(tick_lower);
-                            entry.push(tick_upper);
-                        }
-                        _ => {}
-                    }
-                }
+                updates.extend(platform.structural_updates(&logs, &rpc, config).await?);
                 if to >= head.number {
                     break;
                 }
@@ -1094,86 +1332,23 @@ impl StateSynchronizer {
             }
         }
 
-        let rpc = self.rpc.clone().at_block_hash(head.hash);
-        let requests = affected.into_iter().collect::<Vec<_>>();
-        let updates = if requests.is_empty() {
-            HashMap::new()
-        } else {
-            crate::v3_sync::read_tick_updates(&requests, &rpc, batch).await?
-        };
-        let mut refreshed = Vec::with_capacity(v3_pools.len());
-        for (pool, structure) in v3_pools {
-            let structure = match updates.get(&pool.address) {
-                Some(entries) if !entries.is_empty() => Arc::new(
-                    structure
-                        .with_tick_updates(entries)
-                        .map_err(|_| StateError::Incomplete)?,
-                ),
-                _ => structure,
-            };
-            refreshed.push((pool, structure));
-        }
-        let mut v3_market = crate::v3_sync::refresh_market(&refreshed, &rpc, batch).await?;
-
-        let mut v2_calls = Vec::new();
-        for pool in graph.pools().iter().filter(|pool| pool.kind.is_v2()) {
-            v2_calls.push((pool.address, GET_RESERVES.to_string()));
-        }
-        let mut v2_reserves = HashMap::with_capacity(v2_calls.len());
-        for chunk in v2_calls.chunks(batch) {
-            let results = multicall(&rpc, chunk)
-                .await
-                .map_err(|_| StateError::SyncFailed)?;
-            for ((address, _), (ok, data)) in chunk.iter().zip(results) {
-                if !ok {
-                    return Err(StateError::Incomplete);
-                }
-                let reserves = decode_reserves(&data).map_err(|_| StateError::Incomplete)?;
-                if reserves.iter().any(|n| n.bit_len() > 112) {
-                    return Err(StateError::Incomplete);
-                }
-                v2_reserves.insert(*address, reserves);
-            }
-        }
-
-        let curves = graph
-            .pools()
-            .iter()
-            .filter(|pool| pool.kind == PoolKind::Curve)
-            .collect::<Vec<_>>();
-        let mut curve_states = crate::curve_sync::load(&curves, &rpc, batch).await?;
-        let conversions = graph
-            .pools()
-            .iter()
-            .filter(|pool| pool.kind.is_conversion())
-            .collect::<Vec<_>>();
-        let mut conversion_states = crate::wsteth_sync::load(&conversions, &rpc, batch).await?;
-
         let mut pools = HashMap::with_capacity(graph.pool_count());
-        for pool in graph.pools() {
-            let state = match pool.kind {
-                PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 => PoolState::V2(
-                    *v2_reserves
-                        .get(&pool.address)
-                        .ok_or(StateError::Incomplete)?,
-                ),
-                PoolKind::UniswapV3 { .. } => PoolState::V3(
-                    v3_market
-                        .remove(&pool.address)
-                        .ok_or(StateError::Incomplete)?,
-                ),
-                PoolKind::Curve => PoolState::Curve(Box::new(
-                    curve_states
-                        .remove(&pool.address)
-                        .ok_or(StateError::Incomplete)?,
-                )),
-                PoolKind::Conversion { .. } => PoolState::WstEth(
-                    conversion_states
-                        .remove(&pool.address)
-                        .ok_or(StateError::Incomplete)?,
-                ),
-            };
-            pools.insert(pool.address, (pool.clone(), state));
+        for platform in &self.store.platforms {
+            let matched = graph
+                .pools()
+                .iter()
+                .filter(|pool| platform.matches(pool))
+                .collect::<Vec<_>>();
+            if matched.is_empty() {
+                continue;
+            }
+            let mut states = platform
+                .refresh_fast(&matched, &rpc, config, &current.source.pools, &updates)
+                .await?;
+            for pool in matched {
+                let state = states.remove(&pool.address).ok_or(StateError::Incomplete)?;
+                pools.insert(pool.address, (pool.clone(), state));
+            }
         }
         Ok((pools, applied_logs))
     }
@@ -1228,98 +1403,24 @@ impl StateSynchronizer {
             }
         }
         let rpc = self.rpc.clone().at_block_hash(head.hash);
-        let mut pools = HashMap::new();
-        let v2 = graph
-            .pools()
-            .iter()
-            .filter(|p| matches!(p.kind, PoolKind::UniswapV2 | PoolKind::ShibaSwapV2))
-            .collect::<Vec<_>>();
-        for chunk in v2.chunks(self.store.config.batch_size) {
-            let calls = chunk
+        let mut pools = HashMap::with_capacity(graph.pool_count());
+        for platform in &self.store.platforms {
+            let matched = graph
+                .pools()
                 .iter()
-                .map(|p| (p.address, GET_RESERVES.to_string()))
+                .filter(|pool| platform.matches(pool))
                 .collect::<Vec<_>>();
-            let results = multicall(&rpc, &calls)
-                .await
-                .map_err(|_| StateError::SyncFailed)?;
-            for (pool, (ok, data)) in chunk.iter().zip(results) {
-                if !ok || data.len() != 96 {
+            if matched.is_empty() {
+                continue;
+            }
+            let mut states = platform
+                .full_load(&matched, &rpc, &self.store.config)
+                .await?;
+            for pool in matched {
+                let state = states.remove(&pool.address).ok_or(StateError::Incomplete)?;
+                if pools.insert(pool.address, (pool.clone(), state)).is_some() {
                     return Err(StateError::Incomplete);
                 }
-                let reserves = decode_reserves(&data).map_err(|_| StateError::Incomplete)?;
-                if reserves.iter().any(|n| n.bit_len() > 112) {
-                    return Err(StateError::Incomplete);
-                }
-                if pools
-                    .insert(pool.address, ((*pool).clone(), PoolState::V2(reserves)))
-                    .is_some()
-                {
-                    return Err(StateError::Incomplete);
-                }
-            }
-        }
-        let v3 = graph
-            .pools()
-            .iter()
-            .filter(|p| matches!(p.kind, PoolKind::UniswapV3 { .. }))
-            .collect::<Vec<_>>();
-        let mut v3_states = crate::v3_sync::load(
-            &v3,
-            &rpc,
-            self.store.config.batch_size,
-            self.store.config.v3_bitmap_radius,
-            self.store.config.v3_max_loaded_ticks,
-            self.store.config.v3_full_range,
-        )
-        .await?;
-        for pool in v3 {
-            let state = v3_states
-                .remove(&pool.address)
-                .ok_or(StateError::Incomplete)?;
-            if pools
-                .insert(pool.address, (pool.clone(), PoolState::V3(state)))
-                .is_some()
-            {
-                return Err(StateError::Incomplete);
-            }
-        }
-        let conversions = graph
-            .pools()
-            .iter()
-            .filter(|p| p.kind.is_conversion())
-            .collect::<Vec<_>>();
-        let mut conversion_states =
-            crate::wsteth_sync::load(&conversions, &rpc, self.store.config.batch_size).await?;
-        for pool in conversions {
-            let state = conversion_states
-                .remove(&pool.address)
-                .ok_or(StateError::Incomplete)?;
-            if pools
-                .insert(pool.address, (pool.clone(), PoolState::WstEth(state)))
-                .is_some()
-            {
-                return Err(StateError::Incomplete);
-            }
-        }
-        let curves = graph
-            .pools()
-            .iter()
-            .filter(|p| p.kind == PoolKind::Curve)
-            .collect::<Vec<_>>();
-        let mut curve_states =
-            crate::curve_sync::load(&curves, &rpc, self.store.config.batch_size).await?;
-        for pool in curves {
-            let state = curve_states
-                .remove(&pool.address)
-                .ok_or(StateError::Incomplete)?;
-            if pools
-                .insert(
-                    pool.address,
-                    (pool.clone(), PoolState::Curve(Box::new(state))),
-                )
-                .is_some()
-            {
-                return Err(StateError::Incomplete);
             }
         }
         #[cfg(test)]

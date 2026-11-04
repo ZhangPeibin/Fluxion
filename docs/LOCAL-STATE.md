@@ -279,6 +279,18 @@ tick 只在 `Mint`/`Burn` 事件出现时更新：先取日志涉及的 tick，�
   实现本地状态装载与报价模型；它们不会被同接口配置静默纳入，缺少实现时会在状态接口
   中给出不支持原因。
 
+### 新平台接入清单
+
+本地同步器通过 `LocalPlatform` 注册表编排各平台，增量调度器不再按 `PoolKind` 分支：
+
+1. 增加 `PoolKind` 变体，并在 `FrozenSource` 中实现该状态类型的报价/中价/储备。
+2. 实现 `LocalPlatform`：`matches`、`full_load`、`refresh_fast`；有结构事件的平台再实现
+   `structural_topics` 与 `structural_updates`。
+3. 在默认注册表中注册实现；discovery 只需产出对应 `Pool`。
+4. 补充历史向量、主网只读对比和 HTTP 断网/过期/重组测试。
+
+现有 V2/ShibaSwap、V3、Curve、wstETH 均走同一注册表；新增同接口 fork 仍可只改配置。
+
 ## 验证与后续
 
 - 离线：RPC 服务关闭后的 HTTP 单路径/四池拆单/多金额询价；min 输出与分支上限；正常
