@@ -21,15 +21,29 @@ Capability 定义“做什么”；执行位置由 Fluxion 内部固定：`swap.
 
 ## Install / Agent setup
 
+普通用户只安装 local client：
+
 ```bash
 cargo install --path crates/client
 fluxion swap ldo-eth 100 --json
 fluxion mcp
 ```
 
-`fluxion mcp` 是 Agent 接入点。MCP 安装与客户端注册见 [MCP](docs/MCP.md)；`swap_quote`
-的字段和错误见 [swap.quote capability](docs/capabilities/swap/README.md) 和
-[Agent skill](skills/swap/SKILL.md)。
+`fluxion-remote` 是独立部署的 remote server，普通用户不需要安装。本地联调时两个都装：
+
+```bash
+cargo install --path crates/remote
+
+# terminal 1：remote server
+fluxion-remote serve --config configs/runtime.yaml
+
+# terminal 2：local client
+FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100
+```
+
+`fluxion mcp` 是 Agent 接入点，只负责 MCP bridge，不启动 remote。MCP 注册见
+[MCP](docs/MCP.md)；`swap_quote` 的字段和错误见
+[swap.quote capability](docs/capabilities/swap/README.md) 和 [Agent skill](skills/swap/SKILL.md)。
 
 ## Execution model
 
@@ -47,7 +61,7 @@ fluxion mcp
 ## Documentation
 
 - **Capabilities**：[index](docs/capabilities/README.md) · [swap.quote](docs/capabilities/swap/README.md) · [skill](skills/swap/SKILL.md) · [schema](schemas/swap_quote.v1.json)
-- **Product**：[whitepaper](docs/WHITEPAPER.md) · [architecture](docs/ARCHITECTURE.md) · [local state](docs/LOCAL-STATE.md)
+- **Product**：[whitepaper](docs/WHITEPAPER.md) · [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [architecture](docs/ARCHITECTURE.md) · [local state](docs/LOCAL-STATE.md)
 - **Operations**：[MCP](docs/MCP.md) · [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md) · [viewer](docs/VIEWER.md) · [limitations](docs/LIMITATIONS.md)
 - **Benchmarks**：[index](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 

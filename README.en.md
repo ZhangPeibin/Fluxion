@@ -23,15 +23,31 @@ Agents and users do not select an execution location. See the
 
 ## Install / Agent setup
 
+Normal users install only the local client:
+
 ```bash
 cargo install --path crates/client
 fluxion swap ldo-eth 100 --json
 fluxion mcp
 ```
 
-`fluxion mcp` is the agent entry point. See [MCP](docs/MCP.md) for installation and client
-registration; `swap_quote` fields and errors live in the
-[swap.quote capability](docs/capabilities/swap/README.md) and [agent skill](skills/swap/SKILL.md).
+`fluxion-remote` is a separately deployed server; normal users do not install it. For a local
+full-stack test, install both:
+
+```bash
+cargo install --path crates/remote
+
+# terminal 1: remote server
+fluxion-remote serve --config configs/runtime.yaml
+
+# terminal 2: local client
+FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100
+```
+
+`fluxion mcp` is the agent entry point and only acts as an MCP bridge; it does not start the
+remote server. See [MCP](docs/MCP.md) for registration; `swap_quote` fields and errors live in
+the [swap.quote capability](docs/capabilities/swap/README.md) and
+[agent skill](skills/swap/SKILL.md).
 
 ## Execution model
 
@@ -49,7 +65,7 @@ override, not a mode. `wallet` / `execute` capabilities use the local runtime. S
 ## Documentation
 
 - **Capabilities**: [index](docs/capabilities/README.md) · [swap.quote](docs/capabilities/swap/README.md) · [skill](skills/swap/SKILL.md) · [schema](schemas/swap_quote.v1.json)
-- **Product**: [whitepaper](docs/WHITEPAPER.md) · [architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
+- **Product**: [whitepaper](docs/WHITEPAPER.md) · [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - **Operations**: [MCP](docs/MCP.md) · [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md) · [viewer](docs/VIEWER.md) · [limitations](docs/LIMITATIONS.md) (Chinese)
 - **Benchmarks**: [index](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 
