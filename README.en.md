@@ -1,6 +1,6 @@
 # Fluxion
 
-**Give your AI agent a fast, safe way to use Web3.**
+**The open capability layer between AI agents and Web3.**
 
 English · [中文](README.md)
 
@@ -9,131 +9,89 @@ English · [中文](README.md)
 ![Rust](https://img.shields.io/badge/Rust-2024-orange)
 ![Ethereum](https://img.shields.io/badge/Ethereum-mainnet-627eea)
 
-Fluxion is a **capability runtime for AI agents**. Instead of teaching every agent every protocol,
-Fluxion exposes Web3 actions as stable capabilities over MCP. The first capability is
-`swap.quote`: exact-in multi-hop quotes on Ethereum mainnet, with fresh state and split routing.
+One MCP interface. Fresh onchain data. Keys stay local.
 
-> The agent decides what to do. Fluxion provides the capability. The user keeps control of assets.
+Fluxion gives AI agents a safe, structured way to use Web3. It is not another agent, wallet or
+DeFi dashboard; it is the capability layer between them.
+
+## What is Fluxion
+
+Fluxion turns Web3 actions into stable capabilities. Agents do not need to learn every protocol,
+and they do not need access to private keys.
+
+- **Agents see one interface.** `fluxion mcp` exposes capabilities as MCP tools.
+- **Read-only work runs remotely.** Protocol discovery, onchain data, quotes and risk come from a
+  warm remote service.
+- **User-controlled work stays local.** Wallet access, authorization, signing and execution belong
+  in the user's environment.
+- **Execution location is fixed per capability.** Agents and users do not choose local or remote.
+
+The first capability is `swap.quote`: exact-in multi-hop quotes on Ethereum mainnet. It is
+read-only and never signs, approves or broadcasts.
 
 ## Why Fluxion
 
-- **One interface for agents** — `fluxion mcp` exposes capabilities as MCP tools; no protocol SDK
-  for the agent to learn.
-- **Fast by design** — quotes come from a warm remote service, not a cold local rebuild.
-  Latest benchmark: **0/1 blocks** behind head, **p95 133 ms**.
-- **Safety boundary built in** — read-only market data can be remote; wallet, authorization,
-  signing and execution stay local. The agent never chooses where a capability runs.
+- **Agent-native** — one MCP interface instead of one SDK per protocol.
+- **Fresh, not stale** — quotes come from a warm remote service, not a cold local rebuild.
+  Methodology and data: [swap.quote benchmark](docs/capabilities/swap/README.md#latest-benchmark).
+- **Safe by boundary** — read-only market data can be remote; wallet access, authorization,
+  signing and execution belong to the local runtime. The agent never chooses where a capability
+  runs.
 - **Structured for tools** — stable JSON, error codes, schemas and Skills instead of screenshots
   and prose.
-- **Open and inspectable** — Rust engine, benchmark corpus, raw JSON, reproducible mainnet tests.
-
-## What works today
-
-```bash
-fluxion swap ldo-eth 100 --json
-```
-
-Or let the agent call the MCP tool:
-
-```text
-Use Fluxion's swap_quote tool to quote 100 LDO to ETH.
-```
-
-## Quick start
-
-### 1. Install the local client
-
-```bash
-cargo install --path crates/client
-```
-
-Users install only the client. `fluxion-remote` is our server and normally runs on Fluxion
-infrastructure.
-
-### 2. Run a remote service (local testing)
-
-```bash
-cargo install --path crates/remote
-FLUXION_REQUIRE_AUTH=1 fluxion-remote serve --config configs/runtime.yaml
-```
-
-The remote owns discovery, snapshot warmup and routing. `fluxion mcp` never starts it.
-
-### 3. Quote
-
-```bash
-FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100
-```
-
-The first call registers an installation token automatically; the token is stored in
-`~/.fluxion/auth.json` (0600).
-
-### 4. Connect your agent
-
-```json
-{
-  "mcp": {
-    "fluxion": {
-      "type": "local",
-      "command": ["fluxion", "mcp"],
-      "enabled": true,
-      "environment": { "FLUXION_REMOTE_URL": "http://127.0.0.1:8080" }
-    }
-  },
-  "skills": { "paths": ["/path/to/Fluxion/skills"] }
-}
-```
-
-MCP registration, Skills and troubleshooting: [docs/MCP.md](docs/MCP.md).
-
-## Capabilities
-
-| Capability | Status | Execution | Docs |
-|---|---|---|---|
-| `swap.quote` | available | remote | [swap.quote](docs/capabilities/swap/README.md) |
-| `swap.build` | planned | local | — |
-| `swap.simulate` | planned | local | — |
-| `swap.execute` | planned | local | — |
-| `wallet.*` | planned | local | — |
-
-Execution location is fixed per capability. Agents and users do not select local/remote.
-See [product architecture](docs/PRODUCT-ARCHITECTURE.md).
+- **Open and inspectable** — Rust engine, benchmark corpus, JSON schemas and reproducible mainnet
+  tests.
 
 ## How it works
 
 ```text
-Agent ──MCP──▶ fluxion mcp ──▶ fluxion-remote ──▶ Ethereum RPC / subgraphs
+Agent ──MCP──▶ fluxion mcp ──▶ remote intelligence ──▶ Ethereum
                   │
-                  └── future: local runtime → wallet / authorization / signing
+                  └── future: local runtime → wallet / signing / execution
 ```
 
 `swap.quote` is read-only. It never signs, approves or broadcasts.
 
-## Performance
+## Today
 
-90 rows, 209 pool/conversion records, full-range V3:
+`swap.quote` is available: exact-in quotes, multi-hop routing, split allocation and state
+freshness on Ethereum mainnet. Full inputs, outputs, errors and the latest benchmark:
+[swap.quote](docs/capabilities/swap/README.md).
 
-| Metric | Result |
-|---|---:|
-| Snapshot lag blocks p50/p95/max | **0 / 1 / 1** |
-| Snapshot lag seconds p50/p95/max | **0 / 12 / 12 s** |
-| Fluxion HTTP p50/p95 | **49 / 133 ms** |
-| Success | **90 / 90** |
-| ParaSwap within ±50 bps | **89 / 90** |
-| 1inch within ±50 bps | **82 / 90** |
+## Get started
 
-Split allocation includes disjoint multi-hop routes. Full methodology and raw data:
-[docs/benchmarks](docs/benchmarks/README.md).
-
-## Repository layout
-
-```text
-crates/protocol   capability contract, swap DTOs, error codes
-crates/remote     discovery, snapshots, routing, HTTP API, fluxion-remote
-crates/client     CLI, MCP bridge, remote client, token storage, fluxion
-skills/           agent instructions
-schemas/          machine-readable JSON schema
+```bash
+cargo install --path crates/client
+fluxion mcp
 ```
+
+The remote service is deployed separately; `fluxion mcp` never starts it. Local testing, MCP
+registration and Skills setup: [docs/MCP.md](docs/MCP.md).
+
+With a running remote:
+
+```bash
+FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
+```
+
+## Capabilities
+
+| Capability | Status | Docs |
+|---|---|---|
+| `swap.quote` | available | [swap.quote](docs/capabilities/swap/README.md) |
+| `swap.build` | planned | — |
+| `swap.simulate` | planned | — |
+| `swap.execute` | planned | — |
+| `wallet.*` | planned | — |
+
+Execution location is fixed per capability. Agents and users do not select local/remote.
+See [product architecture](docs/PRODUCT-ARCHITECTURE.md).
+
+## Who it is for
+
+- Builders of AI agents, plugins and tools
+- Wallets, custody and agent infrastructure teams
+- DeFi protocols that want safe agent-native access
 
 ## Documentation
 
@@ -141,19 +99,9 @@ schemas/          machine-readable JSON schema
 - **Vision**: [whitepaper](docs/WHITEPAPER.md) · [architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - **Operations**: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - **Research**: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
-- **Boundaries**: [limitations](docs/LIMITATIONS.md) · [schema](schemas/swap_quote.v1.json)
-
-## Development
-
-```bash
-cargo build --workspace
-cargo test --workspace
-cargo test --workspace -- --ignored   # mainnet, read-only
-cargo clippy --workspace --all-targets
-cargo fmt
-```
+- **Boundaries**: [limitations](docs/LIMITATIONS.md) · [schema](schemas/swap_quote.v1.json) · [swap skill](skills/swap/SKILL.md)
 
 ## Status
 
-Pre-1.0. Ethereum mainnet, exact-in, read-only quotes. `swap.build` / `simulate` / `execute` and
-wallet support are the next local-runtime milestones. Feedback and issues are welcome.
+Pre-1.0. Ethereum mainnet. `swap.quote` is available and read-only. `swap.build` / `simulate` /
+`execute` and `wallet.*` are the next local-runtime milestones.
