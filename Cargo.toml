@@ -5,7 +5,7 @@ members = ["crates/protocol", "crates/remote", "crates/client"]
 name = "fluxion"
 version = "0.1.0"
 edition = "2024"
-description = "Web3 agent capability runtime for exact-in swap quotes via CLI and MCP"
+description = "Give AI agents fast, safe Web3 capabilities over MCP. First: exact-in swap quotes on Ethereum."
 repository = "https://github.com/ZhangPeibin/Fluxion"
 readme = "README.md"
 

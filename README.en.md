@@ -1,74 +1,147 @@
 # Fluxion
 
-English | [中文](README.md)
+**Give your AI agent a fast, safe way to use Web3.**
 
-**Runtime for the Web3 Agent Capability Infrastructure.** Fluxion exposes Web3 actions as stable
-capabilities for local CLIs and MCP agents. Execution location (remote service or local runtime)
-is decided internally by Fluxion. The first delivered capability is `swap.quote`: exact-in
-multi-hop quotes, split allocation and state freshness on Ethereum mainnet.
+English · [中文](README.md)
 
-> Open-source. See the full
-> [Web3 Agent Capability Infrastructure whitepaper](docs/WHITEPAPER.md).
+![status](https://img.shields.io/badge/status-pre--1.0-orange)
+![MCP](https://img.shields.io/badge/MCP-stdio-blueviolet)
+![Rust](https://img.shields.io/badge/Rust-2024-orange)
+![Ethereum](https://img.shields.io/badge/Ethereum-mainnet-627eea)
 
-## Capabilities
+Fluxion is a **capability runtime for AI agents**. Instead of teaching every agent every protocol,
+Fluxion exposes Web3 actions as stable capabilities over MCP. The first capability is
+`swap.quote`: exact-in multi-hop quotes on Ethereum mainnet, with fresh state and split routing.
 
-| Capability | Status | Docs |
-|---|---|---|
-| `swap.quote` | available | [docs/capabilities/swap/README.md](docs/capabilities/swap/README.md) |
+> The agent decides what to do. Fluxion provides the capability. The user keeps control of assets.
 
-A capability defines *what* the agent wants; execution location is an internal implementation
-detail. `swap.quote` always uses the remote service; `wallet` / `execute` use the local runtime.
-Agents and users do not select an execution location. See the
-[capability index](docs/capabilities/README.md).
+## Why Fluxion
 
-## Install / Agent setup
+- **One interface for agents** — `fluxion mcp` exposes capabilities as MCP tools; no protocol SDK
+  for the agent to learn.
+- **Fast by design** — quotes come from a warm remote service, not a cold local rebuild.
+  Latest benchmark: **0/1 blocks** behind head, **p95 133 ms**.
+- **Safety boundary built in** — read-only market data can be remote; wallet, authorization,
+  signing and execution stay local. The agent never chooses where a capability runs.
+- **Structured for tools** — stable JSON, error codes, schemas and Skills instead of screenshots
+  and prose.
+- **Open and inspectable** — Rust engine, benchmark corpus, raw JSON, reproducible mainnet tests.
 
-Normal users install only the local client:
+## What works today
+
+```bash
+fluxion swap ldo-eth 100 --json
+```
+
+Or let the agent call the MCP tool:
+
+```text
+Use Fluxion's swap_quote tool to quote 100 LDO to ETH.
+```
+
+## Quick start
+
+### 1. Install the local client
 
 ```bash
 cargo install --path crates/client
-fluxion swap ldo-eth 100 --json
-fluxion mcp
 ```
 
-`fluxion-remote` is a separately deployed server; normal users do not install it. For a local
-full-stack test, install both:
+Users install only the client. `fluxion-remote` is our server and normally runs on Fluxion
+infrastructure.
+
+### 2. Run a remote service (local testing)
 
 ```bash
 cargo install --path crates/remote
-
-# terminal 1: remote server (installation-token auth for local testing)
 FLUXION_REQUIRE_AUTH=1 fluxion-remote serve --config configs/runtime.yaml
+```
 
-# terminal 2: local client; first call registers an installation token
+The remote owns discovery, snapshot warmup and routing. `fluxion mcp` never starts it.
+
+### 3. Quote
+
+```bash
 FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100
 ```
 
-`fluxion mcp` is the agent entry point and only acts as an MCP bridge; it does not start the
-remote server. See [MCP](docs/MCP.md) for registration and Skills setup; `swap_quote` fields and
-errors live in the [swap.quote capability](docs/capabilities/swap/README.md) and
-[agent skill](skills/swap/SKILL.md). The Skills directory is `skills/`; add it to your agent's
-skills path.
+The first call registers an installation token automatically; the token is stored in
+`~/.fluxion/auth.json` (0600).
 
-## Execution model
+### 4. Connect your agent
 
-`swap.quote` always uses the remote Fluxion service (`FLUXION_REMOTE_URL` / `FLUXION_API_KEY`).
-Development/tests may point `FLUXION_REMOTE_URL` at a mock or local server; that is an endpoint
-override, not a mode. `wallet` / `execute` capabilities use the local runtime. See
-[execution routing](docs/CONFIGURATION.md#execution-routing) (Chinese).
+```json
+{
+  "mcp": {
+    "fluxion": {
+      "type": "local",
+      "command": ["fluxion", "mcp"],
+      "enabled": true,
+      "environment": { "FLUXION_REMOTE_URL": "http://127.0.0.1:8080" }
+    }
+  },
+  "skills": { "paths": ["/path/to/Fluxion/skills"] }
+}
+```
 
-## Status
+MCP registration, Skills and troubleshooting: [docs/MCP.md](docs/MCP.md).
 
-- `swap.quote` delivered; latest benchmark: 90/90, lag 0/1 blocks, HTTP p95 133 ms
-- `swap.build` / `simulate` / `execute` and wallet handling belong to a later Local Runtime
-- Ethereum mainnet, exact-in, read-only quotes
+## Capabilities
+
+| Capability | Status | Execution | Docs |
+|---|---|---|---|
+| `swap.quote` | available | remote | [swap.quote](docs/capabilities/swap/README.md) |
+| `swap.build` | planned | local | — |
+| `swap.simulate` | planned | local | — |
+| `swap.execute` | planned | local | — |
+| `wallet.*` | planned | local | — |
+
+Execution location is fixed per capability. Agents and users do not select local/remote.
+See [product architecture](docs/PRODUCT-ARCHITECTURE.md).
+
+## How it works
+
+```text
+Agent ──MCP──▶ fluxion mcp ──▶ fluxion-remote ──▶ Ethereum RPC / subgraphs
+                  │
+                  └── future: local runtime → wallet / authorization / signing
+```
+
+`swap.quote` is read-only. It never signs, approves or broadcasts.
+
+## Performance
+
+90 rows, 209 pool/conversion records, full-range V3:
+
+| Metric | Result |
+|---|---:|
+| Snapshot lag blocks p50/p95/max | **0 / 1 / 1** |
+| Snapshot lag seconds p50/p95/max | **0 / 12 / 12 s** |
+| Fluxion HTTP p50/p95 | **49 / 133 ms** |
+| Success | **90 / 90** |
+| ParaSwap within ±50 bps | **89 / 90** |
+| 1inch within ±50 bps | **82 / 90** |
+
+Split allocation includes disjoint multi-hop routes. Full methodology and raw data:
+[docs/benchmarks](docs/benchmarks/README.md).
+
+## Repository layout
+
+```text
+crates/protocol   capability contract, swap DTOs, error codes
+crates/remote     discovery, snapshots, routing, HTTP API, fluxion-remote
+crates/client     CLI, MCP bridge, remote client, token storage, fluxion
+skills/           agent instructions
+schemas/          machine-readable JSON schema
+```
 
 ## Documentation
 
-- **Capabilities**: [index](docs/capabilities/README.md) · [swap.quote](docs/capabilities/swap/README.md) · [skill](skills/swap/SKILL.md) · [schema](schemas/swap_quote.v1.json)
-- **Product**: [whitepaper](docs/WHITEPAPER.md) · [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
-- **Operations**: [MCP](docs/MCP.md) · [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md) · [viewer](docs/VIEWER.md) · [limitations](docs/LIMITATIONS.md) (Chinese)
-- **Benchmarks**: [index](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
+- **Start here**: [MCP](docs/MCP.md) · [swap.quote](docs/capabilities/swap/README.md) · [product architecture](docs/PRODUCT-ARCHITECTURE.md)
+- **Vision**: [whitepaper](docs/WHITEPAPER.md) · [architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
+- **Operations**: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
+- **Research**: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
+- **Boundaries**: [limitations](docs/LIMITATIONS.md) · [schema](schemas/swap_quote.v1.json)
 
 ## Development
 
@@ -79,3 +152,8 @@ cargo test --workspace -- --ignored   # mainnet, read-only
 cargo clippy --workspace --all-targets
 cargo fmt
 ```
+
+## Status
+
+Pre-1.0. Ethereum mainnet, exact-in, read-only quotes. `swap.build` / `simulate` / `execute` and
+wallet support are the next local-runtime milestones. Feedback and issues are welcome.
