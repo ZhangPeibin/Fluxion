@@ -1,6 +1,6 @@
 //! Thin client for a warm local Fluxion runtime.
 //!
-//! The public provider surface is the CLI/MCP process; this client talks to the
+//! The public interface is the CLI/MCP process; this client talks to the
 //! internal HTTP endpoint so repeated quotes reuse the runtime's warm state.
 
 use std::time::Instant;
@@ -72,7 +72,7 @@ impl RuntimeClient {
         token_in: TokenRef,
         token_out: TokenRef,
         chain: &str,
-        provider: &str,
+        execution: &str,
     ) -> Result<QuoteResponse, CapabilityError> {
         let body = json!({
             "token_in": format!("{:#x}", request.token_in),
@@ -94,7 +94,7 @@ impl RuntimeClient {
         let response = http_request.send().await.map_err(|error| {
             CapabilityError::new(
                 CapabilityErrorCode::RpcError,
-                format!("local runtime unavailable: {error}"),
+                format!("Fluxion runtime unavailable: {error}"),
                 true,
             )
         })?;
@@ -113,7 +113,7 @@ impl RuntimeClient {
             .map_err(|error| CapabilityError::internal(format!("invalid runtime JSON: {error}")))?;
         let latency_ms = started.elapsed().as_millis() as u64;
         build_response(
-            dto, request, token_in, token_out, chain, provider, latency_ms,
+            dto, request, token_in, token_out, chain, execution, latency_ms,
         )
     }
 }
@@ -200,7 +200,7 @@ fn build_response(
     token_in: TokenRef,
     token_out: TokenRef,
     chain: &str,
-    provider: &str,
+    execution: &str,
     latency_ms: u64,
 ) -> Result<QuoteResponse, CapabilityError> {
     let amount_out = parse_u256("amount_out", &dto.amount_out)?;
@@ -238,7 +238,7 @@ fn build_response(
     }
     let provenance = match dto.state {
         Some(state) => Provenance {
-            provider: provider.to_string(),
+            execution: execution.to_string(),
             pricing_mode: state.pricing_mode,
             quote_block: dto.quote_block,
             block_hash: Some(state.block_hash),
@@ -246,7 +246,7 @@ fn build_response(
             lag_blocks: Some(state.lag_blocks),
         },
         None => Provenance {
-            provider: provider.to_string(),
+            execution: execution.to_string(),
             pricing_mode: "rpc".to_string(),
             quote_block: dto.quote_block,
             block_hash: None,

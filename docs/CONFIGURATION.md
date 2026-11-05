@@ -41,19 +41,18 @@
 
 ## Execution routing
 
-`swap.quote` 的执行位置由 Fluxion 内部决定，Agent 不选择 local/remote。
+`swap.quote` 固定使用 Fluxion remote 服务；未来 `wallet` / `execute` 固定在 local runtime。
+Agent 和用户都不选择 local/remote。
 
 | 环境变量 | 默认 | 含义 |
 |---|---|---|
-| `FLUXION_MODE` | `auto` | `auto` / `managed` / `self_hosted` |
-| `FLUXION_REMOTE_URL` | 空 | managed 模式使用的托管服务地址 |
-| `FLUXION_API_KEY` | 空 | managed 模式的服务认证 |
-| `FLUXION_URL` | `http://127.0.0.1:8080` | self-hosted/local runtime 地址 |
-| `GRAPH_API_KEY` | 空 | self-hosted 本地 discovery 所需 |
+| `FLUXION_REMOTE_URL` | 安装包内置 | remote 服务地址；开发/测试可覆盖 |
+| `FLUXION_API_KEY` | 空 | remote 服务认证 |
+| `FLUXION_URL` | `http://127.0.0.1:8080` | 本地 runtime 地址，供 `start/status/serve` 和未来 wallet/execute |
+| `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
-`auto` 在配置了 `FLUXION_REMOTE_URL` 时走 remote，否则走 local。managed 模式不需要
-`GRAPH_API_KEY`；self-hosted/开发模式才需要。CLI 的 `--url` 只覆盖 local runtime 地址，
-不是 provider 选择。
+CLI/MCP 的 `--url` 覆盖 remote endpoint；`start/status/serve` 的本地地址仍由 `FLUXION_URL`
+或配置决定。没有配置 remote endpoint 时，`swap.quote` 返回明确的 `RPC_ERROR`，不会回落 local。
 
 `GRAPH_API_KEY` 只放在 **gitignored 的 `.env`** 里，不进版本库。
 转换实例字段为 `kind`、`contract`、`underlying`、`wrapped`、`enabled`、`wrap`、`unwrap`；

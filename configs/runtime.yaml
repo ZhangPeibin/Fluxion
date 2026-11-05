@@ -1,8 +1,8 @@
-# Warm local runtime for CLI and MCP clients.
+# Local Fluxion runtime for server development and future wallet/execute capabilities.
+# Production `swap.quote` uses the remote Fluxion service, not this profile.
 # Start with: cargo run --release -- serve --config configs/runtime.yaml
-# Wait until /ready returns 200 (first full snapshot takes a while), then:
-#   cargo run --release -- ldo-eth 100
-#   cargo run --release -- swap quote --in LDO --out ETH --amount 100 --json
+# For local quote development, point the remote override at this server:
+#   FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap quote --in LDO --out ETH --amount 100 --json
 host: 127.0.0.1
 port: 8080
 enabled_platforms: [uniswap-v2, uniswap-v3, curve, shibaswap-v2]

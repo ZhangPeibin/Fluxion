@@ -1,15 +1,15 @@
 ## Product and documentation layering
 
 Fluxion is the project. A capability is one action-level contract inside it. Execution location
-(managed remote / self-hosted local) is an internal Fluxion decision; agents do not choose a
-provider.
+is fixed per capability and is an internal Fluxion decision; agents and users do not choose a
+provider. `swap.quote` uses the remote service; `wallet` / `execute` use the local runtime.
 
 | Layer | Location | Owns |
 |---|---|---|
 | Project | `README.md`, `docs/WHITEPAPER.md` | positioning, install, capability list |
 | Transport | `docs/MCP.md`, `docs/API.md` | how agents/integrators connect |
 | Capability | `docs/capabilities/<name>/` | tool schema, inputs, outputs, errors, benchmarks |
-| Execution | `docs/CONFIGURATION.md`, `docs/LOCAL-STATE.md` | managed/self-hosted, keys, freshness |
+| Execution | `docs/CONFIGURATION.md`, `docs/LOCAL-STATE.md` | fixed execution routing, keys, freshness |
 | Engine | `docs/ARCHITECTURE.md`, `docs/MULTI-POOL.md`, ... | internals |
 | Agent usage | `skills/<name>/SKILL.md` | when/how to call a capability |
 | Contract | `schemas/` | machine-readable JSON schema |
@@ -46,8 +46,8 @@ Rust project (edition 2024). Async runtime: tokio (`#[tokio::main]`); the app ow
 
 Commands (from repo root):
 - Build: `cargo build`
-- Local runtime: `cargo run -- serve --config configs/runtime.yaml`
-  (needs `GRAPH_API_KEY` for real discovery; managed/remote mode uses `FLUXION_REMOTE_URL`)
+- Local runtime (development / future wallet execute): `cargo run -- serve --config configs/runtime.yaml`
+  (needs `GRAPH_API_KEY` for real discovery; `swap.quote` uses `FLUXION_REMOTE_URL`)
 - CLI: `cargo run -- swap ldo-eth 100` / `cargo run -- capability describe swap.quote --json`
 - MCP: `cargo run -- mcp`
 - Unit tests: `cargo test`

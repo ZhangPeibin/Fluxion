@@ -10,6 +10,14 @@ cargo run -- serve --config config.yaml
 
 接口、请求/响应和错误见 [HTTP API](API.md)；配置项见 [Configuration](CONFIGURATION.md)。
 
+本地开发 `swap.quote` 时，把 CLI/MCP 的 remote endpoint 指向该服务：
+
+```bash
+FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
+```
+
+生产 `swap.quote` 使用托管 remote 服务，不需要本地 runtime。
+
 ```bash
 # 单独配置启动一个真实主网实例（默认 :8081；需要 GRAPH_API_KEY）
 cargo run -- --config bench/configs/threeway.yaml

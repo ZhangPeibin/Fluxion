@@ -77,8 +77,8 @@ fn print_help() {
     println!(
         "Fluxion — Web3 agent capabilities\n\n\
 Usage:\n  \
-fluxion start                           Start the self-hosted local runtime\n  \
-fluxion stop                            Stop the self-hosted local runtime\n  \
+fluxion start                           Start the local runtime\n  \
+fluxion stop                            Stop the local runtime\n  \
 fluxion status                          Show local runtime readiness and state\n  \
 fluxion swap ldo-eth 100                Shorthand quote\n  \
 fluxion ldo-eth 100                     Top-level shorthand alias\n  \
@@ -91,8 +91,7 @@ fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
 Quote options:\n  \
 --json                    Print the swap.quote JSON response\n  \
---url URL                 Runtime URL (default {DEFAULT_URL}, env FLUXION_URL)\n  \
---no-auto-start           Fail instead of starting a local runtime\n  \
+--url URL                 Remote service override (default FLUXION_REMOTE_URL)\n  \
 --no-split                Disable split allocation\n  \
 --max-hops N              Maximum hops\n  \
 --split-max-branches N    Maximum split branches\n  \
@@ -117,13 +116,12 @@ struct QuoteArgs {
     token_out: String,
     amount: String,
     json: bool,
-    url: String,
+    url: Option<String>,
     split: bool,
     max_hops: Option<usize>,
     split_max_branches: Option<usize>,
     decimals_in: Option<u8>,
     decimals_out: Option<u8>,
-    auto_start: bool,
 }
 
 fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
@@ -131,25 +129,23 @@ fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
     let mut token_out = None;
     let mut amount = None;
     let mut json = false;
-    let mut url = env::var("FLUXION_URL").unwrap_or_else(|_| DEFAULT_URL.to_string());
+    let mut url = None;
     let mut split = true;
     let mut max_hops = None;
     let mut split_max_branches = None;
     let mut decimals_in = None;
     let mut decimals_out = None;
-    let mut auto_start = true;
     let mut index = 0;
     while index < raw.len() {
         let arg = raw[index].as_str();
         match arg {
             "--json" => json = true,
-            "--no-auto-start" => auto_start = false,
             "--no-split" => split = false,
             "--split" => split = true,
             "--in" => token_in = Some(value(raw, &mut index, "--in")?),
             "--out" => token_out = Some(value(raw, &mut index, "--out")?),
             "--amount" => amount = Some(value(raw, &mut index, "--amount")?),
-            "--url" => url = value(raw, &mut index, "--url")?,
+            "--url" => url = Some(value(raw, &mut index, "--url")?),
             "--max-hops" => {
                 max_hops = Some(parse_number(
                     "--max-hops",
@@ -197,7 +193,6 @@ fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
         split_max_branches,
         decimals_in,
         decimals_out,
-        auto_start,
     })
 }
 
@@ -287,7 +282,7 @@ async fn run_quote(raw: &[String]) -> i32 {
         split: args.split,
         split_max_branches: args.split_max_branches,
     };
-    let backend = match crate::routing::from_env("local-cli", &args.url) {
+    let backend = match crate::routing::from_env(args.url.as_deref()) {
         Ok(backend) => backend,
         Err(error) => {
             report_error(&error, args.json);
@@ -295,14 +290,8 @@ async fn run_quote(raw: &[String]) -> i32 {
         }
     };
     let client = RuntimeClient::with_api_key(backend.base_url.clone(), backend.api_key.clone());
-    if backend.is_local()
-        && let Err(error) = ensure_runtime(&client, args.auto_start).await
-    {
-        report_error(&error, args.json);
-        return exit_code(error.code);
-    }
     match client
-        .swap_quote(&request, token_in, token_out, "ethereum", backend.provider)
+        .swap_quote(&request, token_in, token_out, "ethereum", "remote")
         .await
     {
         Ok(response) => {
@@ -419,24 +408,8 @@ async fn run_capability(raw: &[String]) -> i32 {
                     "{} (schema v{})",
                     descriptor.name, descriptor.schema_version
                 );
-                for provider in &descriptor.providers {
-                    if provider.available {
-                        println!(
-                            "  {:<12} {:<7} {:<10} available",
-                            provider.id.as_str(),
-                            provider.location,
-                            provider.transport
-                        );
-                    } else {
-                        println!(
-                            "  {:<12} {:<7} {:<10} unavailable: {}",
-                            provider.id.as_str(),
-                            provider.location,
-                            provider.transport,
-                            provider.unavailable_reason.unwrap_or("not available")
-                        );
-                    }
-                }
+                println!("  execution: {}", descriptor.execution);
+                println!("  transports: {}", descriptor.transports.join(", "));
             }
             0
         }
@@ -604,13 +577,6 @@ fn runtime_config() -> String {
     path.display().to_string()
 }
 
-fn is_local_url(url: &str) -> bool {
-    let url = url.to_ascii_lowercase();
-    url.starts_with("http://127.0.0.1")
-        || url.starts_with("http://localhost")
-        || url.starts_with("http://[::1]")
-}
-
 fn spawn_runtime(config: &str) -> Result<(), CapabilityError> {
     if !std::path::Path::new(config).exists() {
         return Err(CapabilityError::invalid_argument(format!(
@@ -677,45 +643,18 @@ async fn wait_ready(client: &RuntimeClient) -> Result<(), CapabilityError> {
     ))
 }
 
-async fn ensure_runtime(client: &RuntimeClient, auto_start: bool) -> Result<(), CapabilityError> {
-    if client.ready().await {
-        return Ok(());
-    }
-    if !auto_start {
-        return Err(CapabilityError::new(
-            CapabilityErrorCode::RpcError,
-            format!("runtime not ready at {}", client.base_url()),
-            true,
-        ));
-    }
-    if !is_local_url(client.base_url()) {
-        return Err(CapabilityError::new(
-            CapabilityErrorCode::RpcError,
-            format!(
-                "remote runtime not reachable at {}; start it or pass --no-auto-start",
-                client.base_url()
-            ),
-            true,
-        ));
-    }
-    spawn_runtime(&runtime_config())?;
-    wait_ready(client).await
-}
-
 async fn run_mcp(raw: &[String]) -> i32 {
-    let mut url = env::var("FLUXION_URL").unwrap_or_else(|_| DEFAULT_URL.to_string());
-    let mut auto_start = true;
+    let mut url = None;
     let mut index = 0;
     while index < raw.len() {
         match raw[index].as_str() {
-            "--no-auto-start" => auto_start = false,
             "--url" => {
                 index += 1;
                 let Some(value) = raw.get(index) else {
                     eprintln!("--url needs a value");
                     return 2;
                 };
-                url = value.clone();
+                url = Some(value.clone());
             }
             "--help" | "-h" => {
                 print_help();
@@ -728,7 +667,7 @@ async fn run_mcp(raw: &[String]) -> i32 {
         }
         index += 1;
     }
-    let backend = match crate::routing::from_env("local-mcp", &url) {
+    let backend = match crate::routing::from_env(url.as_deref()) {
         Ok(backend) => backend,
         Err(error) => {
             report_error(&error, false);
@@ -736,13 +675,7 @@ async fn run_mcp(raw: &[String]) -> i32 {
         }
     };
     let client = RuntimeClient::with_api_key(backend.base_url.clone(), backend.api_key.clone());
-    if backend.is_local()
-        && let Err(error) = ensure_runtime(&client, auto_start).await
-    {
-        report_error(&error, false);
-        return exit_code(error.code);
-    }
-    crate::mcp::run_stdio(client, backend.provider).await
+    crate::mcp::run_stdio(client).await
 }
 
 #[cfg(test)]

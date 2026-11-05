@@ -7,7 +7,7 @@ capability，由本机 CLI 或 MCP Agent 接入；执行位置（remote 服务�
 内部决定。第一个交付的 capability 是 `swap.quote`：Ethereum 主网的 exact-in 多跳报价、拆单和
 状态新鲜度。
 
-> 开源、自托管。完整产品愿景见 [Web3 Agent Capability Infrastructure 白皮书](docs/WHITEPAPER.md)。
+> 开源。完整产品愿景见 [Web3 Agent Capability Infrastructure 白皮书](docs/WHITEPAPER.md)。
 
 ## Capabilities
 
@@ -15,8 +15,8 @@ capability，由本机 CLI 或 MCP Agent 接入；执行位置（remote 服务�
 |---|---|---|
 | `swap.quote` | available | [docs/capabilities/swap/README.md](docs/capabilities/swap/README.md) |
 
-Capability 定义“做什么”；执行位置是内部实现，Agent 不选择 local/remote。`swap.quote` 默认
-走托管服务，开发/自托管时可用 `FLUXION_MODE=self_hosted` 切到本地 runtime。完整说明见
+Capability 定义“做什么”；执行位置由 Fluxion 内部固定：`swap.quote` 走 remote 服务，
+`wallet/execute` 走 local runtime。Agent 和用户都不选择 provider。完整说明见
 [capability index](docs/capabilities/README.md)。
 
 ## Install / Agent setup
@@ -31,17 +31,12 @@ fluxion mcp
 的字段和错误见 [swap.quote capability](docs/capabilities/swap/README.md) 和
 [Agent skill](skills/swap/SKILL.md)。
 
-开发/自托管：
-
-```bash
-FLUXION_MODE=self_hosted GRAPH_API_KEY=... fluxion start
-```
-
 ## Execution model
 
-`managed` 使用 remote 服务（`FLUXION_REMOTE_URL` / `FLUXION_API_KEY`）；`self_hosted` 使用
-本地 runtime（`GRAPH_API_KEY` + RPC）。`FLUXION_MODE=auto` 默认按是否配置 remote URL 选择。
-Agent 不参与 provider 选择。详见 [execution routing](docs/CONFIGURATION.md#execution-routing)。
+`swap.quote` 固定使用 Fluxion remote 服务（`FLUXION_REMOTE_URL` / `FLUXION_API_KEY`）。
+开发/测试可以把 `FLUXION_REMOTE_URL` 指向 mock 或本地 server；这是 endpoint override，不是模式。
+`wallet` / `execute` 等执行能力固定在 local runtime。详见
+[execution routing](docs/CONFIGURATION.md#execution-routing)。
 
 ## Status
 

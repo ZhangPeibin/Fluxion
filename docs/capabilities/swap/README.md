@@ -6,33 +6,18 @@ approves, or broadcasts.
 
 ## Execution model
 
-Execution location is an internal Fluxion decision; agents do not choose local/remote.
+`swap.quote` always uses the remote Fluxion service; `wallet` / `execute` capabilities use the
+local runtime. Agents and users do not choose local/remote.
 
-| Mode | `swap.quote` execution | Requirements |
-|---|---|---|
-| `managed` (default when `FLUXION_REMOTE_URL` is set) | Fluxion hosted service | `FLUXION_API_KEY` |
-| `self_hosted` | local runtime | `GRAPH_API_KEY` + RPC |
-
-`FLUXION_MODE=auto` is the default: remote when `FLUXION_REMOTE_URL` is configured, otherwise
-local. `FLUXION_MODE` is operator configuration, not an agent input.
+The installed binary uses the built-in remote endpoint. Development/tests may override it with
+`FLUXION_REMOTE_URL` / `FLUXION_API_KEY`; this is an endpoint override, not a mode.
 
 ## Quick start
-
-Managed mode:
 
 ```bash
 fluxion swap ldo-eth 100
 fluxion swap ldo-eth 100 --json
 fluxion capability describe swap.quote --json
-```
-
-Development / self-hosted:
-
-```bash
-export GRAPH_API_KEY=...
-FLUXION_MODE=self_hosted fluxion start   # warm runtime; first start takes about a minute
-FLUXION_MODE=self_hosted fluxion swap ldo-eth 100
-fluxion stop
 ```
 
 Machine interface:
@@ -70,7 +55,7 @@ Important fields:
 - `amount_in`, `amount_out`: exact `raw` integer and display `decimal`
 - `plan_kind`: `baseline`, `direct`, or `split`
 - `allocations`: exact per-branch inputs, outputs and hop paths
-- `provenance.provider`: diagnostic execution label (for example `local-mcp` or `fluxion-remote`)
+- `provenance.execution`: always `remote` for `swap.quote`
 - `provenance.pricing_mode`: `rpc` or `local_snapshot`
 - `quote_block`, `state_age_secs`, `lag_blocks`: freshness
 - `latency_ms`: runtime quote latency

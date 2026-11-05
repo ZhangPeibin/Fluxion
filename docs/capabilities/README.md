@@ -11,9 +11,9 @@ its execution location is an internal Fluxion decision. The first delivered capa
 ## Contract vs execution
 
 - Capability: what the agent wants to do (`swap.quote`)
-- Execution location: decided by Fluxion (`managed` → remote service, `self_hosted` → local runtime)
+- Execution location: fixed per capability (`swap.quote` → remote service, `wallet`/`execute` → local runtime)
 - Data source: RPC, subgraphs, protocol APIs used internally
 - Transport: CLI or [MCP stdio](../MCP.md)
 
-Agents call capabilities; they do not choose a provider. `FLUXION_MODE` is operator configuration,
-not an agent input. See [swap/README.md](swap/README.md) for the execution model.
+Agents call capabilities; they do not choose a provider. See [swap/README.md](swap/README.md) for
+the execution model.

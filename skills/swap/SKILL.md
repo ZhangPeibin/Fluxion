@@ -28,9 +28,9 @@ Inputs:
 
 ## Execution model
 
-Do not choose local/remote. Fluxion routes `swap.quote` internally: managed mode uses the hosted
-service; self-hosted mode uses the local runtime. An agent must not manage `fluxion start` or
-`fluxion stop`; the MCP/host process does that.
+Do not choose local/remote. `swap.quote` always uses the remote Fluxion service; future
+`wallet` / `execute` capabilities use the local runtime. An agent must not manage `fluxion start`
+or `fluxion stop`; the MCP/host process does that.
 
 ## CLI
 
@@ -63,7 +63,7 @@ failures. Prefer parsing the JSON, not the human text.
 - `amount_out.raw` / `amount_out.decimal`: exact integer and display amount
 - `plan_kind`: `baseline`, `direct`, or `split`
 - `allocations`: per-branch exact inputs, outputs and hop paths
-- `provenance.provider`: diagnostic execution label (for example `local-mcp` or `fluxion-remote`)
+- `provenance.execution`: always `remote` for `swap.quote`
 - `provenance.pricing_mode`: `rpc` or `local_snapshot`
 - `quote_block`, `state_age_secs`, `lag_blocks`: state freshness
 - `latency_ms`: runtime quote latency

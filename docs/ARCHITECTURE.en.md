@@ -18,7 +18,8 @@ English | [中文](ARCHITECTURE.md)
 Fluxion is an **Ethereum mainnet multi-hop routing quote (RFQ) service**: given
 `token_in` / `token_out` / `amount_in`, it searches a **directed multigraph** of Uniswap V2/V3
 and Curve pools for the **single best path** and returns an exact `amount_out` (exact-in).
-It is **open-source and self-hosted**: one YAML config plus your own RPC / Graph key.
+It is **open-source**: one YAML config plus your own RPC / Graph key, runnable locally for
+development/operations; the product calls `swap.quote` through the remote service by default.
 
 Core idea — **two-layer pricing**:
 - **Coarse**: use an in-memory **price snapshot** (mid-prices) for fast graph search, **zero RPC**.

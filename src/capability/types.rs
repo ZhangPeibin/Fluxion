@@ -61,7 +61,7 @@ fn format_units(value: U256, decimals: u8) -> String {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Provenance {
-    pub provider: String,
+    pub execution: String,
     pub pricing_mode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub quote_block: Option<u64>,
@@ -76,7 +76,7 @@ pub struct Provenance {
 impl Provenance {
     pub fn rpc() -> Self {
         Self {
-            provider: "local-cli".to_string(),
+            execution: "remote".to_string(),
             pricing_mode: "rpc".to_string(),
             quote_block: None,
             block_hash: None,

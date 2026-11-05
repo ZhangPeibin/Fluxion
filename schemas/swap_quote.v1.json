@@ -57,10 +57,10 @@
     },
     "provenance": {
       "type": "object",
-      "required": ["provider", "pricing_mode"],
+      "required": ["execution", "pricing_mode"],
       "additionalProperties": false,
       "properties": {
-        "provider": { "type": "string" },
+        "execution": { "type": "string", "enum": ["remote"] },
         "pricing_mode": { "type": "string" },
         "quote_block": { "type": "integer", "minimum": 0 },
         "block_hash": { "type": "string" },

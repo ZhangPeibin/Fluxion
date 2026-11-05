@@ -74,11 +74,11 @@ async fn remote_client_sends_bearer_and_maps_response() {
             TokenRef::new(Some("LDO".into()), Address::with_last_byte(1), 18),
             TokenRef::new(Some("WETH".into()), Address::with_last_byte(2), 18),
             "ethereum",
-            "fluxion-remote",
+            "remote",
         )
         .await
         .unwrap();
-    assert_eq!(response.provenance.provider, "fluxion-remote");
+    assert_eq!(response.provenance.execution, "remote");
     assert_eq!(response.provenance.quote_block, Some(123));
     assert_eq!(response.amount_out.raw, "5000000000000000");
 

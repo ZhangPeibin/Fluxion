@@ -32,42 +32,12 @@ impl CapabilityId {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProviderId {
-    #[serde(rename = "local-cli")]
-    LocalCli,
-    #[serde(rename = "local-mcp")]
-    LocalMcp,
-    #[serde(rename = "fluxion-remote")]
-    Remote,
-}
-
-impl ProviderId {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::LocalCli => "local-cli",
-            Self::LocalMcp => "local-mcp",
-            Self::Remote => "fluxion-remote",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ProviderDescriptor {
-    pub id: ProviderId,
-    pub location: &'static str,
-    pub transport: &'static str,
-    pub available: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unavailable_reason: Option<&'static str>,
-    pub requires: Vec<&'static str>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct CapabilityDescriptor {
     pub name: &'static str,
     pub schema_version: u32,
-    pub providers: Vec<ProviderDescriptor>,
+    pub execution: &'static str,
+    pub transports: Vec<&'static str>,
 }
 
 pub fn names() -> impl Iterator<Item = &'static str> {

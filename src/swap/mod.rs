@@ -3,38 +3,14 @@
 
 pub mod quote;
 
-use crate::capability::{CapabilityDescriptor, ProviderDescriptor, ProviderId, SCHEMA_VERSION};
+use crate::capability::{CapabilityDescriptor, SCHEMA_VERSION};
 
 pub fn describe() -> CapabilityDescriptor {
     CapabilityDescriptor {
         name: CAPABILITY,
         schema_version: SCHEMA_VERSION,
-        providers: vec![
-            ProviderDescriptor {
-                id: ProviderId::LocalCli,
-                location: "local",
-                transport: "cli",
-                available: true,
-                unavailable_reason: None,
-                requires: vec!["rpc_url", "graph_api_key"],
-            },
-            ProviderDescriptor {
-                id: ProviderId::LocalMcp,
-                location: "local",
-                transport: "mcp-stdio",
-                available: true,
-                unavailable_reason: None,
-                requires: vec!["rpc_url", "graph_api_key"],
-            },
-            ProviderDescriptor {
-                id: ProviderId::Remote,
-                location: "remote",
-                transport: "http",
-                available: true,
-                unavailable_reason: None,
-                requires: vec!["fluxion_remote_url", "fluxion_api_key"],
-            },
-        ],
+        execution: "remote",
+        transports: vec!["cli", "mcp-stdio"],
     }
 }
 
@@ -49,22 +25,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn describes_local_and_unavailable_remote_providers() {
+    fn describes_a_fixed_remote_execution() {
         let descriptor = describe();
         assert_eq!(descriptor.name, "swap.quote");
         assert_eq!(descriptor.schema_version, SCHEMA_VERSION);
-        let local = descriptor
-            .providers
-            .iter()
-            .find(|provider| provider.id == ProviderId::LocalMcp)
-            .unwrap();
-        assert!(local.available);
-        let remote = descriptor
-            .providers
-            .iter()
-            .find(|provider| provider.id == ProviderId::Remote)
-            .unwrap();
-        assert!(remote.available);
-        assert_eq!(remote.id.as_str(), "fluxion-remote");
+        assert_eq!(descriptor.execution, "remote");
+        assert_eq!(descriptor.transports, vec!["cli", "mcp-stdio"]);
     }
 }

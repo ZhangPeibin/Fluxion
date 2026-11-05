@@ -23,23 +23,17 @@ fluxion mcp
 `fluxion mcp` starts a stdio MCP server. It exposes the installed capabilities and routes each
 call internally; the agent does not choose local or remote execution.
 
-## Execution modes
+## Remote service
 
-| Mode | Behavior | Requirements |
-|---|---|---|
-| `managed` | capabilities use the hosted Fluxion service | `FLUXION_REMOTE_URL`, `FLUXION_API_KEY` |
-| `self_hosted` | capabilities use the local runtime | `GRAPH_API_KEY` + RPC |
-| `auto` (default) | remote when `FLUXION_REMOTE_URL` is set, otherwise local | depends on resolved mode |
-
-`FLUXION_MODE` is operator configuration, not an agent input. Managed mode does not need
-`GRAPH_API_KEY`; self-hosted/development mode does. See
-[execution routing](CONFIGURATION.md#execution-routing).
-
-For a self-hosted runtime managed separately:
+`swap.quote` always calls the remote Fluxion service. The installed binary uses the built-in
+endpoint; development and tests can override it:
 
 ```bash
-FLUXION_MODE=self_hosted fluxion mcp --url http://127.0.0.1:8080 --no-auto-start
+FLUXION_REMOTE_URL=https://api.example.com FLUXION_API_KEY=... fluxion mcp
 ```
+
+`FLUXION_REMOTE_URL` is an endpoint override, not a local/remote mode.
+`GRAPH_API_KEY` is not required for managed users.
 
 ## Client registration
 
@@ -79,18 +73,17 @@ OpenCode (`opencode.json` or `~/.config/opencode/opencode.json`):
 }
 ```
 
-For self-hosted mode, set `FLUXION_MODE=self_hosted` and `GRAPH_API_KEY` in the environment that
-launches the agent, or use the client's local MCP `environment` field. Exact config keys vary by
-client version; check the client's MCP documentation if a snippet is rejected.
+Set `FLUXION_REMOTE_URL` / `FLUXION_API_KEY` in the environment that launches the agent when you
+need a non-default remote endpoint. Exact config keys vary by client version; check the client's
+MCP documentation if a snippet is rejected.
 
-## Lifecycle and warmup
+## Lifecycle
 
-- `fluxion mcp` keeps the MCP process alive; quotes reuse the same warm runtime.
-- The first quote can take 40–90 seconds while the local snapshot warms. Pre-warm with
-  `fluxion start` for self-hosted mode, or raise the client's MCP timeout.
-- `--no-auto-start` prevents the MCP server from starting a local runtime.
-- Local runtime logs: `~/.fluxion/runtime.log`.
+- `fluxion mcp` keeps the MCP process alive and reuses one remote client.
+- `swap.quote` does not start a local snapshot; the remote service owns quote state.
 - Agents should call capabilities; they should not manage `fluxion start` or `fluxion stop`.
+- `fluxion start` / `fluxion stop` are reserved for the local runtime used by future
+  `wallet` / `execute` capabilities.
 
 ## Tools
 
@@ -106,6 +99,5 @@ Available tools depend on the installed capabilities:
 |---|---|
 | `fluxion` not found | `cargo install --path .`; verify `PATH`; or use an absolute path |
 | `INVALID_ARGUMENT` from a tool | Token symbol/address, amount format and optional decimals |
-| `RPC_ERROR` in managed mode | `FLUXION_REMOTE_URL` and `FLUXION_API_KEY` |
-| `RPC_ERROR` in self-hosted mode | `GRAPH_API_KEY`, RPC reachability, `~/.fluxion/runtime.log` |
-| First call times out | Pre-warm with `fluxion start`, or raise `experimental.mcp_timeout` |
+| `RPC_ERROR` | `FLUXION_REMOTE_URL` and `FLUXION_API_KEY` |
+| First call times out | Check the remote service; raise `experimental.mcp_timeout` |

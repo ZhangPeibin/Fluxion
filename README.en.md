@@ -7,7 +7,7 @@ capabilities for local CLIs and MCP agents. Execution location (remote service o
 is decided internally by Fluxion. The first delivered capability is `swap.quote`: exact-in
 multi-hop quotes, split allocation and state freshness on Ethereum mainnet.
 
-> Open-source and self-hosted. See the full
+> Open-source. See the full
 > [Web3 Agent Capability Infrastructure whitepaper](docs/WHITEPAPER.md).
 
 ## Capabilities
@@ -17,8 +17,8 @@ multi-hop quotes, split allocation and state freshness on Ethereum mainnet.
 | `swap.quote` | available | [docs/capabilities/swap/README.md](docs/capabilities/swap/README.md) |
 
 A capability defines *what* the agent wants; execution location is an internal implementation
-detail. Agents do not select local/remote. `swap.quote` defaults to the managed service;
-development/self-hosting uses `FLUXION_MODE=self_hosted`. See the
+detail. `swap.quote` always uses the remote service; `wallet` / `execute` use the local runtime.
+Agents and users do not select a provider. See the
 [capability index](docs/capabilities/README.md).
 
 ## Install / Agent setup
@@ -33,17 +33,11 @@ fluxion mcp
 registration; `swap_quote` fields and errors live in the
 [swap.quote capability](docs/capabilities/swap/README.md) and [agent skill](skills/swap/SKILL.md).
 
-Development / self-hosted:
-
-```bash
-FLUXION_MODE=self_hosted GRAPH_API_KEY=... fluxion start
-```
-
 ## Execution model
 
-`managed` uses the remote service (`FLUXION_REMOTE_URL` / `FLUXION_API_KEY`); `self_hosted` uses
-the local runtime (`GRAPH_API_KEY` + RPC). `FLUXION_MODE=auto` chooses based on whether a remote
-URL is configured. Agents do not choose a provider. See
+`swap.quote` always uses the remote Fluxion service (`FLUXION_REMOTE_URL` / `FLUXION_API_KEY`).
+Development/tests may point `FLUXION_REMOTE_URL` at a mock or local server; that is an endpoint
+override, not a mode. `wallet` / `execute` capabilities use the local runtime. See
 [execution routing](docs/CONFIGURATION.md#execution-routing) (Chinese).
 
 ## Status

@@ -15,7 +15,7 @@
 
 Fluxion 是一个 **Ethereum 主网多跳路由询价服务**：给定 `token_in/token_out/amount_in`，
 在 Uniswap V2/V3/Curve 构成的**有向多重图**上找到**单条最优路径**，返回精确
-`amount_out`（exact-in）。它是**开源、自托管**的：一份 YAML 配置 + 你自己的 RPC/Graph key。
+`amount_out`（exact-in）。它是**开源**的：一份 YAML 配置 + 你自己的 RPC/Graph key，可本地运行用于开发/运维；产品默认通过 remote 服务调用 `swap.quote`。
 
 核心思想——**两层定价**：
 - **粗选（coarse）**：用**内存里的价格快照**（mid-price）做快速图搜索，**零 RPC**。

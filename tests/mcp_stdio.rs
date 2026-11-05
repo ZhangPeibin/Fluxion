@@ -57,7 +57,7 @@ async fn request(
 async fn mcp_stdio_initializes_lists_and_calls_swap_quote() {
     let (url, server) = mock_runtime().await;
     let mut child = tokio::process::Command::new(env!("CARGO_BIN_EXE_fluxion"))
-        .args(["mcp", "--url", &url, "--no-auto-start"])
+        .args(["mcp", "--url", &url])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -114,7 +114,7 @@ async fn mcp_stdio_initializes_lists_and_calls_swap_quote() {
     let capability: Value = serde_json::from_str(text).unwrap();
     assert_eq!(capability["capability"], "swap.quote");
     assert_eq!(capability["amount_out"]["raw"], "5000000000000000");
-    assert_eq!(capability["provenance"]["provider"], "local-mcp");
+    assert_eq!(capability["provenance"]["execution"], "remote");
     assert_eq!(capability["provenance"]["quote_block"], 100);
 
     child.kill().await.unwrap();
