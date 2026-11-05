@@ -1,32 +1,6 @@
-pub mod adapters;
-pub mod api;
-pub mod capability;
-pub mod cli;
-pub mod client;
-pub mod config;
-pub mod conversion;
-pub mod curve_local;
-pub mod curve_plain;
-mod curve_sync;
-pub mod discovery;
-pub mod error;
-pub mod graph;
-pub mod local_state;
-pub mod mcp;
-pub mod model;
-pub mod reference;
-pub mod router;
-pub mod routing;
-pub mod rpc;
-pub mod source;
-pub mod split;
-pub mod state;
-pub mod swap;
-pub mod token;
-pub mod tricrypto2_local;
-pub mod universe;
-pub mod util;
-pub mod v3_local;
-mod v3_sync;
-pub mod wsteth_local;
-mod wsteth_sync;
+//! Workspace facade kept for repository tests and backwards-compatible imports.
+//! Production binaries live in `fluxion-remote` and `fluxion-client`.
+
+pub use fluxion_client::{cli, client, mcp, routing, token};
+pub use fluxion_protocol::{capability, swap};
+pub use fluxion_remote::*;

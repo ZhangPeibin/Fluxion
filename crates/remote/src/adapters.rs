@@ -439,7 +439,7 @@ mod tests {
     }
 
     fn pinned_fixture() -> serde_json::Value {
-        serde_json::from_str(include_str!("../tests/fixtures/v2-usdc-weth.json")).unwrap()
+        serde_json::from_str(include_str!("../../../tests/fixtures/v2-usdc-weth.json")).unwrap()
     }
 
     #[test]

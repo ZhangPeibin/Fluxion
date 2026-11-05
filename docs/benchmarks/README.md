@@ -50,8 +50,8 @@ The service cold-starts with one full load, then publishes a snapshot per block:
 full loader. The benchmark universe was pinned with `universe_refresh_secs: 0`.
 
 ```bash
-cargo run -- --config bench/configs/local.yaml
-cargo run --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
+cargo run -p fluxion-remote -- serve --config bench/configs/local.yaml
+cargo run -p fluxion-remote --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
   --split --delay-ms 600 --freshness-rpc-url https://ethereum-rpc.publicnode.com \
   --out docs/benchmarks/quote-freshness-2026-11-04-incremental.md
 ```
@@ -86,9 +86,9 @@ Actual state age remains 59–129 seconds under the unchanged 180-second / 15-bl
 default-freshness acceptance is separate from the fixed HTTP scheduling defect.
 
 ```bash
-cargo run -- --config bench/configs/local.yaml
+cargo run -p fluxion-remote -- serve --config bench/configs/local.yaml
 # After /ready, with ONEINCH_API_KEY in .env:
-cargo run --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
+cargo run -p fluxion-remote --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
   --split --delay-ms 600 --out docs/benchmarks/writer-isolation-run.md
 ```
 
@@ -104,8 +104,8 @@ Actual state age is **50–112 seconds**, under an experiment policy of 180 seco
 default-freshness continuous operation and tail latency remain unresolved.
 
 ```bash
-cargo run -- --config bench/configs/local.yaml
-cargo run --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
+cargo run -p fluxion-remote -- serve --config bench/configs/local.yaml
+cargo run -p fluxion-remote --bin bench -- --service http://127.0.0.1:8089 --config bench/configs/local.yaml \
   --split --delay-ms 600 --out docs/benchmarks/local-threeway-run.md
 ```
 
@@ -121,9 +121,9 @@ The full discovered graph has 210 records, 48 tokens and 432 directed edges. Thi
 local-snapshot migration benchmark; legacy Tricrypto is still unsupported in local mode.
 
 ```bash
-cargo run -- --config bench/configs/threeway.yaml
+cargo run -p fluxion-remote -- serve --config bench/configs/threeway.yaml
 # In another terminal, with ONEINCH_API_KEY in the gitignored .env:
-cargo run --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml \
+cargo run -p fluxion-remote --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml \
   --split --delay-ms 600 --out docs/benchmarks/threeway-run.md
 ```
 
@@ -171,7 +171,7 @@ RPC pricing until Curve and full-coverage migration acceptance is complete.
 Run without an HTTP server:
 
 ```bash
-cargo run --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
+cargo run -p fluxion-remote --bin split_bench -- --paraswap --max-branches 4 --max-quotes 256 \
   --out docs/benchmarks/multi-pool-run.md
 ```
 
@@ -201,7 +201,7 @@ include setup, both optimizers and replay, so are not the cost of one production
 ## Fixed-block two-pool experiment (#30)
 
 This is an internal single-route vs split comparison, distinct from the live aggregator runs below.
-Run `cargo run --bin split_bench -- --config bench/configs/threeway.yaml`; no HTTP server is required.
+Run `cargo run -p fluxion-remote --bin split_bench -- --config bench/configs/threeway.yaml`; no HTTP server is required.
 Use `--focus SHIB`, `--block NUMBER` and `--help` for targeted runs and search-budget options.
 
 - [90-row fixed-block report](2026-11-02-split-mainnet.md) / [raw JSON](2026-11-02-split-mainnet.json)
@@ -216,18 +216,18 @@ phase did not change HTTP/Viewer; the latest multi-pool implementation does. [Tw
 
 ## Live aggregator comparison
 
-`cargo run --bin bench --` compares Fluxion's `POST /quote` against external aggregator quote
+`cargo run -p fluxion-remote --bin bench --` compares Fluxion's `POST /quote` against external aggregator quote
 endpoints for a fixed corpus of token pairs and amount tiers.
 
 ## Run
 
 ```bash
 # Terminal 1: real discovery requires GRAPH_API_KEY in the gitignored .env.
-cargo run -- --config bench/configs/threeway.yaml
+cargo run -p fluxion-remote -- serve --config bench/configs/threeway.yaml
 
 # Terminal 2: same public profile, service on :8081.
-cargo run --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml --limit 3
-cargo run --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml
+cargo run -p fluxion-remote --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml --limit 3
+cargo run -p fluxion-remote --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml
 ```
 
 Options: `--service URL`, `--corpus PATH` (default `bench/corpus.yaml`), `--limit N`, `--split`
@@ -245,7 +245,7 @@ both head reads contribute to p50/p95/max; missing data and RPC errors remain vi
 This measures snapshot age, not the amount-out difference from recomputing on latest pool state.
 
 For a same-run feature-disabled control, start a second instance with
-`cargo run -- --config bench/configs/control.yaml` (:8082), then add
+`cargo run -p fluxion-remote -- serve --config bench/configs/control.yaml` (:8082), then add
 `--control-service http://127.0.0.1:8082` to the benchmark command. Candidate/control order
 alternates by row. Reports separate stETH, SHIB and other cohorts, and raw JSON includes both
 local paths plus ParaSwap's `bestRoute` (pool addresses and allocation percentages when returned).

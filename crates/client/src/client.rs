@@ -13,7 +13,7 @@ use crate::capability::{
     Amount, CapabilityError, CapabilityErrorCode, CapabilityMeta, Provenance, SCHEMA_VERSION,
     TokenRef,
 };
-use crate::split::PlanKind;
+use crate::swap::PlanKind;
 use crate::swap::quote::{AllocationResponse, HopResponse, QuoteRequest, QuoteResponse};
 use crate::token;
 

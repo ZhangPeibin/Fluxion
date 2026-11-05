@@ -24,7 +24,7 @@ Agents and users do not select an execution location. See the
 ## Install / Agent setup
 
 ```bash
-cargo install --path .
+cargo install --path crates/client
 fluxion swap ldo-eth 100 --json
 fluxion mcp
 ```
@@ -56,9 +56,9 @@ override, not a mode. `wallet` / `execute` capabilities use the local runtime. S
 ## Development
 
 ```bash
-cargo build
-cargo test
-cargo test -- --ignored      # mainnet, read-only
-cargo clippy --all-targets
+cargo build --workspace
+cargo test --workspace
+cargo test --workspace -- --ignored   # mainnet, read-only
+cargo clippy --workspace --all-targets
 cargo fmt
 ```

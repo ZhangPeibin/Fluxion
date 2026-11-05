@@ -46,15 +46,7 @@ impl Default for SplitConfig {
     }
 }
 
-impl PlanKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Baseline => "baseline",
-            Self::Direct => "direct",
-            Self::Split => "split",
-        }
-    }
-}
+pub use fluxion_protocol::swap::PlanKind;
 
 impl SplitConfig {
     pub fn multi_pool() -> Self {
@@ -64,14 +56,6 @@ impl SplitConfig {
             ..Self::default()
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PlanKind {
-    Baseline,
-    Direct,
-    Split,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize)]

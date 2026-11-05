@@ -29,8 +29,8 @@ Inputs:
 ## Execution model
 
 Do not choose local/remote. `swap.quote` always uses the remote Fluxion service; future
-`wallet` / `execute` capabilities use the local runtime. An agent must not manage `fluxion start`
-or `fluxion stop`; the MCP/host process does that.
+`wallet` / `execute` capabilities use the local runtime. The agent does not start or manage any
+server process.
 
 ## CLI
 

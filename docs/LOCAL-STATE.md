@@ -14,7 +14,7 @@
 
 ```bash
 # 真实 ShibaSwap WETH/SHIB 示例，不需要 Graph key，默认 :8083
-cargo run -- --config tests/configs/v2.yaml
+cargo run -p fluxion-remote -- serve --config tests/configs/v2.yaml
 curl -s localhost:8083/state
 curl -s localhost:8083/ready
 curl -s localhost:8083/quote -H 'content-type: application/json' \
@@ -25,10 +25,10 @@ curl -s localhost:8083/quote -H 'content-type: application/json' \
 Graph key。白名单仍双币过滤；发现规则不变。此受限示例不是原有全平台 benchmark 配置。
 只有一个池时拆单自然保留 100% 单路径，不会产生虚构分支。
 
-V2/V3/ShibaSwap 四池示例：`cargo run -- --config tests/configs/v3.yaml`，默认
+V2/V3/ShibaSwap 四池示例：`cargo run -p fluxion-remote -- serve --config tests/configs/v3.yaml`，默认
 `:8084`，需要 Graph key。同样仅覆盖 WETH/SHIB，不包含 Curve 或转换。
 
-转换与多跳示例：`cargo run -- --config tests/configs/wsteth.yaml`，默认 `:8085`。
+转换与多跳示例：`cargo run -p fluxion-remote -- serve --config tests/configs/wsteth.yaml`，默认 `:8085`。
 该示例显式使用 V3、stETH/wstETH/WETH/USDC 白名单和 100 万流动性门槛，需要 Graph key；
 不是默认全平台池集。把示例的 `enabled_platforms` 改成 `[]` 可在不需要 Graph key 的情况下
 只验证真实协议转换。

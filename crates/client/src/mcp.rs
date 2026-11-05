@@ -12,7 +12,7 @@ use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
 
-pub async fn run_stdio(client: RuntimeClient) -> i32 {
+pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     let mut out = tokio::io::stdout();
     loop {
@@ -22,7 +22,7 @@ pub async fn run_stdio(client: RuntimeClient) -> i32 {
                 if line.is_empty() {
                     continue;
                 }
-                if let Some(response) = handle_line(line, &client).await {
+                if let Some(response) = handle_line(line, &backend).await {
                     let mut text = match serde_json::to_string(&response) {
                         Ok(text) => text,
                         Err(error) => {
@@ -45,7 +45,10 @@ pub async fn run_stdio(client: RuntimeClient) -> i32 {
     }
 }
 
-async fn handle_line(line: &str, client: &RuntimeClient) -> Option<Value> {
+async fn handle_line(
+    line: &str,
+    backend: &Result<RuntimeClient, CapabilityError>,
+) -> Option<Value> {
     let value: Value = match serde_json::from_str(line) {
         Ok(value) => value,
         Err(error) => {
@@ -56,10 +59,13 @@ async fn handle_line(line: &str, client: &RuntimeClient) -> Option<Value> {
             }));
         }
     };
-    handle_request(value, client).await
+    handle_request(value, backend).await
 }
 
-async fn handle_request(value: Value, client: &RuntimeClient) -> Option<Value> {
+async fn handle_request(
+    value: Value,
+    backend: &Result<RuntimeClient, CapabilityError>,
+) -> Option<Value> {
     let method = value
         .get("method")
         .and_then(Value::as_str)
@@ -81,7 +87,7 @@ async fn handle_request(value: Value, client: &RuntimeClient) -> Option<Value> {
         })),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(tools_list()),
-        "tools/call" => Ok(call_tool(params, client).await),
+        "tools/call" => Ok(call_tool(params, backend).await),
         other => Err((-32601, format!("method not found: {other}"))),
     };
     Some(match result {
@@ -117,7 +123,7 @@ fn tools_list() -> Value {
     })
 }
 
-async fn call_tool(params: Value, client: &RuntimeClient) -> Value {
+async fn call_tool(params: Value, backend: &Result<RuntimeClient, CapabilityError>) -> Value {
     let name = params
         .get("name")
         .and_then(Value::as_str)
@@ -128,13 +134,17 @@ async fn call_tool(params: Value, client: &RuntimeClient) -> Value {
         )));
     }
     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-    match quote_tool(&arguments, client).await {
+    match quote_tool(&arguments, backend).await {
         Ok(response) => tool_result(serde_json::to_value(response).unwrap_or(Value::Null)),
         Err(error) => tool_error(error),
     }
 }
 
-async fn quote_tool(arguments: &Value, client: &RuntimeClient) -> Result<Value, CapabilityError> {
+async fn quote_tool(
+    arguments: &Value,
+    backend: &Result<RuntimeClient, CapabilityError>,
+) -> Result<Value, CapabilityError> {
+    let client = backend.as_ref().map_err(|error| error.clone())?;
     let token_in = string_arg(arguments, "token_in")?;
     let token_out = string_arg(arguments, "token_out")?;
     let amount = string_arg(arguments, "amount")?;
@@ -232,7 +242,7 @@ mod tests {
     fn rejects_unknown_tool() {
         let result = futures::executor::block_on(call_tool(
             json!({"name": "nope", "arguments": {}}),
-            &RuntimeClient::new("http://127.0.0.1:1"),
+            &Ok(RuntimeClient::new("http://127.0.0.1:1")),
         ));
         assert_eq!(result["isError"], true);
     }

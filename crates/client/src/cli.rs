@@ -1,26 +1,22 @@
 //! Agent-facing CLI. Commands are thin clients over a warm local runtime.
 
-use std::env;
-use std::fs::{self, OpenOptions};
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use std::time::Duration;
-
 use crate::capability::{CapabilityError, CapabilityErrorCode};
 use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
 
-const DEFAULT_URL: &str = "http://127.0.0.1:8080";
-
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
     let Some(first) = args.first().map(String::as_str) else {
-        // Preserve the historical no-argument server startup.
-        return (args, None);
+        print_help();
+        return (args, Some(0));
     };
     match first {
-        "serve" => (args[1..].to_vec(), None),
-        "--config" => (args, None),
+        "serve" | "--config" => {
+            eprintln!(
+                "serve is provided by fluxion-remote; run `fluxion-remote serve --config PATH`"
+            );
+            (args, Some(2))
+        }
         "help" | "--help" | "-h" => {
             print_help();
             (args, Some(0))
@@ -32,18 +28,6 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
         "tokens" => {
             print_tokens();
             (args, Some(0))
-        }
-        "start" | "up" => {
-            let code = run_up(&args[1..]).await;
-            (args, Some(code))
-        }
-        "stop" | "down" => {
-            let code = run_down();
-            (args, Some(code))
-        }
-        "status" => {
-            let code = run_status(&args[1..]).await;
-            (args, Some(code))
         }
         "mcp" => {
             let code = run_mcp(&args[1..]).await;
@@ -77,16 +61,12 @@ fn print_help() {
     println!(
         "Fluxion — Web3 agent capabilities\n\n\
 Usage:\n  \
-fluxion start                           Start the local runtime\n  \
-fluxion stop                            Stop the local runtime\n  \
-fluxion status                          Show local runtime readiness and state\n  \
 fluxion swap ldo-eth 100                Shorthand quote\n  \
 fluxion ldo-eth 100                     Top-level shorthand alias\n  \
 fluxion capability list                  List capabilities\n  \
 fluxion capability describe NAME        Show capability and execution details\n  \
 fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
-fluxion serve [--config PATH]           Run the local runtime in the foreground\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
 Quote options:\n  \
@@ -424,225 +404,6 @@ async fn run_capability(raw: &[String]) -> i32 {
     }
 }
 
-async fn run_up(raw: &[String]) -> i32 {
-    let mut url = env::var("FLUXION_URL").unwrap_or_else(|_| DEFAULT_URL.to_string());
-    let mut config = runtime_config();
-    let mut index = 0;
-    while index < raw.len() {
-        match raw[index].as_str() {
-            "--config" => {
-                index += 1;
-                let Some(value) = raw.get(index) else {
-                    eprintln!("--config needs a value");
-                    return 2;
-                };
-                config = value.clone();
-            }
-            "--url" => {
-                index += 1;
-                let Some(value) = raw.get(index) else {
-                    eprintln!("--url needs a value");
-                    return 2;
-                };
-                url = value.clone();
-            }
-            "--help" | "-h" => {
-                print_help();
-                return 0;
-            }
-            other => {
-                eprintln!("unknown up option: {other}");
-                return 2;
-            }
-        }
-        index += 1;
-    }
-    let client = RuntimeClient::new(url);
-    if client.ready().await {
-        println!("runtime already ready at {}", client.base_url());
-        return 0;
-    }
-    if let Err(error) = spawn_runtime(&config) {
-        report_error(&error, false);
-        return exit_code(error.code);
-    }
-    match wait_ready(&client).await {
-        Ok(()) => {
-            println!("runtime ready at {}", client.base_url());
-            0
-        }
-        Err(error) => {
-            report_error(&error, false);
-            exit_code(error.code)
-        }
-    }
-}
-
-fn run_down() -> i32 {
-    let pid_path = pid_file();
-    let Ok(text) = fs::read_to_string(&pid_path) else {
-        println!("runtime is not running");
-        return 0;
-    };
-    let pid = text.trim();
-    if pid.is_empty() {
-        println!("runtime is not running");
-        return 0;
-    }
-    let status = Command::new("kill").arg(pid).status();
-    let _ = fs::remove_file(&pid_path);
-    match status {
-        Ok(status) if status.success() => {
-            println!("stopped runtime pid {pid}");
-            0
-        }
-        _ => {
-            println!("runtime pid {pid} was not running");
-            0
-        }
-    }
-}
-
-async fn run_status(raw: &[String]) -> i32 {
-    let mut url = env::var("FLUXION_URL").unwrap_or_else(|_| DEFAULT_URL.to_string());
-    let mut index = 0;
-    while index < raw.len() {
-        match raw[index].as_str() {
-            "--url" => {
-                index += 1;
-                let Some(value) = raw.get(index) else {
-                    eprintln!("--url needs a value");
-                    return 2;
-                };
-                url = value.clone();
-            }
-            "--help" | "-h" => {
-                print_help();
-                return 0;
-            }
-            other => {
-                eprintln!("unknown status option: {other}");
-                return 2;
-            }
-        }
-        index += 1;
-    }
-    let client = RuntimeClient::new(url);
-    if !client.ready().await {
-        eprintln!("runtime not ready at {}", client.base_url());
-        return 5;
-    }
-    match client.state().await {
-        Some(state) => {
-            println!("{}", serde_json::to_string_pretty(&state).unwrap());
-            0
-        }
-        None => {
-            eprintln!("runtime ready but /state is unavailable");
-            1
-        }
-    }
-}
-
-fn runtime_dir() -> PathBuf {
-    let base = env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(env::temp_dir);
-    base.join(".fluxion")
-}
-
-fn pid_file() -> PathBuf {
-    runtime_dir().join("runtime.pid")
-}
-
-fn log_file() -> PathBuf {
-    runtime_dir().join("runtime.log")
-}
-
-fn runtime_config() -> String {
-    if let Ok(path) = env::var("FLUXION_CONFIG") {
-        return path;
-    }
-    for path in ["configs/runtime.yaml", "config.yaml", "config.example.yaml"] {
-        if std::path::Path::new(path).exists() {
-            return path.to_string();
-        }
-    }
-    let dir = runtime_dir();
-    let path = dir.join("config.yaml");
-    if !path.exists() {
-        let _ = fs::create_dir_all(&dir);
-        let _ = fs::write(&path, include_str!("../configs/runtime.yaml"));
-    }
-    path.display().to_string()
-}
-
-fn spawn_runtime(config: &str) -> Result<(), CapabilityError> {
-    if !std::path::Path::new(config).exists() {
-        return Err(CapabilityError::invalid_argument(format!(
-            "runtime config not found: {config}; run `fluxion start --config PATH`"
-        )));
-    }
-    let parsed = crate::config::Config::load(config).map_err(|error| {
-        CapabilityError::invalid_argument(format!("invalid config {config}: {error}"))
-    })?;
-    let needs_graph_key = parsed.enabled_platforms.is_empty()
-        || parsed
-            .enabled_platforms
-            .iter()
-            .any(|platform| platform == "uniswap-v2" || platform == "uniswap-v3");
-    let has_graph_key = env::var("GRAPH_API_KEY")
-        .ok()
-        .is_some_and(|key| !key.trim().is_empty());
-    if needs_graph_key && !has_graph_key {
-        return Err(CapabilityError::invalid_argument(
-            "GRAPH_API_KEY is required before `fluxion start`; export it or put it in .env",
-        ));
-    }
-    let dir = runtime_dir();
-    fs::create_dir_all(&dir)
-        .map_err(|error| CapabilityError::internal(format!("cannot create {dir:?}: {error}")))?;
-    let log = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_file())
-        .map_err(|error| CapabilityError::internal(format!("cannot open runtime log: {error}")))?;
-    let stderr = log
-        .try_clone()
-        .map_err(|error| CapabilityError::internal(format!("cannot clone log handle: {error}")))?;
-    let exe = env::current_exe().map_err(|error| {
-        CapabilityError::internal(format!("cannot locate fluxion binary: {error}"))
-    })?;
-    let child = Command::new(exe)
-        .args(["serve", "--config", config])
-        .stdin(Stdio::null())
-        .stdout(Stdio::from(log))
-        .stderr(Stdio::from(stderr))
-        .spawn()
-        .map_err(|error| CapabilityError::internal(format!("cannot start runtime: {error}")))?;
-    let _ = fs::write(pid_file(), child.id().to_string());
-    eprintln!(
-        "warming Fluxion runtime (pid {}, log {})",
-        child.id(),
-        log_file().display()
-    );
-    Ok(())
-}
-
-async fn wait_ready(client: &RuntimeClient) -> Result<(), CapabilityError> {
-    for _ in 0..360 {
-        if client.ready().await {
-            return Ok(());
-        }
-        tokio::time::sleep(Duration::from_millis(500)).await;
-    }
-    Err(CapabilityError::new(
-        CapabilityErrorCode::Timeout,
-        "runtime did not become ready within 180s; check ~/.fluxion/runtime.log",
-        true,
-    ))
-}
-
 async fn run_mcp(raw: &[String]) -> i32 {
     let mut url = None;
     let mut index = 0;
@@ -667,15 +428,10 @@ async fn run_mcp(raw: &[String]) -> i32 {
         }
         index += 1;
     }
-    let backend = match crate::routing::from_env(url.as_deref()) {
-        Ok(backend) => backend,
-        Err(error) => {
-            report_error(&error, false);
-            return exit_code(error.code);
-        }
-    };
-    let client = RuntimeClient::with_api_key(backend.base_url.clone(), backend.api_key.clone());
-    crate::mcp::run_stdio(client).await
+    let backend = crate::routing::from_env(url.as_deref()).map(|backend| {
+        RuntimeClient::with_api_key(backend.base_url.clone(), backend.api_key.clone())
+    });
+    crate::mcp::run_stdio(backend).await
 }
 
 #[cfg(test)]

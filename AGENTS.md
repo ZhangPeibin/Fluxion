@@ -45,16 +45,16 @@ Implementation tasks use isolated worktrees under `.worktrees/<task-slug>`. See 
 Rust project (edition 2024). Async runtime: tokio (`#[tokio::main]`); the app owns the runtime.
 
 Commands (from repo root):
-- Build: `cargo build`
-- Local runtime (development / future wallet execute): `cargo run -- serve --config configs/runtime.yaml`
-  (needs `GRAPH_API_KEY` for real discovery; `swap.quote` uses `FLUXION_REMOTE_URL`)
-- CLI: `cargo run -- swap ldo-eth 100` / `cargo run -- capability describe swap.quote --json`
-- MCP: `cargo run -- mcp`
-- Unit tests: `cargo test`
-- Mainnet integration tests (network, read-only): `cargo test -- --ignored`
-- Lint: `cargo clippy --all-targets`
+- Build: `cargo build --workspace`
+- Remote server: `cargo run -p fluxion-remote -- serve --config configs/runtime.yaml`
+  (needs `GRAPH_API_KEY` for real discovery)
+- Client CLI: `cargo run -p fluxion-client --bin fluxion -- swap ldo-eth 100`
+- MCP bridge: `cargo run -p fluxion-client --bin fluxion -- mcp`
+- Unit tests: `cargo test --workspace`
+- Mainnet integration tests (network, read-only): `cargo test --workspace -- --ignored`
+- Lint: `cargo clippy --workspace --all-targets`
 - Format: `cargo fmt`
-- Run an example: `cargo run --example <name>` (e.g. `quote_mainnet`)
+- Run an example: `cargo run -p fluxion --example <name>` (e.g. `quote_mainnet`)
 
 Architecture and docs (source of truth, link rather than duplicate):
 - `README.md` — landing page: positioning, capabilities, install, links.
@@ -67,10 +67,12 @@ Architecture and docs (source of truth, link rather than duplicate):
 - `docs/benchmarks/` — methodology and results.
 - `docs/PLAN.md` — learning-oriented milestones; `docs/0X-*.md` — learning notes.
 
-Modules (`src/`): `model`, `graph`, `discovery`, `source`, `adapters`, `state`, `rpc`,
-`router`, `split`, `local_state`, `curve_*`, `tricrypto2_*`, `v3_*`, `wsteth_*`,
-`reference`, `universe`, `api`, `config`, `capability`, `client`, `cli`, `mcp`, `routing`,
-`swap`, `token`, `util`, `bin`, `main`.
+Workspace crates:
+- `crates/protocol` — transport-independent capability contract and `swap.quote` DTOs.
+- `crates/remote` — discovery, snapshots, routing, HTTP API, `fluxion-remote` server and
+  benchmark/graph tools.
+- `crates/client` — CLI, MCP bridge, remote client, token registry, `fluxion` binary.
+- Root `src/lib.rs` is a test/compatibility facade; production binaries live in the crates.
 
 Project-specific constraints:
 - Chain interaction uses **raw JSON-RPC via `reqwest`** with hand-written ABI encode/decode;

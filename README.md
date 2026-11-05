@@ -22,7 +22,7 @@ Capability 定义“做什么”；执行位置由 Fluxion 内部固定：`swap.
 ## Install / Agent setup
 
 ```bash
-cargo install --path .
+cargo install --path crates/client
 fluxion swap ldo-eth 100 --json
 fluxion mcp
 ```
@@ -54,9 +54,9 @@ fluxion mcp
 ## Development
 
 ```bash
-cargo build
-cargo test
-cargo test -- --ignored      # mainnet, read-only
-cargo clippy --all-targets
+cargo build --workspace
+cargo test --workspace
+cargo test --workspace -- --ignored   # mainnet, read-only
+cargo clippy --workspace --all-targets
 cargo fmt
 ```

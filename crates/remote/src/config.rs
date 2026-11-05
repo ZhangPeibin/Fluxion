@@ -236,7 +236,11 @@ mod tests {
 
     #[test]
     fn example_config_parses() {
-        let c = Config::from_file("config.example.yaml").unwrap();
+        let c = Config::from_file(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../config.example.yaml"
+        ))
+        .unwrap();
         assert_eq!(c.max_hops, 3);
         assert!(!c.enabled_platforms.is_empty());
     }
@@ -275,7 +279,11 @@ mod tests {
 
     #[test]
     fn local_profile_is_explicit_and_rejects_invalid_sync_policy() {
-        let config = Config::from_file("tests/configs/v2.yaml").unwrap();
+        let config = Config::from_file(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/configs/v2.yaml"
+        ))
+        .unwrap();
         assert_eq!(config.pricing_mode, PricingMode::LocalSnapshot);
         assert!(config.protocol_conversions.is_empty());
         assert_eq!(Config::default().pricing_mode, PricingMode::Rpc);

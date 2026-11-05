@@ -1,0 +1,24 @@
+[package]
+name = "fluxion-client"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "fluxion"
+path = "src/main.rs"
+
+[dependencies]
+fluxion-protocol = { path = "../protocol" }
+alloy-primitives = { version = "1.7.3", features = ["serde"] }
+dotenvy = "0.15.7"
+reqwest = { version = "0.13.5", features = ["json", "query"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "signal", "time", "net", "sync", "io-util", "io-std", "process"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[dev-dependencies]
+axum = "0.8.9"
+futures = "0.3.34"
+serde_json = "1.0.154"

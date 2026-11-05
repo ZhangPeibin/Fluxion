@@ -1,27 +1,28 @@
+[workspace]
+members = ["crates/protocol", "crates/remote", "crates/client"]
+
 [package]
 name = "fluxion"
 version = "0.1.0"
 edition = "2024"
-default-run = "fluxion"
 description = "Web3 agent capability runtime for exact-in swap quotes via CLI and MCP"
 repository = "https://github.com/ZhangPeibin/Fluxion"
 readme = "README.md"
 
 [dependencies]
+fluxion-protocol = { path = "crates/protocol" }
+fluxion-remote = { path = "crates/remote" }
+fluxion-client = { path = "crates/client" }
+
+[dev-dependencies]
 alloy-primitives = { version = "1.7.3", features = ["serde"] }
 async-trait = "0.1.92"
 axum = "0.8.9"
 dotenvy = "0.15.7"
 futures = "0.3.34"
-reqwest = { version = "0.13.5", features = ["json", "query"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 serde_yaml = "0.9.34"
-thiserror = "2.0.21"
-tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "signal", "time", "net", "sync", "io-util", "io-std", "process"] }
-tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-
-[dev-dependencies]
 sha3 = "0.12.0"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "signal", "time", "net", "sync", "io-util", "io-std", "process"] }
 tower = { version = "0.5.3", features = ["util"] }

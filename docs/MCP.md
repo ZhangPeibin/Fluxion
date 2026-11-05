@@ -9,7 +9,7 @@ installation, registration, the remote service, lifecycle and troubleshooting.
 ## Install
 
 ```bash
-cargo install --path .
+cargo install --path crates/client
 ```
 
 `fluxion` must be on `PATH`. If it is not, use an absolute path in the client config instead.
@@ -34,6 +34,20 @@ FLUXION_REMOTE_URL=https://api.example.com FLUXION_API_KEY=... fluxion mcp
 
 `FLUXION_REMOTE_URL` is an endpoint override, not a local/remote mode.
 `GRAPH_API_KEY` is not required for normal users.
+
+The remote service is started separately. `fluxion mcp` does not start or wait for it; MCP
+initialize and `tools/list` always succeed. If the remote endpoint is unavailable, `swap_quote`
+returns a structured retryable error.
+
+Build/install and start the remote server separately:
+
+```bash
+cargo install --path crates/remote
+fluxion-remote serve --config configs/runtime.yaml
+```
+
+For local development without installing, use
+`cargo run -p fluxion-remote -- serve --config configs/runtime.yaml`.
 
 ## Client registration
 
@@ -80,10 +94,9 @@ MCP documentation if a snippet is rejected.
 ## Lifecycle
 
 - `fluxion mcp` keeps the MCP process alive and reuses one remote client.
-- `swap.quote` does not start a local snapshot; the remote service owns quote state.
-- Agents should call capabilities; they should not manage `fluxion start` or `fluxion stop`.
-- `fluxion start` / `fluxion stop` are reserved for the local runtime used by future
-  `wallet` / `execute` capabilities.
+- `swap.quote` uses the remote service; the remote server owns discovery and snapshot warmup.
+- `fluxion mcp` is a stateless bridge and never starts the remote server.
+- Start the remote server separately (for local testing or deployment).
 
 ## Tools
 
@@ -97,7 +110,7 @@ Available tools depend on the installed capabilities:
 
 | Symptom | Check |
 |---|---|
-| `fluxion` not found | `cargo install --path .`; verify `PATH`; or use an absolute path |
+| `fluxion` not found | `cargo install --path crates/client`; verify `PATH`; or use an absolute path |
 | `INVALID_ARGUMENT` from a tool | Token symbol/address, amount format and optional decimals |
 | `RPC_ERROR` | `FLUXION_REMOTE_URL` and `FLUXION_API_KEY` |
 | First call times out | Check the remote service; raise `experimental.mcp_timeout` |

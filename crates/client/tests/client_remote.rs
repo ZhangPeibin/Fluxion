@@ -7,9 +7,9 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::routing::post;
 use axum::{Json, Router};
-use fluxion::capability::TokenRef;
-use fluxion::client::RuntimeClient;
-use fluxion::swap::quote::QuoteRequest;
+use fluxion_client::capability::TokenRef;
+use fluxion_client::client::RuntimeClient;
+use fluxion_client::swap::quote::QuoteRequest;
 use serde_json::{Value, json};
 
 type CapturedRequest = Option<(Option<String>, Value)>;

@@ -5,7 +5,7 @@
 ```bash
 cp .env.example .env        # 填入 GRAPH_API_KEY
 cp config.example.yaml config.yaml
-cargo run -- serve --config config.yaml
+cargo run -p fluxion-remote -- serve --config config.yaml
 ```
 
 接口、请求/响应和错误见 [HTTP API](API.md)；配置项见 [Configuration](CONFIGURATION.md)。
@@ -20,13 +20,13 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 
 ```bash
 # 单独配置启动一个真实主网实例（默认 :8081；需要 GRAPH_API_KEY）
-cargo run -- --config bench/configs/threeway.yaml
+cargo run -p fluxion-remote -- serve --config bench/configs/threeway.yaml
 
 # 另一个终端：30 个交易对 × 3 档固定 raw 输入金额
-cargo run --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml
+cargo run -p fluxion-remote --bin bench -- --service http://127.0.0.1:8081 --config bench/configs/threeway.yaml
 
 # 从同一实例导出 Mermaid 与交互式 HTML，可用 --token ADDRESS --depth 2 聚焦
-cargo run --bin graph -- --service http://127.0.0.1:8081 --out graph
+cargo run -p fluxion-remote --bin graph -- --service http://127.0.0.1:8081 --out graph
 ```
 
 `GET /info` 返回主网/mock 模式、图规模及生效配置（不含 RPC URL），基准工具拒绝 mock 模式。
@@ -35,8 +35,8 @@ cargo run --bin graph -- --service http://127.0.0.1:8081 --out graph
 ParaSwap 无需密钥；1inch/0x 可通过 `.env` 中的 `ONEINCH_API_KEY` / `ZEROX_API_KEY` 启用。
 方法、结果与限制见 [benchmarks/README.md](benchmarks/README.md)。
 
-同轮对照：另启动 `cargo run -- --config bench/configs/control.yaml`（:8082），然后运行
-`cargo run --bin bench -- --service http://127.0.0.1:8081 --control-service http://127.0.0.1:8082 --config bench/configs/threeway.yaml`。
+同轮对照：另启动 `cargo run -p fluxion-remote -- serve --config bench/configs/control.yaml`（:8082），然后运行
+`cargo run -p fluxion-remote --bin bench -- --service http://127.0.0.1:8081 --control-service http://127.0.0.1:8082 --config bench/configs/threeway.yaml`。
 两实例使用相同语料、相同基础配置；对照实例关闭转换和 ShibaSwap。报告按 stETH、SHIB、其他样本分组，
 JSON 保留逐跳路径、对手拆单比例和池信息。详细实现见 [报价质量改进](QUOTE-QUALITY.md)。
 
@@ -45,8 +45,8 @@ JSON 保留逐跳路径、对手拆单比例和池信息。详细实现见 [报�
 ## 测试
 
 ```bash
-cargo test                       # 单元测试（离线）
-cargo test -- --ignored          # 真实主网集成测试（只读 eth_call）
+cargo test --workspace                       # 单元测试（离线）
+cargo test --workspace -- --ignored          # 真实主网集成测试（只读 eth_call）
 
 cd ui && npm install && npm run build   # 前端构建
 ```

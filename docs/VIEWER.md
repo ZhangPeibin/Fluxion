@@ -5,7 +5,7 @@
 
 ```bash
 # 终端 1：服务（默认 :8080）
-cargo run -- serve --config config.example.yaml
+cargo run -p fluxion-remote -- serve --config config.example.yaml
 
 # 终端 2：前端（默认 :5173）；首次需安装依赖
 cd ui

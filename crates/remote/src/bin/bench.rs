@@ -19,8 +19,8 @@ use alloy_primitives::{Address, U256};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use fluxion::config::Config;
-use fluxion::rpc::{BlockHeader, RpcClient};
+use fluxion_remote::config::Config;
+use fluxion_remote::rpc::{BlockHeader, RpcClient};
 
 const ONEINCH_URL: &str = "https://api.1inch.com/swap/v6.0/1/quote";
 const ZEROX_URL: &str = "https://api.0x.org/swap/allowance-holder/price";
@@ -1818,7 +1818,7 @@ mod tests {
     #[test]
     fn shipped_corpus_is_valid_and_missing_decimals_are_rejected() {
         let mut corpus: Corpus =
-            serde_yaml::from_str(include_str!("../../bench/corpus.yaml")).unwrap();
+            serde_yaml::from_str(include_str!("../../../../bench/corpus.yaml")).unwrap();
         validate_corpus(&corpus).unwrap();
         corpus.decimals.clear();
         assert!(validate_corpus(&corpus).unwrap_err().contains("decimals"));

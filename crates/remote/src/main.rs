@@ -4,18 +4,20 @@ use std::time::Duration;
 
 use alloy_primitives::{Address, U256};
 
-use fluxion::adapters::CachingSource;
-use fluxion::api::{self, AppState, RateLimiter};
-use fluxion::config::Config;
-use fluxion::graph::Graph;
-use fluxion::local_state::{PricingMode, SnapshotStore, StateSynchronizer};
-use fluxion::model::{Pool, PoolKind};
-use fluxion::router::{PriceSnapshot, Router, RouterConfig};
-use fluxion::rpc::RpcClient;
-use fluxion::source::MockV2;
-use fluxion::split::SplitOptimizer;
-use fluxion::state::StateCache;
-use fluxion::universe::{discover_pools, platform_enabled, pricing_source, warm_coarse_prices};
+use fluxion_remote::adapters::CachingSource;
+use fluxion_remote::api::{self, AppState, RateLimiter};
+use fluxion_remote::config::Config;
+use fluxion_remote::graph::Graph;
+use fluxion_remote::local_state::{PricingMode, SnapshotStore, StateSynchronizer};
+use fluxion_remote::model::{Pool, PoolKind};
+use fluxion_remote::router::{PriceSnapshot, Router, RouterConfig};
+use fluxion_remote::rpc::RpcClient;
+use fluxion_remote::source::MockV2;
+use fluxion_remote::split::SplitOptimizer;
+use fluxion_remote::state::StateCache;
+use fluxion_remote::universe::{
+    discover_pools, platform_enabled, pricing_source, warm_coarse_prices,
+};
 
 #[tokio::main]
 async fn main() {
@@ -27,25 +29,29 @@ async fn main() {
     dotenvy::dotenv().ok();
 
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let (server_args, handled) = fluxion::cli::dispatch(args).await;
-    if let Some(code) = handled {
-        std::process::exit(code);
+    let mut index = 0;
+    if args.get(index).map(String::as_str) == Some("serve") {
+        index += 1;
     }
-    run_server(server_args).await;
-}
-
-async fn run_server(server_args: Vec<String>) {
-    let mut args = server_args.into_iter();
-    let config_path = match args.next().as_deref() {
+    let config_path = match args.get(index).map(String::as_str) {
         None => "config.yaml".to_string(),
-        Some("--config") => args.next().expect("--config needs a YAML path"),
+        Some("--config") => {
+            index += 1;
+            args.get(index)
+                .cloned()
+                .expect("--config needs a YAML path")
+        }
         Some("--help" | "-h") => {
-            println!("Usage: cargo run -- [--config PATH]");
+            println!("Usage: fluxion-remote [serve] [--config PATH]");
             return;
         }
         Some(other) => panic!("unknown argument: {other}"),
     };
-    assert!(args.next().is_none(), "unexpected arguments");
+    assert!(args.get(index + 1).is_none(), "unexpected arguments");
+    run_server(config_path).await;
+}
+
+async fn run_server(config_path: String) {
     let config = Config::load(&config_path).expect("invalid configuration");
     tracing::info!(
         max_hops = config.max_hops,

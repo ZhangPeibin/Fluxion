@@ -1,8 +1,9 @@
 # Local Fluxion runtime for server development and future wallet/execute capabilities.
 # Production `swap.quote` uses the remote Fluxion service, not this profile.
-# Start with: cargo run --release -- serve --config configs/runtime.yaml
-# For local quote development, point the remote override at this server:
-#   FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap quote --in LDO --out ETH --amount 100 --json
+# Start explicitly: cargo run -p fluxion-remote --release -- serve --config configs/runtime.yaml
+# Local clients then point at it:
+#   FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion mcp
+# `fluxion mcp` never starts or waits for this server.
 host: 127.0.0.1
 port: 8080
 enabled_platforms: [uniswap-v2, uniswap-v3, curve, shibaswap-v2]

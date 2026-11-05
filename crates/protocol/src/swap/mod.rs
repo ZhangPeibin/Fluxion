@@ -3,6 +3,8 @@
 
 pub mod quote;
 
+use serde::{Deserialize, Serialize};
+
 use crate::capability::{CapabilityDescriptor, SCHEMA_VERSION};
 
 pub fn describe() -> CapabilityDescriptor {
@@ -14,9 +16,25 @@ pub fn describe() -> CapabilityDescriptor {
     }
 }
 
-pub use quote::{
-    AllocationResponse, HopResponse, QuoteContext, QuoteErrorResponse, QuoteRequest, QuoteResponse,
-};
+pub use quote::{AllocationResponse, HopResponse, QuoteErrorResponse, QuoteRequest, QuoteResponse};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlanKind {
+    Baseline,
+    Direct,
+    Split,
+}
+
+impl PlanKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Baseline => "baseline",
+            Self::Direct => "direct",
+            Self::Split => "split",
+        }
+    }
+}
 
 pub const CAPABILITY: &str = "swap.quote";
 

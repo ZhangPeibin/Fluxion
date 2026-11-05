@@ -1090,6 +1090,53 @@ dependencies = [
  "async-trait",
  "axum",
  "dotenvy",
+ "fluxion-client",
+ "fluxion-protocol",
+ "fluxion-remote",
+ "futures",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha3 0.12.0",
+ "tokio",
+ "tower",
+]
+
+[[package]]
+name = "fluxion-client"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "axum",
+ "dotenvy",
+ "fluxion-protocol",
+ "futures",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "fluxion-protocol"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "fluxion-remote"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "async-trait",
+ "axum",
+ "dotenvy",
+ "fluxion-protocol",
  "futures",
  "reqwest",
  "serde",
