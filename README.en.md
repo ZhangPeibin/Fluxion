@@ -29,7 +29,8 @@ fluxion swap ldo-eth 100 --json
 fluxion mcp
 ```
 
-`fluxion mcp` is the agent entry point. MCP registration, fields and errors are documented in the
+`fluxion mcp` is the agent entry point. See [MCP](docs/MCP.md) for installation and client
+registration; `swap_quote` fields and errors live in the
 [swap.quote capability](docs/capabilities/swap/README.md) and [agent skill](skills/swap/SKILL.md).
 
 Development / self-hosted:
@@ -55,7 +56,7 @@ URL is configured. Agents do not choose a provider. See
 
 - **Capabilities**: [index](docs/capabilities/README.md) · [swap.quote](docs/capabilities/swap/README.md) · [skill](skills/swap/SKILL.md) · [schema](schemas/swap_quote.v1.json)
 - **Product**: [whitepaper](docs/WHITEPAPER.md) · [architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
-- **Operations**: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md) · [viewer](docs/VIEWER.md) · [limitations](docs/LIMITATIONS.md) (Chinese)
+- **Operations**: [MCP](docs/MCP.md) · [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md) · [viewer](docs/VIEWER.md) · [limitations](docs/LIMITATIONS.md) (Chinese)
 - **Benchmarks**: [index](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 
 ## Development

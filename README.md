@@ -27,8 +27,9 @@ fluxion swap ldo-eth 100 --json
 fluxion mcp
 ```
 
-`fluxion mcp` 是 Agent 接入点；MCP 注册、字段和错误处理见
-[swap.quote capability](docs/capabilities/swap/README.md) 和 [Agent skill](skills/swap/SKILL.md)。
+`fluxion mcp` 是 Agent 接入点。MCP 安装与客户端注册见 [MCP](docs/MCP.md)；`swap_quote`
+的字段和错误见 [swap.quote capability](docs/capabilities/swap/README.md) 和
+[Agent skill](skills/swap/SKILL.md)。
 
 开发/自托管：
 
@@ -52,7 +53,7 @@ Agent 不参与 provider 选择。详见 [execution routing](docs/CONFIGURATION.
 
 - **Capabilities**：[index](docs/capabilities/README.md) · [swap.quote](docs/capabilities/swap/README.md) · [skill](skills/swap/SKILL.md) · [schema](schemas/swap_quote.v1.json)
 - **Product**：[whitepaper](docs/WHITEPAPER.md) · [architecture](docs/ARCHITECTURE.md) · [local state](docs/LOCAL-STATE.md)
-- **Operations**：[HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md) · [viewer](docs/VIEWER.md) · [limitations](docs/LIMITATIONS.md)
+- **Operations**：[MCP](docs/MCP.md) · [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md) · [viewer](docs/VIEWER.md) · [limitations](docs/LIMITATIONS.md)
 - **Benchmarks**：[index](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 
 ## Development
