@@ -9,6 +9,7 @@ use alloy_primitives::{Address, B256, U256};
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::auth;
 use crate::capability::{
     Amount, CapabilityError, CapabilityErrorCode, CapabilityMeta, Provenance, SCHEMA_VERSION,
     TokenRef,
@@ -84,37 +85,54 @@ impl RuntimeClient {
             "split_max_branches": request.split_max_branches,
         });
         let started = Instant::now();
-        let mut http_request = self
-            .http
-            .post(format!("{}/quote", self.base_url))
-            .json(&body);
-        if let Some(key) = &self.api_key {
-            http_request = http_request.header("authorization", format!("Bearer {key}"));
+        let mut token = self
+            .api_key
+            .clone()
+            .or_else(|| auth::load_token(&self.base_url));
+        for attempt in 0..2 {
+            let mut http_request = self
+                .http
+                .post(format!("{}/quote", self.base_url))
+                .json(&body);
+            if let Some(token) = &token {
+                http_request = http_request.header("authorization", format!("Bearer {token}"));
+            }
+            let response = http_request.send().await.map_err(|error| {
+                CapabilityError::new(
+                    CapabilityErrorCode::RpcError,
+                    format!("Fluxion runtime unavailable: {error}"),
+                    true,
+                )
+            })?;
+            let status = response.status();
+            let text = response.text().await.map_err(|error| {
+                CapabilityError::new(
+                    CapabilityErrorCode::RpcError,
+                    format!("invalid runtime response: {error}"),
+                    true,
+                )
+            })?;
+            if status == reqwest::StatusCode::UNAUTHORIZED && attempt == 0 && self.api_key.is_none()
+            {
+                let issued = auth::register(&self.http, &self.base_url).await?;
+                auth::save_token(&self.base_url, &issued);
+                token = Some(issued);
+                continue;
+            }
+            if !status.is_success() {
+                return Err(http_error(status.as_u16(), &text));
+            }
+            let dto: HttpQuoteResponse = serde_json::from_str(&text).map_err(|error| {
+                CapabilityError::internal(format!("invalid runtime JSON: {error}"))
+            })?;
+            let latency_ms = started.elapsed().as_millis() as u64;
+            return build_response(
+                dto, request, token_in, token_out, chain, execution, latency_ms,
+            );
         }
-        let response = http_request.send().await.map_err(|error| {
-            CapabilityError::new(
-                CapabilityErrorCode::RpcError,
-                format!("Fluxion runtime unavailable: {error}"),
-                true,
-            )
-        })?;
-        let status = response.status();
-        let text = response.text().await.map_err(|error| {
-            CapabilityError::new(
-                CapabilityErrorCode::RpcError,
-                format!("invalid runtime response: {error}"),
-                true,
-            )
-        })?;
-        if !status.is_success() {
-            return Err(http_error(status.as_u16(), &text));
-        }
-        let dto: HttpQuoteResponse = serde_json::from_str(&text)
-            .map_err(|error| CapabilityError::internal(format!("invalid runtime JSON: {error}")))?;
-        let latency_ms = started.elapsed().as_millis() as u64;
-        build_response(
-            dto, request, token_in, token_out, chain, execution, latency_ms,
-        )
+        Err(CapabilityError::internal(
+            "quote request failed after token refresh",
+        ))
     }
 }
 
@@ -290,6 +308,7 @@ fn http_error(status: u16, body: &str) -> CapabilityError {
         .unwrap_or_else(|| body.chars().take(200).collect());
     let (code, retryable) = match status {
         400 | 422 => (CapabilityErrorCode::InvalidArgument, false),
+        401 => (CapabilityErrorCode::RpcError, false),
         408 | 504 => (CapabilityErrorCode::Timeout, true),
         503 => (CapabilityErrorCode::StaleState, true),
         _ => (CapabilityErrorCode::RpcError, true),

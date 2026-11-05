@@ -1,5 +1,6 @@
 //! Local Fluxion client: CLI, MCP bridge, remote client and token storage.
 
+pub mod auth;
 pub mod cli;
 pub mod client;
 pub mod mcp;

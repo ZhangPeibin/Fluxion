@@ -35,6 +35,19 @@ FLUXION_REMOTE_URL=https://api.example.com FLUXION_API_KEY=... fluxion mcp
 `FLUXION_REMOTE_URL` is an endpoint override, not a local/remote mode.
 `GRAPH_API_KEY` is not required for normal users.
 
+### Installation token
+
+With `FLUXION_REQUIRE_AUTH=1`, `/quote` requires a bearer token. The local client handles this
+automatically:
+
+1. first `/quote` returns `401`
+2. client calls `POST /register` with a local `install_id`
+3. token is stored in `~/.fluxion/auth.json` (0600)
+4. the quote is retried
+
+The remote keeps tokens in memory in this minimal version. If the remote restarts, the client
+re-registers on the next `401`.
+
 The remote service is started separately. `fluxion mcp` does not start or wait for it; MCP
 initialize and `tools/list` always succeed. If the remote endpoint is unavailable, `swap_quote`
 returns a structured retryable error.
@@ -43,7 +56,7 @@ Build/install and start the remote server separately:
 
 ```bash
 cargo install --path crates/remote
-fluxion-remote serve --config configs/runtime.yaml
+FLUXION_REQUIRE_AUTH=1 fluxion-remote serve --config configs/runtime.yaml
 ```
 
 For local development without installing, use
@@ -97,6 +110,23 @@ MCP documentation if a snippet is rejected.
 - `swap.quote` uses the remote service; the remote server owns discovery and snapshot warmup.
 - `fluxion mcp` is a stateless bridge and never starts the remote server.
 - Start the remote server separately (for local testing or deployment).
+
+## Skills
+
+Skills are agent instructions, not an execution path. Fluxion's swap skill lives in
+`skills/swap/SKILL.md` with required frontmatter.
+
+For opencode, add the repository skills directory to your config:
+
+```json
+{
+  "skills": {
+    "paths": ["/Users/peibin/code/quoter/skills"]
+  }
+}
+```
+
+Restart the agent after changing MCP or Skills config.
 
 ## Tools
 

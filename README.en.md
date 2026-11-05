@@ -37,17 +37,18 @@ full-stack test, install both:
 ```bash
 cargo install --path crates/remote
 
-# terminal 1: remote server
-fluxion-remote serve --config configs/runtime.yaml
+# terminal 1: remote server (installation-token auth for local testing)
+FLUXION_REQUIRE_AUTH=1 fluxion-remote serve --config configs/runtime.yaml
 
-# terminal 2: local client
+# terminal 2: local client; first call registers an installation token
 FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100
 ```
 
 `fluxion mcp` is the agent entry point and only acts as an MCP bridge; it does not start the
-remote server. See [MCP](docs/MCP.md) for registration; `swap_quote` fields and errors live in
-the [swap.quote capability](docs/capabilities/swap/README.md) and
-[agent skill](skills/swap/SKILL.md).
+remote server. See [MCP](docs/MCP.md) for registration and Skills setup; `swap_quote` fields and
+errors live in the [swap.quote capability](docs/capabilities/swap/README.md) and
+[agent skill](skills/swap/SKILL.md). The Skills directory is `skills/`; add it to your agent's
+skills path.
 
 ## Execution model
 

@@ -1,3 +1,8 @@
+---
+name: swap
+description: Use when the user asks for an exact-in swap quote on Ethereum (for example LDO to ETH), needs amount_out, route allocations, price impact or quote freshness, or uses the Fluxion swap_quote MCP tool. Do not use for signing, wallet or transaction execution.
+---
+
 # swap.quote
 
 Use this capability when an agent needs an **exact-in swap quote** on Ethereum before deciding

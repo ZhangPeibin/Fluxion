@@ -6,6 +6,7 @@ use alloy_primitives::{Address, U256};
 
 use fluxion_remote::adapters::CachingSource;
 use fluxion_remote::api::{self, AppState, RateLimiter};
+use fluxion_remote::auth::{AuthStore, register, require_auth};
 use fluxion_remote::config::Config;
 use fluxion_remote::graph::Graph;
 use fluxion_remote::local_state::{PricingMode, SnapshotStore, StateSynchronizer};
@@ -226,6 +227,15 @@ async fn run_server(config_path: String) {
             async move { axum::Json(service_info(info_mode, &info_config, &graph)) }
         }),
     );
+    let app = if std::env::var("FLUXION_REQUIRE_AUTH").as_deref() == Ok("1") {
+        let auth = Arc::new(AuthStore::new());
+        tracing::info!("installation-token auth enabled for /quote");
+        app.route("/register", axum::routing::post(register))
+            .layer(axum::Extension(auth.clone()))
+            .layer(axum::middleware::from_fn_with_state(auth, require_auth))
+    } else {
+        app
+    };
     let app = if std::env::var_os("FLUXION_DIAG").is_some() {
         tracing::info!(threads=?std::thread::available_parallelism(), "diag_runtime");
         tokio::spawn(async {

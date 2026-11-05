@@ -34,16 +34,17 @@ fluxion mcp
 ```bash
 cargo install --path crates/remote
 
-# terminal 1：remote server
-fluxion-remote serve --config configs/runtime.yaml
+# terminal 1：remote server（本地测试开启安装 token）
+FLUXION_REQUIRE_AUTH=1 fluxion-remote serve --config configs/runtime.yaml
 
-# terminal 2：local client
+# terminal 2：local client；第一次自动注册安装 token
 FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100
 ```
 
-`fluxion mcp` 是 Agent 接入点，只负责 MCP bridge，不启动 remote。MCP 注册见
+`fluxion mcp` 是 Agent 接入点，只负责 MCP bridge，不启动 remote。MCP 注册和 Skills 配置见
 [MCP](docs/MCP.md)；`swap_quote` 的字段和错误见
 [swap.quote capability](docs/capabilities/swap/README.md) 和 [Agent skill](skills/swap/SKILL.md)。
+Skills 目录是 `skills/`，Agent 侧把该目录加入自己的 skills path 即可。
 
 ## Execution model
 

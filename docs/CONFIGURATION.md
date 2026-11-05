@@ -47,12 +47,14 @@ Agent 和用户都不选择 local/remote。
 | 环境变量 | 默认 | 含义 |
 |---|---|---|
 | `FLUXION_REMOTE_URL` | 安装包内置 | remote 服务地址；开发/测试可覆盖 |
-| `FLUXION_API_KEY` | 空 | remote 服务认证 |
+| `FLUXION_API_KEY` | 空 | 静态 remote 认证 token；设置后不再自动注册 |
+| `FLUXION_REQUIRE_AUTH` | 空 | remote server 设为 `1` 时 `/quote` 需要安装 token |
 | `FLUXION_URL` | `http://127.0.0.1:8080` | 本地 runtime 地址，供 `start/status/serve` 和未来 wallet/execute |
 | `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
-CLI/MCP 的 `--url` 覆盖 remote endpoint；`start/status/serve` 的本地地址仍由 `FLUXION_URL`
-或配置决定。没有配置 remote endpoint 时，`swap.quote` 返回明确的 `RPC_ERROR`，不会回落 local。
+CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回
+明确的 `RPC_ERROR`，不会回落 local。启用 `FLUXION_REQUIRE_AUTH=1` 后，local client 首次调用
+会自动 `POST /register` 并保存安装 token 到 `~/.fluxion/auth.json`。
 
 `GRAPH_API_KEY` 只放在 **gitignored 的 `.env`** 里，不进版本库。
 转换实例字段为 `kind`、`contract`、`underlying`、`wrapped`、`enabled`、`wrap`、`unwrap`；
