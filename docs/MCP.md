@@ -25,8 +25,8 @@ call internally; the agent does not choose local or remote execution.
 
 ## Remote service
 
-`swap.quote` always calls the remote Fluxion service. The installed binary uses the built-in
-endpoint; development and tests can override it:
+`swap.quote` always calls the remote Fluxion service. Set `FLUXION_REMOTE_URL` to its endpoint;
+development and tests use the same variable:
 
 ```bash
 FLUXION_REMOTE_URL=https://api.example.com FLUXION_API_KEY=... fluxion mcp

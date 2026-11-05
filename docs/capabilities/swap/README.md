@@ -9,8 +9,107 @@ approves, or broadcasts.
 `swap.quote` always uses the remote Fluxion service; `wallet` / `execute` capabilities use the
 local runtime. Agents and users do not choose local/remote.
 
-The installed binary uses the built-in remote endpoint. Development/tests may override it with
-`FLUXION_REMOTE_URL` / `FLUXION_API_KEY`; this is an endpoint override, not a mode.
+The remote endpoint is configured with `FLUXION_REMOTE_URL` (or `--url`); authentication and
+registration live in [docs/MCP.md](../../MCP.md). This is endpoint configuration, not an execution
+mode.
+
+## Architecture
+
+`swap.quote` runs in two pricing modes: `local_snapshot` (default) and legacy `rpc`. In
+`local_snapshot`, the request path reads one immutable snapshot and RPC belongs to the background
+synchronizer. The diagram shows that mode; in `rpc` mode the request path calls live adapters
+instead of the frozen snapshot.
+
+```mermaid
+flowchart TB
+    subgraph Client["Client machine"]
+        Agent["Agent<br/>opencode · Claude · Codex"]
+        MCP["fluxion mcp<br/>swap_quote tool"]
+        CapRouter["Capability router<br/>fixed execution per capability"]
+    end
+
+    subgraph Remote["Fluxion remote"]
+        API["POST /quote<br/>validate · rate limit · timeout"]
+        Lease["Snapshot lease<br/>one immutable version"]
+        Engine["Quote engine<br/>Router / SplitOptimizer<br/>local_snapshot: 0 RPC"]
+        Response["Response<br/>amounts · path · allocations · provenance"]
+    end
+
+    subgraph Background["Background state pipeline"]
+        Discovery["Discovery<br/>V2 · V3 · Curve · wstETH"]
+        Sync["StateSynchronizer<br/>full + incremental"]
+        Snapshot["Immutable snapshot<br/>block · hash · pools · prices"]
+    end
+
+    Chain["Ethereum<br/>RPC · subgraphs"]
+
+    Agent -->|MCP stdio| MCP
+    MCP -->|swap_quote| CapRouter
+    CapRouter -->|remote| API
+    API --> Lease
+    Lease --> Engine
+    Engine -->|read-only math| Snapshot
+    Engine --> Response
+    Response -->|JSON| CapRouter
+    Chain -->|blocks · logs · ticks · reserves| Discovery
+    Discovery --> Sync
+    Sync -->|atomic publish| Snapshot
+```
+
+### Request path
+
+1. **MCP entry.** `fluxion mcp` exposes the `swap_quote` tool and maps its arguments to
+   `POST /quote`. There is no local/remote selector.
+2. **Admission.** The API validates addresses and amounts, applies the rate limit, acquires a
+   bounded compute slot and leases the current snapshot. If no complete snapshot is ready, or it is
+   stale, lagging, reorged or incomplete, the request returns an explicit state error; it never
+   falls back to request-time RPC.
+3. **Route or split.** Without split, `Router::route` returns the best single route. With split,
+   `SplitOptimizer` keeps the single-route baseline and searches for a better allocation.
+4. **Bounded compute.** Both paths run in a blocking worker. Quote math reads only the leased
+   snapshot's frozen pool state and coarse prices.
+5. **Response.** The API returns exact amounts, hop paths, allocations, `quote_block`, state
+   freshness, search statistics and provenance. `amount_out_min` is checked after optimization.
+
+### Background path
+
+1. **Discovery.** The graph is built from the configured V2, V3, Curve and wstETH universe.
+2. **Synchronization.** `StateSynchronizer` reads the canonical head and loads pool state. Full
+   mode rebuilds the universe; incremental mode applies structural logs and refreshes fast fields,
+   falling back to a full rebuild on gaps, reorgs or incomplete data.
+3. **Validation and publish.** State is built and validated in a bounded writer. A complete
+   snapshot is published atomically with its block hash, timestamp, graph, frozen pool states and
+   coarse prices. Partial state is never published.
+4. **Reader isolation.** In-flight requests keep their old snapshot version. Retired snapshots are
+   reclaimed by the writer after readers leave.
+5. **Freshness.** Stale, lagging, reorged and incomplete states are distinct errors. The remote
+   never silently reduces the pool universe to make a quote succeed.
+
+### Routing pipeline
+
+- **Graph.** Tokens are nodes; pools are directed edges. Parallel pools remain parallel edges, and
+  multi-coin pools expand into every ordered pair.
+- **Coarse search.** A precomputed `PriceSnapshot` supplies mid-price and input reserve per edge.
+  K-best DP searches up to `max_hops` with a simple-path constraint, fee penalties and optional
+  liquidity penalties. Direct pools are always considered so a cheap-looking multi-hop path cannot
+  hide the obvious route.
+- **Exact refine.** Top-K candidates are re-quoted with the platform's integer math: V2 constant
+  product, V3 tick crossing, Curve StableSwap/CryptoSwap and wstETH conversion. The best exact
+  `amount_out` wins.
+- **Split search.** The baseline is retained unless a candidate beats it. The optimizer uses
+  coarse-to-fine two-route allocation, disjoint multi-hop branches and discrete DP for multi-pool
+  allocation, with request-local quote caching, quote budgets and deadlines.
+- **Invariants.** One request uses one snapshot version; local computation performs zero RPC;
+  amounts use protocol integer rounding; incomplete coverage is an error, not a silent fallback.
+
+| Stage | Code |
+|---|---|
+| HTTP API and admission | `crates/remote/src/api.rs` |
+| Snapshot, sync and leases | `crates/remote/src/local_state.rs` |
+| Graph and pool edges | `crates/remote/src/graph.rs` |
+| Coarse search and exact refine | `crates/remote/src/router.rs` |
+| Split optimization | `crates/remote/src/split.rs` |
+| V2 / V3 / Curve / wstETH math | `crates/remote/src/adapters.rs`, `v3_local.rs`, `curve_local.rs`, `wsteth_local.rs` |
 
 ## Quick start
 

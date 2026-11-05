@@ -38,10 +38,39 @@ Fluxion 把 Web3 动作变成稳定的 capability。Agent 不需要学习每个�
 
 ## 如何工作
 
-```text
-Agent ──MCP──▶ fluxion mcp ──▶ remote intelligence ──▶ Ethereum
-                  │
-                  └── future: local runtime → wallet / signing / execution
+`swap.quote` 的请求链路和后台状态链路是分开的：请求只读取一个已发布的不可变快照，
+计算阶段不访问 RPC。
+
+```mermaid
+flowchart TB
+    subgraph Agent["Agent"]
+        A["opencode / Claude / Codex"]
+    end
+
+    subgraph Local["Local machine"]
+        M["fluxion mcp<br/>MCP stdio bridge"]
+        R["Capability router<br/>fixed execution per capability"]
+        L["Local runtime (future)<br/>wallet · build · simulate · sign · execute"]
+    end
+
+    subgraph Remote["Fluxion remote"]
+        API["Quote API<br/>JSON · errors · provenance"]
+        Engine["Router + split<br/>multi-hop · exact-in · 0 RPC"]
+        Snapshot["Immutable snapshot<br/>block · hash · freshness"]
+        Discovery["Discovery<br/>V2 · V3 · Curve"]
+    end
+
+    Chain["Ethereum<br/>RPC · subgraphs"]
+
+    A -->|MCP stdio| M
+    M -->|swap_quote| R
+    R -->|remote| API
+    API -->|request| Engine
+    Engine -->|read| Snapshot
+    Engine -->|quote + provenance| API
+    Discovery -->|build / publish| Snapshot
+    Chain -->|background sync| Discovery
+    R -.->|future| L
 ```
 
 `swap.quote` 是只读的，不会签名、授权或广播。

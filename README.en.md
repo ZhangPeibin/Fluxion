@@ -44,10 +44,39 @@ read-only and never signs, approves or broadcasts.
 
 ## How it works
 
-```text
-Agent ──MCP──▶ fluxion mcp ──▶ remote intelligence ──▶ Ethereum
-                  │
-                  └── future: local runtime → wallet / signing / execution
+`swap.quote` separates the request path from background state sync: a request reads one published
+immutable snapshot, and the quote computation performs no RPC.
+
+```mermaid
+flowchart TB
+    subgraph Agent["Agent"]
+        A["opencode / Claude / Codex"]
+    end
+
+    subgraph Local["Local machine"]
+        M["fluxion mcp<br/>MCP stdio bridge"]
+        R["Capability router<br/>fixed execution per capability"]
+        L["Local runtime (future)<br/>wallet · build · simulate · sign · execute"]
+    end
+
+    subgraph Remote["Fluxion remote"]
+        API["Quote API<br/>JSON · errors · provenance"]
+        Engine["Router + split<br/>multi-hop · exact-in · 0 RPC"]
+        Snapshot["Immutable snapshot<br/>block · hash · freshness"]
+        Discovery["Discovery<br/>V2 · V3 · Curve"]
+    end
+
+    Chain["Ethereum<br/>RPC · subgraphs"]
+
+    A -->|MCP stdio| M
+    M -->|swap_quote| R
+    R -->|remote| API
+    API -->|request| Engine
+    Engine -->|read| Snapshot
+    Engine -->|quote + provenance| API
+    Discovery -->|build / publish| Snapshot
+    Chain -->|background sync| Discovery
+    R -.->|future| L
 ```
 
 `swap.quote` is read-only. It never signs, approves or broadcasts.
