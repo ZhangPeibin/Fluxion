@@ -18,7 +18,7 @@ multi-hop quotes, split allocation and state freshness on Ethereum mainnet.
 
 A capability defines *what* the agent wants; execution location is an internal implementation
 detail. `swap.quote` always uses the remote service; `wallet` / `execute` use the local runtime.
-Agents and users do not select a provider. See the
+Agents and users do not select an execution location. See the
 [capability index](docs/capabilities/README.md).
 
 ## Install / Agent setup

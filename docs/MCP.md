@@ -4,7 +4,7 @@ Fluxion exposes its capabilities to agents over **MCP stdio**. MCP is the projec
 transport: it is not a capability, and client registration is not capability-specific.
 
 Capability contracts live in [docs/capabilities/](capabilities/README.md). This page covers
-installation, registration, execution modes, lifecycle and troubleshooting.
+installation, registration, the remote service, lifecycle and troubleshooting.
 
 ## Install
 
@@ -33,7 +33,7 @@ FLUXION_REMOTE_URL=https://api.example.com FLUXION_API_KEY=... fluxion mcp
 ```
 
 `FLUXION_REMOTE_URL` is an endpoint override, not a local/remote mode.
-`GRAPH_API_KEY` is not required for managed users.
+`GRAPH_API_KEY` is not required for normal users.
 
 ## Client registration
 

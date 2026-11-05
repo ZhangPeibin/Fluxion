@@ -16,7 +16,7 @@ capability，由本机 CLI 或 MCP Agent 接入；执行位置（remote 服务�
 | `swap.quote` | available | [docs/capabilities/swap/README.md](docs/capabilities/swap/README.md) |
 
 Capability 定义“做什么”；执行位置由 Fluxion 内部固定：`swap.quote` 走 remote 服务，
-`wallet/execute` 走 local runtime。Agent 和用户都不选择 provider。完整说明见
+`wallet/execute` 走 local runtime。Agent 和用户都不选择执行位置。完整说明见
 [capability index](docs/capabilities/README.md)。
 
 ## Install / Agent setup

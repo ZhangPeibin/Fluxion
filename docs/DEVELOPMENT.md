@@ -1,6 +1,6 @@
 # Development and testing
 
-## Self-hosted HTTP server
+## Local HTTP server (development)
 
 ```bash
 cp .env.example .env        # 填入 GRAPH_API_KEY

@@ -343,12 +343,13 @@ mod tests {
             TokenRef::new(Some("LDO".into()), Address::with_last_byte(1), 18),
             TokenRef::new(Some("WETH".into()), Address::with_last_byte(2), 18),
             "ethereum",
-            "local-cli",
+            "remote",
             12,
         )
         .unwrap();
         let value = serde_json::to_value(response).unwrap();
         assert_eq!(value["capability"], "swap.quote");
+        assert_eq!(value["provenance"]["execution"], "remote");
         assert_eq!(value["provenance"]["pricing_mode"], "local_snapshot");
         assert_eq!(value["provenance"]["quote_block"], 100);
         assert_eq!(value["amount_in"]["decimal"], "0.00000000000000001");

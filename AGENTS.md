@@ -1,8 +1,8 @@
 ## Product and documentation layering
 
 Fluxion is the project. A capability is one action-level contract inside it. Execution location
-is fixed per capability and is an internal Fluxion decision; agents and users do not choose a
-provider. `swap.quote` uses the remote service; `wallet` / `execute` use the local runtime.
+is fixed per capability and is an internal Fluxion decision; agents and users do not choose an
+execution location. `swap.quote` uses the remote service; `wallet` / `execute` use the local runtime.
 
 | Layer | Location | Owns |
 |---|---|---|
@@ -19,7 +19,7 @@ Rules:
 - MCP/CLI client registration belongs in `docs/MCP.md`, never in a capability doc.
 - Capability docs link to transport docs; do not duplicate client snippets.
 - Root README is a landing page: no benchmark tables or capability internals.
-- Execution location is internal; never expose provider selection to agents.
+- Execution location is internal; never expose it as an agent choice.
 - When adding or moving docs, update the relevant index and links.
 
 ## Agent skills
@@ -58,7 +58,7 @@ Commands (from repo root):
 
 Architecture and docs (source of truth, link rather than duplicate):
 - `README.md` — landing page: positioning, capabilities, install, links.
-- `docs/WHITEPAPER.md` — product vision and capability/provider boundaries.
+- `docs/WHITEPAPER.md` — product vision and capability/execution boundaries.
 - `docs/MCP.md` — MCP transport, client registration, lifecycle and troubleshooting.
 - `docs/API.md` — HTTP API; `docs/CONFIGURATION.md` — config and execution routing.
 - `docs/capabilities/` — capability contracts; `skills/` and `schemas/` — agent usage and JSON schemas.

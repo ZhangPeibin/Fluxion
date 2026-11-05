@@ -15,5 +15,5 @@ its execution location is an internal Fluxion decision. The first delivered capa
 - Data source: RPC, subgraphs, protocol APIs used internally
 - Transport: CLI or [MCP stdio](../MCP.md)
 
-Agents call capabilities; they do not choose a provider. See [swap/README.md](swap/README.md) for
+Agents call capabilities; they do not choose an execution location. See [swap/README.md](swap/README.md) for
 the execution model.

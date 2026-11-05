@@ -33,7 +33,7 @@ MCP tool: `swap_quote` with `token_in`, `token_out`, `amount`, optional `max_hop
 
 Tool name: `swap_quote`.
 
-Project-level MCP installation, client registration, execution modes and troubleshooting live in
+Project-level MCP installation, client registration, execution routing and troubleshooting live in
 [docs/MCP.md](../../MCP.md). This capability document only defines the tool contract.
 
 ## Inputs

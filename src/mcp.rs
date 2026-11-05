@@ -217,7 +217,7 @@ mod tests {
     use crate::capability::CapabilityErrorCode;
 
     #[test]
-    fn exposes_swap_quote_tool_without_provider_selection() {
+    fn exposes_swap_quote_tool_without_execution_selection() {
         let tools = tools_list();
         assert_eq!(tools["tools"][0]["name"], "swap_quote");
         assert_eq!(tools["tools"][0]["inputSchema"]["required"][0], "token_in");
