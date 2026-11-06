@@ -104,7 +104,9 @@ fn tools_list() -> Value {
             "name": "swap_quote",
             "description": "Get an exact-in swap quote from the warm local Fluxion runtime. \
                             Token inputs may be built-in symbols (LDO, ETH, USDC) or 0x addresses. \
-                            Amounts are human units such as 100 or 0.5.",
+                            Amounts are human units such as 100 or 0.5. \
+                            Split results may nest shared-prefix branches under allocations[].children; \
+                            expand children when reporting complete routes.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -235,6 +237,12 @@ mod tests {
             tools["tools"][0]["inputSchema"]["properties"]
                 .get("provider")
                 .is_none()
+        );
+        assert!(
+            tools["tools"][0]["description"]
+                .as_str()
+                .unwrap()
+                .contains("children")
         );
     }
 

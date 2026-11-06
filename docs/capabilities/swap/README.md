@@ -166,6 +166,20 @@ Important fields:
 - `quote_block`, `state_age_secs`, `lag_blocks`: freshness
 - `latency_ms`: runtime quote latency
 
+### Shared-prefix routes
+
+When multiple suffix pools share one prefix pool, the prefix is quoted once and the allocation is
+returned as a tree:
+
+```text
+allocation.hops        = shared prefix (e.g. LDO -> AAVE)
+allocation.children[]  = suffix branches (e.g. AAVE -> WETH pool A/B)
+```
+
+If `children` is present, `hops` alone is not a complete route. Recurse into `children`; flatten
+`hops + child.hops` for human-readable leaf routes. Root `amount_in` values sum to the request;
+child `amount_in` values sum to the parent's final hop output.
+
 Warm local-snapshot quotes are typically 5–30 ms in the current benchmark environment. State
 freshness is measured separately from latency.
 

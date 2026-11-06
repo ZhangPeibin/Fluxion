@@ -67,11 +67,29 @@ failures. Prefer parsing the JSON, not the human text.
 
 - `amount_out.raw` / `amount_out.decimal`: exact integer and display amount
 - `plan_kind`: `baseline`, `direct`, or `split`
-- `allocations`: per-branch exact inputs, outputs and hop paths
+- `allocations`: per-branch exact inputs, outputs and hop paths. Each entry may also carry
+  `children`; see below.
 - `provenance.execution`: always `remote` for `swap.quote`
 - `provenance.pricing_mode`: `rpc` or `local_snapshot`
 - `quote_block`, `state_age_secs`, `lag_blocks`: state freshness
 - `latency_ms`: runtime quote latency
+
+### Shared-prefix allocations
+
+`allocations` is a tree when a route shares a prefix and then fans out:
+
+```text
+allocation.hops        = shared prefix (for example LDO -> AAVE)
+allocation.children[]  = suffix branches (for example AAVE -> WETH pool A/B)
+```
+
+- If `children` is non-empty, `allocation.hops` is **not** a complete route. Recurse into
+  `children`.
+- `allocation.amount_in` is in the request's input token; child `amount_in` is in the prefix's
+  output token.
+- To report leaf routes, flatten `allocation.hops + child.hops` for every child.
+- Root-level `amount_in` values sum to the requested amount. Child `amount_in` values sum to the
+  parent's last hop output.
 
 Do not assume that a successful quote is executable. Re-check freshness, liquidity, slippage,
 gas and user authorization before building or executing a transaction.
