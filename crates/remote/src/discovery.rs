@@ -5,7 +5,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use thiserror::Error;
 
-use crate::config::Config;
+use crate::config::{Config, V3DeploymentConfig};
 use crate::model::{Pool, PoolKind};
 use crate::rpc::RpcClient;
 use crate::util::{u256_to_usize, u256_word};
@@ -268,13 +268,54 @@ pub async fn discover_v3(
     config: &Config,
     graph_api_key: &str,
 ) -> Result<Vec<Pool>, DiscoveryError> {
-    discover_v3_subgraph(config, graph_api_key, &config.uniswap_v3_subgraph_id).await
+    let deployment = V3DeploymentConfig {
+        venue: crate::model::V3Venue::Uniswap,
+        factory: crate::model::UNISWAP_V3_FACTORY.parse().unwrap(),
+        quoter: crate::model::UNISWAP_V3_QUOTER.parse().unwrap(),
+        subgraph_id: Some(config.uniswap_v3_subgraph_id.clone()),
+        deployment_id: None,
+    };
+    discover_v3_deployment(config, graph_api_key, &deployment).await
 }
 
 pub async fn discover_v3_subgraph(
     config: &Config,
     graph_api_key: &str,
     subgraph_id: &str,
+) -> Result<Vec<Pool>, DiscoveryError> {
+    let deployment = V3DeploymentConfig {
+        venue: crate::model::V3Venue::Uniswap,
+        factory: crate::model::UNISWAP_V3_FACTORY.parse().unwrap(),
+        quoter: crate::model::UNISWAP_V3_QUOTER.parse().unwrap(),
+        subgraph_id: Some(subgraph_id.to_string()),
+        deployment_id: None,
+    };
+    discover_v3_deployment(config, graph_api_key, &deployment).await
+}
+
+fn v3_discovery_url(
+    graph_api_key: &str,
+    deployment: &V3DeploymentConfig,
+) -> Result<String, DiscoveryError> {
+    if let Some(deployment_id) = &deployment.deployment_id {
+        Ok(format!(
+            "https://gateway.thegraph.com/api/{graph_api_key}/deployments/id/{deployment_id}"
+        ))
+    } else if let Some(subgraph_id) = &deployment.subgraph_id {
+        Ok(format!(
+            "https://gateway.thegraph.com/api/{graph_api_key}/subgraphs/id/{subgraph_id}"
+        ))
+    } else {
+        Err(DiscoveryError::Request(
+            "missing V3 discovery endpoint".into(),
+        ))
+    }
+}
+
+pub async fn discover_v3_deployment(
+    config: &Config,
+    graph_api_key: &str,
+    deployment: &V3DeploymentConfig,
 ) -> Result<Vec<Pool>, DiscoveryError> {
     if config.max_pools == 0 {
         return Ok(Vec::new());
@@ -283,8 +324,7 @@ pub async fn discover_v3_subgraph(
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| DiscoveryError::Request(e.to_string()))?;
-    let url =
-        format!("https://gateway.thegraph.com/api/{graph_api_key}/subgraphs/id/{subgraph_id}");
+    let url = v3_discovery_url(graph_api_key, deployment)?;
 
     let allow = allowlist(config);
     let where_clause = discovery_where(config, "totalValueLockedUSD");
@@ -334,7 +374,7 @@ pub async fn discover_v3_subgraph(
                 continue;
             }
             pools.push(Pool {
-                kind: PoolKind::UniswapV3 { fee },
+                kind: deployment.venue.pool_kind(fee),
                 address: parse_address(&address)?,
                 coins: vec![parse_address(&token0)?, parse_address(&token1)?],
             });
@@ -544,5 +584,28 @@ mod tests {
         let loaded = load_cache(path).unwrap();
         assert_eq!(loaded, pools());
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn v3_discovery_url_supports_subgraph_and_deployment_ids() {
+        let mut deployment = V3DeploymentConfig {
+            venue: crate::model::V3Venue::SushiSwap,
+            factory: Address::with_last_byte(1),
+            quoter: Address::with_last_byte(2),
+            subgraph_id: Some("subgraph".into()),
+            deployment_id: None,
+        };
+        assert_eq!(
+            v3_discovery_url("key", &deployment).unwrap(),
+            "https://gateway.thegraph.com/api/key/subgraphs/id/subgraph"
+        );
+        deployment.subgraph_id = None;
+        deployment.deployment_id = Some("deployment".into());
+        assert_eq!(
+            v3_discovery_url("key", &deployment).unwrap(),
+            "https://gateway.thegraph.com/api/key/deployments/id/deployment"
+        );
+        deployment.deployment_id = None;
+        assert!(v3_discovery_url("key", &deployment).is_err());
     }
 }

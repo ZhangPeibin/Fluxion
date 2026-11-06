@@ -6,7 +6,7 @@
 # `fluxion mcp` never starts or waits for this server.
 host: 127.0.0.1
 port: 8080
-enabled_platforms: [uniswap-v2, uniswap-v3, curve, shibaswap-v2]
+enabled_platforms: [uniswap-v2, uniswap-v3, sushi-v3, pancake-v3, curve, shibaswap-v2]
 max_pools: 10000
 min_liquidity: 10000
 max_hops: 3
@@ -20,6 +20,15 @@ excluded_pools:
 pricing_mode: local_snapshot
 # Refresh the discovered universe periodically while serving.
 universe_refresh_secs: 300
+v3_deployments:
+  - venue: sushi-v3
+    factory: "0xbACEB8eC6b9355Dfc0269C18bac9d6E2Bdc29C4F"
+    quoter: "0x64e8802fe490fa7cc61d3463958199161bb608a7"
+    deployment_id: "QmP1FMFsU4wNcui1eezwuvBjxrbLPucKrKZ9Kftn34nULw"
+  - venue: pancake-v3
+    factory: "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+    quoter: "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"
+    subgraph_id: "CJYGNhb7RvnhfBDjqpRnD3oxgyhibzc7fkAMa38YV3oS"
 split:
   max_branches: 8
   max_quote_calls: 4096

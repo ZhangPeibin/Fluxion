@@ -133,7 +133,7 @@ flowchart TB
 
 | 阶段 | 细节 |
 |---|---|
-| Discovery | 从配置的 V2/ShibaSwap、V3、Curve 和 wstETH universe 构建 token/pool 图。 |
+| Discovery | 从配置的 V2/ShibaSwap、V3 兼容部署（Uniswap/Sushi/Pancake）、Curve 和 wstETH universe 构建 token/pool 图。 |
 | Synchronizer | `StateSynchronizer` 是唯一持有 RPC client 的组件。它轮询 canonical head 并加载状态。 |
 | Full 模式 | 在目标区块重建全部池状态。reorg 和缺失数据会回退到 full rebuild。 |
 | Incremental 模式 | 读取结构日志，更新 V3 initialized ticks，刷新 V3 市场字段，并重新加载需要完整状态的平台。gap、reorg 或不完整数据会强制 full rebuild。 |

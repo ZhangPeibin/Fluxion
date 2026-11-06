@@ -1914,7 +1914,11 @@ impl SplitOptimizer {
                 let pool = graph.pool(edge.pool_idx);
                 if !matches!(
                     pool.kind,
-                    PoolKind::UniswapV2 | PoolKind::UniswapV3 { .. } | PoolKind::ShibaSwapV2
+                    PoolKind::UniswapV2
+                        | PoolKind::UniswapV3 { .. }
+                        | PoolKind::SushiSwapV3 { .. }
+                        | PoolKind::PancakeSwapV3 { .. }
+                        | PoolKind::ShibaSwapV2
                 ) || pool.coins[edge.j] != request.token_out
                     || !addresses.insert(pool.address)
                 {

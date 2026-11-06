@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
 
-use fluxion::adapters::{Curve, Dispatcher, RpcV2Reserves, UniswapV2, UniswapV3};
+use fluxion::adapters::{Curve, Dispatcher, RpcV2Reserves, UniswapV2, UniswapV3, V3Quoter};
 use fluxion::graph::Graph;
-use fluxion::model::{Pool, PoolKind, QuoteRequest};
+use fluxion::model::{Pool, PoolKind, QuoteRequest, V3Deployment, V3Deployments, V3Venue};
 use fluxion::router::Router;
 use fluxion::rpc::RpcClient;
 use fluxion::source::QuoteSource;
@@ -112,6 +112,54 @@ async fn real_curve_crypto_pool_quote() {
     // 100,000 USDT -> WBTC
     let out = curve
         .amount_out(&pool, 0, 1, U256::from(100_000_000_000u64))
+        .await
+        .unwrap();
+    assert!(out > U256::ZERO);
+}
+
+#[tokio::test]
+#[ignore]
+async fn sushi_v3_quoter_uses_deployment_address() {
+    let deployments = V3Deployments::new([V3Deployment {
+        venue: V3Venue::SushiSwap,
+        factory: addr("0xbACEB8eC6b9355Dfc0269C18bac9d6E2Bdc29C4F"),
+        quoter: addr("0x64e8802fe490fa7cc61d3463958199161bb608a7"),
+    }]);
+    let v3 = V3Quoter::with_deployments(RpcClient::new(RPC.to_string()), &deployments);
+    let pool = Pool {
+        kind: PoolKind::SushiSwapV3 { fee: 3000 },
+        address: addr("0x769DB46F39C42ee7AD5f71F4167c47EdD281E767"),
+        coins: vec![
+            addr("0x6B175474E89094C44Da98b954EedeAC495271d0F"),
+            addr(WETH),
+        ],
+    };
+    let out = v3
+        .amount_out(&pool, 0, 1, U256::from(1_000_000_000_000_000_000u128))
+        .await
+        .unwrap();
+    assert!(out > U256::ZERO);
+}
+
+#[tokio::test]
+#[ignore]
+async fn pancake_v3_quoter_uses_deployment_address() {
+    let deployments = V3Deployments::new([V3Deployment {
+        venue: V3Venue::PancakeSwap,
+        factory: addr("0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"),
+        quoter: addr("0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"),
+    }]);
+    let v3 = V3Quoter::with_deployments(RpcClient::new(RPC.to_string()), &deployments);
+    let pool = Pool {
+        kind: PoolKind::PancakeSwapV3 { fee: 2500 },
+        address: addr("0x517F451b0A9E1b87Dc0Ae98A05Ee033C3310F046"),
+        coins: vec![
+            addr("0x152649eA73beAb28c5b49B26eb48f7EAD6d4c898"),
+            addr(WETH),
+        ],
+    };
+    let out = v3
+        .amount_out(&pool, 0, 1, U256::from(100_000_000_000_000_000_000u128))
         .await
         .unwrap();
     assert!(out > U256::ZERO);

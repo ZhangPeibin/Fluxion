@@ -46,7 +46,9 @@ flowchart TB
 
 Discovery 从这些来源组装 pool 列表：
 
-- Uniswap V2 / V3 subgraph
+- Uniswap V2 subgraph
+- V3 兼容部署：Uniswap、SushiSwap、PancakeSwap；每个部署有自己的 factory、quoter
+  和 subgraph/deployment id（`v3_deployments`）
 - Curve `AddressProvider` 和 registry
 - ShibaSwap 和配置的 V2 fork，通过 `getPair`
 - 配置的协议转换，例如 wstETH

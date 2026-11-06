@@ -136,7 +136,7 @@ the future multi-chain design, see [GRAPH-AND-SNAPSHOT.md](GRAPH-AND-SNAPSHOT.md
 
 | Stage | Detail |
 |---|---|
-| Discovery | Builds the token/pool graph from the configured V2/ShibaSwap, V3, Curve and wstETH universe. |
+| Discovery | Builds the token/pool graph from the configured V2/ShibaSwap, V3-compatible deployments (Uniswap/Sushi/Pancake), Curve and wstETH universe. |
 | Synchronizer | `StateSynchronizer` is the only component that owns an RPC client. It polls the canonical head and loads state. |
 | Full mode | Rebuilds all pool state at the target block. Reorgs and missing data fall back to a full rebuild. |
 | Incremental mode | Reads structural logs, updates V3 initialized ticks, refreshes V3 market fields, and reloads platforms that need full state. Gaps, reorgs or incomplete data force a full rebuild. |

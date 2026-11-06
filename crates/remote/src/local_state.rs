@@ -16,7 +16,7 @@ use crate::{
     curve_local::{self, CurveState},
     error::QuoteError,
     graph::Graph,
-    model::{ConversionKind, Pool, PoolKind, QuoteRequest, Route},
+    model::{ConversionKind, Pool, PoolKind, QuoteRequest, Route, V3Deployments},
     router::{PriceSnapshot, Router, RouterConfig},
     rpc::{BlockHeader, RpcClient, RpcLog},
     source::{QuoteSource, constant_product_out, ratio},
@@ -313,12 +313,14 @@ impl LocalPlatform for V2Platform {
     }
 }
 
-struct V3Platform;
+struct V3Platform {
+    deployments: Arc<V3Deployments>,
+}
 
 #[async_trait]
 impl LocalPlatform for V3Platform {
     fn matches(&self, pool: &Pool) -> bool {
-        matches!(pool.kind, PoolKind::UniswapV3 { .. })
+        pool.kind.is_v3()
     }
 
     async fn full_load(
@@ -334,6 +336,7 @@ impl LocalPlatform for V3Platform {
             config.v3_bitmap_radius,
             config.v3_max_loaded_ticks,
             config.v3_full_range,
+            &self.deployments,
         )
         .await?;
         Ok(states
@@ -478,10 +481,12 @@ impl LocalPlatform for WstEthPlatform {
     }
 }
 
-fn default_platforms() -> Vec<Arc<dyn LocalPlatform>> {
+fn platforms_with(v3_deployments: V3Deployments) -> Vec<Arc<dyn LocalPlatform>> {
     vec![
         Arc::new(V2Platform),
-        Arc::new(V3Platform),
+        Arc::new(V3Platform {
+            deployments: Arc::new(v3_deployments),
+        }),
         Arc::new(CurvePlatform),
         Arc::new(WstEthPlatform),
     ]
@@ -815,7 +820,11 @@ fn unsupported_pool(pool: &Pool) -> bool {
     }
     let supported = matches!(
         pool.kind,
-        PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 | PoolKind::UniswapV3 { .. }
+        PoolKind::UniswapV2
+            | PoolKind::ShibaSwapV2
+            | PoolKind::SushiSwapV3 { .. }
+            | PoolKind::PancakeSwapV3 { .. }
+            | PoolKind::UniswapV3 { .. }
     ) || matches!(
         pool.kind,
         PoolKind::Conversion {
@@ -845,6 +854,20 @@ impl SnapshotStore {
         router_config: RouterConfig,
         config: LocalStateConfig,
     ) -> Result<Self, String> {
+        Self::new_with_deployments(
+            graph,
+            router_config,
+            config,
+            V3Deployments::uniswap_default(),
+        )
+    }
+
+    pub fn new_with_deployments(
+        graph: Graph,
+        router_config: RouterConfig,
+        config: LocalStateConfig,
+        v3_deployments: V3Deployments,
+    ) -> Result<Self, String> {
         config.validate()?;
         let unsupported_pools = graph
             .pools()
@@ -859,7 +882,7 @@ impl SnapshotStore {
             graph: RwLock::new(Arc::new(graph)),
             pending_graph: Mutex::new(None),
             skipped_pools: RwLock::new(Vec::new()),
-            platforms: default_platforms(),
+            platforms: platforms_with(v3_deployments),
             router_config,
             config,
             state: RwLock::new(Published::default()),

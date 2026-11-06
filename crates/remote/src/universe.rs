@@ -44,7 +44,11 @@ pub async fn discover_pools(
     key: Option<&str>,
 ) -> Result<Vec<Pool>, DiscoveryError> {
     let mut pools = Vec::new();
-    if (platform_enabled(config, "uniswap-v2") || platform_enabled(config, "uniswap-v3"))
+    let v3_deployments = config.resolved_v3_deployments();
+    let v3_enabled = v3_deployments
+        .iter()
+        .any(|deployment| platform_enabled(config, deployment.venue.name()));
+    if (platform_enabled(config, "uniswap-v2") || v3_enabled)
         && key.is_none_or(|key| key.trim().is_empty())
     {
         return Err(DiscoveryError::Request(
@@ -60,13 +64,22 @@ pub async fn discover_pools(
             Err(error) => tracing::warn!(%error, "v2 discovery failed"),
         }
     }
-    if platform_enabled(config, "uniswap-v3") {
-        match discovery::discover_v3(config, key.unwrap()).await {
+    for deployment in &v3_deployments {
+        if !platform_enabled(config, deployment.venue.name()) {
+            continue;
+        }
+        match discovery::discover_v3_deployment(config, key.unwrap(), deployment).await {
             Ok(p) => {
-                tracing::info!(count = p.len(), "discovered v3 pools");
+                tracing::info!(
+                    platform = deployment.venue.name(),
+                    count = p.len(),
+                    "discovered v3 deployment pools"
+                );
                 pools.extend(p);
             }
-            Err(error) => tracing::warn!(%error, "v3 discovery failed"),
+            Err(error) => {
+                tracing::warn!(%error, platform = deployment.venue.name(), "v3 discovery failed")
+            }
         }
     }
     for fork in &config.v2_forks {
@@ -159,7 +172,10 @@ pub fn pricing_source(config: &Config, rpc: RpcClient) -> (Arc<CachingSource>, A
     let state = Arc::new(StateCache::new(rpc.clone(), ttl));
     let source = Dispatcher::new(
         Box::new(UniswapV2::new(state.clone())),
-        Some(Box::new(UniswapV3::new(rpc.clone()))),
+        Some(Box::new(UniswapV3::with_deployments(
+            rpc.clone(),
+            &config.v3_deployment_map(),
+        ))),
         Some(Box::new(Curve::new(rpc.clone()))),
     )
     .with_conversions(Box::new(ProtocolConversions::new(rpc)));
@@ -182,7 +198,9 @@ pub async fn warm_coarse_prices(graph: &Graph, cached: &CachingSource, rpc: &Rpc
     for pool in graph.pools() {
         match pool.kind {
             PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 => v2.push(pool.address),
-            PoolKind::UniswapV3 { .. } => v3.push(pool.address),
+            PoolKind::UniswapV3 { .. }
+            | PoolKind::SushiSwapV3 { .. }
+            | PoolKind::PancakeSwapV3 { .. } => v3.push(pool.address),
             PoolKind::Curve | PoolKind::Conversion { .. } => {}
         }
     }

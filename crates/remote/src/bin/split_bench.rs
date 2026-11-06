@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 
 use fluxion_remote::config::Config;
 use fluxion_remote::graph::Graph;
-use fluxion_remote::model::{Hop, PoolKind, QuoteRequest};
+use fluxion_remote::model::{Hop, QuoteRequest};
 use fluxion_remote::reference::{ReferenceMetadata, paraswap};
 use fluxion_remote::router::{PriceSnapshot, Router, RouterConfig};
 use fluxion_remote::rpc::RpcClient;
@@ -927,7 +927,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .args(["status", "--porcelain"])
         .output()?;
     let inventory=pools.iter().map(|pool|json!({"platform":pool.kind.name(),"address":pool.address,"coins":pool.coins,
-        "fee":match pool.kind {PoolKind::UniswapV3{fee}=>Some(fee),_=>None},
+        "fee":pool.kind.v3_fee(),
         "directions":(0..pool.coins.len()).flat_map(|i|(0..pool.coins.len()).filter(move |&j|pool.kind.allows(i,j)).map(move |j|[i,j])).collect::<Vec<_>>()})).collect::<Vec<_>>();
     let mut two_config = args.search.clone();
     two_config.max_branches = 2;

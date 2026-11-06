@@ -1,7 +1,7 @@
 //! Background-only ABI/state loading. Math in v3_local has no RPC dependency.
 use crate::{
     local_state::StateError,
-    model::{Pool, PoolKind},
+    model::{Pool, V3Deployments},
     rpc::RpcClient,
     state::multicall,
     v3_local::{MAX_TICK, MIN_TICK, V3State, V3Structure, initialized_bits},
@@ -152,6 +152,7 @@ pub async fn load(
     radius: i16,
     max_ticks: usize,
     full_range: bool,
+    deployments: &V3Deployments,
 ) -> Result<HashMap<Address, V3State>, StateError> {
     let selectors = [
         "3850c7bd", "1a686502", "d0c93a7c", "ddca3f43", "0dfe1681", "d21220a7", "c45a0155",
@@ -169,9 +170,6 @@ pub async fn load(
         "diag_v3_end"
     );
     let phase = Instant::now();
-    let factory: Address = "0x1f98431c8ad98523631ae4a59f267346ea31f984"
-        .parse()
-        .unwrap();
     let mut headers = Vec::new();
     for (pool, words) in pools.iter().zip(values.as_chunks::<7>().0) {
         if words[0].len() != 224 {
@@ -187,13 +185,12 @@ pub async fn load(
             || fee.bit_len() > 24
             || spacing <= 0
             || spacing > 32767
-            || pool.kind
-                != (PoolKind::UniswapV3 {
-                    fee: fee.to::<u32>(),
-                })
+            || pool.kind.v3_fee() != Some(fee.to::<u32>())
         {
             return Err(StateError::Incomplete);
         }
+        let venue = pool.kind.v3_venue().ok_or(StateError::Incomplete)?;
+        let factory = deployments.factory(venue).ok_or(StateError::Incomplete)?;
         for (idx, expected) in [(4, pool.coins[0]), (5, pool.coins[1]), (6, factory)] {
             let actual = unsigned(&words[idx])?;
             if actual.bit_len() > 160 || Address::from_slice(&words[idx][12..]) != expected {

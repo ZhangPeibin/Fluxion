@@ -23,7 +23,8 @@
 | `uniswap_v2_subgraph_id` / `uniswap_v3_subgraph_id` | The Graph 去中心化网络部署 ID | 见示例 |
 | `curve_address_provider` | Curve AddressProvider | `0x0000…4383` |
 | `curve_registry_ids` | 枚举的 Curve 注册表 id（0=主 stableswap，5=crypto，7=MetaRegistry 全部） | `[0, 5]` |
-| `enabled_platforms` | 启用的 AMM 平台；与转换列表独立 | `uniswap-v2` / `uniswap-v3` / `curve` / `shibaswap-v2` |
+| `enabled_platforms` | 启用的 AMM 平台；与转换列表独立 | `uniswap-v2` / `uniswap-v3` / `sushi-v3` / `pancake-v3` / `curve` / `shibaswap-v2`（示例配置） |
+| `v3_deployments` | V3 兼容部署（venue / factory / quoter / `subgraph_id` 或 `deployment_id`）；内置 Uniswap V3 | 见示例 |
 | `shibaswap_v2_factory` | ShibaSwap V2 工厂地址 | 见示例 |
 | `protocol_conversions` | 已支持接口类型的部署实例；`[]` 关闭转换 | Lido stETH↔wstETH，双向开启 |
 | `max_hops` / `top_k` / `max_pools` | 最大边数 / 每状态每能力组保留数 / 发现上限 | 3 / 8 / 10000 |

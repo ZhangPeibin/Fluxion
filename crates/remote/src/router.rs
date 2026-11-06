@@ -41,7 +41,9 @@ pub fn edge_weight(rate: f64, reserve_in: U256, amount_in: U256, lambda: f64) ->
 fn fee_penalty(kind: PoolKind) -> f64 {
     let frac = match kind {
         PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 => 0.003,
-        PoolKind::UniswapV3 { fee } => fee as f64 / 1_000_000.0,
+        PoolKind::UniswapV3 { fee }
+        | PoolKind::SushiSwapV3 { fee }
+        | PoolKind::PancakeSwapV3 { fee } => fee as f64 / 1_000_000.0,
         PoolKind::Curve => 0.0004,
         PoolKind::Conversion { .. } => 0.0,
     };

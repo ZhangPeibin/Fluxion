@@ -6,7 +6,7 @@ use alloy_primitives::{Address, U256};
 use async_trait::async_trait;
 
 use crate::error::QuoteError;
-use crate::model::{Pool, PoolKind};
+use crate::model::{Pool, PoolKind, V3Deployments, V3Venue};
 use crate::rpc::RpcClient;
 use crate::source::{QuoteSource, constant_product_out, ratio};
 use crate::util::{pad_address, u32_word, u256_to_f64, u256_word};
@@ -16,8 +16,6 @@ pub const SLOT0: &str = "3850c7bd";
 const QUOTE_EXACT_INPUT_SINGLE: &str = "c6a5026a";
 const GET_DY_INT128: &str = "5e0d443f";
 const GET_DY_U256: &str = "556d6e9f";
-
-const QUOTER_V2: &str = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e";
 
 /// Decode the raw ABI return of `getReserves()` (uint112 reserve0, uint112
 /// reserve1, uint32 blockTimestampLast) into the two reserves. The return is
@@ -122,25 +120,39 @@ pub fn v3_price_from_slot0(out: &[u8], i: usize, j: usize) -> Result<f64, QuoteE
     }
 }
 
-/// Uniswap V3 quotes via `QuoterV2.quoteExactInputSingle`.
-pub struct UniswapV3 {
+/// V3-compatible quotes via the deployment's `QuoterV2.quoteExactInputSingle`.
+pub struct V3Quoter {
     rpc: RpcClient,
+    quoters: HashMap<V3Venue, Address>,
 }
 
-impl UniswapV3 {
+impl V3Quoter {
     pub fn new(rpc: RpcClient) -> Self {
-        Self { rpc }
+        Self::with_deployments(rpc, &V3Deployments::uniswap_default())
+    }
+
+    pub fn with_deployments(rpc: RpcClient, deployments: &V3Deployments) -> Self {
+        let quoters = if deployments.is_empty() {
+            V3Deployments::uniswap_default()
+                .iter()
+                .map(|deployment| (deployment.venue, deployment.quoter))
+                .collect()
+        } else {
+            deployments
+                .iter()
+                .map(|deployment| (deployment.venue, deployment.quoter))
+                .collect()
+        };
+        Self { rpc, quoters }
     }
 
     fn fee(pool: &Pool) -> Result<u32, QuoteError> {
-        match pool.kind {
-            PoolKind::UniswapV3 { fee } => Ok(fee),
-            _ => Err(QuoteError::UnknownPool),
-        }
+        pool.kind.v3_fee().ok_or(QuoteError::UnknownPool)
     }
 
     async fn quote_exact_input_single(
         &self,
+        quoter: Address,
         token_in: Address,
         token_out: Address,
         amount_in: U256,
@@ -154,7 +166,7 @@ impl UniswapV3 {
             u32_word(fee),
             "0".repeat(64), // sqrtPriceLimitX96 = 0 -> contract uses MIN/MAX
         );
-        let out = self.rpc.eth_call(quoter_v2(), &data).await?;
+        let out = self.rpc.eth_call(quoter, &data).await?;
         if out.len() < 32 {
             return Err(QuoteError::RpcError("short quote result".to_string()));
         }
@@ -162,8 +174,10 @@ impl UniswapV3 {
     }
 }
 
+pub type UniswapV3 = V3Quoter;
+
 #[async_trait]
-impl QuoteSource for UniswapV3 {
+impl QuoteSource for V3Quoter {
     async fn amount_out(
         &self,
         pool: &Pool,
@@ -172,12 +186,14 @@ impl QuoteSource for UniswapV3 {
         amount_in: U256,
     ) -> Result<U256, QuoteError> {
         let fee = Self::fee(pool)?;
+        let venue = pool.kind.v3_venue().ok_or(QuoteError::UnknownPool)?;
+        let quoter = *self.quoters.get(&venue).ok_or(QuoteError::UnknownPool)?;
         let (token_in, token_out) = match (i, j) {
             (0, 1) => (pool.coins[0], pool.coins[1]),
             (1, 0) => (pool.coins[1], pool.coins[0]),
             _ => return Err(QuoteError::UnknownPool),
         };
-        self.quote_exact_input_single(token_in, token_out, amount_in, fee)
+        self.quote_exact_input_single(quoter, token_in, token_out, amount_in, fee)
             .await
     }
 
@@ -278,7 +294,9 @@ impl Dispatcher {
     fn source(&self, kind: PoolKind) -> Result<&(dyn QuoteSource + Send + Sync), QuoteError> {
         match kind {
             PoolKind::UniswapV2 | PoolKind::ShibaSwapV2 => Ok(self.v2.as_ref()),
-            PoolKind::UniswapV3 { .. } => self.v3.as_deref().ok_or(QuoteError::UnknownPool),
+            PoolKind::UniswapV3 { .. }
+            | PoolKind::SushiSwapV3 { .. }
+            | PoolKind::PancakeSwapV3 { .. } => self.v3.as_deref().ok_or(QuoteError::UnknownPool),
             PoolKind::Curve => self.curve.as_deref().ok_or(QuoteError::UnknownPool),
             PoolKind::Conversion { .. } => {
                 self.conversions.as_deref().ok_or(QuoteError::UnknownPool)
@@ -308,10 +326,6 @@ impl QuoteSource for Dispatcher {
     async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, QuoteError> {
         self.source(pool.kind)?.reserve_in(pool, i).await
     }
-}
-
-fn quoter_v2() -> Address {
-    QUOTER_V2.parse().unwrap()
 }
 
 /// Caches coarse-stage mid-prices (per pool direction) with a TTL so the

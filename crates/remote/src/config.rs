@@ -1,5 +1,8 @@
 use crate::local_state::{LocalStateConfig, PricingMode};
-use crate::model::{ConversionKind, Pool, PoolKind};
+use crate::model::{
+    ConversionKind, Pool, PoolKind, UNISWAP_V3_FACTORY, UNISWAP_V3_QUOTER, V3Deployment,
+    V3Deployments, V3Venue,
+};
 use crate::split::{SplitConfig, SplitOptimizer};
 use alloy_primitives::Address;
 use serde::{Deserialize, Serialize};
@@ -64,6 +67,20 @@ pub struct V3SubgraphConfig {
     pub subgraph_id: String,
 }
 
+/// A V3-compatible deployment: same core state/math, different factory,
+/// quoter and discovery endpoint.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct V3DeploymentConfig {
+    pub venue: V3Venue,
+    pub factory: Address,
+    pub quoter: Address,
+    #[serde(default)]
+    pub subgraph_id: Option<String>,
+    #[serde(default)]
+    pub deployment_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
@@ -96,6 +113,9 @@ pub struct Config {
     pub v2_forks: Vec<V2ForkConfig>,
     /// Additional same-interface V3 deployments discovered through a subgraph.
     pub v3_subgraphs: Vec<V3SubgraphConfig>,
+    /// V3-compatible deployments parameterized by factory, quoter and
+    /// discovery endpoint.
+    pub v3_deployments: Vec<V3DeploymentConfig>,
     pub protocol_conversions: Vec<ProtocolConversionConfig>,
     #[serde(deserialize_with = "service_split_config")]
     pub split: SplitConfig,
@@ -154,6 +174,7 @@ impl Default for Config {
                 .unwrap(),
             v2_forks: Vec::new(),
             v3_subgraphs: Vec::new(),
+            v3_deployments: Vec::new(),
             protocol_conversions: vec![ProtocolConversionConfig {
                 kind: ConversionKind::WstEth,
                 contract: "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0"
@@ -189,6 +210,28 @@ impl Config {
                 return Err(ConfigError::Invalid("conversion must have a unique nonzero wrapper contract, distinct underlying, and an enabled direction".into()));
             }
         }
+        let mut venues = std::collections::HashSet::new();
+        for deployment in &self.v3_deployments {
+            if deployment.factory == Address::ZERO
+                || deployment.quoter == Address::ZERO
+                || !venues.insert(deployment.venue)
+                || deployment
+                    .subgraph_id
+                    .as_ref()
+                    .is_some_and(|id| id.trim().is_empty())
+                || deployment
+                    .deployment_id
+                    .as_ref()
+                    .is_some_and(|id| id.trim().is_empty())
+                || (deployment.subgraph_id.is_some() && deployment.deployment_id.is_some())
+                || (deployment.subgraph_id.is_none() && deployment.deployment_id.is_none())
+            {
+                return Err(ConfigError::Invalid(format!(
+                    "v3 deployment {} must be unique with nonzero factory/quoter and exactly one discovery endpoint",
+                    deployment.venue.name()
+                )));
+            }
+        }
         for token in &self.token_allowlist {
             token
                 .parse::<Address>()
@@ -196,6 +239,40 @@ impl Config {
         }
         Ok(())
     }
+    /// Every configured V3 deployment, with the built-in Uniswap deployment
+    /// present for backwards compatibility.
+    pub fn resolved_v3_deployments(&self) -> Vec<V3DeploymentConfig> {
+        let mut by_venue = std::collections::HashMap::new();
+        by_venue.insert(
+            V3Venue::Uniswap,
+            V3DeploymentConfig {
+                venue: V3Venue::Uniswap,
+                factory: UNISWAP_V3_FACTORY.parse().unwrap(),
+                quoter: UNISWAP_V3_QUOTER.parse().unwrap(),
+                subgraph_id: Some(self.uniswap_v3_subgraph_id.clone()),
+                deployment_id: None,
+            },
+        );
+        for deployment in &self.v3_deployments {
+            by_venue.insert(deployment.venue, deployment.clone());
+        }
+        let mut deployments = by_venue.into_values().collect::<Vec<_>>();
+        deployments.sort_by_key(|deployment| deployment.venue.name());
+        deployments
+    }
+
+    pub fn v3_deployment_map(&self) -> V3Deployments {
+        V3Deployments::new(
+            self.resolved_v3_deployments()
+                .into_iter()
+                .map(|deployment| V3Deployment {
+                    venue: deployment.venue,
+                    factory: deployment.factory,
+                    quoter: deployment.quoter,
+                }),
+        )
+    }
+
     /// Only a missing file uses defaults; malformed configuration is an error.
     pub fn load(path: &str) -> Result<Self, ConfigError> {
         match Self::from_file(path) {
@@ -255,6 +332,35 @@ mod tests {
         assert!(!config.v2_forks[0].shibaswap);
         assert_eq!(config.v3_subgraphs[0].subgraph_id, "abc");
         assert!(serde_yaml::from_str::<Config>("v2_forks:\n  - name: x\n").is_err());
+    }
+
+    #[test]
+    fn v3_deployments_merge_with_builtin_uniswap_and_validate() {
+        let config: Config = serde_yaml::from_str(
+            "v3_deployments:\n  - venue: sushi-v3\n    factory: '0x0000000000000000000000000000000000000010'\n    quoter: '0x0000000000000000000000000000000000000011'\n    deployment_id: abc\n",
+        )
+        .unwrap();
+        let deployments = config.resolved_v3_deployments();
+        assert_eq!(deployments.len(), 2);
+        assert!(
+            deployments
+                .iter()
+                .any(|deployment| deployment.venue == V3Venue::Uniswap)
+        );
+        assert_eq!(
+            config.v3_deployment_map().quoter(V3Venue::SushiSwap),
+            Some(Address::with_last_byte(0x11))
+        );
+        let missing_endpoint: Config = serde_yaml::from_str(
+            "v3_deployments:\n  - venue: sushi-v3\n    factory: '0x0000000000000000000000000000000000000010'\n    quoter: '0x0000000000000000000000000000000000000011'\n",
+        )
+        .unwrap();
+        assert!(missing_endpoint.validate().is_err());
+        let duplicate: Config = serde_yaml::from_str(
+            "v3_deployments:\n  - venue: sushi-v3\n    factory: '0x0000000000000000000000000000000000000010'\n    quoter: '0x0000000000000000000000000000000000000011'\n    deployment_id: a\n  - venue: sushi-v3\n    factory: '0x0000000000000000000000000000000000000012'\n    quoter: '0x0000000000000000000000000000000000000013'\n    deployment_id: b\n",
+        )
+        .unwrap();
+        assert!(duplicate.validate().is_err());
     }
 
     #[test]

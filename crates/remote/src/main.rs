@@ -74,7 +74,7 @@ async fn run_server(config_path: String) {
     // venues are reported as unavailable, never silently removed from the graph.
     let local_store = if config.pricing_mode == PricingMode::LocalSnapshot {
         let store = Arc::new(
-            SnapshotStore::new(
+            SnapshotStore::new_with_deployments(
                 graph.clone(),
                 RouterConfig {
                     max_hops: config.max_hops,
@@ -83,6 +83,7 @@ async fn run_server(config_path: String) {
                     reserve_ratio_k: config.reserve_ratio_k,
                 },
                 config.local_state.clone(),
+                config.v3_deployment_map(),
             )
             .expect("validated local state configuration"),
         );

@@ -47,7 +47,9 @@ flowchart TB
 
 Discovery assembles the pool list from:
 
-- Uniswap V2 and V3 subgraphs
+- Uniswap V2 subgraph
+- V3-compatible deployments: Uniswap, SushiSwap and PancakeSwap through
+  `v3_deployments` (each has its own factory, quoter and subgraph/deployment id)
 - Curve `AddressProvider` and registries
 - ShibaSwap and configured V2 forks through `getPair`
 - Configured protocol conversions such as wstETH

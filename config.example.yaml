@@ -24,6 +24,8 @@ curve_registry_ids: [0, 5]
 enabled_platforms:
   - uniswap-v2
   - uniswap-v3
+  - sushi-v3
+  - pancake-v3
   - curve
   - shibaswap-v2
 
@@ -40,9 +42,22 @@ v2_forks: []
 #    factory: "0x..."
 #    shibaswap: false
 
-# Additional V3-compatible deployments, discovered through their own subgraph.
+# Additional V3-compatible deployments. Each uses the same core state/math but
+# its own factory, quoter and discovery endpoint. `deployment_id` is the
+# The Graph deployment id; `subgraph_id` is the named subgraph id.
 v3_subgraphs: []
-#  - name: my-v3-fork
+v3_deployments:
+  - venue: sushi-v3
+    factory: "0xbACEB8eC6b9355Dfc0269C18bac9d6E2Bdc29C4F"
+    quoter: "0x64e8802fe490fa7cc61d3463958199161bb608a7"
+    deployment_id: "QmP1FMFsU4wNcui1eezwuvBjxrbLPucKrKZ9Kftn34nULw"
+  - venue: pancake-v3
+    factory: "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+    quoter: "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"
+    subgraph_id: "CJYGNhb7RvnhfBDjqpRnD3oxgyhibzc7fkAMa38YV3oS"
+#  - venue: uniswap-v3
+#    factory: "0x..."
+#    quoter: "0x..."
 #    subgraph_id: "..."
 
 # Typed protocol conversion instances. [] disables all conversions.
