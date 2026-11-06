@@ -67,6 +67,9 @@ pub struct AllocationResponse {
     pub amount_in: Amount,
     pub amount_out: Amount,
     pub hops: Vec<HopResponse>,
+    /// Prefix branches when multiple pools feed one intermediate node.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<AllocationResponse>,
     /// Suffix branches when a shared prefix fans out into multiple pools.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<AllocationResponse>,

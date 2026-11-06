@@ -53,6 +53,7 @@
         "amount_in": { "$ref": "#/$defs/amount" },
         "amount_out": { "$ref": "#/$defs/amount" },
         "hops": { "type": "array", "items": { "$ref": "#/$defs/hop" } },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/allocation" } },
         "children": { "type": "array", "items": { "$ref": "#/$defs/allocation" } }
       }
     },

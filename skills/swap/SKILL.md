@@ -76,20 +76,23 @@ failures. Prefer parsing the JSON, not the human text.
 
 ### Shared-prefix allocations
 
-`allocations` is a tree when a route shares a prefix and then fans out:
+`allocations` is a tree when routes share an intermediate node:
 
 ```text
-allocation.hops        = shared prefix (for example LDO -> AAVE)
-allocation.children[]  = suffix branches (for example AAVE -> WETH pool A/B)
+allocation.hops        = simple prefix path, if any
+allocation.sources[]   = multiple prefix branches feeding the same intermediate node
+allocation.children[]  = suffix branches leaving that intermediate node
 ```
 
-- If `children` is non-empty, `allocation.hops` is **not** a complete route. Recurse into
+- A regular path has `hops` and no `sources`/`children`.
+- A shared-prefix fan-out has `hops` plus `children`: `hops` is only the prefix.
+- A fan-in node has `sources`; `hops` is empty. Fan-in plus fan-out has both `sources` and
   `children`.
-- `allocation.amount_in` is in the request's input token; child `amount_in` is in the prefix's
-  output token.
-- To report leaf routes, flatten `allocation.hops + child.hops` for every child.
-- Root-level `amount_in` values sum to the requested amount. Child `amount_in` values sum to the
-  parent's last hop output.
+- `allocation.amount_in` is in the request's input token; child `amount_in` is in the
+  intermediate token.
+- To report leaf routes, flatten `source.hops + allocation.hops + child.hops` as applicable.
+- Root-level `amount_in` values sum to the requested amount. Sources' `amount_out` sum to the
+  intermediate amount; children's `amount_in` sum to that same intermediate amount.
 
 Do not assume that a successful quote is executable. Re-check freshness, liquidity, slippage,
 gas and user authorization before building or executing a transaction.

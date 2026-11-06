@@ -1,6 +1,27 @@
 # Quote benchmarks
 
-## Latest: disjoint multi-route split for large inputs (4 Nov 2026)
+## Latest: route-tree fan-in/fan-out and adaptive refinement (6 Nov 2026)
+
+[90-row report](split-quality-2026-11-06-http.md) /
+[raw JSON](split-quality-2026-11-06-http.json).
+
+The split optimizer now treats an intermediate token as a node: multiple prefix pools can feed
+one node (`sources`), and the node can fan out to multiple suffix pools (`children`). The outer
+grid has adaptive small moves, and suffix splits get one bounded exact refinement pass.
+
+| metric | route-tree run |
+|---|---:|
+| success | **90 / 90** |
+| Fluxion HTTP latency p50 / p95 | **15 / 42 ms** |
+| snapshot lag blocks p50 / p95 / max | **0 / 1 / 1** |
+| snapshot lag seconds p50 / p95 / max | **0 / 12 / 12 s** |
+| ParaSwap mean delta / within ±50 bps | **-6.4 bps / 89** |
+| 1inch mean delta / within ±50 bps | **-10.9 bps / 85** |
+
+This run uses the fixed 208-pool benchmark profile, so it isolates allocator changes from the
+new Sushi/Pancake V3 venues.
+
+## Previous: disjoint multi-route split for large inputs (4 Nov 2026)
 
 [90-row report](quote-freshness-2026-11-04-route-split.md) /
 [raw JSON](quote-freshness-2026-11-04-route-split.json).

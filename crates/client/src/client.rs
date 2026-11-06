@@ -154,6 +154,8 @@ struct HttpAllocation {
     amount_out: String,
     path: Vec<HttpHop>,
     #[serde(default)]
+    sources: Vec<HttpAllocation>,
+    #[serde(default)]
     children: Vec<HttpAllocation>,
 }
 
@@ -233,6 +235,11 @@ fn map_allocation(
             .into_iter()
             .map(|hop| map_hop(hop, token_in_decimals, token_out_decimals))
             .collect(),
+        sources: entry
+            .sources
+            .into_iter()
+            .map(|source| map_allocation(source, token_in_decimals, token_out_decimals))
+            .collect::<Result<_, _>>()?,
         children: entry
             .children
             .into_iter()
@@ -271,6 +278,7 @@ fn build_response(
                 .into_iter()
                 .map(|hop| map_hop(hop, token_in_decimals, token_out_decimals))
                 .collect(),
+            sources: Vec::new(),
             children: Vec::new(),
         });
     }

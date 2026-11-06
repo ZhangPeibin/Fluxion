@@ -72,6 +72,9 @@ pub struct AllocationDto {
     pub amount_out: String,
     pub input_share_percent: f64,
     pub path: Vec<HopDto>,
+    /// Present when multiple prefix pools feed one intermediate node.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<AllocationDto>,
     /// Present when a shared prefix fans out into multiple suffix pools.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<AllocationDto>,
@@ -84,6 +87,11 @@ fn allocation_to_dto(allocation: &Allocation, total: U256) -> AllocationDto {
         amount_out: allocation.amount_out.to_string(),
         input_share_percent: numeric(allocation.amount_in) / numeric(total) * 100.0,
         path: allocation.hops.iter().map(hop_to_dto).collect(),
+        sources: allocation
+            .sources
+            .iter()
+            .map(|source| allocation_to_dto(source, allocation.amount_in))
+            .collect(),
         children: allocation
             .children
             .iter()

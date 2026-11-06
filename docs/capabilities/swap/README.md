@@ -168,17 +168,19 @@ Important fields:
 
 ### Shared-prefix routes
 
-When multiple suffix pools share one prefix pool, the prefix is quoted once and the allocation is
-returned as a tree:
+When routes share an intermediate node, the allocation is returned as a tree:
 
 ```text
-allocation.hops        = shared prefix (e.g. LDO -> AAVE)
-allocation.children[]  = suffix branches (e.g. AAVE -> WETH pool A/B)
+allocation.hops        = simple prefix path, if any
+allocation.sources[]   = multiple prefix branches feeding one intermediate node
+allocation.children[]  = suffix branches leaving that intermediate node
 ```
 
-If `children` is present, `hops` alone is not a complete route. Recurse into `children`; flatten
-`hops + child.hops` for human-readable leaf routes. Root `amount_in` values sum to the request;
-child `amount_in` values sum to the parent's final hop output.
+A shared-prefix fan-out has `hops` + `children`; `hops` alone is not a complete route. A fan-in
+node has `sources` and empty `hops`; fan-in plus fan-out has both. Recurse into `sources` and
+`children`, flattening the applicable hops for human-readable leaf routes. Root `amount_in`
+values sum to the request; sources' `amount_out` and children's `amount_in` both sum to the
+intermediate amount.
 
 Warm local-snapshot quotes are typically 5–30 ms in the current benchmark environment. State
 freshness is measured separately from latency.

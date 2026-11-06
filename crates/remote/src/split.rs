@@ -101,8 +101,11 @@ pub struct Allocation {
     pub amount_in: U256,
     pub amount_out: U256,
     pub hops: Vec<Hop>,
-    /// Suffix branches when one prefix feeds multiple downstream pools. Each
-    /// child's `amount_in` is in the parent hop's output token.
+    /// Prefix branches when multiple pools feed one intermediate node. Each
+    /// source's `amount_out` is in the intermediate token.
+    pub sources: Vec<Allocation>,
+    /// Suffix branches when one intermediate node fans out to multiple
+    /// downstream pools. Each child's `amount_in` is in the intermediate token.
     pub children: Vec<Allocation>,
 }
 
@@ -413,6 +416,7 @@ async fn route_allocation(
         amount_in,
         amount_out: current,
         hops,
+        sources: Vec::new(),
         children: Vec::new(),
     })
 }
@@ -452,6 +456,7 @@ fn allocation(pool: &DirectPool, amount_in: U256, amount_out: U256) -> Allocatio
             amount_in,
             amount_out,
         }],
+        sources: Vec::new(),
         children: Vec::new(),
     }
 }
@@ -735,9 +740,9 @@ async fn apply_route_plan(
     Some(total)
 }
 
-/// Move a small slice of one DP cell between two active branches. This only
-/// touches pairs, keeping the search bounded and independent of branch count.
-fn refined_plans(inputs: &[U256], config: &SplitConfig) -> Vec<Vec<U256>> {
+/// Move a small slice between two branches. `cell_segments` controls the
+/// starting cell size and `steps` controls sub-cell resolution.
+fn refined_plans_with(inputs: &[U256], cell_segments: usize, steps: usize) -> Vec<Vec<U256>> {
     let mut plans = Vec::new();
     for a in 0..inputs.len() {
         for b in (a + 1)..inputs.len() {
@@ -747,12 +752,52 @@ fn refined_plans(inputs: &[U256], config: &SplitConfig) -> Vec<Vec<U256>> {
             if combined.is_zero() {
                 continue;
             }
-            let cell = fraction(combined, 1, config.allocation_segments);
+            let cell = fraction(combined, 1, cell_segments.max(1));
             if cell.is_zero() {
                 continue;
             }
-            for step in 1..=config.refinement_segments {
-                let delta = fraction(cell, step, config.refinement_segments);
+            for step in 1..=steps.max(1) {
+                let delta = fraction(cell, step, steps.max(1));
+                if delta.is_zero() {
+                    continue;
+                }
+                if inputs[a] >= delta {
+                    let mut plan = inputs.to_vec();
+                    plan[a] -= delta;
+                    plan[b] += delta;
+                    plans.push(plan);
+                }
+                if inputs[b] >= delta {
+                    let mut plan = inputs.to_vec();
+                    plan[a] += delta;
+                    plan[b] -= delta;
+                    plans.push(plan);
+                }
+            }
+        }
+    }
+    plans.sort();
+    plans.dedup();
+    plans
+}
+
+fn refined_plans(inputs: &[U256], config: &SplitConfig) -> Vec<Vec<U256>> {
+    refined_plans_with(
+        inputs,
+        config.allocation_segments,
+        config.refinement_segments,
+    )
+}
+
+/// Outer-plan variants with both one-cell moves and small moves relative to the
+/// whole request. The latter can activate 1%–5% branches that a coarse DP grid
+/// cannot represent directly.
+fn adaptive_refined_plans(inputs: &[U256], amount: U256, config: &SplitConfig) -> Vec<Vec<U256>> {
+    let mut plans = refined_plans(inputs, config);
+    for a in 0..inputs.len() {
+        for b in (a + 1)..inputs.len() {
+            for denominator in [64usize, 32, 16, 8] {
+                let delta = fraction(amount, 1, denominator);
                 if delta.is_zero() {
                     continue;
                 }
@@ -1093,6 +1138,7 @@ struct GroupResult {
     input: U256,
     output: U256,
     hops: Vec<Hop>,
+    sources: Vec<Allocation>,
     children: Vec<Allocation>,
 }
 
@@ -1327,11 +1373,97 @@ fn merge_stop(stop: &mut StopReason, next: StopReason) {
 /// Exact quote of one first-hop group: prefix output is split over all suffix
 /// alternatives, with an integer remainder retried on the active suffixes.
 #[allow(clippy::too_many_arguments)]
+async fn apply_integer_remainder(
+    branch_idx: &[usize],
+    total_input: U256,
+    inputs: &mut Vec<U256>,
+    best_out: &mut U256,
+    quotes: &mut RouteQuotes,
+    branches: &[RouteBranch],
+    source: &ObservedSource<'_>,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+    stop: &mut StopReason,
+) {
+    let Some(sum) = inputs
+        .iter()
+        .try_fold(U256::ZERO, |sum, value| sum.checked_add(*value))
+    else {
+        return;
+    };
+    let Some(remainder) = total_input.checked_sub(sum) else {
+        return;
+    };
+    if remainder.is_zero() {
+        return;
+    }
+    let mut variants = Vec::new();
+    for idx in 0..inputs.len() {
+        if inputs[idx].is_zero() && inputs.iter().any(|value| !value.is_zero()) {
+            continue;
+        }
+        let mut adjusted = inputs.clone();
+        adjusted[idx] += remainder;
+        variants.push(adjusted);
+    }
+    let jobs = variants
+        .iter()
+        .flat_map(|variant| variant.iter().copied().enumerate())
+        .filter(|(idx, amount)| {
+            !amount.is_zero() && !quotes.contains_key(&(branch_idx[*idx], *amount))
+        })
+        .map(|(idx, amount)| (branch_idx[idx], amount))
+        .collect::<Vec<_>>();
+    let quote_stop = ensure_route_quotes(
+        branches,
+        jobs,
+        quotes,
+        source,
+        config,
+        baseline_calls,
+        deadline,
+    )
+    .await;
+    merge_stop(stop, quote_stop);
+    for variant in variants {
+        let mut total = U256::ZERO;
+        let mut complete = true;
+        for (idx, amount) in variant.iter().copied().enumerate() {
+            if amount.is_zero() {
+                continue;
+            }
+            match quotes
+                .get(&(branch_idx[idx], amount))
+                .and_then(|result| result.as_ref().ok())
+            {
+                Some(out) => {
+                    let Some(sum) = total.checked_add(*out) else {
+                        complete = false;
+                        break;
+                    };
+                    total = sum;
+                }
+                None => {
+                    complete = false;
+                    break;
+                }
+            }
+        }
+        if complete && total >= *best_out {
+            *best_out = total;
+            *inputs = variant;
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn quote_group(
     group: &RouteGroup,
     branches: &[RouteBranch],
     input: U256,
     inner_segments: usize,
+    refine: bool,
     quotes: &mut RouteQuotes,
     source: &ObservedSource<'_>,
     config: &SplitConfig,
@@ -1342,44 +1474,164 @@ async fn quote_group(
     if input.is_zero() {
         return None;
     }
-    let quote_stop = ensure_route_quotes(
-        branches,
-        group
+
+    let (prefix_out, prefix_allocations) = if group.prefix_idx.len() == 1 {
+        let prefix_idx = group.prefix_idx[0];
+        let quote_stop = ensure_route_quotes(
+            branches,
+            vec![(prefix_idx, input)],
+            quotes,
+            source,
+            config,
+            baseline_calls,
+            deadline,
+        )
+        .await;
+        merge_stop(stop, quote_stop);
+        let out = quotes.get(&(prefix_idx, input))?.as_ref().ok().copied()?;
+        let allocation = route_allocation(&branches[prefix_idx], input, source)
+            .await
+            .ok()?;
+        (out, vec![allocation])
+    } else {
+        let prefix_segments = inner_segments;
+        let jobs = group
             .prefix_idx
             .iter()
-            .map(|&prefix_idx| (prefix_idx, input))
-            .collect(),
-        quotes,
-        source,
-        config,
-        baseline_calls,
-        deadline,
-    )
-    .await;
-    merge_stop(stop, quote_stop);
-    let mut chosen: Option<(U256, Allocation)> = None;
-    for &prefix_idx in &group.prefix_idx {
-        let Some(out) = quotes
-            .get(&(prefix_idx, input))
-            .and_then(|result| result.as_ref().ok().copied())
-        else {
-            continue;
-        };
-        if chosen.as_ref().is_none_or(|(best, _)| out > *best) {
-            let allocation = route_allocation(&branches[prefix_idx], input, source)
-                .await
-                .ok()?;
-            chosen = Some((out, allocation));
+            .flat_map(|&prefix_idx| {
+                (1..=prefix_segments)
+                    .map(move |step| (prefix_idx, fraction(input, step, prefix_segments)))
+            })
+            .collect::<Vec<_>>();
+        let quote_stop = ensure_route_quotes(
+            branches,
+            jobs,
+            quotes,
+            source,
+            config,
+            baseline_calls,
+            deadline,
+        )
+        .await;
+        merge_stop(stop, quote_stop);
+        let tables = group
+            .prefix_idx
+            .iter()
+            .map(|&prefix_idx| {
+                (0..=prefix_segments)
+                    .map(|step| {
+                        if step == 0 {
+                            Some(U256::ZERO)
+                        } else {
+                            let amount = fraction(input, step, prefix_segments);
+                            if amount.is_zero() {
+                                Some(U256::ZERO)
+                            } else {
+                                quotes
+                                    .get(&(prefix_idx, amount))
+                                    .and_then(|result| result.as_ref().ok().copied())
+                            }
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        match best_units(
+            &tables,
+            prefix_segments,
+            config.max_branches.min(tables.len()),
+            deadline,
+        ) {
+            Some((mut best, units)) => {
+                let mut inputs = units
+                    .iter()
+                    .map(|&used| fraction(input, used, prefix_segments))
+                    .collect::<Vec<_>>();
+                apply_integer_remainder(
+                    &group.prefix_idx,
+                    input,
+                    &mut inputs,
+                    &mut best,
+                    quotes,
+                    branches,
+                    source,
+                    config,
+                    baseline_calls,
+                    deadline,
+                    stop,
+                )
+                .await;
+                let mut allocations = Vec::new();
+                let mut total = U256::ZERO;
+                for (idx, amount) in inputs.into_iter().enumerate() {
+                    if amount.is_zero() {
+                        continue;
+                    }
+                    let allocation =
+                        route_allocation(&branches[group.prefix_idx[idx]], amount, source)
+                            .await
+                            .ok()?;
+                    total = total.checked_add(allocation.amount_out)?;
+                    allocations.push(allocation);
+                }
+                (total, allocations)
+            }
+            None => {
+                // A partial quote table can leave the prefix DP infeasible.
+                // Fall back to the best single prefix for this input.
+                let quote_stop = ensure_route_quotes(
+                    branches,
+                    group
+                        .prefix_idx
+                        .iter()
+                        .map(|&prefix_idx| (prefix_idx, input))
+                        .collect(),
+                    quotes,
+                    source,
+                    config,
+                    baseline_calls,
+                    deadline,
+                )
+                .await;
+                merge_stop(stop, quote_stop);
+                let mut chosen: Option<(U256, Allocation)> = None;
+                for &prefix_idx in &group.prefix_idx {
+                    let Some(out) = quotes
+                        .get(&(prefix_idx, input))
+                        .and_then(|result| result.as_ref().ok().copied())
+                    else {
+                        continue;
+                    };
+                    if chosen.as_ref().is_none_or(|(best, _)| out > *best) {
+                        let allocation = route_allocation(&branches[prefix_idx], input, source)
+                            .await
+                            .ok()?;
+                        chosen = Some((out, allocation));
+                    }
+                }
+                let (out, allocation) = chosen?;
+                (out, vec![allocation])
+            }
         }
-    }
-    let (prefix_out, prefix_allocation) = chosen?;
+    };
 
     if group.suffix_idx.is_empty() {
-        return Some(GroupResult {
-            input,
-            output: prefix_out,
-            hops: prefix_allocation.hops,
-            children: Vec::new(),
+        return Some(if prefix_allocations.len() == 1 {
+            GroupResult {
+                input,
+                output: prefix_out,
+                hops: prefix_allocations.into_iter().next().unwrap().hops,
+                sources: Vec::new(),
+                children: Vec::new(),
+            }
+        } else {
+            GroupResult {
+                input,
+                output: prefix_out,
+                hops: Vec::new(),
+                sources: prefix_allocations,
+                children: Vec::new(),
+            }
         });
     }
 
@@ -1434,68 +1686,82 @@ async fn quote_group(
         .iter()
         .map(|&used| fraction(prefix_out, used, inner_segments))
         .collect::<Vec<_>>();
+    apply_integer_remainder(
+        &group.suffix_idx,
+        prefix_out,
+        &mut inputs,
+        &mut best_out,
+        quotes,
+        branches,
+        source,
+        config,
+        baseline_calls,
+        deadline,
+        stop,
+    )
+    .await;
 
-    let sum = inputs
-        .iter()
-        .try_fold(U256::ZERO, |sum, value| sum.checked_add(*value))?;
-    if let Some(remainder) = prefix_out.checked_sub(sum)
-        && !remainder.is_zero()
-    {
-        let mut variants = Vec::new();
-        for idx in 0..inputs.len() {
-            if inputs[idx].is_zero() && inputs.iter().any(|value| !value.is_zero()) {
-                continue;
+    // Refine the suffix split within one DP cell. This is bounded and only
+    // uses exact quotes; table construction skips it to keep RPC use low.
+    if refine {
+        for _ in 0..config.refinement_rounds {
+            let variants = refined_plans_with(&inputs, inner_segments, config.refinement_segments);
+            if variants.is_empty() || tokio::time::Instant::now() >= deadline {
+                break;
             }
-            let mut adjusted = inputs.clone();
-            adjusted[idx] += remainder;
-            variants.push(adjusted);
-        }
-        let jobs = variants
-            .iter()
-            .flat_map(|variant| variant.iter().copied().enumerate())
-            .filter(|(idx, amount)| {
-                !amount.is_zero() && !quotes.contains_key(&(group.suffix_idx[*idx], *amount))
-            })
-            .map(|(idx, amount)| (group.suffix_idx[idx], amount))
-            .collect::<Vec<_>>();
-        let quote_stop = ensure_route_quotes(
-            branches,
-            jobs,
-            quotes,
-            source,
-            config,
-            baseline_calls,
-            deadline,
-        )
-        .await;
-        merge_stop(stop, quote_stop);
-        for variant in variants {
-            let mut total = U256::ZERO;
-            let mut complete = true;
-            for (idx, amount) in variant.iter().copied().enumerate() {
-                if amount.is_zero() {
-                    continue;
-                }
-                match quotes
-                    .get(&(group.suffix_idx[idx], amount))
-                    .and_then(|result| result.as_ref().ok())
-                {
-                    Some(out) => {
-                        let Some(sum) = total.checked_add(*out) else {
+            let jobs = variants
+                .iter()
+                .take(32)
+                .flat_map(|variant| variant.iter().copied().enumerate())
+                .filter(|(idx, amount)| {
+                    !amount.is_zero() && !quotes.contains_key(&(group.suffix_idx[*idx], *amount))
+                })
+                .map(|(idx, amount)| (group.suffix_idx[idx], amount))
+                .collect::<Vec<_>>();
+            let quote_stop = ensure_route_quotes(
+                branches,
+                jobs,
+                quotes,
+                source,
+                config,
+                baseline_calls,
+                deadline,
+            )
+            .await;
+            merge_stop(stop, quote_stop);
+            let mut improved = false;
+            for variant in variants.into_iter().take(32) {
+                let mut total = U256::ZERO;
+                let mut complete = true;
+                for (idx, amount) in variant.iter().copied().enumerate() {
+                    if amount.is_zero() {
+                        continue;
+                    }
+                    match quotes
+                        .get(&(group.suffix_idx[idx], amount))
+                        .and_then(|result| result.as_ref().ok())
+                    {
+                        Some(out) => {
+                            let Some(sum) = total.checked_add(*out) else {
+                                complete = false;
+                                break;
+                            };
+                            total = sum;
+                        }
+                        None => {
                             complete = false;
                             break;
-                        };
-                        total = sum;
-                    }
-                    None => {
-                        complete = false;
-                        break;
+                        }
                     }
                 }
+                if complete && total > best_out {
+                    best_out = total;
+                    inputs = variant;
+                    improved = true;
+                }
             }
-            if complete && total >= best_out {
-                best_out = total;
-                inputs = variant;
+            if !improved || *stop != StopReason::Completed {
+                break;
             }
         }
     }
@@ -1512,22 +1778,35 @@ async fn quote_group(
         total = total.checked_add(allocation.amount_out)?;
         suffix_allocations.push(allocation);
     }
-    // Keep the linear allocation shape when only one suffix is active.
-    if suffix_allocations.len() == 1 {
-        let suffix = suffix_allocations.pop().unwrap();
-        let mut hops = prefix_allocation.hops;
+
+    let multi_source = prefix_allocations.len() > 1;
+    let multi_suffix = suffix_allocations.len() > 1;
+    if !multi_source && !multi_suffix {
+        let prefix = prefix_allocations.into_iter().next()?;
+        let suffix = suffix_allocations.into_iter().next()?;
+        let mut hops = prefix.hops;
         hops.extend(suffix.hops);
         Some(GroupResult {
             input,
             output: total,
             hops,
+            sources: Vec::new(),
             children: Vec::new(),
+        })
+    } else if !multi_source {
+        Some(GroupResult {
+            input,
+            output: total,
+            hops: prefix_allocations.into_iter().next()?.hops,
+            sources: Vec::new(),
+            children: suffix_allocations,
         })
     } else {
         Some(GroupResult {
             input,
             output: total,
-            hops: prefix_allocation.hops,
+            hops: Vec::new(),
+            sources: prefix_allocations,
             children: suffix_allocations,
         })
     }
@@ -1539,7 +1818,8 @@ async fn eval_group_plan(
     branches: &[RouteBranch],
     inputs: &[U256],
     inner_segments: usize,
-    cache: &mut HashMap<(usize, U256), Option<GroupResult>>,
+    refine: bool,
+    cache: &mut HashMap<(usize, U256, bool), Option<GroupResult>>,
     quotes: &mut RouteQuotes,
     source: &ObservedSource<'_>,
     config: &SplitConfig,
@@ -1554,7 +1834,7 @@ async fn eval_group_plan(
         if input.is_zero() {
             continue;
         }
-        let result = match cache.get(&(idx, input)).cloned() {
+        let result = match cache.get(&(idx, input, refine)).cloned() {
             Some(result) => result,
             None => {
                 let result = quote_group(
@@ -1562,6 +1842,7 @@ async fn eval_group_plan(
                     branches,
                     input,
                     inner_segments,
+                    refine,
                     quotes,
                     source,
                     config,
@@ -1570,7 +1851,7 @@ async fn eval_group_plan(
                     stop,
                 )
                 .await;
-                cache.insert((idx, input), result.clone());
+                cache.insert((idx, input, refine), result.clone());
                 result
             }
         }?;
@@ -1590,10 +1871,15 @@ fn apply_group_plan(results: Vec<GroupResult>, total: U256, result: &mut SplitRe
             amount_in: group.input,
             amount_out: group.output,
             hops: group.hops,
+            sources: group.sources,
             children: group.children,
         })
         .collect::<Vec<_>>();
-    result.kind = if allocations.len() > 1 || allocations.iter().any(|a| !a.children.is_empty()) {
+    result.kind = if allocations.len() > 1
+        || allocations
+            .iter()
+            .any(|allocation| !allocation.sources.is_empty() || !allocation.children.is_empty())
+    {
         PlanKind::Split
     } else {
         PlanKind::Direct
@@ -1649,6 +1935,7 @@ async fn multi_route_tree(
                 &branches,
                 input,
                 inner_segments,
+                false,
                 &mut quotes,
                 source,
                 config,
@@ -1660,7 +1947,7 @@ async fn multi_route_tree(
             if let Some(evaluated) = &evaluated {
                 *cell = Some(evaluated.output);
             }
-            cache.insert((idx, input), evaluated);
+            cache.insert((idx, input, false), evaluated);
         }
         tables.push(row);
         if stop == StopReason::TimeBudget {
@@ -1713,6 +2000,7 @@ async fn multi_route_tree(
                 &branches,
                 &variant,
                 inner_segments,
+                false,
                 &mut cache,
                 &mut quotes,
                 source,
@@ -1739,6 +2027,7 @@ async fn multi_route_tree(
         &branches,
         &inputs,
         inner_segments,
+        false,
         &mut cache,
         &mut quotes,
         source,
@@ -1761,15 +2050,16 @@ async fn multi_route_tree(
         if stop != StopReason::Completed || tokio::time::Instant::now() >= deadline {
             break;
         }
-        let variants = refined_plans(&best_inputs, config);
+        let variants = adaptive_refined_plans(&best_inputs, amount, config);
         let mut improved = false;
-        for variant in variants.into_iter().take(64) {
+        for variant in variants.into_iter().take(96) {
             result.stats.evaluated_plans += 1;
             let Some((total, results)) = eval_group_plan(
                 &groups,
                 &branches,
                 &variant,
                 inner_segments,
+                false,
                 &mut cache,
                 &mut quotes,
                 source,
@@ -1794,6 +2084,31 @@ async fn multi_route_tree(
         if !improved {
             break;
         }
+    }
+
+    // Suffix refinement is expensive, so run it only for the final outer plan.
+    if stop == StopReason::Completed
+        && tokio::time::Instant::now() < deadline
+        && let Some((total, results)) = eval_group_plan(
+            &groups,
+            &branches,
+            &best_inputs,
+            inner_segments,
+            true,
+            &mut cache,
+            &mut quotes,
+            source,
+            config,
+            baseline_calls,
+            deadline,
+            &mut stop,
+        )
+        .await
+    {
+        result.stats.evaluated_plans += 1;
+        result.stats.valid_plans += 1;
+        result.stats.allocation_plans_evaluated += 1;
+        apply_group_plan(results, total, result);
     }
     stop
 }
@@ -1893,6 +2208,7 @@ impl SplitOptimizer {
                 amount_in: request.amount_in,
                 amount_out: baseline.amount_out,
                 hops: baseline.hops.clone(),
+                sources: Vec::new(),
                 children: Vec::new(),
             }],
             baseline,
@@ -2234,5 +2550,23 @@ mod tests {
             probe_outputs: [None, Some(U256::from(100)), Some(U256::from(60))],
         };
         assert_eq!(probe_score(&candidate), U256::from(240));
+    }
+
+    #[test]
+    fn adaptive_refinement_preserves_amount_and_adds_small_moves() {
+        let amount = U256::from(1_000_000);
+        let inputs = vec![U256::from(950_000), U256::from(50_000)];
+        let plans = adaptive_refined_plans(&inputs, amount, &SplitConfig::default());
+        assert!(!plans.is_empty());
+        assert!(plans.iter().all(|plan| {
+            plan.iter()
+                .try_fold(U256::ZERO, |sum, value| sum.checked_add(*value))
+                == Some(amount)
+        }));
+        let small = fraction(amount, 1, 64);
+        assert!(plans.iter().any(|plan| {
+            plan[0].checked_sub(inputs[0]) == Some(small)
+                || inputs[1].checked_sub(plan[1]) == Some(small)
+        }));
     }
 }

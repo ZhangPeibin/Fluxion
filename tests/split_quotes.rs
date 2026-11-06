@@ -512,3 +512,105 @@ async fn shared_prefix_fans_out_to_multiple_suffix_pools() {
         result.amount_out
     );
 }
+
+#[tokio::test]
+async fn fan_in_prefixes_share_one_intermediate_node() {
+    let mut graph = Graph::new();
+    graph.add_pool(pool(14, 1, 3));
+    graph.add_pool(pool(15, 1, 3));
+    graph.add_pool(pool(12, 3, 2));
+    graph.add_pool(pool(13, 3, 2));
+    let source = MockV2::new(HashMap::from([
+        (addr(14), [U256::from(1_000_000), U256::from(10_000_000)]),
+        (addr(15), [U256::from(100_000), U256::from(1_000_000)]),
+        (addr(12), [U256::from(10_000_000), U256::from(10_000)]),
+        (addr(13), [U256::from(1_000_000), U256::from(1_000)]),
+    ]));
+    let amount = U256::from(100_000);
+    let result = SplitOptimizer::new(SplitConfig::multi_pool())
+        .unwrap()
+        .quote(&Router::default(), &graph, &source, &request(amount))
+        .await
+        .unwrap();
+
+    assert_eq!(result.kind, PlanKind::Split);
+    assert!(result.stats.route_tree);
+    assert_eq!(result.allocations.len(), 1);
+    let root = &result.allocations[0];
+    assert_eq!(root.amount_in, amount);
+    assert!(root.hops.is_empty());
+    assert_eq!(root.sources.len(), 2);
+    assert_eq!(root.children.len(), 2);
+    assert_eq!(
+        root.sources
+            .iter()
+            .map(|source| source.amount_in)
+            .sum::<U256>(),
+        amount
+    );
+    let intermediate = root
+        .sources
+        .iter()
+        .map(|source| source.amount_out)
+        .sum::<U256>();
+    assert_eq!(
+        root.children
+            .iter()
+            .map(|child| child.amount_in)
+            .sum::<U256>(),
+        intermediate
+    );
+    assert_eq!(
+        root.children
+            .iter()
+            .map(|child| child.amount_out)
+            .sum::<U256>(),
+        result.amount_out
+    );
+    assert!(
+        root.sources
+            .iter()
+            .all(|source| source.hops.len() == 1 && source.hops[0].token_out == addr(3))
+    );
+    assert!(
+        root.children
+            .iter()
+            .all(|child| child.hops.len() == 1 && child.hops[0].token_in == addr(3))
+    );
+}
+
+#[tokio::test]
+async fn split_is_within_bruteforce_bound_for_two_direct_pools() {
+    let (graph, source) = parallel();
+    let amount = U256::from(1000);
+    let mut brute_best = U256::ZERO;
+    for x in 0..=1000u64 {
+        let left = U256::from(x);
+        let right = amount - left;
+        let mut total = U256::ZERO;
+        if !left.is_zero() {
+            total += source
+                .amount_out(&pool(10, 1, 2), 0, 1, left)
+                .await
+                .unwrap();
+        }
+        if !right.is_zero() {
+            total += source
+                .amount_out(&pool(11, 1, 2), 0, 1, right)
+                .await
+                .unwrap();
+        }
+        brute_best = brute_best.max(total);
+    }
+    let result = SplitOptimizer::new(SplitConfig::default())
+        .unwrap()
+        .quote(&Router::default(), &graph, &source, &request(amount))
+        .await
+        .unwrap();
+    assert!(result.amount_out >= brute_best);
+    let gap = brute_best - result.amount_out;
+    assert!(
+        gap * U256::from(10_000) <= brute_best * U256::from(10),
+        "gap {gap} exceeds 10 bps of {brute_best}"
+    );
+}

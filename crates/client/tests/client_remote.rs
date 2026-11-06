@@ -111,6 +111,22 @@ async fn shared_prefix_quote(Json(_body): Json<Value>) -> Json<Value> {
                 "amount_in": "50000000000000000000000",
                 "amount_out": "31105779369920438825"
             }],
+            "sources": [{
+                "amount_in": "50000000000000000000000",
+                "amount_out": "31105779369920438825",
+                "input_share_percent": 100.0,
+                "path": [{
+                    "operation": "swap",
+                    "platform": "uniswap-v3",
+                    "pool": "0xBde1C0D9e1EaF3e53d8CE62De6FD0CF7F7C63bAb",
+                    "i": 0,
+                    "j": 1,
+                    "token_in": "0x0000000000000000000000000000000000000001",
+                    "token_out": "0x0000000000000000000000000000000000000003",
+                    "amount_in": "50000000000000000000000",
+                    "amount_out": "31105779369920438825"
+                }]
+            }],
             "children": [{
                 "amount_in": "15552889684960219412",
                 "amount_out": "902316368274594981",
@@ -187,6 +203,8 @@ async fn remote_client_maps_nested_shared_prefix_allocations() {
     assert_eq!(response.allocations.len(), 1);
     let root = &response.allocations[0];
     assert_eq!(root.hops.len(), 1);
+    assert_eq!(root.sources.len(), 1);
+    assert_eq!(root.sources[0].amount_out.raw, "31105779369920438825");
     assert_eq!(root.children.len(), 2);
     assert_eq!(
         root.children
