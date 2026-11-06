@@ -27,7 +27,7 @@
 | `shibaswap_v2_factory` | ShibaSwap V2 工厂地址 | 见示例 |
 | `protocol_conversions` | 已支持接口类型的部署实例；`[]` 关闭转换 | Lido stETH↔wstETH，双向开启 |
 | `max_hops` / `top_k` / `max_pools` | 最大边数 / 每状态每能力组保留数 / 发现上限 | 3 / 8 / 10000 |
-| `min_liquidity` | 流动性下限（USD 量级） | 50000 |
+| `min_liquidity` | 流动性下限（USD 量级） | 10000 |
 | `min_volume_24h` | 成交量下限（用 subgraph `volumeUSD` 作代理） | 0 |
 | `min_pool_age_days` | 最小池龄（天） | 0 |
 | `reserve_ratio_k` | 动态浅池阈值 `reserve_in ≥ k·amount_in`（0 = 关闭） | 0 |

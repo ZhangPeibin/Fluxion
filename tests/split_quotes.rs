@@ -327,3 +327,188 @@ async fn route_split_uses_disjoint_multi_hop_paths_for_large_inputs() {
         U256::from(2_000_000)
     );
 }
+
+#[tokio::test]
+async fn multi_hop_path_enters_split_with_disjoint_pool_sets() {
+    let mut graph = Graph::new();
+    graph.add_pool(pool(10, 1, 2));
+    graph.add_pool(pool(11, 1, 3));
+    graph.add_pool(pool(12, 3, 2));
+    let source = MockV2::new(HashMap::from([
+        (addr(10), [U256::from(100_000), U256::from(2_000)]),
+        (addr(11), [U256::from(1_000_000), U256::from(10_000_000)]),
+        (addr(12), [U256::from(10_000_000), U256::from(10_000)]),
+    ]));
+    let amount = U256::from(100_001);
+    for config in [SplitConfig::default(), SplitConfig::multi_pool()] {
+        let max_calls = config.max_quote_calls;
+        let result = SplitOptimizer::new(config)
+            .unwrap()
+            .quote(&Router::default(), &graph, &source, &request(amount))
+            .await
+            .unwrap();
+
+        assert_eq!(result.kind, PlanKind::Split);
+        assert!(result.stats.additional_quote_calls <= max_calls);
+        assert_eq!(result.stats.failed_additional_quotes, 0);
+        assert!(result.amount_out > result.baseline.amount_out);
+        assert!(result.stats.multi_route_search);
+        assert!(result.stats.route_branches >= 2);
+        assert_eq!(
+            result.allocations.iter().map(|a| a.amount_in).sum::<U256>(),
+            amount
+        );
+        assert_eq!(
+            result
+                .allocations
+                .iter()
+                .map(|a| a.amount_out)
+                .sum::<U256>(),
+            result.amount_out
+        );
+        assert!(
+            result
+                .allocations
+                .iter()
+                .any(|allocation| allocation.hops.len() == 2)
+        );
+        let mut pools = std::collections::HashSet::new();
+        for allocation in &result.allocations {
+            for hop in &allocation.hops {
+                assert!(
+                    pools.insert(hop.pool.address),
+                    "allocation paths must not share a pool"
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn equal_multi_hop_split_keeps_baseline() {
+    let mut graph = Graph::new();
+    graph.add_pool(pool(10, 1, 2));
+    graph.add_pool(pool(11, 1, 3));
+    graph.add_pool(pool(12, 3, 2));
+    let amount = U256::from(1000);
+    let result = SplitOptimizer::new(SplitConfig::multi_pool())
+        .unwrap()
+        .quote(
+            &Router::default(),
+            &graph,
+            &FixedRate::new(U256::from(1)),
+            &request(amount),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.kind, PlanKind::Baseline);
+    assert_eq!(result.amount_out, result.baseline.amount_out);
+    assert_eq!(result.allocations.len(), 1);
+    assert_eq!(result.allocations[0].amount_in, amount);
+}
+
+struct AmountLimitedSource {
+    inner: MockV2,
+    limited_pool: Address,
+    max_amount: U256,
+}
+
+#[async_trait]
+impl QuoteSource for AmountLimitedSource {
+    async fn amount_out(
+        &self,
+        pool: &Pool,
+        i: usize,
+        j: usize,
+        amount: U256,
+    ) -> Result<U256, QuoteError> {
+        if pool.address == self.limited_pool && amount > self.max_amount {
+            return Err(QuoteError::InsufficientLiquidity);
+        }
+        self.inner.amount_out(pool, i, j, amount).await
+    }
+    async fn mid_price(&self, pool: &Pool, i: usize, j: usize) -> Result<f64, QuoteError> {
+        self.inner.mid_price(pool, i, j).await
+    }
+    async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, QuoteError> {
+        self.inner.reserve_in(pool, i).await
+    }
+}
+
+#[tokio::test]
+async fn partial_only_multi_hop_path_still_enters_split() {
+    let mut graph = Graph::new();
+    graph.add_pool(pool(10, 1, 2));
+    graph.add_pool(pool(11, 1, 3));
+    graph.add_pool(pool(12, 3, 2));
+    let source = AmountLimitedSource {
+        inner: MockV2::new(HashMap::from([
+            (addr(10), [U256::from(100_000), U256::from(2_000)]),
+            (addr(11), [U256::from(1_000_000), U256::from(10_000_000)]),
+            (addr(12), [U256::from(10_000_000), U256::from(10_000)]),
+        ])),
+        limited_pool: addr(11),
+        max_amount: U256::from(300_000),
+    };
+    let amount = U256::from(1_000_000);
+    let result = SplitOptimizer::new(SplitConfig::multi_pool())
+        .unwrap()
+        .quote(&Router::default(), &graph, &source, &request(amount))
+        .await
+        .unwrap();
+
+    assert_eq!(result.kind, PlanKind::Split);
+    assert!(result.amount_out > result.baseline.amount_out);
+    assert!(result.stats.multi_route_search);
+    assert!(
+        result
+            .allocations
+            .iter()
+            .any(|allocation| allocation.hops.len() == 2)
+    );
+    assert_eq!(
+        result.allocations.iter().map(|a| a.amount_in).sum::<U256>(),
+        amount
+    );
+}
+
+#[tokio::test]
+async fn shared_prefix_fans_out_to_multiple_suffix_pools() {
+    let mut graph = Graph::new();
+    graph.add_pool(pool(11, 1, 3));
+    graph.add_pool(pool(12, 3, 2));
+    graph.add_pool(pool(13, 3, 2));
+    let source = MockV2::new(HashMap::from([
+        (addr(11), [U256::from(1_000_000), U256::from(10_000_000)]),
+        (addr(12), [U256::from(1_000_000), U256::from(100)]),
+        (addr(13), [U256::from(100_000), U256::from(10)]),
+    ]));
+    let amount = U256::from(100_000);
+    let result = SplitOptimizer::new(SplitConfig::multi_pool())
+        .unwrap()
+        .quote(&Router::default(), &graph, &source, &request(amount))
+        .await
+        .unwrap();
+
+    assert_eq!(result.kind, PlanKind::Split);
+    assert!(result.amount_out > result.baseline.amount_out);
+    assert!(result.stats.route_tree);
+    assert_eq!(result.allocations.len(), 1);
+    let root = &result.allocations[0];
+    assert_eq!(root.amount_in, amount);
+    assert_eq!(root.hops.len(), 1);
+    assert_eq!(root.children.len(), 2);
+    assert_eq!(
+        root.children.iter().map(|c| c.amount_in).sum::<U256>(),
+        root.hops[0].amount_out
+    );
+    assert!(
+        root.children
+            .iter()
+            .all(|child| child.hops.len() == 1 && child.hops[0].token_in == addr(3))
+    );
+    assert_eq!(
+        root.children.iter().map(|c| c.amount_out).sum::<U256>(),
+        result.amount_out
+    );
+}

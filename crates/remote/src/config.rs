@@ -135,7 +135,7 @@ impl Default for Config {
             max_hops: 3,
             top_k: 8,
             max_pools: 10_000,
-            min_liquidity: 50_000,
+            min_liquidity: 10_000,
             min_volume_24h: 0,
             min_pool_age_days: 0,
             reserve_ratio_k: 0,

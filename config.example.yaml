@@ -64,7 +64,7 @@ max_pools: 10000     # cap discovered pools per platform (top by liquidity/volum
 slippage_penalty_lambda: 0.0   # liquidity penalty coefficient
 
 # Pool filtering.
-min_liquidity: 50000       # static lower bound (USD-ish); lower = more pools/tokens
+min_liquidity: 10000       # static lower bound (USD-ish); lower = more pools/tokens
 min_volume_24h: 0          # 24h volume floor
 min_pool_age_days: 0       # minimum pool age in days
 reserve_ratio_k: 0         # skip edges where reserve_in < k * amount_in (0 = off)

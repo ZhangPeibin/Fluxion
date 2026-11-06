@@ -153,6 +153,8 @@ struct HttpAllocation {
     amount_in: String,
     amount_out: String,
     path: Vec<HttpHop>,
+    #[serde(default)]
+    children: Vec<HttpAllocation>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -212,6 +214,33 @@ fn map_hop(hop: HttpHop, token_in_decimals: u8, token_out_decimals: u8) -> HopRe
     }
 }
 
+fn map_allocation(
+    entry: HttpAllocation,
+    token_in_decimals: u8,
+    token_out_decimals: u8,
+) -> Result<AllocationResponse, CapabilityError> {
+    Ok(AllocationResponse {
+        amount_in: Amount::from_raw(
+            parse_u256("allocation amount_in", &entry.amount_in)?,
+            token_in_decimals,
+        ),
+        amount_out: Amount::from_raw(
+            parse_u256("allocation amount_out", &entry.amount_out)?,
+            token_out_decimals,
+        ),
+        hops: entry
+            .path
+            .into_iter()
+            .map(|hop| map_hop(hop, token_in_decimals, token_out_decimals))
+            .collect(),
+        children: entry
+            .children
+            .into_iter()
+            .map(|child| map_allocation(child, token_in_decimals, token_out_decimals))
+            .collect::<Result<_, _>>()?,
+    })
+}
+
 fn build_response(
     dto: HttpQuoteResponse,
     request: &QuoteRequest,
@@ -227,21 +256,11 @@ fn build_response(
     let mut allocations = Vec::new();
     if let Some(entries) = dto.allocations {
         for entry in entries {
-            allocations.push(AllocationResponse {
-                amount_in: Amount::from_raw(
-                    parse_u256("allocation amount_in", &entry.amount_in)?,
-                    token_in_decimals,
-                ),
-                amount_out: Amount::from_raw(
-                    parse_u256("allocation amount_out", &entry.amount_out)?,
-                    token_out_decimals,
-                ),
-                hops: entry
-                    .path
-                    .into_iter()
-                    .map(|hop| map_hop(hop, token_in_decimals, token_out_decimals))
-                    .collect(),
-            });
+            allocations.push(map_allocation(
+                entry,
+                token_in_decimals,
+                token_out_decimals,
+            )?);
         }
     } else {
         allocations.push(AllocationResponse {
@@ -252,6 +271,7 @@ fn build_response(
                 .into_iter()
                 .map(|hop| map_hop(hop, token_in_decimals, token_out_decimals))
                 .collect(),
+            children: Vec::new(),
         });
     }
     let provenance = match dto.state {

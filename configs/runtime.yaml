@@ -8,7 +8,7 @@ host: 127.0.0.1
 port: 8080
 enabled_platforms: [uniswap-v2, uniswap-v3, curve, shibaswap-v2]
 max_pools: 10000
-min_liquidity: 50000
+min_liquidity: 10000
 max_hops: 3
 top_k: 8
 reserve_ratio_k: 0
@@ -20,8 +20,11 @@ excluded_pools:
 pricing_mode: local_snapshot
 # Refresh the discovered universe periodically while serving.
 universe_refresh_secs: 300
+split:
+  max_branches: 8
+  max_quote_calls: 4096
 local_state:
-  sync_timeout_ms: 120000
+  sync_timeout_ms: 300000
   batch_size: 400
   max_age_secs: 60
   max_lag_blocks: 3

@@ -52,7 +52,8 @@
       "properties": {
         "amount_in": { "$ref": "#/$defs/amount" },
         "amount_out": { "$ref": "#/$defs/amount" },
-        "hops": { "type": "array", "items": { "$ref": "#/$defs/hop" } }
+        "hops": { "type": "array", "items": { "$ref": "#/$defs/hop" } },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/allocation" } }
       }
     },
     "provenance": {

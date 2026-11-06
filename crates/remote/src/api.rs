@@ -72,6 +72,9 @@ pub struct AllocationDto {
     pub amount_out: String,
     pub input_share_percent: f64,
     pub path: Vec<HopDto>,
+    /// Present when a shared prefix fans out into multiple suffix pools.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<AllocationDto>,
 }
 
 fn allocation_to_dto(allocation: &Allocation, total: U256) -> AllocationDto {
@@ -81,11 +84,16 @@ fn allocation_to_dto(allocation: &Allocation, total: U256) -> AllocationDto {
         amount_out: allocation.amount_out.to_string(),
         input_share_percent: numeric(allocation.amount_in) / numeric(total) * 100.0,
         path: allocation.hops.iter().map(hop_to_dto).collect(),
+        children: allocation
+            .children
+            .iter()
+            .map(|child| allocation_to_dto(child, allocation.amount_in))
+            .collect(),
     }
 }
 
 fn split_to_dto(result: SplitResult, total: U256, block: Option<u64>) -> QuoteResponseDto {
-    let path = if result.allocations.len() == 1 {
+    let path = if result.allocations.len() == 1 && result.allocations[0].children.is_empty() {
         result.allocations[0].hops.iter().map(hop_to_dto).collect()
     } else {
         vec![]

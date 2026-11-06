@@ -6,7 +6,7 @@ use futures::stream::{self, StreamExt};
 
 use crate::error::QuoteError;
 use crate::graph::Graph;
-use crate::model::{Hop, PoolKind, QuoteRequest, Route};
+use crate::model::{Hop, Pool, PoolKind, QuoteRequest, Route};
 use crate::source::QuoteSource;
 use crate::util::u256_to_f64;
 
@@ -82,6 +82,15 @@ fn retain_diverse_candidates(list: &mut Vec<Candidate>, top_k: usize) {
 pub struct EdgePrice {
     pub mid_price: f64,
     pub reserve_in: U256,
+}
+
+/// Coarse, unquoted candidate path. Split allocation probes these at multiple
+/// input sizes so a path that cannot serve the full amount can still
+/// participate with a smaller branch.
+#[derive(Debug, Clone)]
+pub struct RoutedPath {
+    pub hops: Vec<(Pool, usize, usize)>,
+    pub cost: f64,
 }
 
 /// A precomputed snapshot of all edge prices so path search is synchronous.
@@ -161,15 +170,38 @@ impl Router {
         self.snapshot.read().unwrap().clone()
     }
 
-    /// Exact-quoted candidate routes, best output first. Callers that need
-    /// multi-route allocation can reuse this list instead of re-running the
-    /// coarse path search.
-    pub async fn candidates(
+    /// Coarse candidate paths. No amount_out calls are made here; callers can
+    /// probe several input sizes without losing paths that fail at the full
+    /// requested amount.
+    pub async fn candidate_paths(
         &self,
         graph: &Graph,
         source: &(dyn QuoteSource + Send + Sync),
         request: &QuoteRequest,
-    ) -> Result<Vec<Route>, QuoteError> {
+    ) -> Result<Vec<RoutedPath>, QuoteError> {
+        let candidates = self.coarse_candidates(graph, source, request).await;
+        Ok(candidates
+            .into_iter()
+            .map(|candidate| RoutedPath {
+                hops: candidate
+                    .edges
+                    .into_iter()
+                    .map(|idx| {
+                        let edge = graph.edge(idx);
+                        (graph.pool(edge.pool_idx).clone(), edge.i, edge.j)
+                    })
+                    .collect(),
+                cost: candidate.cost,
+            })
+            .collect())
+    }
+
+    async fn coarse_candidates(
+        &self,
+        graph: &Graph,
+        source: &(dyn QuoteSource + Send + Sync),
+        request: &QuoteRequest,
+    ) -> Vec<Candidate> {
         let max_hops = request.max_hops.unwrap_or(self.config.max_hops).max(1);
 
         // Use the precomputed snapshot if installed; otherwise build one.
@@ -296,7 +328,20 @@ impl Router {
                 });
             }
         }
+        candidates
+    }
 
+    /// Exact-quoted candidate routes, best output first. Callers that need
+    /// multi-route allocation can reuse this list instead of re-running the
+    /// coarse path search.
+    pub async fn candidates(
+        &self,
+        graph: &Graph,
+        source: &(dyn QuoteSource + Send + Sync),
+        request: &QuoteRequest,
+    ) -> Result<Vec<Route>, QuoteError> {
+        let candidates = self.coarse_candidates(graph, source, request).await;
+        let __t0 = std::time::Instant::now();
         // Refine candidates with bounded concurrency to keep RPC use predictable.
         let candidate_count = candidates.len();
         let refine = stream::iter(candidates).map(|cand: Candidate| async move {
@@ -625,6 +670,48 @@ mod tests {
         let r = route(&g, &source, &req).await.unwrap();
         assert_eq!(r.hops.len(), 2);
         assert!(r.amount_out > U256::from(300u64));
+    }
+
+    #[tokio::test]
+    async fn candidates_keep_multi_hop_path_even_with_top_k_one() {
+        let mut g = Graph::new();
+        let direct = Address::with_last_byte(30);
+        let hop_a = Address::with_last_byte(31);
+        let hop_b = Address::with_last_byte(32);
+        g.add_pool(Pool {
+            kind: PoolKind::UniswapV2,
+            address: direct,
+            coins: vec![eth(), usdc()],
+        });
+        g.add_pool(Pool {
+            kind: PoolKind::UniswapV2,
+            address: hop_a,
+            coins: vec![eth(), dai()],
+        });
+        g.add_pool(Pool {
+            kind: PoolKind::UniswapV2,
+            address: hop_b,
+            coins: vec![dai(), usdc()],
+        });
+        let source = MockV2::new(HashMap::from([
+            (direct, [U256::from(1000u64), U256::from(5000u64)]),
+            (hop_a, [U256::from(1000u64), U256::from(5000u64)]),
+            (hop_b, [U256::from(5000u64), U256::from(5000u64)]),
+        ]));
+        let req = QuoteRequest {
+            token_in: eth(),
+            token_out: usdc(),
+            amount_in: U256::from(100u64),
+            max_hops: Some(3),
+            amount_out_min: None,
+        };
+        let router = Router::new(RouterConfig {
+            top_k: 1,
+            ..RouterConfig::default()
+        });
+        let routes = router.candidates(&g, &source, &req).await.unwrap();
+        assert!(routes.iter().any(|route| route.hops.len() == 1));
+        assert!(routes.iter().any(|route| route.hops.len() == 2));
     }
 
     #[test]

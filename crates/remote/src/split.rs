@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::QuoteError;
 use crate::graph::Graph;
 use crate::model::{Hop, Pool, PoolKind, QuoteRequest, Route};
-use crate::router::Router;
+use crate::router::{RoutedPath, Router};
 use crate::source::QuoteSource;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -90,7 +90,9 @@ pub struct SearchStats {
     pub multi_pool_completed: bool,
     pub multi_route_search: bool,
     pub multi_route_completed: bool,
+    pub route_tree: bool,
     pub route_branches: usize,
+    pub route_groups: usize,
     pub allocation_plans_evaluated: usize,
 }
 
@@ -99,6 +101,9 @@ pub struct Allocation {
     pub amount_in: U256,
     pub amount_out: U256,
     pub hops: Vec<Hop>,
+    /// Suffix branches when one prefix feeds multiple downstream pools. Each
+    /// child's `amount_in` is in the parent hop's output token.
+    pub children: Vec<Allocation>,
 }
 
 #[derive(Debug, Clone)]
@@ -183,37 +188,193 @@ struct RouteBranch {
     hops: Vec<(Pool, usize, usize)>,
 }
 
-/// Greedy disjoint set of exact-quoted routes. Independent quotes may only be
-/// added when the routes do not share a pool; otherwise summing them would
-/// double-count the same reserves.
-fn select_disjoint_routes(routes: Vec<Route>, limit: usize) -> Vec<RouteBranch> {
-    let mut selected = Vec::new();
-    let mut used = HashSet::new();
-    for route in routes {
-        if route.hops.is_empty() {
-            continue;
-        }
-        let pools = route
-            .hops
+/// Probe sizes are full, half, and quarter input. They are exact path quotes,
+/// not spot approximations, so a multi-hop path is never ranked by its extra
+/// fee alone.
+const PROBE_FULL: usize = 0;
+const PROBE_HALF: usize = 1;
+const PROBE_QUARTER: usize = 2;
+
+#[derive(Clone)]
+struct PathCandidate {
+    hops: Vec<(Pool, usize, usize)>,
+    pool_set: Vec<Address>,
+    probe_outputs: [Option<U256>; 3],
+}
+
+fn scaled_probe(output: Option<U256>, factor: u64) -> Option<U256> {
+    output.map(|out| out.checked_mul(U256::from(factor)).unwrap_or(U256::MAX))
+}
+
+/// Compare candidates at a common notional input so a path that looks weak at
+/// the full size but scales well (or vice versa) is still retained.
+fn probe_score(candidate: &PathCandidate) -> U256 {
+    [
+        scaled_probe(candidate.probe_outputs[PROBE_FULL], 1),
+        scaled_probe(candidate.probe_outputs[PROBE_HALF], 2),
+        scaled_probe(candidate.probe_outputs[PROBE_QUARTER], 4),
+    ]
+    .into_iter()
+    .flatten()
+    .max()
+    .unwrap_or(U256::ZERO)
+}
+
+/// Probe a bounded, depth-diverse set of coarse paths at full, half, and
+/// quarter input. A path that reverts at the full amount can still win a
+/// smaller branch, so full-size failure never removes it from the split search.
+async fn probe_path_candidates(
+    paths: Vec<RoutedPath>,
+    source: &ObservedSource<'_>,
+    amount: U256,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+) -> (Vec<PathCandidate>, StopReason) {
+    let limit = config.max_branches.saturating_mul(8).clamp(8, 64);
+    let signature = |path: &RoutedPath| {
+        path.hops
             .iter()
-            .map(|hop| hop.pool.address)
-            .collect::<HashSet<_>>();
-        if !pools.is_disjoint(&used) {
-            continue;
-        }
-        used.extend(pools.iter().copied());
-        selected.push(RouteBranch {
-            hops: route
+            .map(|(pool, i, j)| (pool.address, *i, *j))
+            .collect::<Vec<_>>()
+    };
+    let mut seen = HashSet::new();
+    let mut paths = paths
+        .into_iter()
+        .filter(|path| {
+            if path.hops.is_empty() {
+                return false;
+            }
+            let unique_pools = path
                 .hops
-                .into_iter()
-                .map(|hop| (hop.pool, hop.i, hop.j))
-                .collect(),
-        });
-        if selected.len() >= limit {
-            break;
+                .iter()
+                .map(|(pool, _, _)| pool.address)
+                .collect::<HashSet<_>>();
+            // Reusing one pool inside a path would quote hops against unchanged
+            // reserves and could also alias the same liquidity twice.
+            unique_pools.len() == path.hops.len() && seen.insert(signature(path))
+        })
+        .collect::<Vec<_>>();
+    paths.sort_by(|a, b| {
+        a.cost
+            .total_cmp(&b.cost)
+            .then_with(|| a.hops.len().cmp(&b.hops.len()))
+    });
+
+    // Keep the cheapest path from every depth first, then fill by coarse cost.
+    // Depth diversity prevents a cheap direct-looking path from crowding out
+    // every multi-hop candidate before exact fractions are probed.
+    let mut chosen = Vec::new();
+    let mut chosen_paths = HashSet::new();
+    let max_depth = paths.iter().map(|path| path.hops.len()).max().unwrap_or(0);
+    for depth in 1..=max_depth {
+        if let Some(path) = paths.iter().find(|path| path.hops.len() == depth)
+            && chosen_paths.insert(signature(path))
+        {
+            chosen.push(path.clone());
         }
     }
-    selected
+    for path in paths {
+        if chosen.len() >= limit {
+            break;
+        }
+        if chosen_paths.insert(signature(&path)) {
+            chosen.push(path);
+        }
+    }
+    if chosen.is_empty() {
+        return (Vec::new(), StopReason::Completed);
+    }
+    let branches = chosen
+        .iter()
+        .map(|path| RouteBranch {
+            hops: path.hops.clone(),
+        })
+        .collect::<Vec<_>>();
+    let full = amount;
+    let half = amount / U256::from(2u8);
+    let quarter = amount / U256::from(4u8);
+    let mut jobs = Vec::new();
+    let mut keys = HashSet::new();
+    for idx in 0..branches.len() {
+        for probe in [full, half, quarter] {
+            if !probe.is_zero() && keys.insert((idx, probe)) {
+                jobs.push((idx, probe));
+            }
+        }
+    }
+    let (results, stop) =
+        fill_route_quotes(&branches, source, jobs, config, baseline_calls, deadline).await;
+    let mut candidates = branches
+        .into_iter()
+        .enumerate()
+        .map(|(idx, branch)| {
+            let probe = |probe: U256| {
+                results
+                    .get(&(idx, probe))
+                    .and_then(|result| result.as_ref().ok().copied())
+            };
+            PathCandidate {
+                pool_set: branch
+                    .hops
+                    .iter()
+                    .map(|(pool, _, _)| pool.address)
+                    .collect(),
+                hops: branch.hops,
+                probe_outputs: [probe(full), probe(half), probe(quarter)],
+            }
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by(|a, b| {
+        probe_score(b)
+            .cmp(&probe_score(a))
+            .then_with(|| a.hops.len().cmp(&b.hops.len()))
+    });
+    (candidates, stop)
+}
+
+/// Independent quotes may only be summed when the paths do not share a pool.
+/// Keep the best path and the best disjoint multi-hop path, then fill by probe
+/// output. The DP may still assign zero to any branch; a worse branch cannot
+/// make the returned split worse.
+fn select_route_branches(candidates: Vec<PathCandidate>, limit: usize) -> Vec<RouteBranch> {
+    let disjoint = |candidate: &PathCandidate, used: &HashSet<Address>| {
+        candidate.pool_set.iter().all(|pool| !used.contains(pool))
+    };
+    let mut chosen = Vec::new();
+    let mut used = HashSet::new();
+    if let Some(first) = candidates.first() {
+        used.extend(first.pool_set.iter().copied());
+        chosen.push(first.clone());
+    }
+    if limit >= 2
+        && let Some(multi_hop) = candidates
+            .iter()
+            .find(|candidate| candidate.hops.len() > 1 && disjoint(candidate, &used))
+    {
+        used.extend(multi_hop.pool_set.iter().copied());
+        chosen.push(multi_hop.clone());
+    }
+    for candidate in &candidates {
+        if chosen.len() >= limit {
+            break;
+        }
+        if chosen
+            .iter()
+            .any(|selected| selected.hops == candidate.hops)
+            || !disjoint(candidate, &used)
+        {
+            continue;
+        }
+        used.extend(candidate.pool_set.iter().copied());
+        chosen.push(candidate.clone());
+    }
+    chosen
+        .into_iter()
+        .map(|candidate| RouteBranch {
+            hops: candidate.hops,
+        })
+        .collect()
 }
 
 async fn route_out(
@@ -252,6 +413,7 @@ async fn route_allocation(
         amount_in,
         amount_out: current,
         hops,
+        children: Vec::new(),
     })
 }
 
@@ -290,6 +452,7 @@ fn allocation(pool: &DirectPool, amount_in: U256, amount_out: U256) -> Allocatio
             amount_in,
             amount_out,
         }],
+        children: Vec::new(),
     }
 }
 
@@ -481,6 +644,183 @@ fn allocation_dp(
     Ok((1..=branches)
         .filter_map(|b| previous[segments * width + b].take().map(|cell| cell.units))
         .collect())
+}
+
+/// Best discrete plan for one resource-allocation node. Each table is indexed
+/// by input units; `None` marks an infeasible sample.
+fn best_units(
+    tables: &[Vec<Option<U256>>],
+    segments: usize,
+    branches: usize,
+    deadline: tokio::time::Instant,
+) -> Option<(U256, Vec<usize>)> {
+    let plans = allocation_dp(tables, segments, branches, deadline).ok()?;
+    let mut best: Option<(U256, Vec<usize>)> = None;
+    for units in plans {
+        let mut total = U256::ZERO;
+        let mut complete = true;
+        for (idx, used) in units.iter().copied().enumerate() {
+            if used == 0 {
+                continue;
+            }
+            let Some(value) = tables.get(idx).and_then(|table| table.get(used)) else {
+                complete = false;
+                break;
+            };
+            let Some(value) = value else {
+                complete = false;
+                break;
+            };
+            let Some(sum) = total.checked_add(*value) else {
+                complete = false;
+                break;
+            };
+            total = sum;
+        }
+        if complete && best.as_ref().is_none_or(|(old, _)| total > *old) {
+            best = Some((total, units));
+        }
+    }
+    best
+}
+
+type RouteQuotes = HashMap<(usize, U256), Result<U256, QuoteError>>;
+
+/// Sum a plan only when every non-zero branch has a completed exact quote.
+fn plan_total(inputs: &[U256], quotes: &RouteQuotes) -> Option<U256> {
+    let mut total = U256::ZERO;
+    let mut active = false;
+    for (idx, input) in inputs.iter().copied().enumerate() {
+        if input.is_zero() {
+            continue;
+        }
+        active = true;
+        let out = quotes.get(&(idx, input))?.as_ref().ok()?;
+        total = total.checked_add(*out)?;
+    }
+    active.then_some(total)
+}
+
+async fn apply_route_plan(
+    branches: &[RouteBranch],
+    source: &ObservedSource<'_>,
+    inputs: &[U256],
+    quotes: &RouteQuotes,
+    result: &mut SplitResult,
+) -> Option<U256> {
+    let total = plan_total(inputs, quotes)?;
+    let mut allocations = Vec::new();
+    for (idx, input) in inputs.iter().copied().enumerate() {
+        if input.is_zero() {
+            continue;
+        }
+        let allocation = route_allocation(&branches[idx], input, source).await.ok()?;
+        allocations.push(allocation);
+    }
+    if allocations.is_empty() {
+        return None;
+    }
+    result.stats.allocation_plans_evaluated += 1;
+    result.stats.evaluated_plans += 1;
+    result.stats.valid_plans += 1;
+    if total > result.amount_out {
+        result.kind = if allocations.len() > 1 {
+            PlanKind::Split
+        } else {
+            PlanKind::Direct
+        };
+        result.amount_out = total;
+        result.allocations = allocations;
+    }
+    Some(total)
+}
+
+/// Move a small slice of one DP cell between two active branches. This only
+/// touches pairs, keeping the search bounded and independent of branch count.
+fn refined_plans(inputs: &[U256], config: &SplitConfig) -> Vec<Vec<U256>> {
+    let mut plans = Vec::new();
+    for a in 0..inputs.len() {
+        for b in (a + 1)..inputs.len() {
+            let Some(combined) = inputs[a].checked_add(inputs[b]) else {
+                continue;
+            };
+            if combined.is_zero() {
+                continue;
+            }
+            let cell = fraction(combined, 1, config.allocation_segments);
+            if cell.is_zero() {
+                continue;
+            }
+            for step in 1..=config.refinement_segments {
+                let delta = fraction(cell, step, config.refinement_segments);
+                if delta.is_zero() {
+                    continue;
+                }
+                if inputs[a] >= delta {
+                    let mut plan = inputs.to_vec();
+                    plan[a] -= delta;
+                    plan[b] += delta;
+                    plans.push(plan);
+                }
+                if inputs[b] >= delta {
+                    let mut plan = inputs.to_vec();
+                    plan[a] += delta;
+                    plan[b] -= delta;
+                    plans.push(plan);
+                }
+            }
+        }
+    }
+    plans.sort();
+    plans.dedup();
+    plans
+}
+
+async fn refine_route_plan(
+    branches: &[RouteBranch],
+    source: &ObservedSource<'_>,
+    start: (U256, Vec<U256>),
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+    result: &mut SplitResult,
+) -> StopReason {
+    let (mut output, mut inputs) = start;
+    let mut stop = StopReason::Completed;
+    for _ in 0..config.refinement_rounds {
+        let plans = refined_plans(&inputs, config);
+        if plans.is_empty() {
+            break;
+        }
+        let mut jobs = Vec::new();
+        let mut keys = HashSet::new();
+        for plan in &plans {
+            for (idx, input) in plan.iter().copied().enumerate() {
+                if !input.is_zero() && keys.insert((idx, input)) {
+                    jobs.push((idx, input));
+                }
+            }
+        }
+        let (quotes, quote_stop) =
+            fill_route_quotes(branches, source, jobs, config, baseline_calls, deadline).await;
+        if quote_stop != StopReason::Completed {
+            stop = quote_stop;
+        }
+        let mut improved = false;
+        for plan in plans {
+            if let Some(total) = apply_route_plan(branches, source, &plan, &quotes, result).await
+                && total > output
+            {
+                output = total;
+                inputs = plan;
+                improved = true;
+            }
+        }
+        if !improved || stop != StopReason::Completed {
+            break;
+        }
+    }
+    stop
 }
 
 async fn multi_pool(
@@ -704,54 +1044,758 @@ async fn multi_route(
     let (more, final_stop) =
         fill_route_quotes(branches, source, jobs, config, baseline_calls, deadline).await;
     results.extend(more);
+    let mut best_dp: Option<(U256, Vec<U256>)> = None;
     for inputs in plans {
-        let mut allocations = Vec::new();
-        let mut total = Some(U256::ZERO);
-        let mut complete = true;
-        for (idx, input) in inputs.into_iter().enumerate() {
-            if input.is_zero() {
-                continue;
-            }
-            let out = match results.get(&(idx, input)) {
-                Some(Ok(out)) => *out,
-                _ => {
-                    complete = false;
-                    break;
-                }
-            };
-            total = total.and_then(|sum| sum.checked_add(out));
-            match route_allocation(&branches[idx], input, source).await {
-                Ok(allocation) => allocations.push(allocation),
-                Err(_) => {
-                    complete = false;
-                    break;
-                }
-            }
-        }
-        if !complete {
-            continue;
-        }
-        result.stats.allocation_plans_evaluated += 1;
-        result.stats.evaluated_plans += 1;
-        let Some(out) = total else {
-            continue;
-        };
-        result.stats.valid_plans += 1;
-        if out > result.amount_out {
-            result.kind = if allocations.len() > 1 {
-                PlanKind::Split
-            } else {
-                PlanKind::Direct
-            };
-            result.amount_out = out;
-            result.allocations = allocations;
+        if let Some(out) = apply_route_plan(branches, source, &inputs, &results, result).await
+            && best_dp.as_ref().is_none_or(|(best, _)| out > *best)
+        {
+            best_dp = Some((out, inputs));
         }
     }
+    let refine_stop = match best_dp {
+        Some(start) => {
+            refine_route_plan(
+                branches,
+                source,
+                start,
+                config,
+                baseline_calls,
+                deadline,
+                result,
+            )
+            .await
+        }
+        None => StopReason::Completed,
+    };
     if final_stop != StopReason::Completed {
         final_stop
+    } else if refine_stop != StopReason::Completed {
+        refine_stop
     } else {
         table_stop
     }
+}
+
+type EdgeSignature = (Address, usize, usize);
+type SuffixSignature = Vec<EdgeSignature>;
+
+#[derive(Clone)]
+struct RouteGroup {
+    /// Parallel first-hop edges into the same intermediate token. At most one
+    /// is used for a given input amount.
+    prefix_idx: Vec<usize>,
+    /// Suffix alternatives after that intermediate token.
+    suffix_idx: Vec<usize>,
+}
+
+#[derive(Clone)]
+struct GroupResult {
+    input: U256,
+    output: U256,
+    hops: Vec<Hop>,
+    children: Vec<Allocation>,
+}
+
+/// True when two leaves share a prefix or a suffix but are not identical.
+/// That coupling needs the route-tree allocator; unrelated linear paths keep
+/// the simpler branch DP.
+fn needs_route_tree(paths: &[RoutedPath]) -> bool {
+    let mut first_to_suffixes: HashMap<EdgeSignature, HashSet<SuffixSignature>> = HashMap::new();
+    let mut suffix_to_firsts: HashMap<SuffixSignature, HashSet<EdgeSignature>> = HashMap::new();
+    for path in paths {
+        if path.hops.len() < 2 {
+            continue;
+        }
+        let (pool, i, j) = &path.hops[0];
+        let first = (pool.address, *i, *j);
+        let suffix = path.hops[1..]
+            .iter()
+            .map(|(pool, i, j)| (pool.address, *i, *j))
+            .collect::<Vec<_>>();
+        if first_to_suffixes
+            .entry(first)
+            .or_default()
+            .insert(suffix.clone())
+            && first_to_suffixes
+                .get(&first)
+                .is_some_and(|seen| seen.len() >= 2)
+        {
+            return true;
+        }
+        if suffix_to_firsts.entry(suffix).or_default().insert(first)
+            && suffix_to_firsts.values().any(|firsts| firsts.len() >= 2)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Merge linear coarse paths into first-hop groups. Sharing a prefix inside a
+/// group is allowed; different groups stay pool-disjoint.
+fn build_route_groups(
+    paths: Vec<RoutedPath>,
+    config: &SplitConfig,
+    graph: &Graph,
+    token_out: Address,
+) -> (Vec<RouteGroup>, Vec<RouteBranch>) {
+    #[derive(Clone, Copy, Hash, PartialEq, Eq)]
+    enum GroupKey {
+        Direct(Address),
+        Token(Address),
+    }
+
+    struct TempGroup {
+        prefixes: Vec<(Pool, usize, usize)>,
+        suffixes: Vec<Vec<(Pool, usize, usize)>>,
+        seen_prefixes: HashSet<EdgeSignature>,
+        seen_suffixes: HashSet<SuffixSignature>,
+        cost: f64,
+    }
+
+    let mut seen_paths = HashSet::new();
+    let mut entries = Vec::new();
+    for path in paths {
+        if path.hops.is_empty() {
+            continue;
+        }
+        let unique_pools = path
+            .hops
+            .iter()
+            .map(|(pool, _, _)| pool.address)
+            .collect::<HashSet<_>>();
+        if unique_pools.len() != path.hops.len() {
+            continue;
+        }
+        let signature = path
+            .hops
+            .iter()
+            .map(|(pool, i, j)| (pool.address, *i, *j))
+            .collect::<Vec<_>>();
+        if seen_paths.insert(signature) {
+            entries.push(path);
+        }
+    }
+    entries.sort_by(|a, b| a.cost.total_cmp(&b.cost));
+
+    let suffix_limit = config.max_branches.clamp(4, 8);
+    let mut grouped: HashMap<GroupKey, TempGroup> = HashMap::new();
+    for path in entries {
+        let prefix = path.hops[0].clone();
+        let suffix = &path.hops[1..];
+        let key = if suffix.is_empty() {
+            GroupKey::Direct(prefix.0.address)
+        } else {
+            GroupKey::Token(prefix.0.coins[prefix.2])
+        };
+        let group = grouped.entry(key).or_insert_with(|| TempGroup {
+            prefixes: Vec::new(),
+            suffixes: Vec::new(),
+            seen_prefixes: HashSet::new(),
+            seen_suffixes: HashSet::new(),
+            cost: path.cost,
+        });
+        group.cost = group.cost.min(path.cost);
+        let prefix_signature = (prefix.0.address, prefix.1, prefix.2);
+        if !group.seen_prefixes.contains(&prefix_signature) {
+            group.seen_prefixes.insert(prefix_signature);
+            group.prefixes.push(prefix);
+        }
+        if group.suffixes.len() >= suffix_limit {
+            continue;
+        }
+        let signature = suffix
+            .iter()
+            .map(|(pool, i, j)| (pool.address, *i, *j))
+            .collect::<Vec<_>>();
+        if group.seen_suffixes.insert(signature) {
+            group.suffixes.push(suffix.to_vec());
+        }
+    }
+
+    // Router candidates can still miss direct suffix pools when their coarse
+    // rank is poor. Add every direct edge from each intermediate token to the
+    // target so exact suffix quotes, not mid-price, decide.
+    for group in grouped.values_mut() {
+        if group.suffixes.is_empty() {
+            continue;
+        }
+        let Some(prefix) = group.prefixes.first() else {
+            continue;
+        };
+        let intermediate = prefix.0.coins[prefix.2];
+        for &edge_idx in graph.out_edge_indices(intermediate) {
+            if group.suffixes.len() >= suffix_limit {
+                break;
+            }
+            let edge = graph.edge(edge_idx);
+            let pool = graph.pool(edge.pool_idx);
+            if pool.coins[edge.j] != token_out {
+                continue;
+            }
+            let suffix = vec![(pool.clone(), edge.i, edge.j)];
+            let signature = vec![(pool.address, edge.i, edge.j)];
+            if group.seen_suffixes.insert(signature) {
+                group.suffixes.push(suffix);
+            }
+        }
+    }
+
+    let mut groups = grouped.into_values().collect::<Vec<_>>();
+    groups.sort_by(|a, b| a.cost.total_cmp(&b.cost));
+    let group_limit = config.max_branches.saturating_mul(2).clamp(8, 32);
+    let mut used = HashSet::new();
+    let mut selected = Vec::new();
+    for group in groups {
+        let mut pools = HashSet::new();
+        for prefix in &group.prefixes {
+            pools.insert(prefix.0.address);
+        }
+        for suffix in &group.suffixes {
+            pools.extend(suffix.iter().map(|(pool, _, _)| pool.address));
+        }
+        if !pools.is_disjoint(&used) {
+            continue;
+        }
+        used.extend(pools);
+        selected.push(group);
+        if selected.len() >= group_limit {
+            break;
+        }
+    }
+
+    let mut branches = Vec::new();
+    let mut result = Vec::new();
+    for group in selected {
+        let prefix_idx = group
+            .prefixes
+            .into_iter()
+            .map(|prefix| {
+                branches.push(RouteBranch { hops: vec![prefix] });
+                branches.len() - 1
+            })
+            .collect::<Vec<_>>();
+        let suffix_idx = group
+            .suffixes
+            .into_iter()
+            .map(|suffix| {
+                branches.push(RouteBranch { hops: suffix });
+                branches.len() - 1
+            })
+            .collect::<Vec<_>>();
+        result.push(RouteGroup {
+            prefix_idx,
+            suffix_idx,
+        });
+    }
+    (result, branches)
+}
+
+async fn ensure_route_quotes(
+    branches: &[RouteBranch],
+    jobs: Vec<(usize, U256)>,
+    quotes: &mut RouteQuotes,
+    source: &ObservedSource<'_>,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+) -> StopReason {
+    let mut seen = HashSet::new();
+    let jobs = jobs
+        .into_iter()
+        .filter(|(idx, amount)| {
+            !amount.is_zero()
+                && !quotes.contains_key(&(*idx, *amount))
+                && seen.insert((*idx, *amount))
+        })
+        .collect::<Vec<_>>();
+    if jobs.is_empty() {
+        return StopReason::Completed;
+    }
+    let (more, stop) =
+        fill_route_quotes(branches, source, jobs, config, baseline_calls, deadline).await;
+    quotes.extend(more);
+    stop
+}
+
+fn merge_stop(stop: &mut StopReason, next: StopReason) {
+    if next != StopReason::Completed {
+        *stop = next;
+    }
+}
+
+/// Exact quote of one first-hop group: prefix output is split over all suffix
+/// alternatives, with an integer remainder retried on the active suffixes.
+#[allow(clippy::too_many_arguments)]
+async fn quote_group(
+    group: &RouteGroup,
+    branches: &[RouteBranch],
+    input: U256,
+    inner_segments: usize,
+    quotes: &mut RouteQuotes,
+    source: &ObservedSource<'_>,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+    stop: &mut StopReason,
+) -> Option<GroupResult> {
+    if input.is_zero() {
+        return None;
+    }
+    let quote_stop = ensure_route_quotes(
+        branches,
+        group
+            .prefix_idx
+            .iter()
+            .map(|&prefix_idx| (prefix_idx, input))
+            .collect(),
+        quotes,
+        source,
+        config,
+        baseline_calls,
+        deadline,
+    )
+    .await;
+    merge_stop(stop, quote_stop);
+    let mut chosen: Option<(U256, Allocation)> = None;
+    for &prefix_idx in &group.prefix_idx {
+        let Some(out) = quotes
+            .get(&(prefix_idx, input))
+            .and_then(|result| result.as_ref().ok().copied())
+        else {
+            continue;
+        };
+        if chosen.as_ref().is_none_or(|(best, _)| out > *best) {
+            let allocation = route_allocation(&branches[prefix_idx], input, source)
+                .await
+                .ok()?;
+            chosen = Some((out, allocation));
+        }
+    }
+    let (prefix_out, prefix_allocation) = chosen?;
+
+    if group.suffix_idx.is_empty() {
+        return Some(GroupResult {
+            input,
+            output: prefix_out,
+            hops: prefix_allocation.hops,
+            children: Vec::new(),
+        });
+    }
+
+    let mut jobs = Vec::new();
+    for &suffix_idx in &group.suffix_idx {
+        for step in 1..=inner_segments {
+            let amount = fraction(prefix_out, step, inner_segments);
+            jobs.push((suffix_idx, amount));
+        }
+    }
+    let quote_stop = ensure_route_quotes(
+        branches,
+        jobs,
+        quotes,
+        source,
+        config,
+        baseline_calls,
+        deadline,
+    )
+    .await;
+    merge_stop(stop, quote_stop);
+
+    let tables = group
+        .suffix_idx
+        .iter()
+        .map(|&suffix_idx| {
+            (0..=inner_segments)
+                .map(|step| {
+                    if step == 0 {
+                        Some(U256::ZERO)
+                    } else {
+                        let amount = fraction(prefix_out, step, inner_segments);
+                        if amount.is_zero() {
+                            Some(U256::ZERO)
+                        } else {
+                            quotes
+                                .get(&(suffix_idx, amount))
+                                .and_then(|result| result.as_ref().ok().copied())
+                        }
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let (mut best_out, units) = best_units(
+        &tables,
+        inner_segments,
+        config.max_branches.min(tables.len()),
+        deadline,
+    )?;
+    let mut inputs = units
+        .iter()
+        .map(|&used| fraction(prefix_out, used, inner_segments))
+        .collect::<Vec<_>>();
+
+    let sum = inputs
+        .iter()
+        .try_fold(U256::ZERO, |sum, value| sum.checked_add(*value))?;
+    if let Some(remainder) = prefix_out.checked_sub(sum)
+        && !remainder.is_zero()
+    {
+        let mut variants = Vec::new();
+        for idx in 0..inputs.len() {
+            if inputs[idx].is_zero() && inputs.iter().any(|value| !value.is_zero()) {
+                continue;
+            }
+            let mut adjusted = inputs.clone();
+            adjusted[idx] += remainder;
+            variants.push(adjusted);
+        }
+        let jobs = variants
+            .iter()
+            .flat_map(|variant| variant.iter().copied().enumerate())
+            .filter(|(idx, amount)| {
+                !amount.is_zero() && !quotes.contains_key(&(group.suffix_idx[*idx], *amount))
+            })
+            .map(|(idx, amount)| (group.suffix_idx[idx], amount))
+            .collect::<Vec<_>>();
+        let quote_stop = ensure_route_quotes(
+            branches,
+            jobs,
+            quotes,
+            source,
+            config,
+            baseline_calls,
+            deadline,
+        )
+        .await;
+        merge_stop(stop, quote_stop);
+        for variant in variants {
+            let mut total = U256::ZERO;
+            let mut complete = true;
+            for (idx, amount) in variant.iter().copied().enumerate() {
+                if amount.is_zero() {
+                    continue;
+                }
+                match quotes
+                    .get(&(group.suffix_idx[idx], amount))
+                    .and_then(|result| result.as_ref().ok())
+                {
+                    Some(out) => {
+                        let Some(sum) = total.checked_add(*out) else {
+                            complete = false;
+                            break;
+                        };
+                        total = sum;
+                    }
+                    None => {
+                        complete = false;
+                        break;
+                    }
+                }
+            }
+            if complete && total >= best_out {
+                best_out = total;
+                inputs = variant;
+            }
+        }
+    }
+
+    let mut suffix_allocations = Vec::new();
+    let mut total = U256::ZERO;
+    for (idx, amount) in inputs.into_iter().enumerate() {
+        if amount.is_zero() {
+            continue;
+        }
+        let allocation = route_allocation(&branches[group.suffix_idx[idx]], amount, source)
+            .await
+            .ok()?;
+        total = total.checked_add(allocation.amount_out)?;
+        suffix_allocations.push(allocation);
+    }
+    // Keep the linear allocation shape when only one suffix is active.
+    if suffix_allocations.len() == 1 {
+        let suffix = suffix_allocations.pop().unwrap();
+        let mut hops = prefix_allocation.hops;
+        hops.extend(suffix.hops);
+        Some(GroupResult {
+            input,
+            output: total,
+            hops,
+            children: Vec::new(),
+        })
+    } else {
+        Some(GroupResult {
+            input,
+            output: total,
+            hops: prefix_allocation.hops,
+            children: suffix_allocations,
+        })
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn eval_group_plan(
+    groups: &[RouteGroup],
+    branches: &[RouteBranch],
+    inputs: &[U256],
+    inner_segments: usize,
+    cache: &mut HashMap<(usize, U256), Option<GroupResult>>,
+    quotes: &mut RouteQuotes,
+    source: &ObservedSource<'_>,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+    stop: &mut StopReason,
+) -> Option<(U256, Vec<GroupResult>)> {
+    let mut total = U256::ZERO;
+    let mut results = Vec::new();
+    for (idx, input) in inputs.iter().copied().enumerate() {
+        let group = groups.get(idx)?;
+        if input.is_zero() {
+            continue;
+        }
+        let result = match cache.get(&(idx, input)).cloned() {
+            Some(result) => result,
+            None => {
+                let result = quote_group(
+                    group,
+                    branches,
+                    input,
+                    inner_segments,
+                    quotes,
+                    source,
+                    config,
+                    baseline_calls,
+                    deadline,
+                    stop,
+                )
+                .await;
+                cache.insert((idx, input), result.clone());
+                result
+            }
+        }?;
+        total = total.checked_add(result.output)?;
+        results.push(result);
+    }
+    Some((total, results))
+}
+
+fn apply_group_plan(results: Vec<GroupResult>, total: U256, result: &mut SplitResult) {
+    if total <= result.amount_out {
+        return;
+    }
+    let allocations = results
+        .into_iter()
+        .map(|group| Allocation {
+            amount_in: group.input,
+            amount_out: group.output,
+            hops: group.hops,
+            children: group.children,
+        })
+        .collect::<Vec<_>>();
+    result.kind = if allocations.len() > 1 || allocations.iter().any(|a| !a.children.is_empty()) {
+        PlanKind::Split
+    } else {
+        PlanKind::Direct
+    };
+    result.amount_out = total;
+    result.allocations = allocations;
+}
+
+/// Tree allocation: the outer DP splits input across first hops; each first-hop
+/// group runs its own suffix DP. A shared prefix is therefore quoted once and
+/// its output can fan out to multiple suffix pools.
+#[allow(clippy::too_many_arguments)]
+async fn multi_route_tree(
+    paths: Vec<RoutedPath>,
+    graph: &Graph,
+    source: &ObservedSource<'_>,
+    amount: U256,
+    token_out: Address,
+    config: &SplitConfig,
+    baseline_calls: usize,
+    deadline: tokio::time::Instant,
+    result: &mut SplitResult,
+) -> StopReason {
+    let (groups, branches) = build_route_groups(paths, config, graph, token_out);
+    if groups.is_empty() {
+        return StopReason::Completed;
+    }
+    result.stats.route_tree = true;
+    result.stats.route_branches = groups.len();
+    result.stats.route_groups = groups.len();
+    let segments = config.allocation_segments;
+    let inner_segments = config.allocation_segments.clamp(2, 8);
+    let mut quotes = RouteQuotes::new();
+    let mut cache = HashMap::new();
+    let mut stop = StopReason::Completed;
+
+    let mut tables = Vec::new();
+    for (idx, group) in groups.iter().enumerate() {
+        let mut row = vec![None; segments + 1];
+        row[0] = Some(U256::ZERO);
+        for (step, cell) in row.iter_mut().enumerate().take(segments + 1).skip(1) {
+            let input = fraction(amount, step, segments);
+            if input.is_zero() {
+                *cell = Some(U256::ZERO);
+                continue;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                merge_stop(&mut stop, StopReason::TimeBudget);
+                break;
+            }
+            let evaluated = quote_group(
+                group,
+                &branches,
+                input,
+                inner_segments,
+                &mut quotes,
+                source,
+                config,
+                baseline_calls,
+                deadline,
+                &mut stop,
+            )
+            .await;
+            if let Some(evaluated) = &evaluated {
+                *cell = Some(evaluated.output);
+            }
+            cache.insert((idx, input), evaluated);
+        }
+        tables.push(row);
+        if stop == StopReason::TimeBudget {
+            break;
+        }
+    }
+    if tables.len() != groups.len() {
+        // Keep already-computed groups; the outer DP can still use them.
+        while tables.len() < groups.len() {
+            tables.push(vec![None; segments + 1]);
+        }
+    }
+
+    let Some((dp_total, units)) = best_units(
+        &tables,
+        segments,
+        config.max_branches.min(groups.len()),
+        deadline,
+    ) else {
+        return stop;
+    };
+    let mut inputs = units
+        .iter()
+        .map(|&used| fraction(amount, used, segments))
+        .collect::<Vec<_>>();
+    let Some(sum) = inputs
+        .iter()
+        .try_fold(U256::ZERO, |sum, value| sum.checked_add(*value))
+    else {
+        return stop;
+    };
+    let mut best_total = dp_total;
+    let mut best_inputs = inputs.clone();
+    if let Some(remainder) = amount.checked_sub(sum)
+        && !remainder.is_zero()
+    {
+        let mut variants = Vec::new();
+        for idx in 0..inputs.len() {
+            if inputs[idx].is_zero() && inputs.iter().any(|value| !value.is_zero()) {
+                continue;
+            }
+            let mut adjusted = inputs.clone();
+            adjusted[idx] += remainder;
+            variants.push(adjusted);
+        }
+        for variant in variants {
+            result.stats.evaluated_plans += 1;
+            if let Some((total, _)) = eval_group_plan(
+                &groups,
+                &branches,
+                &variant,
+                inner_segments,
+                &mut cache,
+                &mut quotes,
+                source,
+                config,
+                baseline_calls,
+                deadline,
+                &mut stop,
+            )
+            .await
+            {
+                result.stats.valid_plans += 1;
+                if total > best_total {
+                    best_total = total;
+                    best_inputs = variant;
+                }
+            }
+        }
+        inputs = best_inputs.clone();
+    }
+
+    // Apply the DP/remainder winner.
+    if let Some((total, results)) = eval_group_plan(
+        &groups,
+        &branches,
+        &inputs,
+        inner_segments,
+        &mut cache,
+        &mut quotes,
+        source,
+        config,
+        baseline_calls,
+        deadline,
+        &mut stop,
+    )
+    .await
+    {
+        result.stats.evaluated_plans += 1;
+        result.stats.valid_plans += 1;
+        result.stats.allocation_plans_evaluated += 1;
+        best_total = best_total.max(total);
+        apply_group_plan(results, total, result);
+    }
+
+    // Local coordinate refinement around the discrete outer allocation.
+    for _ in 0..config.refinement_rounds {
+        if stop != StopReason::Completed || tokio::time::Instant::now() >= deadline {
+            break;
+        }
+        let variants = refined_plans(&best_inputs, config);
+        let mut improved = false;
+        for variant in variants.into_iter().take(64) {
+            result.stats.evaluated_plans += 1;
+            let Some((total, results)) = eval_group_plan(
+                &groups,
+                &branches,
+                &variant,
+                inner_segments,
+                &mut cache,
+                &mut quotes,
+                source,
+                config,
+                baseline_calls,
+                deadline,
+                &mut stop,
+            )
+            .await
+            else {
+                continue;
+            };
+            result.stats.valid_plans += 1;
+            if total > best_total {
+                best_total = total;
+                best_inputs = variant;
+                result.stats.allocation_plans_evaluated += 1;
+                apply_group_plan(results, total, result);
+                improved = true;
+            }
+        }
+        if !improved {
+            break;
+        }
+    }
+    stop
 }
 
 #[derive(Clone)]
@@ -837,7 +1881,7 @@ impl SplitOptimizer {
         };
         let started = Instant::now();
         let baseline = router.route(graph, &source, request).await?;
-        let route_candidates = router.candidates(graph, &source, request).await?;
+        let route_paths = router.candidate_paths(graph, &source, request).await?;
         let rpc_after_baseline = rpc_requests.map(|counter| counter());
         let baseline_calls = source.calls.load(Ordering::Relaxed);
         let baseline_completed = source.completed.load(Ordering::Relaxed);
@@ -849,6 +1893,7 @@ impl SplitOptimizer {
                 amount_in: request.amount_in,
                 amount_out: baseline.amount_out,
                 hops: baseline.hops.clone(),
+                children: Vec::new(),
             }],
             baseline,
             stats: SearchStats {
@@ -999,20 +2044,21 @@ impl SplitOptimizer {
                 }
             }
         }
-        if self.config.max_branches > 2
+        if self.config.max_branches >= 2
+            && route_paths.iter().any(|path| path.hops.len() > 1)
             && matches!(
                 result.stats.stop_reason,
                 StopReason::Completed | StopReason::NoPairs
             )
         {
-            let branches = select_disjoint_routes(route_candidates, self.config.max_branches);
-            if branches.len() >= 2 && branches.iter().any(|branch| branch.hops.len() > 1) {
+            if needs_route_tree(&route_paths) {
                 result.stats.multi_route_search = true;
-                result.stats.route_branches = branches.len();
-                let stop = multi_route(
-                    &branches,
+                let stop = multi_route_tree(
+                    route_paths,
+                    graph,
                     &source,
                     request.amount_in,
+                    request.token_out,
                     &self.config,
                     baseline_calls,
                     deadline,
@@ -1022,6 +2068,35 @@ impl SplitOptimizer {
                 result.stats.multi_route_completed = stop == StopReason::Completed;
                 if stop != StopReason::Completed {
                     result.stats.stop_reason = stop;
+                }
+            } else {
+                let (candidates, _probe_stop) = probe_path_candidates(
+                    route_paths,
+                    &source,
+                    request.amount_in,
+                    &self.config,
+                    baseline_calls,
+                    deadline,
+                )
+                .await;
+                let branches = select_route_branches(candidates, self.config.max_branches);
+                if branches.len() >= 2 && branches.iter().any(|branch| branch.hops.len() > 1) {
+                    result.stats.multi_route_search = true;
+                    result.stats.route_branches = branches.len();
+                    let stop = multi_route(
+                        &branches,
+                        &source,
+                        request.amount_in,
+                        &self.config,
+                        baseline_calls,
+                        deadline,
+                        &mut result,
+                    )
+                    .await;
+                    result.stats.multi_route_completed = stop == StopReason::Completed;
+                    if stop != StopReason::Completed {
+                        result.stats.stop_reason = stop;
+                    }
                 }
             }
         }
@@ -1057,5 +2132,103 @@ impl SplitOptimizer {
             .zip(rpc_requests.map(|counter| counter()))
             .map(|(a, b)| b.saturating_sub(a));
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::PoolKind;
+
+    fn pool(addr: u8, from: u8, to: u8) -> Pool {
+        Pool {
+            kind: PoolKind::UniswapV2,
+            address: Address::with_last_byte(addr),
+            coins: vec![Address::with_last_byte(from), Address::with_last_byte(to)],
+        }
+    }
+
+    fn path(pools: &[(u8, u8, u8)], full: u64, half: u64, quarter: u64) -> PathCandidate {
+        let hops = pools
+            .iter()
+            .map(|&(addr, from, to)| (pool(addr, from, to), 0, 1))
+            .collect::<Vec<_>>();
+        PathCandidate {
+            pool_set: hops.iter().map(|(pool, _, _)| pool.address).collect(),
+            hops,
+            probe_outputs: [
+                Some(U256::from(full)),
+                Some(U256::from(half)),
+                Some(U256::from(quarter)),
+            ],
+        }
+    }
+
+    #[test]
+    fn dp_allocates_across_independent_branches() {
+        let tables = vec![
+            vec![
+                Some(U256::ZERO),
+                Some(U256::from(10)),
+                Some(U256::from(19)),
+                Some(U256::from(27)),
+            ],
+            vec![
+                Some(U256::ZERO),
+                Some(U256::from(9)),
+                Some(U256::from(17)),
+                Some(U256::from(24)),
+            ],
+        ];
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        let plans = allocation_dp(&tables, 3, 2, deadline).unwrap();
+        assert!(plans.iter().any(|units| units == &vec![2usize, 1usize]));
+        assert!(!plans.is_empty());
+    }
+
+    #[test]
+    fn refinement_moves_only_between_branches_and_conserves_input() {
+        let inputs = vec![U256::from(400), U256::from(600)];
+        let plans = refined_plans(&inputs, &SplitConfig::default());
+        assert!(!plans.is_empty());
+        for plan in plans {
+            assert_eq!(plan.len(), 2);
+            assert_eq!(
+                plan.iter()
+                    .try_fold(U256::ZERO, |sum, x| sum.checked_add(*x)),
+                Some(U256::from(1000))
+            );
+        }
+    }
+
+    #[test]
+    fn selection_excludes_shared_pools_and_keeps_multi_hop() {
+        let mut candidates = vec![
+            path(&[(10, 1, 2)], 950, 480, 240),
+            path(&[(10, 1, 2)], 900, 460, 230),
+            path(&[(12, 1, 3), (13, 3, 2)], 500, 260, 130),
+            path(&[(11, 1, 2)], 100, 50, 25),
+        ];
+        candidates.sort_by_key(|candidate| std::cmp::Reverse(probe_score(candidate)));
+        let branches = select_route_branches(candidates, 4);
+        assert_eq!(branches.len(), 3);
+        assert!(branches.iter().any(|branch| branch.hops.len() > 1));
+        let single_pool_10 = branches
+            .iter()
+            .filter(|branch| {
+                branch.hops.len() == 1 && branch.hops[0].0.address == Address::with_last_byte(10)
+            })
+            .count();
+        assert_eq!(single_pool_10, 1);
+    }
+
+    #[test]
+    fn probe_score_uses_normalized_fractional_outputs() {
+        let candidate = PathCandidate {
+            hops: vec![(pool(10, 1, 2), 0, 1)],
+            pool_set: vec![Address::with_last_byte(10)],
+            probe_outputs: [None, Some(U256::from(100)), Some(U256::from(60))],
+        };
+        assert_eq!(probe_score(&candidate), U256::from(240));
     }
 }
