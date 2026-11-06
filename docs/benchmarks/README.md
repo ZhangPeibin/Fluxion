@@ -58,6 +58,21 @@ We compared `max_quote_calls` 2048 / 4096 / 8192 on the runtime profile:
 Decision: keep **4096**. 8192 removes most budget stops but adds latency without material
 output gain; 2048 is faster but stops too early on most rows.
 
+### Quote gap attribution
+
+[Worst-10 attribution](split-gap-attribution-2026-11-06.md).
+
+The worst 10 runtime rows split roughly evenly between:
+
+- **Horizontal**: missing venues/conversions (WETH/ETH/stETH, Balancer, Curve factory, Sushi V2,
+  PMM/V4).
+- **Vertical**: ParaSwap's winning route uses pools already in our graph, but Fluxion hit the
+  quote budget or completed without finding the better allocation.
+
+The largest single gap is USDC→stETH, which needs a WETH→ETH→stETH conversion step rather than a
+deeper allocator. No benchmark anomalies were found. Global budget increases are not indicated:
+4096→8192 did not materially improve output, and several worst rows are `completed`.
+
 ## Previous: route-tree fan-in/fan-out and adaptive refinement (6 Nov 2026)
 
 [90-row report](split-quality-2026-11-06-http.md) /

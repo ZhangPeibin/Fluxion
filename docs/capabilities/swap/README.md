@@ -160,7 +160,7 @@ Important fields:
 
 - `amount_in`, `amount_out`: exact `raw` integer and display `decimal`
 - `plan_kind`: `baseline`, `direct`, or `split`
-- `allocations`: exact per-branch inputs, outputs and hop paths; shared-prefix splits carry nested `children`
+- `allocations`: exact per-branch inputs, outputs and hop paths; shared-prefix splits carry nested `sources` / `children`
 - `provenance.execution`: always `remote` for `swap.quote`
 - `provenance.pricing_mode`: `rpc` or `local_snapshot`
 - `quote_block`, `state_age_secs`, `lag_blocks`: freshness
@@ -187,21 +187,38 @@ freshness is measured separately from latency.
 
 ## Latest benchmark
 
-90 rows on 4 Nov 2026, 209 pool/conversion records, full-range V3:
+90 rows on 6 Nov 2026, runtime profile (309 pools: Uniswap V2/V3, Sushi V3, Pancake V3,
+Curve, ShibaSwap, wstETH):
 
 | Metric | Result |
 |---|---:|
+| Cold start to ready | **55 s** |
 | Snapshot lag blocks p50/p95/max | **0 / 1 / 1** |
 | Snapshot lag seconds p50/p95/max | **0 / 12 / 12 s** |
-| Fluxion HTTP p50/p95 | **49 / 133 ms** |
+| Fluxion HTTP p50/p95 | **35 / 197 ms** |
 | Success | **90 / 90** |
-| ParaSwap mean delta / within ±50 bps | **−2.6 bps / 89** |
-| 1inch mean delta / within ±50 bps | **−8.7 bps / 82** |
+| ParaSwap mean delta / within ±50 bps | **−61.9 bps / 82** |
+| 1inch mean delta / within ±50 bps | **−65.4 bps / 79** |
 
-Split allocation includes disjoint multi-hop routes. Remaining large-order gaps are mostly venue
-coverage limits (for example LDO and SHIB), not freshness or allocation. Full methodology:
-[90-row report](../../benchmarks/quote-freshness-2026-11-04-route-split.md) ·
+`split.max_quote_calls` remains **4096**; the 2048/8192 comparison is in the benchmark index.
+Full methodology:
+[runtime report](../../benchmarks/split-quality-2026-11-06-runtime.md) ·
+[budget tuning](../../benchmarks/split-budget-2026-11-06.md) ·
 [benchmark index](../../benchmarks/README.md).
+
+## Known limitations
+
+The worst-10 attribution found roughly half horizontal, half vertical gaps:
+
+- Missing venues/conversions: Lido WETH/ETH/stETH, Balancer, Curve factory pools, Sushi V2,
+  PMM/V4/RFQ.
+- Present venues but allocator/candidate/budget gaps on LINK→USDC, LDO→WETH, WETH/SHIB and small
+  AAVE→USDC.
+
+This is the frozen `swap.quote` baseline for the current milestone. Future changes must not
+regress the table above; platform expansion and deeper DAG allocation are separate decisions.
+Attribution details:
+[gap report](../../benchmarks/split-gap-attribution-2026-11-06.md).
 
 ## Errors
 
@@ -227,5 +244,6 @@ CLI exit codes: `2` invalid argument, `3` no path/liquidity, `4` RPC/unsupported
 - [Agent skill](../../../skills/swap/SKILL.md)
 - [JSON schema](../../../schemas/swap_quote.v1.json)
 - [Project whitepaper](../../WHITEPAPER.md)
-- [Latest benchmark](../../benchmarks/quote-freshness-2026-11-04-route-split.md)
+- [Latest benchmark](../../benchmarks/split-quality-2026-11-06-runtime.md)
+- [Gap attribution](../../benchmarks/split-gap-attribution-2026-11-06.md)
 - [Root README](../../../README.md)
