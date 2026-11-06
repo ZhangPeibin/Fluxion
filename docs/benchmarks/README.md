@@ -1,6 +1,64 @@
 # Quote benchmarks
 
-## Latest: route-tree fan-in/fan-out and adaptive refinement (6 Nov 2026)
+## Latest: 310-pool runtime profile (6 Nov 2026)
+
+[90-row report](split-quality-2026-11-06-runtime.md) /
+[raw JSON](split-quality-2026-11-06-runtime.json).
+
+This run uses `configs/runtime.yaml` with SushiSwap V3, PancakeSwap V3 and
+`min_liquidity: 10000` (309 loaded pools), so it measures the shipping profile rather than the
+fixed 208-pool allocator profile.
+
+| metric | runtime profile |
+|---|---:|
+| cold start to ready | **55 s** |
+| RSS at ready / steady | **~96 MB / ~40 MB** |
+| success | **90 / 90** |
+| Fluxion HTTP latency p50 / p95 | **35 / 197 ms** |
+| snapshot lag blocks p50 / p95 / max | **0 / 1 / 1** |
+| snapshot lag seconds p50 / p95 / max | **0 / 12 / 12 s** |
+| ParaSwap mean delta / within ±50 bps | **-61.9 bps / 82** |
+| 1inch mean delta / within ±50 bps | **-65.4 bps / 79** |
+| stop reasons | completed 42, quote_budget 39, no_pairs 9 |
+| additional quotes median / max | **3358 / 4152** |
+
+The mean aggregator deltas are dominated by coverage-limited `no_pairs` rows (for example
+USDC/stETH, AAVE/USDC and LINK/USDC), not by the allocator. The larger universe raises p95 from
+42 ms to 197 ms and leaves 39 rows at the 4096 quote budget; both remain within the configured
+8 s search timeout.
+
+Reproduce the runtime profile:
+
+```bash
+# Copy the runtime profile to a benchmark port
+sed 's/port: 8080/port: 8089/' configs/runtime.yaml > /tmp/fluxion-runtime-bench.yaml
+
+# Terminal 1: local snapshot service on :8089
+cargo run --release -p fluxion-remote -- serve --config /tmp/fluxion-runtime-bench.yaml
+
+# Terminal 2
+cargo run --release -p fluxion-remote --bin bench -- \
+  --service http://127.0.0.1:8089 --config /tmp/fluxion-runtime-bench.yaml \
+  --split --delay-ms 100 --out docs/benchmarks/runtime-run.md
+```
+
+### Search budget tuning
+
+[Budget comparison](split-budget-2026-11-06.md) /
+[summary JSON](split-budget-2026-11-06.json).
+
+We compared `max_quote_calls` 2048 / 4096 / 8192 on the runtime profile:
+
+| budget | p50 / p95 | quote_budget rows | ParaSwap ±50 bps | 1inch ±50 bps |
+|---:|---:|---:|---:|---:|
+| 2048 | 28 / 87 ms | 68/90 | 76/90 | 75/90 |
+| **4096** | **34 / 129 ms** | **36/90** | **78/90** | **75/90** |
+| 8192 | 45 / 178 ms | 5/90 | 78/90 | 75/90 |
+
+Decision: keep **4096**. 8192 removes most budget stops but adds latency without material
+output gain; 2048 is faster but stops too early on most rows.
+
+## Previous: route-tree fan-in/fan-out and adaptive refinement (6 Nov 2026)
 
 [90-row report](split-quality-2026-11-06-http.md) /
 [raw JSON](split-quality-2026-11-06-http.json).

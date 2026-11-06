@@ -1,0 +1,83 @@
+{
+  "date": "2026-11-06",
+  "profile": "configs/runtime.yaml",
+  "pricing_mode": "local_snapshot",
+  "pools": 309,
+  "corpus": "bench/corpus.yaml",
+  "rows": 90,
+  "split": {
+    "allocation_segments": 20,
+    "refinement_rounds": 2,
+    "refinement_segments": 4,
+    "max_branches": 8
+  },
+  "runs": {
+    "2048": {
+      "block_range": [26356587, 26356600],
+      "success": 90,
+      "latency_p50_ms": 28.0,
+      "latency_p95_ms": 86.6,
+      "latency_max_ms": 194,
+      "stop_reasons": {
+        "quote_budget": 68,
+        "completed": 18,
+        "no_pairs": 4
+      },
+      "additional_quote_calls_median": 2048,
+      "additional_quote_calls_max": 2104,
+      "baseline_gain_bps": {
+        "median": 0.03,
+        "mean": 178.62,
+        "max": 15206.75
+      },
+      "paraswap_within_50_bps": 76,
+      "oneinch_within_50_bps": 75
+    },
+    "4096": {
+      "block_range": [26356603, 26356615],
+      "success": 90,
+      "latency_p50_ms": 34.0,
+      "latency_p95_ms": 129.4,
+      "latency_max_ms": 194,
+      "stop_reasons": {
+        "quote_budget": 36,
+        "completed": 45,
+        "no_pairs": 9
+      },
+      "additional_quote_calls_median": 3366,
+      "additional_quote_calls_max": 4125,
+      "baseline_gain_bps": {
+        "median": 0.29,
+        "mean": 109.54,
+        "max": 7434.55
+      },
+      "paraswap_within_50_bps": 78,
+      "oneinch_within_50_bps": 75
+    },
+    "8192": {
+      "block_range": [26356618, 26356631],
+      "success": 90,
+      "latency_p50_ms": 44.5,
+      "latency_p95_ms": 177.6,
+      "latency_max_ms": 279,
+      "stop_reasons": {
+        "quote_budget": 5,
+        "completed": 70,
+        "no_pairs": 15
+      },
+      "additional_quote_calls_median": 3241,
+      "additional_quote_calls_max": 8237,
+      "baseline_gain_bps": {
+        "median": 0.33,
+        "mean": 110.63,
+        "max": 7449.38
+      },
+      "paraswap_within_50_bps": 78,
+      "oneinch_within_50_bps": 75
+    }
+  },
+  "decision": {
+    "max_quote_calls": 4096,
+    "reason": "4096 keeps p95 well below the search timeout while avoiding most budget stops; 8192 adds latency without material output improvement, and 2048 hits budget on most rows."
+  }
+}

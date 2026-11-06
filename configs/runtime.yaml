@@ -31,7 +31,7 @@ v3_deployments:
     subgraph_id: "CJYGNhb7RvnhfBDjqpRnD3oxgyhibzc7fkAMa38YV3oS"
 split:
   max_branches: 8
-  max_quote_calls: 4096
+  max_quote_calls: 4096 # 2048 stops too early; 8192 adds p95 without material gain
 local_state:
   sync_timeout_ms: 300000
   batch_size: 400
