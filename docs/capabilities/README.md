@@ -6,7 +6,7 @@ its execution location is an internal Fluxion decision. The first delivered capa
 
 | Capability | Status | Docs |
 |---|---|---|
-| `swap.quote` | available | [swap/README.md](swap/README.md) |
+| `swap.quote` | available | [swap/README.md](swap/README.md) · [graph/state](swap/GRAPH-AND-SNAPSHOT.md) |
 
 ## Contract vs execution
 
@@ -17,3 +17,7 @@ its execution location is an internal Fluxion decision. The first delivered capa
 
 Agents call capabilities; they do not choose an execution location. See [swap/README.md](swap/README.md) for
 the execution model.
+
+
+Chinese docs: [capability](swap/README.zh.md) · [technical flow](swap/ARCHITECTURE.zh.md) ·
+[graph/state](swap/GRAPH-AND-SNAPSHOT.zh.md).

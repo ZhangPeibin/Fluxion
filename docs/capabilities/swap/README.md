@@ -1,5 +1,7 @@
 # swap.quote
 
+English · [中文](README.zh.md)
+
 `swap.quote` is Fluxion's first capability: an exact-in swap quote on Ethereum mainnet. It returns
 amounts, split allocations, hop paths and state provenance. It is read-only and never signs,
 approves, or broadcasts.
@@ -19,6 +21,11 @@ mode.
 `local_snapshot`, the request path reads one immutable snapshot and RPC belongs to the background
 synchronizer. The diagram shows that mode; in `rpc` mode the request path calls live adapters
 instead of the frozen snapshot.
+
+For the full request, routing, split-search and background-state flow, see
+[the end-to-end technical diagram](ARCHITECTURE.md). For graph construction, topology updates,
+snapshot-refresh options, scale limits and the future multi-chain design, see
+[graph and snapshot lifecycle](GRAPH-AND-SNAPSHOT.md).
 
 ```mermaid
 flowchart TB
@@ -153,7 +160,7 @@ Important fields:
 
 - `amount_in`, `amount_out`: exact `raw` integer and display `decimal`
 - `plan_kind`: `baseline`, `direct`, or `split`
-- `allocations`: exact per-branch inputs, outputs and hop paths
+- `allocations`: exact per-branch inputs, outputs and hop paths; shared-prefix splits carry nested `children`
 - `provenance.execution`: always `remote` for `swap.quote`
 - `provenance.pricing_mode`: `rpc` or `local_snapshot`
 - `quote_block`, `state_age_secs`, `lag_blocks`: freshness
