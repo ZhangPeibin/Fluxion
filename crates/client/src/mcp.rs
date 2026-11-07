@@ -11,6 +11,7 @@ use crate::capability::CapabilityError;
 use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
+use crate::transaction::{self, SimulateRequest};
 use crate::wallet::{self, AssetsRequest, BalanceRequest, WalletConfig};
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
@@ -153,6 +154,22 @@ fn tools_list() -> Value {
                     },
                     "required": ["address"]
                 }
+            },
+            {
+                "name": "transaction_simulate",
+                "description": "Simulate an Ethereum transaction with eth_call at one pinned block. Read-only: returns success/revert, return data and estimated gas; never signs or broadcasts.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "from": {"type": "string", "description": "Optional sender address"},
+                        "to": {"type": "string", "description": "Target contract or recipient"},
+                        "data": {"type": "string", "description": "0x-prefixed calldata"},
+                        "value": {"type": "string", "description": "Optional ETH value in human units", "default": "0"},
+                        "block": {"type": "integer", "minimum": 0},
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"}
+                    },
+                    "required": ["to", "data"]
+                }
             }
         ]
     })
@@ -171,6 +188,7 @@ async fn call_tool(params: Value, backend: &Result<RuntimeClient, CapabilityErro
         }),
         "wallet_balance" => wallet_balance_tool(&arguments).await,
         "wallet_assets" => wallet_assets_tool(&arguments).await,
+        "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
         ))),
@@ -261,6 +279,40 @@ fn optional_u64(arguments: &Value, name: &str) -> Result<Option<u64>, Capability
             .map(Some)
             .ok_or_else(|| CapabilityError::invalid_argument(format!("invalid {name}"))),
     }
+}
+
+async fn transaction_simulate_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let to = string_arg(arguments, "to")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid --to address"))?;
+    let from = arguments
+        .get("from")
+        .and_then(Value::as_str)
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument("invalid --from address"))
+        })
+        .transpose()?;
+    let data = string_arg(arguments, "data")?;
+    let value = arguments
+        .get("value")
+        .and_then(Value::as_str)
+        .unwrap_or("0");
+    let value = token::parse_amount(value, 18)?;
+    let config = wallet_config(arguments);
+    let response = transaction::simulate(
+        &config,
+        SimulateRequest {
+            from,
+            to,
+            data,
+            value,
+            block: optional_u64(arguments, "block")?,
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
 async fn quote_tool(
@@ -371,7 +423,15 @@ mod tests {
             .iter()
             .map(|tool| tool["name"].as_str().unwrap())
             .collect::<Vec<_>>();
-        assert_eq!(names, vec!["swap_quote", "wallet_balance", "wallet_assets"]);
+        assert_eq!(
+            names,
+            vec![
+                "swap_quote",
+                "wallet_balance",
+                "wallet_assets",
+                "transaction_simulate"
+            ]
+        );
     }
 
     #[test]

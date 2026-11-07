@@ -4,6 +4,7 @@ use crate::capability::{CapabilityError, CapabilityErrorCode};
 use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
+use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
 use crate::wallet::{self, AssetsRequest, BalanceRequest, WalletBalancesResponse, WalletConfig};
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
@@ -28,6 +29,10 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
         }
         "wallet" => {
             let code = run_wallet(&args[1..]).await;
+            (args, Some(code))
+        }
+        "transaction" => {
+            let code = run_transaction(&args[1..]).await;
             (args, Some(code))
         }
         "tokens" => {
@@ -73,6 +78,7 @@ fluxion capability describe NAME        Show capability and execution details\n 
 fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
 fluxion wallet balance ADDRESS [--tokens LIST]\n  \
 fluxion wallet assets ADDRESS [--include-unknown]\n  \
+fluxion transaction simulate --to ADDRESS --data HEX [--from ADDRESS]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
@@ -525,6 +531,207 @@ fn print_wallet_human(response: &WalletBalancesResponse) {
     }
 }
 
+#[derive(Debug)]
+struct TransactionArgs {
+    from: Option<String>,
+    to: String,
+    data: String,
+    value: String,
+    block: Option<u64>,
+    rpc_url: Option<String>,
+    json: bool,
+}
+
+async fn run_transaction(raw: &[String]) -> i32 {
+    if raw.first().map(String::as_str) == Some("--help")
+        || raw.first().map(String::as_str) == Some("-h")
+    {
+        println!(
+            "Usage:\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value ETH] [--block N] [--json]"
+        );
+        return 0;
+    }
+    if raw.first().map(String::as_str) != Some("simulate") {
+        let error = CapabilityError::invalid_argument("expected: transaction simulate");
+        report_error(&error, raw.iter().any(|arg| arg == "--json"));
+        return exit_code(error.code);
+    }
+    let args = match parse_transaction_args(&raw[1..]) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
+    let to = match args.to.parse::<alloy_primitives::Address>() {
+        Ok(address) => address,
+        Err(_) => {
+            let error = CapabilityError::invalid_argument("invalid --to address");
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let from = match args.from.as_deref() {
+        Some(from) => match from.parse::<alloy_primitives::Address>() {
+            Ok(address) => Some(address),
+            Err(_) => {
+                let error = CapabilityError::invalid_argument("invalid --from address");
+                report_error(&error, args.json);
+                return exit_code(error.code);
+            }
+        },
+        None => None,
+    };
+    let value = match token::parse_amount(&args.value, 18) {
+        Ok(value) => value,
+        Err(error) => {
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let mut config = WalletConfig::from_env();
+    if let Some(rpc_url) = args.rpc_url {
+        config.rpc_url = rpc_url;
+    }
+    match transaction::simulate(
+        &config,
+        SimulateRequest {
+            from,
+            to,
+            data: args.data,
+            value,
+            block: args.block,
+        },
+    )
+    .await
+    {
+        Ok(response) => {
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_transaction_human(&response);
+            }
+            0
+        }
+        Err(error) => {
+            report_error(&error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityError> {
+    let mut from = None;
+    let mut to = None;
+    let mut data = None;
+    let mut value = "0".to_string();
+    let mut block = None;
+    let mut rpc_url = None;
+    let mut json = false;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--from" => {
+                index += 1;
+                from = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--from needs a value"))?
+                        .clone(),
+                );
+            }
+            "--to" => {
+                index += 1;
+                to = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--to needs a value"))?
+                        .clone(),
+                );
+            }
+            "--data" => {
+                index += 1;
+                data = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--data needs a value"))?
+                        .clone(),
+                );
+            }
+            "--value" => {
+                index += 1;
+                value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--value needs a value"))?
+                    .clone();
+            }
+            "--block" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--block needs a value"))?;
+                block = Some(value.parse().map_err(|_| {
+                    CapabilityError::invalid_argument(format!("invalid --block: {value}"))
+                })?);
+            }
+            "--rpc-url" => {
+                index += 1;
+                rpc_url = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--rpc-url needs a value")
+                        })?
+                        .clone(),
+                );
+            }
+            "--json" => json = true,
+            value if value.starts_with('-') => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown transaction option: {value}"
+                )));
+            }
+            value => {
+                if to.is_some() {
+                    return Err(CapabilityError::invalid_argument(
+                        "transaction accepts one positional address",
+                    ));
+                }
+                to = Some(value.to_string());
+            }
+        }
+        index += 1;
+    }
+    Ok(TransactionArgs {
+        from,
+        to: to.ok_or_else(|| CapabilityError::invalid_argument("missing --to"))?,
+        data: data.ok_or_else(|| CapabilityError::invalid_argument("missing --data"))?,
+        value,
+        block,
+        rpc_url,
+        json,
+    })
+}
+
+fn print_transaction_human(response: &TransactionSimulateResponse) {
+    println!(
+        "{} · block {}{}",
+        if response.success {
+            "success"
+        } else {
+            "reverted"
+        },
+        response.block_number,
+        response
+            .gas_estimate
+            .as_ref()
+            .map(|gas| format!(" · gas {gas}"))
+            .unwrap_or_default()
+    );
+    if let Some(error) = &response.error {
+        eprintln!("error: {error}");
+    }
+    if response.return_data != "0x" {
+        println!("return: {}", response.return_data);
+    }
+}
+
 fn token_label(token: &crate::capability::TokenRef) -> String {
     token
         .symbol
@@ -609,6 +816,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "swap.quote" => crate::swap::describe(),
                 "wallet.balance" => fluxion_protocol::wallet::describe_balance(),
                 "wallet.assets" => fluxion_protocol::wallet::describe_assets(),
+                "transaction.simulate" => fluxion_protocol::transaction::describe(),
                 other => {
                     let error = CapabilityError::new(
                         CapabilityErrorCode::Unsupported,
@@ -715,6 +923,24 @@ mod tests {
         .unwrap();
         assert_eq!(balance.mode, WalletMode::Balance);
         assert_eq!(balance.tokens, vec!["USDC", "LDO"]);
+    }
+
+    #[test]
+    fn parses_transaction_arguments() {
+        let parsed = parse_transaction_args(&[
+            "--to".to_string(),
+            "0x0000000000000000000000000000000000000001".to_string(),
+            "--data".to_string(),
+            "0x1234".to_string(),
+            "--value".to_string(),
+            "0.5".to_string(),
+            "--block".to_string(),
+            "100".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(parsed.value, "0.5");
+        assert_eq!(parsed.block, Some(100));
+        assert!(parse_transaction_args(&["--data".to_string(), "0x".to_string()]).is_err());
     }
 
     #[test]

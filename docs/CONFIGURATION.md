@@ -42,9 +42,9 @@
 
 ## Execution routing
 
-`swap.quote` 固定使用 Fluxion remote 服务；`wallet.balance` 固定在 local runtime；
-`wallet.assets` 是 local verification + remote candidate discovery 的 hybrid capability。
-Agent 和用户都不选择 local/remote。
+`swap.quote` 固定使用 Fluxion remote 服务；`wallet.balance` 和 `transaction.simulate`
+固定在 local runtime；`wallet.assets` 是 local verification + remote candidate discovery 的
+hybrid capability。Agent 和用户都不选择 local/remote。
 
 | 环境变量 | 默认 | 含义 |
 |---|---|---|

@@ -80,7 +80,8 @@ flowchart TB
 `swap.quote` 已可用：Ethereum 主网 exact-in、多跳、拆单和状态新鲜度。完整输入输出、错误和
 最新 benchmark 见 [swap.quote](docs/capabilities/swap/README.md)。`wallet.balance` 和
 `wallet.assets` 提供本地只读 ETH/ERC20 余额与持仓发现，见
-[wallet](docs/capabilities/wallet/README.md)。
+[wallet](docs/capabilities/wallet/README.md)。`transaction.simulate` 提供本地只读 calldata
+模拟，见 [transaction](docs/capabilities/transaction/README.md)。
 
 ## 快速开始
 
@@ -105,6 +106,7 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 | `swap.quote` | available | [swap.quote](docs/capabilities/swap/README.md) |
 | `wallet.balance` | available | [wallet](docs/capabilities/wallet/README.md) |
 | `wallet.assets` | available | [wallet](docs/capabilities/wallet/README.md) |
+| `transaction.simulate` | available | [transaction](docs/capabilities/transaction/README.md) |
 | `swap.build` | planned | — |
 | `swap.simulate` | planned | — |
 | `swap.execute` | planned | — |
@@ -120,16 +122,17 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 
 ## 文档
 
-- **从这里开始**：[MCP](docs/MCP.md) · [swap.quote](docs/capabilities/swap/README.md) · [wallet](docs/capabilities/wallet/README.md) · [产品架构](docs/PRODUCT-ARCHITECTURE.md)
+- **从这里开始**：[MCP](docs/MCP.md) · [swap.quote](docs/capabilities/swap/README.md) · [wallet](docs/capabilities/wallet/README.md) · [transaction](docs/capabilities/transaction/README.md) · [产品架构](docs/PRODUCT-ARCHITECTURE.md)
 - **愿景**：[白皮书](docs/WHITEPAPER.md) · [架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
 - **运维**：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
 - **研究**：[benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - **边界**：[limitations](docs/LIMITATIONS.md) · [swap schema](schemas/swap_quote.v1.json) ·
-  [wallet schema](schemas/wallet_balances.v1.json) · [swap skill](skills/swap/SKILL.md) ·
-  [wallet skill](skills/wallet/SKILL.md)
+  [wallet schema](schemas/wallet_balances.v1.json) ·
+  [transaction schema](schemas/transaction_simulate.v1.json) · [swap skill](skills/swap/SKILL.md) ·
+  [wallet skill](skills/wallet/SKILL.md) · [transaction skill](skills/transaction/SKILL.md)
 
 ## 状态
 
-Pre-1.0。Ethereum mainnet。`swap.quote`、`wallet.balance` 和 `wallet.assets` 已可用，只读。
-`swap.build` / `simulate` / `execute` 和 `wallet.collectibles` 是下一阶段的 local runtime
-里程碑。
+Pre-1.0。Ethereum mainnet。`swap.quote`、`wallet.balance`、`wallet.assets` 和
+`transaction.simulate` 已可用，只读。`swap.build` / `execute` 和 `wallet.collectibles` 是
+下一阶段的 local runtime 里程碑。

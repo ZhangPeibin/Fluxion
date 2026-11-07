@@ -22,6 +22,8 @@ pub enum CapabilityId {
     WalletBalance,
     #[serde(rename = "wallet.assets")]
     WalletAssets,
+    #[serde(rename = "transaction.simulate")]
+    TransactionSimulate,
 }
 
 impl CapabilityId {
@@ -30,11 +32,17 @@ impl CapabilityId {
             Self::SwapQuote => "swap.quote",
             Self::WalletBalance => "wallet.balance",
             Self::WalletAssets => "wallet.assets",
+            Self::TransactionSimulate => "transaction.simulate",
         }
     }
 
     pub const fn all() -> &'static [Self] {
-        &[Self::SwapQuote, Self::WalletBalance, Self::WalletAssets]
+        &[
+            Self::SwapQuote,
+            Self::WalletBalance,
+            Self::WalletAssets,
+            Self::TransactionSimulate,
+        ]
     }
 }
 
@@ -61,10 +69,19 @@ mod tests {
     fn exposes_stable_capability_names() {
         assert_eq!(
             names().collect::<Vec<_>>(),
-            vec!["swap.quote", "wallet.balance", "wallet.assets"]
+            vec![
+                "swap.quote",
+                "wallet.balance",
+                "wallet.assets",
+                "transaction.simulate"
+            ]
         );
         assert_eq!(CapabilityId::SwapQuote.as_str(), "swap.quote");
         assert_eq!(CapabilityId::WalletBalance.as_str(), "wallet.balance");
         assert_eq!(CapabilityId::WalletAssets.as_str(), "wallet.assets");
+        assert_eq!(
+            CapabilityId::TransactionSimulate.as_str(),
+            "transaction.simulate"
+        );
     }
 }
