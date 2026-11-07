@@ -6,5 +6,6 @@ pub mod client;
 pub mod mcp;
 pub mod routing;
 pub mod token;
+pub mod wallet;
 
 pub use fluxion_protocol::{capability, swap};

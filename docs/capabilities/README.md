@@ -7,6 +7,8 @@ its execution location is an internal Fluxion decision. The first delivered capa
 | Capability | Status | Docs |
 |---|---|---|
 | `swap.quote` | available | [swap/README.md](swap/README.md) · [graph/state](swap/GRAPH-AND-SNAPSHOT.md) |
+| `wallet.balance` | available | [wallet/README.md](wallet/README.md) |
+| `wallet.assets` | available | [wallet/README.md](wallet/README.md) |
 
 ## Contract vs execution
 

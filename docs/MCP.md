@@ -135,6 +135,8 @@ Available tools depend on the installed capabilities:
 | Capability | Tool | Contract |
 |---|---|---|
 | `swap.quote` | `swap_quote` | [capabilities/swap](capabilities/swap/README.md) |
+| `wallet.balance` | `wallet_balance` | [capabilities/wallet](capabilities/wallet/README.md) |
+| `wallet.assets` | `wallet_assets` | [capabilities/wallet](capabilities/wallet/README.md) |
 
 ## Troubleshooting
 

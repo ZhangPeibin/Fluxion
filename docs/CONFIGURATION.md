@@ -42,7 +42,8 @@
 
 ## Execution routing
 
-`swap.quote` 固定使用 Fluxion remote 服务；未来 `wallet` / `execute` 固定在 local runtime。
+`swap.quote` 固定使用 Fluxion remote 服务；`wallet.balance` 固定在 local runtime；
+`wallet.assets` 是 local verification + remote candidate discovery 的 hybrid capability。
 Agent 和用户都不选择 local/remote。
 
 | 环境变量 | 默认 | 含义 |
@@ -51,6 +52,9 @@ Agent 和用户都不选择 local/remote。
 | `FLUXION_API_KEY` | 空 | 静态 remote 认证 token；设置后不再自动注册 |
 | `FLUXION_REQUIRE_AUTH` | 空 | remote server 设为 `1` 时 `/quote` 需要安装 token |
 | `FLUXION_URL` | `http://127.0.0.1:8080` | 本地 runtime 地址，供 `start/status/serve` 和未来 wallet/execute |
+| `FLUXION_RPC_URL` / `RPC_URL` | `https://eth.drpc.org` | `wallet.balance` / `wallet.assets` 的本地 Ethereum RPC |
+| `ONEINCH_API_KEY` | 空 | `wallet.assets` 的候选发现；缺失时回退 registry-only |
+| `FLUXION_ONEINCH_BALANCE_URL` | `https://api.1inch.com/balance/v1.2` | 可替换的 1inch Balance provider endpoint |
 | `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
 CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回

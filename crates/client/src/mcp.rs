@@ -11,6 +11,7 @@ use crate::capability::CapabilityError;
 use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
+use crate::wallet::{self, AssetsRequest, BalanceRequest, WalletConfig};
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
@@ -100,28 +101,60 @@ async fn handle_request(
 
 fn tools_list() -> Value {
     json!({
-        "tools": [{
-            "name": "swap_quote",
-            "description": "Get an exact-in swap quote from the warm local Fluxion runtime. \
-                            Token inputs may be built-in symbols (LDO, ETH, USDC) or 0x addresses. \
-                            Amounts are human units such as 100 or 0.5. \
-                            Split results may nest shared nodes under allocations[].sources and \
-                            allocations[].children; expand them when reporting complete routes.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "token_in": {"type": "string", "description": "Input token symbol or address"},
-                    "token_out": {"type": "string", "description": "Output token symbol or address"},
-                    "amount": {"type": "string", "description": "Human amount, e.g. 100 or 0.5"},
-                    "decimals_in": {"type": "integer", "minimum": 0, "maximum": 38},
-                    "decimals_out": {"type": "integer", "minimum": 0, "maximum": 38},
-                    "split": {"type": "boolean", "default": true},
-                    "max_hops": {"type": "integer", "minimum": 1},
-                    "split_max_branches": {"type": "integer", "minimum": 2, "maximum": 8}
-                },
-                "required": ["token_in", "token_out", "amount"]
+        "tools": [
+            {
+                "name": "swap_quote",
+                "description": "Get an exact-in swap quote from the warm local Fluxion runtime. \
+                                Token inputs may be built-in symbols (LDO, ETH, USDC) or 0x addresses. \
+                                Amounts are human units such as 100 or 0.5. \
+                                Split results may nest shared nodes under allocations[].sources and \
+                                allocations[].children; expand them when reporting complete routes.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "token_in": {"type": "string", "description": "Input token symbol or address"},
+                        "token_out": {"type": "string", "description": "Output token symbol or address"},
+                        "amount": {"type": "string", "description": "Human amount, e.g. 100 or 0.5"},
+                        "decimals_in": {"type": "integer", "minimum": 0, "maximum": 38},
+                        "decimals_out": {"type": "integer", "minimum": 0, "maximum": 38},
+                        "split": {"type": "boolean", "default": true},
+                        "max_hops": {"type": "integer", "minimum": 1},
+                        "split_max_branches": {"type": "integer", "minimum": 2, "maximum": 8}
+                    },
+                    "required": ["token_in", "token_out", "amount"]
+                }
+            },
+            {
+                "name": "wallet_balance",
+                "description": "Read native ETH and explicit ERC20 balances for an Ethereum address at one pinned block. Local read-only RPC; never signs.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "address": {"type": "string", "description": "Ethereum address"},
+                        "tokens": {"type": "array", "items": {"type": "string"}, "description": "Symbols or addresses; empty = built-in registry"},
+                        "include_native": {"type": "boolean", "default": true},
+                        "block": {"type": "integer", "minimum": 0},
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"}
+                    },
+                    "required": ["address"]
+                }
+            },
+            {
+                "name": "wallet_assets",
+                "description": "Discover an Ethereum account's ERC20 positions using the 1inch Balance API, then verify balances locally at one pinned block. Defaults to known-registry tokens plus native ETH.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "address": {"type": "string", "description": "Ethereum address"},
+                        "include_native": {"type": "boolean", "default": true},
+                        "include_unknown": {"type": "boolean", "default": false},
+                        "block": {"type": "integer", "minimum": 0},
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"}
+                    },
+                    "required": ["address"]
+                }
             }
-        }]
+        ]
     })
 }
 
@@ -130,15 +163,103 @@ async fn call_tool(params: Value, backend: &Result<RuntimeClient, CapabilityErro
         .get("name")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    if name != "swap_quote" {
-        return tool_error(CapabilityError::invalid_argument(format!(
-            "unknown tool: {name}"
-        )));
-    }
     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-    match quote_tool(&arguments, backend).await {
-        Ok(response) => tool_result(serde_json::to_value(response).unwrap_or(Value::Null)),
+    let result = match name {
+        "swap_quote" => quote_tool(&arguments, backend).await.and_then(|response| {
+            serde_json::to_value(response)
+                .map_err(|error| CapabilityError::internal(error.to_string()))
+        }),
+        "wallet_balance" => wallet_balance_tool(&arguments).await,
+        "wallet_assets" => wallet_assets_tool(&arguments).await,
+        other => Err(CapabilityError::invalid_argument(format!(
+            "unknown tool: {other}"
+        ))),
+    };
+    match result {
+        Ok(value) => tool_result(value),
         Err(error) => tool_error(error),
+    }
+}
+
+async fn wallet_balance_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let address = string_arg(arguments, "address")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid wallet address"))?;
+    let tokens = token_list_arg(arguments)?;
+    let config = wallet_config(arguments);
+    let response = wallet::balance(
+        &config,
+        BalanceRequest {
+            address,
+            tokens,
+            include_native: bool_arg(arguments, "include_native").unwrap_or(true),
+            block: optional_u64(arguments, "block")?,
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
+async fn wallet_assets_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let address = string_arg(arguments, "address")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid wallet address"))?;
+    let config = wallet_config(arguments);
+    let response = wallet::assets(
+        &config,
+        AssetsRequest {
+            address,
+            include_native: bool_arg(arguments, "include_native").unwrap_or(true),
+            include_unknown: bool_arg(arguments, "include_unknown").unwrap_or(false),
+            block: optional_u64(arguments, "block")?,
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
+fn wallet_config(arguments: &Value) -> WalletConfig {
+    let mut config = WalletConfig::from_env();
+    if let Some(rpc_url) = arguments.get("rpc_url").and_then(Value::as_str) {
+        config.rpc_url = rpc_url.to_string();
+    }
+    config
+}
+
+fn token_list_arg(arguments: &Value) -> Result<Vec<String>, CapabilityError> {
+    match arguments.get("tokens") {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::String(value)) => Ok(value
+            .split(',')
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .collect()),
+        Some(Value::Array(values)) => values
+            .iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(str::to_string)
+                    .ok_or_else(|| CapabilityError::invalid_argument("invalid token in tokens"))
+            })
+            .collect(),
+        Some(_) => Err(CapabilityError::invalid_argument(
+            "tokens must be an array or comma-separated string",
+        )),
+    }
+}
+
+fn bool_arg(arguments: &Value, name: &str) -> Option<bool> {
+    arguments.get(name).and_then(Value::as_bool)
+}
+
+fn optional_u64(arguments: &Value, name: &str) -> Result<Option<u64>, CapabilityError> {
+    match arguments.get(name) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_u64()
+            .map(Some)
+            .ok_or_else(|| CapabilityError::invalid_argument(format!("invalid {name}"))),
     }
 }
 
@@ -244,6 +365,13 @@ mod tests {
                 .unwrap()
                 .contains("children")
         );
+        let names = tools["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|tool| tool["name"].as_str().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["swap_quote", "wallet_balance", "wallet_assets"]);
     }
 
     #[test]
@@ -253,6 +381,21 @@ mod tests {
             &Ok(RuntimeClient::new("http://127.0.0.1:1")),
         ));
         assert_eq!(result["isError"], true);
+    }
+
+    #[test]
+    fn wallet_tools_validate_arguments_without_remote_backend() {
+        let result = futures::executor::block_on(call_tool(
+            json!({"name": "wallet_balance", "arguments": {"address": "nope"}}),
+            &Err(CapabilityError::invalid_argument("remote unavailable")),
+        ));
+        assert_eq!(result["isError"], true);
+        assert!(
+            result["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("INVALID_ARGUMENT")
+        );
     }
 
     #[test]

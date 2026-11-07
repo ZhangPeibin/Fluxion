@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/wallet_balances.v1.json",
+  "title": "Fluxion wallet balances v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "address", "block_number", "block_hash", "tokens",
+    "unknown_count", "coverage", "sources", "warnings"
+  ],
+  "properties": {
+    "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "block_number": { "type": "integer", "minimum": 0 },
+    "block_hash": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+    "native": { "$ref": "#/$defs/balance" },
+    "tokens": { "type": "array", "items": { "$ref": "#/$defs/balance" } },
+    "unknown_count": { "type": "integer", "minimum": 0 },
+    "coverage": { "type": "string" },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "scope"],
+        "properties": {
+          "name": { "type": "string" },
+          "scope": { "type": "string" },
+          "block": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "amount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw", "decimal"],
+      "properties": {
+        "raw": { "type": "string", "pattern": "^[0-9]+$" },
+        "decimal": { "type": "string" }
+      }
+    },
+    "token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "decimals"],
+      "properties": {
+        "symbol": { "type": "string" },
+        "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 38 }
+      }
+    },
+    "balance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token", "amount", "known"],
+      "properties": {
+        "token": { "$ref": "#/$defs/token" },
+        "amount": { "$ref": "#/$defs/amount" },
+        "known": { "type": "boolean" }
+      }
+    }
+  }
+}

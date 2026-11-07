@@ -4,6 +4,7 @@ use crate::capability::{CapabilityError, CapabilityErrorCode};
 use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
+use crate::wallet::{self, AssetsRequest, BalanceRequest, WalletBalancesResponse, WalletConfig};
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
     let Some(first) = args.first().map(String::as_str) else {
@@ -23,6 +24,10 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
         }
         "capability" => {
             let code = run_capability(&args[1..]).await;
+            (args, Some(code))
+        }
+        "wallet" => {
+            let code = run_wallet(&args[1..]).await;
             (args, Some(code))
         }
         "tokens" => {
@@ -66,6 +71,8 @@ fluxion ldo-eth 100                     Top-level shorthand alias\n  \
 fluxion capability list                  List capabilities\n  \
 fluxion capability describe NAME        Show capability and execution details\n  \
 fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
+fluxion wallet balance ADDRESS [--tokens LIST]\n  \
+fluxion wallet assets ADDRESS [--include-unknown]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
@@ -289,6 +296,235 @@ async fn run_quote(raw: &[String]) -> i32 {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WalletMode {
+    Balance,
+    Assets,
+}
+
+#[derive(Debug)]
+struct WalletArgs {
+    mode: WalletMode,
+    address: String,
+    tokens: Vec<String>,
+    json: bool,
+    rpc_url: Option<String>,
+    block: Option<u64>,
+    include_native: bool,
+    include_unknown: bool,
+}
+
+async fn run_wallet(raw: &[String]) -> i32 {
+    let args = match parse_wallet_args(raw) {
+        Ok(args) => args,
+        Err(error) if error.message == "help requested" => {
+            println!(
+                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
+            );
+            return 0;
+        }
+        Err(error) => {
+            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
+    let address = match args.address.parse::<alloy_primitives::Address>() {
+        Ok(address) => address,
+        Err(_) => {
+            let error = CapabilityError::invalid_argument(format!(
+                "invalid wallet address: {}",
+                args.address
+            ));
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let mut config = WalletConfig::from_env();
+    if let Some(rpc_url) = args.rpc_url {
+        config.rpc_url = rpc_url;
+    }
+    let result = match args.mode {
+        WalletMode::Balance => {
+            wallet::balance(
+                &config,
+                BalanceRequest {
+                    address,
+                    tokens: args.tokens,
+                    include_native: args.include_native,
+                    block: args.block,
+                },
+            )
+            .await
+        }
+        WalletMode::Assets => {
+            if !args.tokens.is_empty() {
+                let error = CapabilityError::invalid_argument(
+                    "wallet assets does not accept --tokens; use wallet balance",
+                );
+                report_error(&error, args.json);
+                return exit_code(error.code);
+            }
+            wallet::assets(
+                &config,
+                AssetsRequest {
+                    address,
+                    include_native: args.include_native,
+                    include_unknown: args.include_unknown,
+                    block: args.block,
+                },
+            )
+            .await
+        }
+    };
+    match result {
+        Ok(response) => {
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_wallet_human(&response);
+            }
+            0
+        }
+        Err(error) => {
+            report_error(&error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
+    let mode = match raw.first().map(String::as_str) {
+        Some("balance") => WalletMode::Balance,
+        Some("assets") => WalletMode::Assets,
+        Some("--help" | "-h") => return Err(CapabilityError::invalid_argument("help requested")),
+        Some(other) => {
+            return Err(CapabilityError::invalid_argument(format!(
+                "unknown wallet command: {other}"
+            )));
+        }
+        None => return Err(CapabilityError::invalid_argument("missing wallet command")),
+    };
+    let mut address = None;
+    let mut tokens = Vec::new();
+    let mut json = false;
+    let mut rpc_url = None;
+    let mut block = None;
+    let mut include_native = true;
+    let mut include_unknown = false;
+    let mut index = 1;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--address" => {
+                index += 1;
+                address = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--address needs a value")
+                        })?
+                        .clone(),
+                );
+            }
+            "--tokens" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--tokens needs a value"))?;
+                tokens.extend(
+                    value
+                        .split(',')
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_string),
+                );
+            }
+            "--token" => {
+                index += 1;
+                tokens.push(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--token needs a value"))?
+                        .clone(),
+                );
+            }
+            "--rpc-url" => {
+                index += 1;
+                rpc_url = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--rpc-url needs a value")
+                        })?
+                        .clone(),
+                );
+            }
+            "--block" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--block needs a value"))?;
+                block = Some(value.parse().map_err(|_| {
+                    CapabilityError::invalid_argument(format!("invalid --block: {value}"))
+                })?);
+            }
+            "--json" => json = true,
+            "--no-native" => include_native = false,
+            "--include-unknown" => include_unknown = true,
+            value if value.starts_with('-') => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown wallet option: {value}"
+                )));
+            }
+            value => {
+                if address.is_some() {
+                    return Err(CapabilityError::invalid_argument(
+                        "wallet accepts one address",
+                    ));
+                }
+                address = Some(value.to_string());
+            }
+        }
+        index += 1;
+    }
+    let address =
+        address.ok_or_else(|| CapabilityError::invalid_argument("missing wallet address"))?;
+    Ok(WalletArgs {
+        mode,
+        address,
+        tokens,
+        json,
+        rpc_url,
+        block,
+        include_native,
+        include_unknown,
+    })
+}
+
+fn print_wallet_human(response: &WalletBalancesResponse) {
+    println!(
+        "{} · block {} · coverage {}",
+        response.address, response.block_number, response.coverage
+    );
+    if let Some(native) = &response.native {
+        println!(
+            "{:<10} {:>24}  {}",
+            token_label(&native.token),
+            native.amount.decimal,
+            native.token.address
+        );
+    }
+    for token in &response.tokens {
+        println!(
+            "{:<10} {:>24}  {}",
+            token_label(&token.token),
+            token.amount.decimal,
+            token.token.address
+        );
+    }
+    if response.unknown_count > 0 {
+        println!("unknown tokens hidden: {}", response.unknown_count);
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
+    }
+}
+
 fn token_label(token: &crate::capability::TokenRef) -> String {
     token
         .symbol
@@ -371,6 +607,8 @@ async fn run_capability(raw: &[String]) -> i32 {
             let json = raw.iter().any(|arg| arg == "--json");
             let descriptor = match name.as_str() {
                 "swap.quote" => crate::swap::describe(),
+                "wallet.balance" => fluxion_protocol::wallet::describe_balance(),
+                "wallet.assets" => fluxion_protocol::wallet::describe_assets(),
                 other => {
                     let error = CapabilityError::new(
                         CapabilityErrorCode::Unsupported,
@@ -448,6 +686,35 @@ mod tests {
         assert_eq!(args[0], "ldo-eth");
         let (token_in, token_out) = args[0].split_once('-').unwrap();
         assert_eq!((token_in, token_out), ("ldo", "eth"));
+    }
+
+    #[test]
+    fn parses_wallet_arguments() {
+        let assets = parse_wallet_args(&[
+            "assets".to_string(),
+            "0x0000000000000000000000000000000000000001".to_string(),
+            "--include-unknown".to_string(),
+            "--no-native".to_string(),
+            "--block".to_string(),
+            "123".to_string(),
+            "--json".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(assets.mode, WalletMode::Assets);
+        assert_eq!(assets.block, Some(123));
+        assert!(assets.include_unknown);
+        assert!(!assets.include_native);
+        assert!(assets.json);
+
+        let balance = parse_wallet_args(&[
+            "balance".to_string(),
+            "0x0000000000000000000000000000000000000001".to_string(),
+            "--tokens".to_string(),
+            "USDC,LDO".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(balance.mode, WalletMode::Balance);
+        assert_eq!(balance.tokens, vec!["USDC", "LDO"]);
     }
 
     #[test]

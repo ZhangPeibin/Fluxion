@@ -18,17 +18,23 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub enum CapabilityId {
     #[serde(rename = "swap.quote")]
     SwapQuote,
+    #[serde(rename = "wallet.balance")]
+    WalletBalance,
+    #[serde(rename = "wallet.assets")]
+    WalletAssets,
 }
 
 impl CapabilityId {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::SwapQuote => "swap.quote",
+            Self::WalletBalance => "wallet.balance",
+            Self::WalletAssets => "wallet.assets",
         }
     }
 
     pub const fn all() -> &'static [Self] {
-        &[Self::SwapQuote]
+        &[Self::SwapQuote, Self::WalletBalance, Self::WalletAssets]
     }
 }
 
@@ -53,7 +59,12 @@ mod tests {
 
     #[test]
     fn exposes_stable_capability_names() {
-        assert_eq!(names().collect::<Vec<_>>(), vec!["swap.quote"]);
+        assert_eq!(
+            names().collect::<Vec<_>>(),
+            vec!["swap.quote", "wallet.balance", "wallet.assets"]
+        );
         assert_eq!(CapabilityId::SwapQuote.as_str(), "swap.quote");
+        assert_eq!(CapabilityId::WalletBalance.as_str(), "wallet.balance");
+        assert_eq!(CapabilityId::WalletAssets.as_str(), "wallet.assets");
     }
 }
