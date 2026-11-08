@@ -33,9 +33,9 @@ Inputs:
 
 ## Execution model
 
-Do not choose local/remote. `swap.quote` always uses the remote Fluxion service; future
-`wallet` / `execute` capabilities use the local runtime. The agent does not start or manage any
-server process.
+Do not choose local/remote. `swap.quote` always uses the remote Fluxion service. `wallet.*` and
+`transaction.simulate` use the local runtime. The agent does not start or manage any server
+process.
 
 ## CLI
 
@@ -112,5 +112,7 @@ gas and user authorization before building or executing a transaction.
 
 - This skill is documentation, not a security boundary.
 - Signing and authorization belong to the Local Runtime; never let the remote service sign.
-- `swap.build`, `swap.simulate` and `swap.execute` are separate local-only capabilities and are
-  not part of this skill.
+- `transaction.simulate` is available for read-only calldata simulation before signing.
+- `swap.build` / `swap.execute` are separate future local-only capabilities and are not part of
+  this skill.
+- Related skills: [wallet](../wallet/SKILL.md) · [transaction](../transaction/SKILL.md).
