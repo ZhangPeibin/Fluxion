@@ -138,6 +138,7 @@ Available tools depend on the installed capabilities:
 | `wallet.balance` | `wallet_balance` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.assets` | `wallet_assets` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.allowance` | `wallet_allowance` | [capabilities/wallet](capabilities/wallet/README.md) |
+| `wallet.collectibles` | `wallet_collectibles` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `transaction.simulate` | `transaction_simulate` | [capabilities/transaction](capabilities/transaction/README.md) |
 
 ## Troubleshooting

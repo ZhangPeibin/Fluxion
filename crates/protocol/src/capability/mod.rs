@@ -24,6 +24,8 @@ pub enum CapabilityId {
     WalletAssets,
     #[serde(rename = "wallet.allowance")]
     WalletAllowance,
+    #[serde(rename = "wallet.collectibles")]
+    WalletCollectibles,
     #[serde(rename = "transaction.simulate")]
     TransactionSimulate,
 }
@@ -35,6 +37,7 @@ impl CapabilityId {
             Self::WalletBalance => "wallet.balance",
             Self::WalletAssets => "wallet.assets",
             Self::WalletAllowance => "wallet.allowance",
+            Self::WalletCollectibles => "wallet.collectibles",
             Self::TransactionSimulate => "transaction.simulate",
         }
     }
@@ -45,6 +48,7 @@ impl CapabilityId {
             Self::WalletBalance,
             Self::WalletAssets,
             Self::WalletAllowance,
+            Self::WalletCollectibles,
             Self::TransactionSimulate,
         ]
     }
@@ -78,6 +82,7 @@ mod tests {
                 "wallet.balance",
                 "wallet.assets",
                 "wallet.allowance",
+                "wallet.collectibles",
                 "transaction.simulate"
             ]
         );
@@ -85,6 +90,10 @@ mod tests {
         assert_eq!(CapabilityId::WalletBalance.as_str(), "wallet.balance");
         assert_eq!(CapabilityId::WalletAssets.as_str(), "wallet.assets");
         assert_eq!(CapabilityId::WalletAllowance.as_str(), "wallet.allowance");
+        assert_eq!(
+            CapabilityId::WalletCollectibles.as_str(),
+            "wallet.collectibles"
+        );
         assert_eq!(
             CapabilityId::TransactionSimulate.as_str(),
             "transaction.simulate"

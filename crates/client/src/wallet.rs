@@ -13,8 +13,8 @@ use crate::capability::{Amount, CapabilityError, TokenRef};
 use crate::token;
 
 pub use fluxion_protocol::wallet::{
-    AssetSource, WalletAllowance, WalletAllowancesResponse, WalletBalancesResponse,
-    WalletTokenBalance,
+    AssetSource, CollectibleItem, WalletAllowance, WalletAllowancesResponse,
+    WalletBalancesResponse, WalletCollectible, WalletCollectiblesResponse, WalletTokenBalance,
 };
 
 const DEFAULT_RPC: &str = "https://eth.drpc.org";
@@ -24,12 +24,22 @@ const BALANCE_OF: &str = "70a08231";
 const DECIMALS: &str = "313ce567";
 const SYMBOL: &str = "95d89b41";
 const ALLOWANCE: &str = "dd62ed3e";
+const SUPPORTS_INTERFACE: &str = "01ffc9a7";
+const ERC721_INTERFACE: &str = "80ac58cd";
+const ERC1155_INTERFACE: &str = "d9b67a26";
+const ERC721_ENUMERABLE: &str = "780e9d63";
+const TOKEN_OF_OWNER_BY_INDEX: &str = "2f745c59";
+const OWNER_OF: &str = "6352211e";
+const ERC1155_BALANCE_OF: &str = "00fdd58e";
+const NAME: &str = "06fdde03";
 
 #[derive(Debug, Clone)]
 pub struct WalletConfig {
     pub rpc_url: String,
     pub oneinch_api_key: Option<String>,
     pub oneinch_balance_url: String,
+    pub alchemy_api_key: Option<String>,
+    pub alchemy_nft_url: String,
 }
 
 impl WalletConfig {
@@ -41,6 +51,11 @@ impl WalletConfig {
                 .filter(|key| !key.trim().is_empty()),
             oneinch_balance_url: std::env::var("FLUXION_ONEINCH_BALANCE_URL")
                 .unwrap_or_else(|_| DEFAULT_ONEINCH_BALANCE.to_string()),
+            alchemy_api_key: std::env::var("ALCHEMY_API_KEY")
+                .ok()
+                .filter(|key| !key.trim().is_empty()),
+            alchemy_nft_url: std::env::var("FLUXION_ALCHEMY_NFT_URL")
+                .unwrap_or_else(|_| "https://eth-mainnet.g.alchemy.com/nft/v3".to_string()),
         }
     }
 
@@ -244,6 +259,439 @@ pub async fn allowance(
         }],
         warnings,
     })
+}
+
+#[derive(Debug, Clone)]
+pub struct CollectiblesRequest {
+    pub owner: Address,
+    /// Explicit ERC721 collection addresses. Empty means the curated registry
+    /// (or Alchemy discovery when configured).
+    pub collections: Vec<Address>,
+    pub include_empty: bool,
+    pub block: Option<u64>,
+}
+
+const CURATED_COLLECTIONS: &[&str] = &[
+    "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D", // BAYC
+    "0x60E4d786628Fea6478F785A6d7e704777c86a7c6", // MAYC
+    "0xED5AF388653567Af2F388E6224dC7C4b3241C544", // Azuki
+    "0xBd3531dA5CF5857e7CfAA92426877b022e612cf8", // Pudgy Penguins
+    "0x8a90CAb2b38dba80c64b7734e58Ee1dB38B8992e", // Doodles
+    "0x5Af0D9827E0c53E4799BB226655A1de152A425a5", // Milady
+    "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85", // ENS
+    "0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB", // Wrapped CryptoPunks
+    "0x23581767a106ae21c074b2276D25e5C3e136a68b", // Moonbirds
+    "0x34d85c9CDeB23FA97cb08333b511ac86E1C4E258", // Otherdeed
+];
+
+pub async fn collectibles(
+    config: &WalletConfig,
+    request: CollectiblesRequest,
+) -> Result<WalletCollectiblesResponse, CapabilityError> {
+    let rpc = Rpc::new(&config.rpc_url);
+    let (block_number, block_hash, tag) = rpc.block(request.block).await?;
+    let mut sources = vec![rpc_source(block_number)];
+    let mut warnings = Vec::new();
+    let (collections, coverage) = if request.collections.is_empty() {
+        if let Some(key) = config.alchemy_api_key.as_deref() {
+            match discover_alchemy(config, key, request.owner).await {
+                Ok(mut collections) => {
+                    sources.push(AssetSource {
+                        name: "alchemy-nft".to_string(),
+                        scope: "candidate-discovery".to_string(),
+                        block: None,
+                    });
+                    verify_alchemy_collectibles(
+                        &rpc,
+                        request.owner,
+                        &mut collections,
+                        &tag,
+                        &mut warnings,
+                    )
+                    .await?;
+                    (collections, "provider+local")
+                }
+                Err(error) => {
+                    warnings.push(format!(
+                        "NFT discovery unavailable; falling back to curated registry: {}",
+                        error.message
+                    ));
+                    let collections = curated_collectibles();
+                    let collections = load_many_collections(
+                        &rpc,
+                        request.owner,
+                        &collections,
+                        request.include_empty,
+                        &tag,
+                        &mut warnings,
+                    )
+                    .await?;
+                    (collections, "registry+local")
+                }
+            }
+        } else {
+            let collections = curated_collectibles();
+            let collections = load_many_collections(
+                &rpc,
+                request.owner,
+                &collections,
+                request.include_empty,
+                &tag,
+                &mut warnings,
+            )
+            .await?;
+            warnings.push(
+                "no NFT indexer configured; searched the curated collection registry only"
+                    .to_string(),
+            );
+            (collections, "registry+local")
+        }
+    } else {
+        let collections = load_many_collections(
+            &rpc,
+            request.owner,
+            &request.collections,
+            request.include_empty,
+            &tag,
+            &mut warnings,
+        )
+        .await?;
+        (collections, "local")
+    };
+    Ok(WalletCollectiblesResponse {
+        owner: request.owner,
+        block_number,
+        block_hash,
+        collections,
+        coverage: coverage.to_string(),
+        sources,
+        warnings,
+    })
+}
+
+fn curated_collectibles() -> Vec<Address> {
+    CURATED_COLLECTIONS
+        .iter()
+        .filter_map(|value| value.parse().ok())
+        .collect()
+}
+
+async fn load_many_collections(
+    rpc: &Rpc,
+    owner: Address,
+    collections: &[Address],
+    include_empty: bool,
+    tag: &str,
+    warnings: &mut Vec<String>,
+) -> Result<Vec<WalletCollectible>, CapabilityError> {
+    let mut out = Vec::new();
+    for &collection in collections {
+        match load_collection(rpc, owner, collection, include_empty, tag, warnings).await {
+            Ok(Some(value)) => out.push(value),
+            Ok(None) => {}
+            Err(error) => warnings.push(format!(
+                "skipped collection {collection}: {}",
+                error.message
+            )),
+        }
+    }
+    Ok(out)
+}
+
+async fn load_collection(
+    rpc: &Rpc,
+    owner: Address,
+    collection: Address,
+    include_empty: bool,
+    tag: &str,
+    warnings: &mut Vec<String>,
+) -> Result<Option<WalletCollectible>, CapabilityError> {
+    let erc721 = supports_interface(rpc, collection, ERC721_INTERFACE, tag)
+        .await
+        .unwrap_or(false);
+    if !erc721 {
+        let erc1155 = supports_interface(rpc, collection, ERC1155_INTERFACE, tag)
+            .await
+            .unwrap_or(false);
+        if erc1155 {
+            warnings.push(format!(
+                "{collection} is ERC1155; on-chain fallback cannot enumerate token ids without an indexer"
+            ));
+        } else {
+            warnings.push(format!("{collection} is not an ERC721/ERC1155 contract"));
+        }
+        return Ok(None);
+    }
+    let balance = token_balance(rpc, collection, owner, tag).await?;
+    if balance.is_zero() && !include_empty {
+        return Ok(None);
+    }
+    let enumerable = supports_interface(rpc, collection, ERC721_ENUMERABLE, tag)
+        .await
+        .unwrap_or(false);
+    let name = read_token_string(rpc, collection, NAME, tag).await;
+    let symbol = read_token_string(rpc, collection, SYMBOL, tag).await;
+    let count = usize::try_from(balance).unwrap_or(usize::MAX);
+    let mut items = Vec::new();
+    if enumerable {
+        let limit = count.min(200);
+        let mut calls = Vec::with_capacity(limit);
+        for index in 0..limit {
+            calls.push((
+                "eth_call".to_string(),
+                json!([
+                    {
+                        "to": collection,
+                        "data": format!(
+                            "0x{TOKEN_OF_OWNER_BY_INDEX}{:0>64}{:0>64}",
+                            hex_address(owner),
+                            format!("{index:x}")
+                        )
+                    },
+                    tag
+                ]),
+            ));
+        }
+        let results = rpc.batch_or_individual(calls).await?;
+        for result in results {
+            let token_id = result
+                .ok()
+                .and_then(|value| value.as_str().and_then(decode_hex_u256))
+                .map(|value| value.to_string());
+            if let Some(token_id) = token_id {
+                items.push(CollectibleItem {
+                    token_id,
+                    balance: "1".to_string(),
+                });
+            }
+        }
+    } else if !balance.is_zero() {
+        warnings.push(format!(
+            "{collection} is ERC721 but not Enumerable; only the count is available"
+        ));
+    }
+    Ok(Some(WalletCollectible {
+        collection,
+        name,
+        symbol,
+        standard: "erc721".to_string(),
+        enumerable,
+        item_count: count,
+        items,
+    }))
+}
+
+async fn supports_interface(
+    rpc: &Rpc,
+    collection: Address,
+    interface: &str,
+    tag: &str,
+) -> Result<bool, CapabilityError> {
+    let data = format!("0x{SUPPORTS_INTERFACE}{interface}{}", "0".repeat(56));
+    let value = rpc.eth_call_data(collection, &data, tag).await?;
+    Ok(decode_uint(&value).is_some_and(|value| !value.is_zero()))
+}
+
+async fn token_balance(
+    rpc: &Rpc,
+    collection: Address,
+    owner: Address,
+    tag: &str,
+) -> Result<U256, CapabilityError> {
+    let data = format!("0x{BALANCE_OF}{:0>64}", hex_address(owner));
+    let value = rpc.eth_call_data(collection, &data, tag).await?;
+    decode_uint(&value).ok_or_else(|| {
+        CapabilityError::new(
+            crate::capability::CapabilityErrorCode::RpcError,
+            format!("cannot read ERC721 balance for {collection}"),
+            true,
+        )
+    })
+}
+
+async fn read_token_string(rpc: &Rpc, token: Address, selector: &str, tag: &str) -> Option<String> {
+    rpc.eth_call_data(token, &format!("0x{selector}"), tag)
+        .await
+        .ok()
+        .and_then(|value| decode_string(&value))
+}
+
+async fn discover_alchemy(
+    config: &WalletConfig,
+    key: &str,
+    owner: Address,
+) -> Result<Vec<WalletCollectible>, CapabilityError> {
+    let base = config.alchemy_nft_url.trim_end_matches('/');
+    let mut page_key: Option<String> = None;
+    let mut collections: Vec<WalletCollectible> = Vec::new();
+    for _ in 0..5 {
+        let mut url =
+            format!("{base}/{key}/getNFTsForOwner?owner={owner}&withMetadata=false&pageSize=100");
+        if let Some(page_key) = &page_key {
+            url.push_str("&pageKey=");
+            url.push_str(page_key);
+        }
+        let response = reqwest::Client::new()
+            .get(url)
+            .timeout(std::time::Duration::from_secs(15))
+            .send()
+            .await
+            .map_err(|error| {
+                CapabilityError::new(
+                    crate::capability::CapabilityErrorCode::RpcError,
+                    format!("Alchemy NFT request failed: {error}"),
+                    true,
+                )
+            })?;
+        if !response.status().is_success() {
+            return Err(CapabilityError::new(
+                crate::capability::CapabilityErrorCode::RpcError,
+                format!("Alchemy NFT returned HTTP {}", response.status()),
+                true,
+            ));
+        }
+        let value: Value = response.json().await.map_err(|error| {
+            CapabilityError::new(
+                crate::capability::CapabilityErrorCode::RpcError,
+                format!("Alchemy NFT response was invalid: {error}"),
+                true,
+            )
+        })?;
+        let Some(nfts) = value.get("ownedNfts").and_then(Value::as_array) else {
+            return Err(CapabilityError::new(
+                crate::capability::CapabilityErrorCode::RpcError,
+                "Alchemy NFT response has no ownedNfts",
+                true,
+            ));
+        };
+        for nft in nfts {
+            let Some(address) = nft
+                .get("contract")
+                .and_then(|contract| contract.get("address"))
+                .and_then(Value::as_str)
+                .and_then(|value| value.parse::<Address>().ok())
+            else {
+                continue;
+            };
+            let token_id = nft
+                .get("tokenId")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            if token_id.is_empty() {
+                continue;
+            }
+            let standard = match nft.get("tokenType").and_then(Value::as_str) {
+                Some("ERC1155") => "erc1155",
+                _ => "erc721",
+            };
+            let balance = nft
+                .get("balance")
+                .and_then(Value::as_str)
+                .unwrap_or("1")
+                .to_string();
+            let index = collections
+                .iter()
+                .position(|item| item.collection == address);
+            let item = CollectibleItem { token_id, balance };
+            if let Some(index) = index {
+                collections[index].items.push(item);
+                collections[index].item_count = collections[index].items.len();
+                if collections[index].standard != standard {
+                    collections[index].standard = standard.to_string();
+                }
+            } else {
+                collections.push(WalletCollectible {
+                    collection: address,
+                    name: nft
+                        .get("contract")
+                        .and_then(|contract| contract.get("name"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    symbol: nft
+                        .get("contract")
+                        .and_then(|contract| contract.get("symbol"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
+                    standard: standard.to_string(),
+                    enumerable: false,
+                    item_count: 1,
+                    items: vec![item],
+                });
+            }
+        }
+        page_key = value
+            .get("pageKey")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        if page_key.is_none() {
+            break;
+        }
+    }
+    Ok(collections)
+}
+
+async fn verify_alchemy_collectibles(
+    rpc: &Rpc,
+    owner: Address,
+    collections: &mut Vec<WalletCollectible>,
+    tag: &str,
+    warnings: &mut Vec<String>,
+) -> Result<(), CapabilityError> {
+    let mut total = 0usize;
+    for collection in collections.iter_mut() {
+        total += collection.items.len();
+        if total > 500 {
+            collection
+                .items
+                .truncate(collection.items.len().saturating_sub(total - 500));
+            warnings.push("collectible verification capped at 500 items".to_string());
+        }
+        for item in collection.items.iter_mut() {
+            let token_id = U256::from_str_radix(&item.token_id, 10).ok();
+            let Some(token_id) = token_id else {
+                item.balance = "0".to_string();
+                continue;
+            };
+            let data = if collection.standard == "erc1155" {
+                format!(
+                    "0x{ERC1155_BALANCE_OF}{:0>64}{:0>64}",
+                    hex_address(owner),
+                    format!("{token_id:x}")
+                )
+            } else {
+                format!("0x{OWNER_OF}{:0>64}", format!("{token_id:x}"))
+            };
+            let value = rpc.eth_call_data(collection.collection, &data, tag).await;
+            match value {
+                Ok(value) if collection.standard == "erc1155" => {
+                    let balance = decode_uint(&value).unwrap_or(U256::ZERO);
+                    item.balance = balance.to_string();
+                }
+                Ok(value) => {
+                    let matches = value.len() >= 32
+                        && Address::from_slice(&value[value.len() - 20..]) == owner;
+                    if !matches {
+                        item.balance = "0".to_string();
+                    }
+                }
+                Err(error) => {
+                    warnings.push(format!(
+                        "verification failed for {} #{}: {}",
+                        collection.collection, item.token_id, error.message
+                    ));
+                    item.balance = "0".to_string();
+                }
+            }
+        }
+        collection.items.retain(|item| item.balance != "0");
+        collection.item_count = collection.items.len();
+        // Provider-discovered token IDs are explicit, even for contracts that
+        // do not implement ERC721Enumerable.
+        collection.enumerable = true;
+    }
+    collections.retain(|collection| !collection.items.is_empty());
+    Ok(())
 }
 
 fn rpc_source(block: u64) -> AssetSource {
@@ -774,6 +1222,8 @@ mod integration_tests {
     const LDO: &str = "0x5a98fcbea516cf06857215779fd812ca3bef1b32";
     const UNKNOWN: &str = "0x0000000000000000000000000000000000000003";
     const NATIVE: &str = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    const COLLECTION: &str = "0x0000000000000000000000000000000000000010";
+    const PROVIDER_COLLECTION: &str = "0x0000000000000000000000000000000000000020";
 
     fn word(value: U256) -> String {
         format!("0x{value:064x}")
@@ -832,9 +1282,35 @@ mod integration_tests {
                                 json!(abi_string("TEST"))
                             } else if to == USDC.to_ascii_lowercase() {
                                 json!(abi_string("USDC"))
+                            } else if to == COLLECTION.to_ascii_lowercase()
+                                || to == PROVIDER_COLLECTION.to_ascii_lowercase()
+                            {
+                                json!(abi_string("NFT"))
                             } else {
                                 json!(abi_string("TOKEN"))
                             }
+                        } else if data.starts_with("0x01ffc9a7") {
+                            json!(word(U256::from(1u64)))
+                        } else if data.starts_with("0x2f745c59") {
+                            let index = U256::from_str_radix(
+                                data.rsplit_once(
+                                    "000000000000000000000000000000000000000000000000000000000000",
+                                )
+                                .map(|(_, tail)| tail)
+                                .unwrap_or("0"),
+                                16,
+                            )
+                            .unwrap_or(U256::ZERO);
+                            json!(word(index + U256::from(1u64)))
+                        } else if data.starts_with("0x6352211e") {
+                            json!(format!(
+                                "0x{:0>64}",
+                                "0000000000000000000000000000000000000001"
+                            ))
+                        } else if data.starts_with("0x00fdd58e") {
+                            json!(word(U256::from(1u64)))
+                        } else if data.starts_with("0x06fdde03") {
+                            json!(abi_string("Collection"))
                         } else if data.starts_with("0xdd62ed3e") {
                             let amount = if to == USDC.to_ascii_lowercase() {
                                 U256::from(1_000_000_000u64)
@@ -843,7 +1319,11 @@ mod integration_tests {
                             };
                             json!(word(amount))
                         } else if data.starts_with("0x70a08231") {
-                            let amount = if to == USDC.to_ascii_lowercase() {
+                            let amount = if to == COLLECTION.to_ascii_lowercase()
+                                || to == PROVIDER_COLLECTION.to_ascii_lowercase()
+                            {
+                                U256::from(2u64)
+                            } else if to == USDC.to_ascii_lowercase() {
                                 U256::from(123_456_789u64)
                             } else if to == LDO.to_ascii_lowercase() {
                                 U256::from(5_000_000_000_000_000_000u128)
@@ -882,6 +1362,25 @@ mod integration_tests {
         Json(Value::Object(map))
     }
 
+    async fn alchemy() -> Json<Value> {
+        Json(json!({
+            "ownedNfts": [
+                {
+                    "contract": {"address": PROVIDER_COLLECTION, "name": "Provider Collection", "symbol": "PC"},
+                    "tokenType": "ERC721",
+                    "tokenId": "1",
+                    "balance": "1"
+                },
+                {
+                    "contract": {"address": PROVIDER_COLLECTION, "name": "Provider Collection", "symbol": "PC"},
+                    "tokenType": "ERC721",
+                    "tokenId": "2",
+                    "balance": "1"
+                }
+            ]
+        }))
+    }
+
     async fn unavailable() -> (StatusCode, Json<Value>) {
         (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -890,14 +1389,17 @@ mod integration_tests {
     }
 
     async fn test_server(provider_ok: bool) -> String {
-        let app = Router::new().route("/rpc", post(rpc)).route(
-            "/balance/v1.2/1/balances/{address}",
-            if provider_ok {
-                get(oneinch)
-            } else {
-                get(|| async { unavailable().await })
-            },
-        );
+        let app = Router::new()
+            .route("/rpc", post(rpc))
+            .route(
+                "/balance/v1.2/1/balances/{address}",
+                if provider_ok {
+                    get(oneinch)
+                } else {
+                    get(|| async { unavailable().await })
+                },
+            )
+            .route("/nft/v3/test/getNFTsForOwner", get(alchemy));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -909,6 +1411,8 @@ mod integration_tests {
             rpc_url: format!("{base}/rpc"),
             oneinch_api_key: Some("test".to_string()),
             oneinch_balance_url: format!("{base}/balance/v1.2"),
+            alchemy_api_key: None,
+            alchemy_nft_url: "http://unused".to_string(),
         }
     }
 
@@ -986,6 +1490,67 @@ mod integration_tests {
             .find(|entry| entry.token.address.to_string().eq_ignore_ascii_case(LDO))
             .unwrap();
         assert_eq!(ldo.amount.decimal, "0");
+    }
+
+    #[tokio::test]
+    async fn collectibles_falls_back_to_onchain_enumerable_collection() {
+        let base = test_server(true).await;
+        let owner: Address = "0x0000000000000000000000000000000000000001"
+            .parse()
+            .unwrap();
+        let collection: Address = COLLECTION.parse().unwrap();
+        let response = collectibles(
+            &WalletConfig {
+                rpc_url: format!("{base}/rpc"),
+                oneinch_api_key: None,
+                oneinch_balance_url: "http://unused".to_string(),
+                alchemy_api_key: None,
+                alchemy_nft_url: "http://unused".to_string(),
+            },
+            CollectiblesRequest {
+                owner,
+                collections: vec![collection],
+                include_empty: false,
+                block: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(response.coverage, "local");
+        assert_eq!(response.collections.len(), 1);
+        let entry = &response.collections[0];
+        assert_eq!(entry.standard, "erc721");
+        assert!(entry.enumerable);
+        assert_eq!(entry.item_count, 2);
+        assert_eq!(entry.items.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn collectibles_uses_alchemy_then_verifies_locally() {
+        let base = test_server(true).await;
+        let owner: Address = "0x0000000000000000000000000000000000000001"
+            .parse()
+            .unwrap();
+        let response = collectibles(
+            &WalletConfig {
+                rpc_url: format!("{base}/rpc"),
+                oneinch_api_key: None,
+                oneinch_balance_url: "http://unused".to_string(),
+                alchemy_api_key: Some("test".to_string()),
+                alchemy_nft_url: format!("{base}/nft/v3"),
+            },
+            CollectiblesRequest {
+                owner,
+                collections: Vec::new(),
+                include_empty: false,
+                block: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(response.coverage, "provider+local");
+        assert_eq!(response.collections.len(), 1);
+        assert_eq!(response.collections[0].items.len(), 2);
     }
 
     #[tokio::test]

@@ -56,6 +56,23 @@ fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC,LDO --json
 - Zero allowances are returned so approval checks are unambiguous.
 - Coverage is `local`.
 
+## `wallet.collectibles`
+
+Read ERC721/ERC1155 holdings.
+
+```bash
+fluxion wallet collectibles 0xowner --json
+fluxion wallet collectibles 0xowner --collections 0xcollection1,0xcollection2 --json
+```
+
+- If `ALCHEMY_API_KEY` is configured, Alchemy NFT discovery supplies candidate token IDs and
+  local RPC verifies ownership.
+- Without an indexer, `--collections` or the curated collection registry is searched on-chain.
+- ERC721 collections that implement `ERC721Enumerable` return token IDs.
+- Non-enumerable ERC721 collections return the count only; ERC1155 enumeration requires the
+  indexer.
+- `coverage` is `provider+local`, `registry+local`, or `local`.
+
 ## MCP tools
 
 | Tool | Execution |
@@ -63,17 +80,21 @@ fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC,LDO --json
 | `wallet_balance` | local |
 | `wallet_assets` | hybrid |
 | `wallet_allowance` | local |
+| `wallet_collectibles` | hybrid |
 
 ## Configuration
 
 - `FLUXION_RPC_URL` (or `RPC_URL`): local Ethereum RPC; defaults to `https://eth.drpc.org`
 - `ONEINCH_API_KEY`: optional; enables full `wallet.assets` discovery
 - `FLUXION_ONEINCH_BALANCE_URL`: optional provider override
+- `ALCHEMY_API_KEY`: optional; enables full `wallet.collectibles` discovery
+- `FLUXION_ALCHEMY_NFT_URL`: optional Alchemy NFT endpoint override
 
 ## Output
 
 Balances: [`schemas/wallet_balances.v1.json`](../../../schemas/wallet_balances.v1.json).  
-Allowances: [`schemas/wallet_allowances.v1.json`](../../../schemas/wallet_allowances.v1.json).
+Allowances: [`schemas/wallet_allowances.v1.json`](../../../schemas/wallet_allowances.v1.json).  
+Collectibles: [`schemas/wallet_collectibles.v1.json`](../../../schemas/wallet_collectibles.v1.json).
 
 ```json
 {
@@ -99,7 +120,7 @@ Allowances: [`schemas/wallet_allowances.v1.json`](../../../schemas/wallet_allowa
 ## Boundaries
 
 - Ethereum only.
-- Native ETH and ERC20 only; ERC721/ERC1155 belong to a future `wallet.collectibles`.
+- Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
 - No signing, approvals, private keys, or transaction execution.
 - No USD valuation.
 - `wallet.assets` discovery is best-effort; `coverage` and `warnings` make completeness explicit.

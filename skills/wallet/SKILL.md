@@ -1,6 +1,6 @@
 ---
 name: wallet
-description: Use when the user asks for an Ethereum account's native ETH or ERC20 balances, wants to know which tokens an address holds, or needs ERC20 allowances for an owner/spender pair. Covers the Fluxion wallet_balance, wallet_assets and wallet_allowance MCP tools. Read-only; never signs, approves, or executes transactions.
+description: Use when the user asks for an Ethereum account's native ETH or ERC20 balances, wants to know which tokens or NFTs an address holds, or needs ERC20 allowances for an owner/spender pair. Covers the Fluxion wallet_balance, wallet_assets, wallet_allowance and wallet_collectibles MCP tools. Read-only; never signs, approves, or executes transactions.
 ---
 
 # wallet capabilities
@@ -22,6 +22,7 @@ Do not choose local/remote. Execution is fixed per capability:
 | `wallet.balance` | local |
 | `wallet.assets` | hybrid (1inch candidate discovery + local verification) |
 | `wallet.allowance` | local |
+| `wallet.collectibles` | hybrid |
 
 The agent does not start or manage a server. `FLUXION_RPC_URL` selects the local Ethereum RPC;
 `ONEINCH_API_KEY` enables full `wallet.assets` discovery.
@@ -86,6 +87,26 @@ ERC20 allowances for one owner/spender pair at one pinned block.
 - Zero allowances are included; use `amount.raw` for approval checks.
 - Coverage is `local`.
 
+## `wallet_collectibles`
+
+Read ERC721/ERC1155 holdings.
+
+```json
+{
+  "name": "wallet_collectibles",
+  "arguments": {
+    "address": "0xowner",
+    "collections": ["0xcollection"]
+  }
+}
+```
+
+- With `ALCHEMY_API_KEY`, Alchemy discovers candidate NFTs and local RPC verifies ownership.
+- Without an indexer, pass `collections` or use the curated registry; coverage is
+  `registry+local` / `local`.
+- Non-enumerable ERC721 returns `enumerable: false` and a count only.
+- ERC1155 enumeration requires the indexer.
+
 ## CLI
 
 ```bash
@@ -93,10 +114,13 @@ fluxion wallet balance 0xabc... --tokens ETH,USDC,LDO --json
 fluxion wallet assets 0xabc... --json
 fluxion wallet assets 0xabc... --include-unknown --json
 fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC,LDO --json
+fluxion wallet collectibles 0xowner --json
+fluxion wallet collectibles 0xowner --collections 0xcollection --json
 ```
 
 Common options: `--rpc-url URL`, `--block N`, `--no-native` (balance/assets),
-`--include-unknown` (assets), `--spender ADDRESS` (allowance).
+`--include-unknown` (assets), `--spender ADDRESS` (allowance),
+`--collections LIST` / `--include-empty` (collectibles).
 
 ## Reading the result
 
@@ -107,6 +131,13 @@ Balances and assets:
   `amount.decimal`, `known`.
 - `unknown_count`: unknown nonzero tokens not expanded.
 - `coverage` / `sources` / `warnings`: completeness and provenance.
+
+Collectibles:
+
+- `collections[]`: `collection`, `name`, `symbol`, `standard`, `enumerable`, `item_count`,
+  `items[]` (`token_id`, `balance`).
+- `coverage`: `provider+local`, `registry+local`, or `local`.
+- Non-enumerable collections have no token IDs; do not infer holdings from `item_count` alone.
 
 Allowances:
 
@@ -126,7 +157,7 @@ Allowances:
 ## Boundaries
 
 - Ethereum only.
-- Native ETH and ERC20 only; NFT/collectibles are separate.
+- Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
 - No USD valuation.
 - Read-only: no approval, signing, or transaction execution.
 - Re-check the pinned block, balances and allowances before building a transaction.
