@@ -46,6 +46,26 @@ Discover what tokens an account holds, then verify locally.
 - `coverage` is `provider+local` or `registry+local`; always read `warnings` before claiming the
   result is complete.
 
+## `wallet_allowance`
+
+Read ERC20 allowances for an owner/spender pair.
+
+```json
+{
+  "name": "wallet_allowance",
+  "arguments": {
+    "address": "0xowner",
+    "spender": "0xspender",
+    "tokens": ["USDC", "LDO"]
+  }
+}
+```
+
+- `spender` is required.
+- `tokens` defaults to the built-in registry.
+- Zero allowances are included; use `amount.raw` for approval checks.
+- Coverage is `local`.
+
 ## Reading the result
 
 - `block_number` / `block_hash`: the pinned block for every balance.

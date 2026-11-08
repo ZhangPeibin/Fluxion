@@ -5,7 +5,10 @@ use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
 use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
-use crate::wallet::{self, AssetsRequest, BalanceRequest, WalletBalancesResponse, WalletConfig};
+use crate::wallet::{
+    self, AllowanceRequest, AssetsRequest, BalanceRequest, WalletAllowancesResponse,
+    WalletBalancesResponse, WalletConfig,
+};
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
     let Some(first) = args.first().map(String::as_str) else {
@@ -78,6 +81,7 @@ fluxion capability describe NAME        Show capability and execution details\n 
 fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
 fluxion wallet balance ADDRESS [--tokens LIST]\n  \
 fluxion wallet assets ADDRESS [--include-unknown]\n  \
+fluxion wallet allowance ADDRESS --spender ADDRESS [--tokens LIST]\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--from ADDRESS]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
@@ -306,12 +310,14 @@ async fn run_quote(raw: &[String]) -> i32 {
 enum WalletMode {
     Balance,
     Assets,
+    Allowance,
 }
 
 #[derive(Debug)]
 struct WalletArgs {
     mode: WalletMode,
     address: String,
+    spender: Option<String>,
     tokens: Vec<String>,
     json: bool,
     rpc_url: Option<String>,
@@ -349,19 +355,22 @@ async fn run_wallet(raw: &[String]) -> i32 {
     if let Some(rpc_url) = args.rpc_url {
         config.rpc_url = rpc_url;
     }
+    enum WalletOutput {
+        Balances(WalletBalancesResponse),
+        Allowances(WalletAllowancesResponse),
+    }
     let result = match args.mode {
-        WalletMode::Balance => {
-            wallet::balance(
-                &config,
-                BalanceRequest {
-                    address,
-                    tokens: args.tokens,
-                    include_native: args.include_native,
-                    block: args.block,
-                },
-            )
-            .await
-        }
+        WalletMode::Balance => wallet::balance(
+            &config,
+            BalanceRequest {
+                address,
+                tokens: args.tokens,
+                include_native: args.include_native,
+                block: args.block,
+            },
+        )
+        .await
+        .map(WalletOutput::Balances),
         WalletMode::Assets => {
             if !args.tokens.is_empty() {
                 let error = CapabilityError::invalid_argument(
@@ -380,14 +389,50 @@ async fn run_wallet(raw: &[String]) -> i32 {
                 },
             )
             .await
+            .map(WalletOutput::Balances)
+        }
+        WalletMode::Allowance => {
+            let Some(spender) = args.spender.as_deref() else {
+                let error =
+                    CapabilityError::invalid_argument("wallet allowance requires --spender");
+                report_error(&error, args.json);
+                return exit_code(error.code);
+            };
+            let spender = match spender.parse::<alloy_primitives::Address>() {
+                Ok(spender) => spender,
+                Err(_) => {
+                    let error = CapabilityError::invalid_argument("invalid --spender address");
+                    report_error(&error, args.json);
+                    return exit_code(error.code);
+                }
+            };
+            wallet::allowance(
+                &config,
+                AllowanceRequest {
+                    owner: address,
+                    spender,
+                    tokens: args.tokens,
+                    block: args.block,
+                },
+            )
+            .await
+            .map(WalletOutput::Allowances)
         }
     };
     match result {
-        Ok(response) => {
+        Ok(WalletOutput::Balances(response)) => {
             if args.json {
                 println!("{}", serde_json::to_string_pretty(&response).unwrap());
             } else {
                 print_wallet_human(&response);
+            }
+            0
+        }
+        Ok(WalletOutput::Allowances(response)) => {
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_allowance_human(&response);
             }
             0
         }
@@ -402,6 +447,7 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
     let mode = match raw.first().map(String::as_str) {
         Some("balance") => WalletMode::Balance,
         Some("assets") => WalletMode::Assets,
+        Some("allowance") => WalletMode::Allowance,
         Some("--help" | "-h") => return Err(CapabilityError::invalid_argument("help requested")),
         Some(other) => {
             return Err(CapabilityError::invalid_argument(format!(
@@ -411,6 +457,7 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
         None => return Err(CapabilityError::invalid_argument("missing wallet command")),
     };
     let mut address = None;
+    let mut spender = None;
     let mut tokens = Vec::new();
     let mut json = false;
     let mut rpc_url = None;
@@ -426,6 +473,16 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
                     raw.get(index)
                         .ok_or_else(|| {
                             CapabilityError::invalid_argument("--address needs a value")
+                        })?
+                        .clone(),
+                );
+            }
+            "--spender" => {
+                index += 1;
+                spender = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--spender needs a value")
                         })?
                         .clone(),
                 );
@@ -490,9 +547,15 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
     }
     let address =
         address.ok_or_else(|| CapabilityError::invalid_argument("missing wallet address"))?;
+    if mode != WalletMode::Allowance && spender.is_some() {
+        return Err(CapabilityError::invalid_argument(
+            "--spender is only valid for wallet allowance",
+        ));
+    }
     Ok(WalletArgs {
         mode,
         address,
+        spender,
         tokens,
         json,
         rpc_url,
@@ -732,6 +795,24 @@ fn print_transaction_human(response: &TransactionSimulateResponse) {
     }
 }
 
+fn print_allowance_human(response: &WalletAllowancesResponse) {
+    println!(
+        "{} -> {} · block {} · coverage {}",
+        response.owner, response.spender, response.block_number, response.coverage
+    );
+    for entry in &response.allowances {
+        println!(
+            "{:<10} {:>24}  {}",
+            token_label(&entry.token),
+            entry.amount.decimal,
+            entry.token.address
+        );
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
+    }
+}
+
 fn token_label(token: &crate::capability::TokenRef) -> String {
     token
         .symbol
@@ -816,6 +897,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "swap.quote" => crate::swap::describe(),
                 "wallet.balance" => fluxion_protocol::wallet::describe_balance(),
                 "wallet.assets" => fluxion_protocol::wallet::describe_assets(),
+                "wallet.allowance" => fluxion_protocol::wallet::describe_allowance(),
                 "transaction.simulate" => fluxion_protocol::transaction::describe(),
                 other => {
                     let error = CapabilityError::new(
@@ -913,6 +995,21 @@ mod tests {
         assert!(assets.include_unknown);
         assert!(!assets.include_native);
         assert!(assets.json);
+
+        let allowance = parse_wallet_args(&[
+            "allowance".to_string(),
+            "0x0000000000000000000000000000000000000001".to_string(),
+            "--spender".to_string(),
+            "0x0000000000000000000000000000000000000002".to_string(),
+            "--tokens".to_string(),
+            "USDC".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(allowance.mode, WalletMode::Allowance);
+        assert_eq!(
+            allowance.spender.as_deref(),
+            Some("0x0000000000000000000000000000000000000002")
+        );
 
         let balance = parse_wallet_args(&[
             "balance".to_string(),

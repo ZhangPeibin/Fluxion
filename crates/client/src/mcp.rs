@@ -12,7 +12,7 @@ use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
 use crate::transaction::{self, SimulateRequest};
-use crate::wallet::{self, AssetsRequest, BalanceRequest, WalletConfig};
+use crate::wallet::{self, AllowanceRequest, AssetsRequest, BalanceRequest, WalletConfig};
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
@@ -156,6 +156,21 @@ fn tools_list() -> Value {
                 }
             },
             {
+                "name": "wallet_allowance",
+                "description": "Read ERC20 allowances for an owner/spender pair at one pinned block. Local read-only RPC; never approves or signs.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "address": {"type": "string", "description": "Owner Ethereum address"},
+                        "spender": {"type": "string", "description": "Spender address"},
+                        "tokens": {"type": "array", "items": {"type": "string"}, "description": "Symbols or addresses; empty = built-in registry"},
+                        "block": {"type": "integer", "minimum": 0},
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"}
+                    },
+                    "required": ["address", "spender"]
+                }
+            },
+            {
                 "name": "transaction_simulate",
                 "description": "Simulate an Ethereum transaction with eth_call at one pinned block. Read-only: returns success/revert, return data and estimated gas; never signs or broadcasts.",
                 "inputSchema": {
@@ -188,6 +203,7 @@ async fn call_tool(params: Value, backend: &Result<RuntimeClient, CapabilityErro
         }),
         "wallet_balance" => wallet_balance_tool(&arguments).await,
         "wallet_assets" => wallet_assets_tool(&arguments).await,
+        "wallet_allowance" => wallet_allowance_tool(&arguments).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
@@ -279,6 +295,27 @@ fn optional_u64(arguments: &Value, name: &str) -> Result<Option<u64>, Capability
             .map(Some)
             .ok_or_else(|| CapabilityError::invalid_argument(format!("invalid {name}"))),
     }
+}
+
+async fn wallet_allowance_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let owner = string_arg(arguments, "address")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid wallet address"))?;
+    let spender = string_arg(arguments, "spender")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid spender address"))?;
+    let config = wallet_config(arguments);
+    let response = wallet::allowance(
+        &config,
+        AllowanceRequest {
+            owner,
+            spender,
+            tokens: token_list_arg(arguments)?,
+            block: optional_u64(arguments, "block")?,
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
 async fn transaction_simulate_tool(arguments: &Value) -> Result<Value, CapabilityError> {
@@ -429,6 +466,7 @@ mod tests {
                 "swap_quote",
                 "wallet_balance",
                 "wallet_assets",
+                "wallet_allowance",
                 "transaction_simulate"
             ]
         );

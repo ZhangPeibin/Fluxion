@@ -12,7 +12,10 @@ use serde_json::{Value, json};
 use crate::capability::{Amount, CapabilityError, TokenRef};
 use crate::token;
 
-pub use fluxion_protocol::wallet::{AssetSource, WalletBalancesResponse, WalletTokenBalance};
+pub use fluxion_protocol::wallet::{
+    AssetSource, WalletAllowance, WalletAllowancesResponse, WalletBalancesResponse,
+    WalletTokenBalance,
+};
 
 const DEFAULT_RPC: &str = "https://eth.drpc.org";
 const DEFAULT_ONEINCH_BALANCE: &str = "https://api.1inch.com/balance/v1.2";
@@ -20,6 +23,7 @@ const NATIVE: &str = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const BALANCE_OF: &str = "70a08231";
 const DECIMALS: &str = "313ce567";
 const SYMBOL: &str = "95d89b41";
+const ALLOWANCE: &str = "dd62ed3e";
 
 #[derive(Debug, Clone)]
 pub struct WalletConfig {
@@ -63,6 +67,15 @@ pub struct AssetsRequest {
     pub address: Address,
     pub include_native: bool,
     pub include_unknown: bool,
+    pub block: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AllowanceRequest {
+    pub owner: Address,
+    pub spender: Address,
+    /// Symbols or addresses. Empty means the built-in registry.
+    pub tokens: Vec<String>,
     pub block: Option<u64>,
 }
 
@@ -154,6 +167,81 @@ pub async fn assets(
         unknown_count,
         coverage: coverage.to_string(),
         sources,
+        warnings,
+    })
+}
+
+pub async fn allowance(
+    config: &WalletConfig,
+    request: AllowanceRequest,
+) -> Result<WalletAllowancesResponse, CapabilityError> {
+    let rpc = Rpc::new(&config.rpc_url);
+    let (block_number, block_hash, tag) = rpc.block(request.block).await?;
+    let mut tokens = if request.tokens.is_empty() {
+        registry_tokens()
+    } else {
+        resolve_tokens(&rpc, &request.tokens, &tag).await?
+    };
+    dedupe_tokens(&mut tokens);
+    let mut calls = Vec::with_capacity(tokens.len());
+    for token in &tokens {
+        calls.push((
+            "eth_call".to_string(),
+            json!([
+                {
+                    "to": token.address,
+                    "data": format!(
+                        "0x{ALLOWANCE}{:0>64}{:0>64}",
+                        hex_address(request.owner),
+                        hex_address(request.spender)
+                    )
+                },
+                tag
+            ]),
+        ));
+    }
+    let results = rpc.batch_or_individual(calls).await?;
+    let mut warnings = Vec::new();
+    let mut allowances = Vec::new();
+    for (token, result) in tokens.into_iter().zip(results) {
+        let raw = match result {
+            Ok(value) => value.as_str().and_then(decode_hex_u256),
+            Err(error) => {
+                warnings.push(format!(
+                    "allowance read failed for {}: {}",
+                    token.address, error.message
+                ));
+                None
+            }
+        };
+        let Some(raw) = raw else {
+            continue;
+        };
+        allowances.push(WalletAllowance {
+            known: known_token(token.address).is_some(),
+            amount: Amount::from_raw(raw, token.decimals),
+            token,
+            spender: request.spender,
+        });
+    }
+    allowances.sort_by(|a, b| {
+        b.known
+            .cmp(&a.known)
+            .then_with(|| a.token.symbol.cmp(&b.token.symbol))
+            .then_with(|| a.token.address.cmp(&b.token.address))
+    });
+    Ok(WalletAllowancesResponse {
+        owner: request.owner,
+        spender: request.spender,
+        block_number,
+        block_hash,
+        allowances,
+        coverage: "local".to_string(),
+        sources: vec![AssetSource {
+            name: "ethereum-rpc".to_string(),
+            scope: "verified-allowances".to_string(),
+            block: Some(block_number),
+        }],
         warnings,
     })
 }
@@ -561,11 +649,17 @@ impl Rpc {
         selector: &str,
         tag: &str,
     ) -> Result<Vec<u8>, CapabilityError> {
+        self.eth_call_data(to, &format!("0x{selector}"), tag).await
+    }
+
+    async fn eth_call_data(
+        &self,
+        to: Address,
+        data: &str,
+        tag: &str,
+    ) -> Result<Vec<u8>, CapabilityError> {
         let value = self
-            .call(
-                "eth_call",
-                json!([{ "to": to, "data": format!("0x{selector}") }, tag]),
-            )
+            .call("eth_call", json!([{ "to": to, "data": data }, tag]))
             .await?;
         let Some(text) = value.as_str() else {
             return Err(CapabilityError::new(
@@ -741,6 +835,13 @@ mod integration_tests {
                             } else {
                                 json!(abi_string("TOKEN"))
                             }
+                        } else if data.starts_with("0xdd62ed3e") {
+                            let amount = if to == USDC.to_ascii_lowercase() {
+                                U256::from(1_000_000_000u64)
+                            } else {
+                                U256::ZERO
+                            };
+                            json!(word(amount))
                         } else if data.starts_with("0x70a08231") {
                             let amount = if to == USDC.to_ascii_lowercase() {
                                 U256::from(123_456_789u64)
@@ -851,6 +952,40 @@ mod integration_tests {
         assert_eq!(unknown.token.symbol.as_deref(), Some("TEST"));
         assert_eq!(unknown.amount.decimal, "7");
         assert!(!unknown.known);
+    }
+
+    #[tokio::test]
+    async fn allowance_reads_known_tokens_and_keeps_zero_values() {
+        let base = test_server(true).await;
+        let response = allowance(
+            &config(&base),
+            AllowanceRequest {
+                owner: "0x0000000000000000000000000000000000000001"
+                    .parse()
+                    .unwrap(),
+                spender: "0x0000000000000000000000000000000000000002"
+                    .parse()
+                    .unwrap(),
+                tokens: vec![USDC.to_string(), LDO.to_string()],
+                block: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(response.coverage, "local");
+        assert_eq!(response.allowances.len(), 2);
+        let usdc = response
+            .allowances
+            .iter()
+            .find(|entry| entry.token.address.to_string().eq_ignore_ascii_case(USDC))
+            .unwrap();
+        assert_eq!(usdc.amount.decimal, "1000");
+        let ldo = response
+            .allowances
+            .iter()
+            .find(|entry| entry.token.address.to_string().eq_ignore_ascii_case(LDO))
+            .unwrap();
+        assert_eq!(ldo.amount.decimal, "0");
     }
 
     #[tokio::test]

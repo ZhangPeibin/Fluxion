@@ -1,7 +1,7 @@
 # wallet capabilities
 
-Read-only Local Runtime capabilities for Ethereum accounts. Neither capability signs, approves,
-or broadcasts transactions.
+Read-only Local Runtime capabilities for Ethereum accounts. None of these capabilities signs,
+approves, or broadcasts transactions.
 
 ## `wallet.balance`
 
@@ -44,12 +44,25 @@ Defaults:
 - if the discovery provider is unavailable, falls back to registry-only discovery and reports
   `coverage: registry+local` plus a warning
 
+## `wallet.allowance`
+
+Exact ERC20 allowances for one owner/spender pair at a pinned block.
+
+```bash
+fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC,LDO --json
+```
+
+- `tokens` may be symbols or addresses; an empty list uses the built-in registry.
+- Zero allowances are returned so approval checks are unambiguous.
+- Coverage is `local`.
+
 ## MCP tools
 
 | Tool | Execution |
 |---|---|
 | `wallet_balance` | local |
 | `wallet_assets` | hybrid |
+| `wallet_allowance` | local |
 
 ## Configuration
 
@@ -59,7 +72,8 @@ Defaults:
 
 ## Output
 
-See [`schemas/wallet_balances.v1.json`](../../../schemas/wallet_balances.v1.json).
+Balances: [`schemas/wallet_balances.v1.json`](../../../schemas/wallet_balances.v1.json).  
+Allowances: [`schemas/wallet_allowances.v1.json`](../../../schemas/wallet_allowances.v1.json).
 
 ```json
 {
