@@ -80,7 +80,8 @@ flowchart TB
 `swap.quote` 已可用：Ethereum 主网 exact-in、多跳、拆单和状态新鲜度。完整输入输出、错误和
 最新 benchmark 见 [swap.quote](docs/capabilities/swap/README.md)。`wallet.balance` 和
 `wallet.assets` 提供本地只读 ETH/ERC20 余额与持仓发现，`wallet.allowance` 提供
-owner/spender allowance 查询；见 [wallet](docs/capabilities/wallet/README.md)。
+owner/spender allowance 查询，`wallet.collectibles` 提供 NFT 持仓查询；见
+[wallet](docs/capabilities/wallet/README.md)。
 `transaction.simulate` 提供本地只读 calldata 模拟，见
 [transaction](docs/capabilities/transaction/README.md)。
 
@@ -108,6 +109,7 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 | `wallet.balance` | available | [wallet](docs/capabilities/wallet/README.md) |
 | `wallet.assets` | available | [wallet](docs/capabilities/wallet/README.md) |
 | `wallet.allowance` | available | [wallet](docs/capabilities/wallet/README.md) |
+| `wallet.collectibles` | available | [wallet](docs/capabilities/wallet/README.md) |
 | `transaction.simulate` | available | [transaction](docs/capabilities/transaction/README.md) |
 | `swap.build` | planned | — |
 | `swap.simulate` | planned | — |
@@ -131,11 +133,12 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 - **边界**：[limitations](docs/LIMITATIONS.md) · [swap schema](schemas/swap_quote.v1.json) ·
   [wallet schema](schemas/wallet_balances.v1.json) ·
   [allowance schema](schemas/wallet_allowances.v1.json) ·
+  [collectibles schema](schemas/wallet_collectibles.v1.json) ·
   [transaction schema](schemas/transaction_simulate.v1.json) · [swap skill](skills/swap/SKILL.md) ·
   [wallet skill](skills/wallet/SKILL.md) · [transaction skill](skills/transaction/SKILL.md)
 
 ## 状态
 
-Pre-1.0。Ethereum mainnet。`swap.quote`、`wallet.balance`、`wallet.assets` 和
-`transaction.simulate` 已可用，只读。`swap.build` / `execute` 和 `wallet.collectibles` 是
-下一阶段的 local runtime 里程碑。
+Pre-1.0。Ethereum mainnet。`swap.quote`、`wallet.balance`、`wallet.assets`、
+`wallet.allowance`、`wallet.collectibles` 和 `transaction.simulate` 已可用，只读。
+`swap.build` / `execute` 是下一阶段的 local runtime 里程碑。

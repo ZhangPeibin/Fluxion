@@ -12,7 +12,9 @@ use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
 use crate::transaction::{self, SimulateRequest};
-use crate::wallet::{self, AllowanceRequest, AssetsRequest, BalanceRequest, WalletConfig};
+use crate::wallet::{
+    self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest, WalletConfig,
+};
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
@@ -171,6 +173,21 @@ fn tools_list() -> Value {
                 }
             },
             {
+                "name": "wallet_collectibles",
+                "description": "Read an Ethereum account's ERC721/ERC1155 holdings. Uses Alchemy NFT discovery when ALCHEMY_API_KEY is set, verifies locally, and falls back to explicit/curated collections.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "address": {"type": "string", "description": "Owner Ethereum address"},
+                        "collections": {"type": "array", "items": {"type": "string"}, "description": "Optional collection contract addresses"},
+                        "include_empty": {"type": "boolean", "default": false},
+                        "block": {"type": "integer", "minimum": 0},
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"}
+                    },
+                    "required": ["address"]
+                }
+            },
+            {
                 "name": "transaction_simulate",
                 "description": "Simulate an Ethereum transaction with eth_call at one pinned block. Read-only: returns success/revert, return data and estimated gas; never signs or broadcasts.",
                 "inputSchema": {
@@ -204,6 +221,7 @@ async fn call_tool(params: Value, backend: &Result<RuntimeClient, CapabilityErro
         "wallet_balance" => wallet_balance_tool(&arguments).await,
         "wallet_assets" => wallet_assets_tool(&arguments).await,
         "wallet_allowance" => wallet_allowance_tool(&arguments).await,
+        "wallet_collectibles" => wallet_collectibles_tool(&arguments).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
@@ -295,6 +313,42 @@ fn optional_u64(arguments: &Value, name: &str) -> Result<Option<u64>, Capability
             .map(Some)
             .ok_or_else(|| CapabilityError::invalid_argument(format!("invalid {name}"))),
     }
+}
+
+async fn wallet_collectibles_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let owner = string_arg(arguments, "address")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid wallet address"))?;
+    let collections = match arguments.get("collections") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(values)) => values
+            .iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .ok_or_else(|| CapabilityError::invalid_argument("invalid collection address"))?
+                    .parse::<alloy_primitives::Address>()
+                    .map_err(|_| CapabilityError::invalid_argument("invalid collection address"))
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        Some(_) => {
+            return Err(CapabilityError::invalid_argument(
+                "collections must be an array",
+            ));
+        }
+    };
+    let config = wallet_config(arguments);
+    let response = wallet::collectibles(
+        &config,
+        CollectiblesRequest {
+            owner,
+            collections,
+            include_empty: bool_arg(arguments, "include_empty").unwrap_or(false),
+            block: optional_u64(arguments, "block")?,
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
 async fn wallet_allowance_tool(arguments: &Value) -> Result<Value, CapabilityError> {
@@ -467,6 +521,7 @@ mod tests {
                 "wallet_balance",
                 "wallet_assets",
                 "wallet_allowance",
+                "wallet_collectibles",
                 "transaction_simulate"
             ]
         );

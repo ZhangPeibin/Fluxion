@@ -6,8 +6,8 @@ use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
 use crate::token;
 use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
 use crate::wallet::{
-    self, AllowanceRequest, AssetsRequest, BalanceRequest, WalletAllowancesResponse,
-    WalletBalancesResponse, WalletConfig,
+    self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest,
+    WalletAllowancesResponse, WalletBalancesResponse, WalletCollectiblesResponse, WalletConfig,
 };
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
@@ -82,6 +82,7 @@ fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
 fluxion wallet balance ADDRESS [--tokens LIST]\n  \
 fluxion wallet assets ADDRESS [--include-unknown]\n  \
 fluxion wallet allowance ADDRESS --spender ADDRESS [--tokens LIST]\n  \
+fluxion wallet collectibles ADDRESS [--collections LIST]\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--from ADDRESS]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
@@ -311,6 +312,7 @@ enum WalletMode {
     Balance,
     Assets,
     Allowance,
+    Collectibles,
 }
 
 #[derive(Debug)]
@@ -318,12 +320,14 @@ struct WalletArgs {
     mode: WalletMode,
     address: String,
     spender: Option<String>,
+    collections: Vec<String>,
     tokens: Vec<String>,
     json: bool,
     rpc_url: Option<String>,
     block: Option<u64>,
     include_native: bool,
     include_unknown: bool,
+    include_empty: bool,
 }
 
 async fn run_wallet(raw: &[String]) -> i32 {
@@ -358,6 +362,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
     enum WalletOutput {
         Balances(WalletBalancesResponse),
         Allowances(WalletAllowancesResponse),
+        Collectibles(WalletCollectiblesResponse),
     }
     let result = match args.mode {
         WalletMode::Balance => wallet::balance(
@@ -418,6 +423,32 @@ async fn run_wallet(raw: &[String]) -> i32 {
             .await
             .map(WalletOutput::Allowances)
         }
+        WalletMode::Collectibles => {
+            let mut collections = Vec::new();
+            for collection in args.collections {
+                match collection.parse::<alloy_primitives::Address>() {
+                    Ok(address) => collections.push(address),
+                    Err(_) => {
+                        let error = CapabilityError::invalid_argument(format!(
+                            "invalid collection address: {collection}"
+                        ));
+                        report_error(&error, args.json);
+                        return exit_code(error.code);
+                    }
+                }
+            }
+            wallet::collectibles(
+                &config,
+                CollectiblesRequest {
+                    owner: address,
+                    collections,
+                    include_empty: args.include_empty,
+                    block: args.block,
+                },
+            )
+            .await
+            .map(WalletOutput::Collectibles)
+        }
     };
     match result {
         Ok(WalletOutput::Balances(response)) => {
@@ -436,6 +467,14 @@ async fn run_wallet(raw: &[String]) -> i32 {
             }
             0
         }
+        Ok(WalletOutput::Collectibles(response)) => {
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_collectibles_human(&response);
+            }
+            0
+        }
         Err(error) => {
             report_error(&error, args.json);
             exit_code(error.code)
@@ -448,6 +487,7 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
         Some("balance") => WalletMode::Balance,
         Some("assets") => WalletMode::Assets,
         Some("allowance") => WalletMode::Allowance,
+        Some("collectibles") => WalletMode::Collectibles,
         Some("--help" | "-h") => return Err(CapabilityError::invalid_argument("help requested")),
         Some(other) => {
             return Err(CapabilityError::invalid_argument(format!(
@@ -458,7 +498,9 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
     };
     let mut address = None;
     let mut spender = None;
+    let mut collections = Vec::new();
     let mut tokens = Vec::new();
+    let mut include_empty = false;
     let mut json = false;
     let mut rpc_url = None;
     let mut block = None;
@@ -477,6 +519,19 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
                         .clone(),
                 );
             }
+            "--collections" => {
+                index += 1;
+                let value = raw.get(index).ok_or_else(|| {
+                    CapabilityError::invalid_argument("--collections needs a value")
+                })?;
+                collections.extend(
+                    value
+                        .split(',')
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_string),
+                );
+            }
+            "--include-empty" => include_empty = true,
             "--spender" => {
                 index += 1;
                 spender = Some(
@@ -552,10 +607,17 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
             "--spender is only valid for wallet allowance",
         ));
     }
+    if mode != WalletMode::Collectibles && !collections.is_empty() {
+        return Err(CapabilityError::invalid_argument(
+            "--collections is only valid for wallet collectibles",
+        ));
+    }
     Ok(WalletArgs {
         mode,
         address,
         spender,
+        collections,
+        include_empty,
         tokens,
         json,
         rpc_url,
@@ -813,6 +875,40 @@ fn print_allowance_human(response: &WalletAllowancesResponse) {
     }
 }
 
+fn print_collectibles_human(response: &WalletCollectiblesResponse) {
+    println!(
+        "{} · block {} · coverage {}",
+        response.owner, response.block_number, response.coverage
+    );
+    for collection in &response.collections {
+        println!(
+            "{} {} ({}) · {} items{}",
+            collection
+                .symbol
+                .as_deref()
+                .or(collection.name.as_deref())
+                .unwrap_or("collection"),
+            collection.collection,
+            collection.standard,
+            collection.item_count,
+            if collection.enumerable {
+                ""
+            } else {
+                " · count only"
+            }
+        );
+        for item in collection.items.iter().take(20) {
+            println!("  #{} × {}", item.token_id, item.balance);
+        }
+        if collection.items.len() > 20 {
+            println!("  ... {} more", collection.items.len() - 20);
+        }
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
+    }
+}
+
 fn token_label(token: &crate::capability::TokenRef) -> String {
     token
         .symbol
@@ -898,6 +994,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "wallet.balance" => fluxion_protocol::wallet::describe_balance(),
                 "wallet.assets" => fluxion_protocol::wallet::describe_assets(),
                 "wallet.allowance" => fluxion_protocol::wallet::describe_allowance(),
+                "wallet.collectibles" => fluxion_protocol::wallet::describe_collectibles(),
                 "transaction.simulate" => fluxion_protocol::transaction::describe(),
                 other => {
                     let error = CapabilityError::new(
@@ -995,6 +1092,18 @@ mod tests {
         assert!(assets.include_unknown);
         assert!(!assets.include_native);
         assert!(assets.json);
+
+        let collectibles = parse_wallet_args(&[
+            "collectibles".to_string(),
+            "0x0000000000000000000000000000000000000001".to_string(),
+            "--collections".to_string(),
+            "0x0000000000000000000000000000000000000010".to_string(),
+            "--include-empty".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(collectibles.mode, WalletMode::Collectibles);
+        assert_eq!(collectibles.collections.len(), 1);
+        assert!(collectibles.include_empty);
 
         let allowance = parse_wallet_args(&[
             "allowance".to_string(),

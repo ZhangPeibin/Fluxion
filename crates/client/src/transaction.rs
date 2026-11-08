@@ -274,6 +274,8 @@ mod tests {
             rpc_url: format!("{base}/rpc"),
             oneinch_api_key: None,
             oneinch_balance_url: "http://unused".to_string(),
+            alchemy_api_key: None,
+            alchemy_nft_url: "http://unused".to_string(),
         }
     }
 
