@@ -19,7 +19,7 @@ Fluxion 让 AI Agent 以安全、结构化的方式使用 Web3。它不是另一
 Fluxion 把 Web3 动作变成稳定的 capability。Agent 不需要学习每个协议，也不需要接触私钥。
 
 - **Agent 只看到一个接口。** `fluxion mcp` 把 capability 暴露为 MCP tool。
-- **只读能力集中到 remote。** 协议发现、链上数据、报价和风险由预热好的服务完成。
+- **行情类只读能力由 remote 提供。** 协议发现、报价和风险由预热好的服务完成。
 - **需要用户控制的能力留在 local runtime。** 钱包、授权、签名和执行属于用户环境。
 - **执行位置由 capability 决定。** Agent 和用户都不选择 local/remote。
 
@@ -50,7 +50,7 @@ flowchart TB
     subgraph Local["Local machine"]
         M["fluxion mcp<br/>MCP stdio bridge"]
         R["Capability router<br/>fixed execution per capability"]
-        L["Local runtime (future)<br/>wallet · build · simulate · sign · execute"]
+        L["Local runtime<br/>wallet · simulate (read-only)<br/>build · sign · execute (future)"]
     end
 
     subgraph Remote["Fluxion remote"]

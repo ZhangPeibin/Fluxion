@@ -20,8 +20,8 @@ Fluxion turns Web3 actions into stable capabilities. Agents do not need to learn
 and they do not need access to private keys.
 
 - **Agents see one interface.** `fluxion mcp` exposes capabilities as MCP tools.
-- **Read-only work runs remotely.** Protocol discovery, onchain data, quotes and risk come from a
-  warm remote service.
+- **Market-data work runs remotely.** Protocol discovery, quotes and risk come from a warm remote
+  service.
 - **User-controlled work stays local.** Wallet access, authorization, signing and execution belong
   in the user's environment.
 - **Execution location is fixed per capability.** Agents and users do not choose local or remote.
@@ -56,7 +56,7 @@ flowchart TB
     subgraph Local["Local machine"]
         M["fluxion mcp<br/>MCP stdio bridge"]
         R["Capability router<br/>fixed execution per capability"]
-        L["Local runtime (future)<br/>wallet · build · simulate · sign · execute"]
+        L["Local runtime<br/>wallet · simulate (read-only)<br/>build · sign · execute (future)"]
     end
 
     subgraph Remote["Fluxion remote"]
@@ -87,6 +87,12 @@ flowchart TB
 freshness on Ethereum mainnet. Full inputs, outputs, errors and the latest benchmark:
 [swap.quote](docs/capabilities/swap/README.md).
 
+`wallet.balance` and `wallet.assets` provide local read-only ETH/ERC20 balances and holdings;
+`wallet.allowance` reads owner/spender allowances; `wallet.collectibles` reads NFT holdings.
+`transaction.simulate` provides local read-only calldata simulation. See
+[wallet](docs/capabilities/wallet/README.md) and
+[transaction](docs/capabilities/transaction/README.md).
+
 ## Get started
 
 ```bash
@@ -108,10 +114,14 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 | Capability | Status | Docs |
 |---|---|---|
 | `swap.quote` | available | [swap.quote](docs/capabilities/swap/README.md) |
+| `wallet.balance` | available | [wallet](docs/capabilities/wallet/README.md) |
+| `wallet.assets` | available | [wallet](docs/capabilities/wallet/README.md) |
+| `wallet.allowance` | available | [wallet](docs/capabilities/wallet/README.md) |
+| `wallet.collectibles` | available | [wallet](docs/capabilities/wallet/README.md) |
+| `transaction.simulate` | available | [transaction](docs/capabilities/transaction/README.md) |
 | `swap.build` | planned | — |
 | `swap.simulate` | planned | — |
 | `swap.execute` | planned | — |
-| `wallet.*` | planned | — |
 
 Execution location is fixed per capability. Agents and users do not select local/remote.
 See [product architecture](docs/PRODUCT-ARCHITECTURE.md).
@@ -124,13 +134,19 @@ See [product architecture](docs/PRODUCT-ARCHITECTURE.md).
 
 ## Documentation
 
-- **Start here**: [MCP](docs/MCP.md) · [swap.quote](docs/capabilities/swap/README.md) · [product architecture](docs/PRODUCT-ARCHITECTURE.md)
+- **Start here**: [MCP](docs/MCP.md) · [swap.quote](docs/capabilities/swap/README.md) · [wallet](docs/capabilities/wallet/README.md) · [transaction](docs/capabilities/transaction/README.md) · [product architecture](docs/PRODUCT-ARCHITECTURE.md)
 - **Vision**: [whitepaper](docs/WHITEPAPER.md) · [architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - **Operations**: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - **Research**: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
-- **Boundaries**: [limitations](docs/LIMITATIONS.md) · [schema](schemas/swap_quote.v1.json) · [swap skill](skills/swap/SKILL.md)
+- **Boundaries**: [limitations](docs/LIMITATIONS.md) · [swap schema](schemas/swap_quote.v1.json) ·
+  [wallet schema](schemas/wallet_balances.v1.json) ·
+  [allowance schema](schemas/wallet_allowances.v1.json) ·
+  [collectibles schema](schemas/wallet_collectibles.v1.json) ·
+  [transaction schema](schemas/transaction_simulate.v1.json) · [swap skill](skills/swap/SKILL.md) ·
+  [wallet skill](skills/wallet/SKILL.md) · [transaction skill](skills/transaction/SKILL.md)
 
 ## Status
 
-Pre-1.0. Ethereum mainnet. `swap.quote` is available and read-only. `swap.build` / `simulate` /
-`execute` and `wallet.*` are the next local-runtime milestones.
+Pre-1.0. Ethereum mainnet. `swap.quote`, `wallet.balance`, `wallet.assets`, `wallet.allowance`,
+`wallet.collectibles` and `transaction.simulate` are available and read-only. `swap.build` and
+`swap.execute` are the next local-runtime milestones.
