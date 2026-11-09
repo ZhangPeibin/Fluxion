@@ -415,6 +415,9 @@ async fn wallet_allowance_tool(arguments: &Value) -> Result<Value, CapabilityErr
 
 async fn wallet_connect_tool(wallet: &Manager) -> Result<(Value, Option<String>), CapabilityError> {
     let response = wallet.connect().await?;
+    if let Some(path) = response.qr_png_path.as_deref() {
+        let _ = crate::walletconnect::open_qr(path);
+    }
     let image = response.qr_png_base64.clone();
     let value = serde_json::to_value(&response)
         .map_err(|error| CapabilityError::internal(error.to_string()))?;
