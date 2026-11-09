@@ -1,0 +1,960 @@
+//! Local WalletConnect v2 session management.
+//!
+//! The dApp side of WalletConnect is implemented directly: relay JWT auth,
+//! pairing envelopes, session proposal/settle and session persistence. Private
+//! keys never enter Fluxion; the wallet signs on the user's device.
+
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use alloy_primitives::Address;
+use chacha20poly1305::aead::{Aead, AeadCore, KeyInit};
+use chacha20poly1305::{ChaCha20Poly1305, Nonce};
+use ed25519_dalek::{Signer, SigningKey};
+use futures_util::stream::{SplitSink, SplitStream};
+use futures_util::{SinkExt, StreamExt};
+use hkdf::Hkdf;
+use qrcode::render::unicode::Dense1x2;
+use qrcode::{EcLevel, QrCode};
+use rand::RngCore;
+use rand::rngs::OsRng;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+use tokio::net::TcpStream;
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
+use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
+use url::Url;
+use x25519_dalek::{PublicKey, StaticSecret};
+
+use crate::capability::{CapabilityError, CapabilityErrorCode};
+use fluxion_protocol::wallet::{
+    WalletConnectResponse, WalletDisconnectResponse, WalletPeer, WalletStatusResponse,
+};
+
+const DEFAULT_RELAY_URL: &str = "wss://relay.walletconnect.com";
+const PAIRING_TIMEOUT_SECS: u64 = 300;
+
+type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
+type SocketWrite = SplitSink<Socket, Message>;
+type SocketRead = SplitStream<Socket>;
+
+#[derive(Debug, Clone)]
+pub struct ConnectConfig {
+    pub project_id: String,
+    pub relay_url: String,
+}
+
+impl ConnectConfig {
+    pub fn from_env() -> Result<Self, CapabilityError> {
+        Ok(Self {
+            project_id: env::var("WALLETCONNECT_PROJECT_ID")
+                .map_err(|_| invalid("WALLETCONNECT_PROJECT_ID is not set"))?,
+            relay_url: env::var("WALLETCONNECT_RELAY_URL")
+                .unwrap_or_else(|_| DEFAULT_RELAY_URL.to_string()),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    pub topic: String,
+    pub sym_key: String,
+    pub accounts: Vec<Address>,
+    pub chain_id: u64,
+    pub expiry: i64,
+    pub responder_public_key: String,
+    #[serde(default)]
+    pub wallet_name: Option<String>,
+    #[serde(default)]
+    pub wallet_url: Option<String>,
+    #[serde(default)]
+    pub wallet_icons: Vec<String>,
+}
+
+impl Session {
+    pub fn load() -> Result<Option<Self>, CapabilityError> {
+        Self::load_from(&session_path())
+    }
+
+    pub fn load_from(path: &PathBuf) -> Result<Option<Self>, CapabilityError> {
+        match fs::read(path) {
+            Ok(bytes) => serde_json::from_slice(&bytes)
+                .map(Some)
+                .map_err(|error| internal(format!("invalid WalletConnect session: {error}"))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(internal(format!("cannot read {}: {error}", path.display()))),
+        }
+    }
+
+    pub fn save(&self) -> Result<(), CapabilityError> {
+        self.save_to(&session_path())
+    }
+
+    pub fn save_to(&self, path: &PathBuf) -> Result<(), CapabilityError> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|error| {
+                internal(format!("cannot create {}: {error}", parent.display()))
+            })?;
+        }
+        fs::write(
+            path,
+            serde_json::to_vec_pretty(self).map_err(|error| internal(error.to_string()))?,
+        )
+        .map_err(|error| internal(format!("cannot write {}: {error}", path.display())))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
+        }
+        Ok(())
+    }
+
+    fn peer(&self) -> Option<WalletPeer> {
+        self.wallet_name.as_ref().map(|name| WalletPeer {
+            name: name.clone(),
+            url: self.wallet_url.clone().unwrap_or_default(),
+            icons: self.wallet_icons.clone(),
+        })
+    }
+}
+
+pub fn session_path() -> PathBuf {
+    let home = env::var_os("FLUXION_HOME")
+        .map(PathBuf::from)
+        .or_else(|| env::var_os("HOME").map(PathBuf::from))
+        .unwrap_or_else(env::temp_dir);
+    home.join(".fluxion")
+        .join("walletconnect")
+        .join("session.json")
+}
+
+pub fn status() -> Result<WalletStatusResponse, CapabilityError> {
+    let Some(session) = Session::load()? else {
+        return Ok(disconnected_status(None));
+    };
+    Ok(status_from_session(session, None))
+}
+
+pub fn disconnect() -> Result<WalletDisconnectResponse, CapabilityError> {
+    let path = session_path();
+    match fs::remove_file(&path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(internal(format!(
+                "cannot remove {}: {error}",
+                path.display()
+            )));
+        }
+    }
+    Ok(WalletDisconnectResponse { disconnected: true })
+}
+
+pub struct Pairing {
+    relay: Relay,
+    pairing_secret: StaticSecret,
+    pairing_topic: String,
+    pairing_key: [u8; 32],
+    uri: String,
+    expires_at: i64,
+}
+
+impl Pairing {
+    pub async fn start(config: &ConnectConfig) -> Result<Self, CapabilityError> {
+        let relay_key = SigningKey::generate(&mut OsRng);
+        let auth = auth_token(&relay_key, &config.relay_url);
+        let mut url = Url::parse(&config.relay_url)
+            .map_err(|error| invalid(format!("invalid relay URL: {error}")))?;
+        url.query_pairs_mut()
+            .append_pair("projectId", &config.project_id)
+            .append_pair("auth", &auth);
+
+        let (socket, _) = connect_async(url.as_str())
+            .await
+            .map_err(|error| rpc(format!("WalletConnect relay connection failed: {error}")))?;
+        let (write, read) = socket.split();
+        let mut relay = Relay {
+            write,
+            read,
+            next_id: 1_000_000_000,
+        };
+
+        let pairing_secret = StaticSecret::random_from_rng(OsRng);
+        let pairing_key = pairing_secret.to_bytes();
+        let mut topic = [0u8; 32];
+        OsRng.fill_bytes(&mut topic);
+        let pairing_topic = hex(&topic);
+        let proposer_public = PublicKey::from(&pairing_secret);
+        let uri = format!(
+            "wc:{pairing_topic}@2?relay-protocol=irn&symKey={}",
+            hex(&pairing_key)
+        );
+
+        let subscribe_id = relay
+            .request("irn_subscribe", json!({"topic": pairing_topic}))
+            .await?;
+        wait_for_id(&mut relay, subscribe_id).await?;
+
+        let proposal_id = relay.next_id();
+        let proposal = json!({
+            "id": proposal_id,
+            "jsonrpc": "2.0",
+            "method": "wc_sessionPropose",
+            "params": {
+                "relays": [{"protocol": "irn"}],
+                "requiredNamespaces": {
+                    "eip155": {
+                        "chains": ["eip155:1"],
+                        "methods": ["eth_signTransaction", "eth_signTypedData_v4"],
+                        "events": ["chainChanged", "accountsChanged"]
+                    }
+                },
+                "optionalNamespaces": {
+                    "eip155": {
+                        "chains": ["eip155:1"],
+                        "methods": ["eth_sendTransaction", "personal_sign", "eth_signTypedData"],
+                        "events": []
+                    }
+                },
+                "proposer": {
+                    "publicKey": hex(&proposer_public.to_bytes()),
+                    "metadata": {
+                        "name": "Fluxion",
+                        "description": "Fluxion local wallet session",
+                        "url": "https://github.com/ZhangPeibin/Fluxion",
+                        "icons": []
+                    }
+                }
+            }
+        });
+        let publish_id = publish(
+            &mut relay,
+            &pairing_topic,
+            &pairing_key,
+            &proposal,
+            1100,
+            true,
+        )
+        .await?;
+        wait_for_id(&mut relay, publish_id).await?;
+
+        Ok(Self {
+            relay,
+            pairing_secret,
+            pairing_topic,
+            pairing_key,
+            uri,
+            expires_at: unix_timestamp() + PAIRING_TIMEOUT_SECS as i64,
+        })
+    }
+
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    pub fn expires_at(&self) -> i64 {
+        self.expires_at
+    }
+
+    pub fn qr_ascii(&self) -> Result<String, CapabilityError> {
+        let code = QrCode::with_error_correction_level(self.uri.as_bytes(), EcLevel::L)
+            .map_err(|error| internal(format!("cannot render WalletConnect QR: {error}")))?;
+        Ok(code
+            .render::<Dense1x2>()
+            .quiet_zone(true)
+            .module_dimensions(1, 1)
+            .build())
+    }
+
+    pub async fn wait(self, timeout: Duration) -> Result<Session, CapabilityError> {
+        match tokio::time::timeout(timeout, self.wait_inner()).await {
+            Ok(result) => result,
+            Err(_) => Err(CapabilityError::new(
+                CapabilityErrorCode::Timeout,
+                "WalletConnect pairing timed out",
+                true,
+            )),
+        }
+    }
+
+    async fn wait_inner(mut self) -> Result<Session, CapabilityError> {
+        let mut session_topic: Option<String> = None;
+        let mut session_key: Option<[u8; 32]> = None;
+
+        loop {
+            let message = self.relay.next().await?;
+            if message.get("method").and_then(Value::as_str) == Some("irn_subscription") {
+                if let Some(id) = message.get("id").cloned() {
+                    self.relay
+                        .send_raw(json!({"jsonrpc": "2.0", "id": id, "result": true}))
+                        .await?;
+                }
+                let Some(data) = message.get("params").and_then(|params| params.get("data")) else {
+                    continue;
+                };
+                let Some(topic) = data.get("topic").and_then(Value::as_str) else {
+                    continue;
+                };
+                let Some(encrypted) = data.get("message").and_then(Value::as_str) else {
+                    continue;
+                };
+                let key = if topic == self.pairing_topic {
+                    &self.pairing_key
+                } else if session_topic.as_deref() == Some(topic) {
+                    session_key
+                        .as_ref()
+                        .ok_or_else(|| internal("received session message before key derivation"))?
+                } else {
+                    continue;
+                };
+                let decrypted = decrypt(key, encrypted)?;
+                let payload: Value = serde_json::from_slice(&decrypted)
+                    .map_err(|error| internal(format!("invalid WalletConnect message: {error}")))?;
+
+                if let Some(error) = payload.get("error") {
+                    return Err(rpc(format!("wallet rejected the session: {error}")));
+                }
+
+                if let Some(responder_public_key) = payload
+                    .get("result")
+                    .and_then(|result| result.get("responderPublicKey"))
+                    .and_then(Value::as_str)
+                {
+                    let (topic, key) = derive_session(&self.pairing_secret, responder_public_key)?;
+                    self.relay
+                        .request("irn_subscribe", json!({"topic": topic}))
+                        .await?;
+                    session_topic = Some(topic);
+                    session_key = Some(key);
+                    continue;
+                }
+
+                if payload.get("method").and_then(Value::as_str) == Some("wc_sessionSettle") {
+                    let topic = session_topic
+                        .as_deref()
+                        .ok_or_else(|| internal("session settled without a session topic"))?;
+                    let key = session_key
+                        .as_ref()
+                        .ok_or_else(|| internal("session settled without a session key"))?;
+                    let accounts = session_accounts(&payload)?;
+                    let expiry = payload
+                        .get("params")
+                        .and_then(|params| params.get("expiry"))
+                        .and_then(Value::as_i64)
+                        .unwrap_or_default();
+                    let controller = payload
+                        .get("params")
+                        .and_then(|params| params.get("controller"));
+                    let wallet_name = controller
+                        .and_then(|controller| controller.get("metadata"))
+                        .and_then(|metadata| metadata.get("name"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string);
+                    let wallet_url = controller
+                        .and_then(|controller| controller.get("metadata"))
+                        .and_then(|metadata| metadata.get("url"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string);
+                    let wallet_icons = controller
+                        .and_then(|controller| controller.get("metadata"))
+                        .and_then(|metadata| metadata.get("icons"))
+                        .and_then(Value::as_array)
+                        .map(|icons| {
+                            icons
+                                .iter()
+                                .filter_map(Value::as_str)
+                                .map(str::to_string)
+                                .collect()
+                        })
+                        .unwrap_or_default();
+
+                    let ack = json!({
+                        "id": payload.get("id").cloned().unwrap_or(Value::Null),
+                        "jsonrpc": "2.0",
+                        "result": true
+                    });
+                    publish(&mut self.relay, topic, key, &ack, 1103, false).await?;
+
+                    let session = Session {
+                        topic: topic.to_string(),
+                        sym_key: hex(key),
+                        accounts,
+                        chain_id: 1,
+                        expiry,
+                        responder_public_key: controller
+                            .and_then(|controller| controller.get("publicKey"))
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .to_string(),
+                        wallet_name,
+                        wallet_url,
+                        wallet_icons,
+                    };
+                    session.save()?;
+                    return Ok(session);
+                }
+            } else if let Some(error) = message.get("error") {
+                return Err(rpc(format!("WalletConnect relay error: {error}")));
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Manager {
+    inner: Arc<Mutex<ManagerState>>,
+}
+
+#[derive(Default)]
+struct ManagerState {
+    pending: Option<Pending>,
+}
+
+struct Pending {
+    connection_id: String,
+    uri: String,
+    qr_ascii: String,
+    expires_at: i64,
+    status: String,
+    error: Option<String>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl Manager {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(ManagerState::default())),
+        }
+    }
+
+    pub async fn connect(&self) -> Result<WalletConnectResponse, CapabilityError> {
+        if let Some(session) = Session::load()?
+            && session.expiry > unix_timestamp()
+        {
+            return Ok(connected_response(session));
+        }
+
+        {
+            let state = self.inner.lock().await;
+            if let Some(pending) = &state.pending
+                && pending.status == "pending"
+                && pending.expires_at > unix_timestamp()
+            {
+                return Ok(pending_response(pending));
+            }
+        }
+
+        if let Some(old) = self.inner.lock().await.pending.take()
+            && let Some(handle) = old.handle
+        {
+            handle.abort();
+        }
+
+        let config = ConnectConfig::from_env()?;
+        let pairing = tokio::time::timeout(Duration::from_secs(20), Pairing::start(&config))
+            .await
+            .map_err(|_| {
+                CapabilityError::new(
+                    CapabilityErrorCode::Timeout,
+                    "WalletConnect relay connection timed out",
+                    true,
+                )
+            })??;
+        let connection_id = pairing.uri()[3..35].to_string();
+        let uri = pairing.uri().to_string();
+        let qr_ascii = pairing.qr_ascii()?;
+        let expires_at = pairing.expires_at();
+
+        let manager = self.clone();
+        let task_id = connection_id.clone();
+        let handle = tokio::spawn(async move {
+            let result = pairing
+                .wait(Duration::from_secs(PAIRING_TIMEOUT_SECS))
+                .await;
+            manager.finish(task_id, result).await;
+        });
+
+        let pending = Pending {
+            connection_id,
+            uri,
+            qr_ascii,
+            expires_at,
+            status: "pending".to_string(),
+            error: None,
+            handle: Some(handle),
+        };
+        let response = pending_response(&pending);
+        self.inner.lock().await.pending = Some(pending);
+        Ok(response)
+    }
+
+    pub async fn status(&self) -> Result<WalletStatusResponse, CapabilityError> {
+        let pending = {
+            let state = self.inner.lock().await;
+            state.pending.as_ref().map(|pending| PendingStatus {
+                connection_id: pending.connection_id.clone(),
+                expires_at: pending.expires_at,
+                status: pending.status.clone(),
+                error: pending.error.clone(),
+            })
+        };
+        if let Some(pending) = pending {
+            if pending.status == "pending" && pending.expires_at <= unix_timestamp() {
+                return Ok(WalletStatusResponse {
+                    status: "expired".to_string(),
+                    accounts: Vec::new(),
+                    chain_id: None,
+                    expires_at: Some(pending.expires_at),
+                    connection_id: Some(pending.connection_id),
+                    wallet: None,
+                    error: None,
+                });
+            }
+            return Ok(WalletStatusResponse {
+                status: pending.status,
+                accounts: Vec::new(),
+                chain_id: None,
+                expires_at: Some(pending.expires_at),
+                connection_id: Some(pending.connection_id),
+                wallet: None,
+                error: pending.error,
+            });
+        }
+
+        let Some(session) = Session::load()? else {
+            return Ok(disconnected_status(None));
+        };
+        Ok(status_from_session(session, None))
+    }
+
+    pub async fn disconnect(&self) -> Result<WalletDisconnectResponse, CapabilityError> {
+        let pending = {
+            let mut state = self.inner.lock().await;
+            state.pending.take()
+        };
+        if let Some(pending) = pending
+            && let Some(handle) = pending.handle
+        {
+            handle.abort();
+        }
+        disconnect()
+    }
+
+    async fn finish(&self, connection_id: String, result: Result<Session, CapabilityError>) {
+        let mut state = self.inner.lock().await;
+        let Some(pending) = state.pending.as_mut() else {
+            return;
+        };
+        if pending.connection_id != connection_id {
+            return;
+        }
+        match result {
+            Ok(_) => {
+                state.pending = None;
+            }
+            Err(error) => {
+                pending.status = "error".to_string();
+                pending.error = Some(error.message);
+                pending.handle = None;
+            }
+        }
+    }
+}
+
+impl Default for Manager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+struct PendingStatus {
+    connection_id: String,
+    expires_at: i64,
+    status: String,
+    error: Option<String>,
+}
+
+fn pending_response(pending: &Pending) -> WalletConnectResponse {
+    WalletConnectResponse {
+        status: "pending".to_string(),
+        connection_id: pending.connection_id.clone(),
+        uri: pending.uri.clone(),
+        qr_ascii: pending.qr_ascii.clone(),
+        expires_at: pending.expires_at,
+        accounts: Vec::new(),
+        chain_id: None,
+    }
+}
+
+fn connected_response(session: Session) -> WalletConnectResponse {
+    WalletConnectResponse {
+        status: "connected".to_string(),
+        connection_id: session.topic.clone(),
+        uri: String::new(),
+        qr_ascii: String::new(),
+        expires_at: session.expiry,
+        accounts: session.accounts,
+        chain_id: Some(session.chain_id),
+    }
+}
+
+fn disconnected_status(connection_id: Option<String>) -> WalletStatusResponse {
+    WalletStatusResponse {
+        status: "disconnected".to_string(),
+        accounts: Vec::new(),
+        chain_id: None,
+        expires_at: None,
+        connection_id,
+        wallet: None,
+        error: None,
+    }
+}
+
+fn status_from_session(session: Session, error: Option<String>) -> WalletStatusResponse {
+    let status = if session.expiry > unix_timestamp() {
+        "connected"
+    } else {
+        "expired"
+    };
+    WalletStatusResponse {
+        status: status.to_string(),
+        accounts: session.accounts.clone(),
+        chain_id: Some(session.chain_id),
+        expires_at: Some(session.expiry),
+        connection_id: Some(session.topic.clone()),
+        wallet: session.peer(),
+        error,
+    }
+}
+
+struct Relay {
+    write: SocketWrite,
+    read: SocketRead,
+    next_id: u64,
+}
+
+impl Relay {
+    fn next_id(&mut self) -> u64 {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    async fn request(&mut self, method: &str, params: Value) -> Result<u64, CapabilityError> {
+        let id = self.next_id();
+        self.send_raw(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": params
+        }))
+        .await?;
+        Ok(id)
+    }
+
+    async fn send_raw(&mut self, payload: Value) -> Result<(), CapabilityError> {
+        self.write
+            .send(Message::Text(payload.to_string().into()))
+            .await
+            .map_err(|error| rpc(format!("WalletConnect relay write failed: {error}")))
+    }
+
+    async fn next(&mut self) -> Result<Value, CapabilityError> {
+        loop {
+            match self.read.next().await {
+                Some(Ok(Message::Text(text))) => {
+                    return serde_json::from_str(text.as_str()).map_err(|error| {
+                        rpc(format!("invalid WalletConnect relay message: {error}"))
+                    });
+                }
+                Some(Ok(Message::Ping(payload))) => {
+                    self.write
+                        .send(Message::Pong(payload))
+                        .await
+                        .map_err(|error| {
+                            rpc(format!("WalletConnect relay write failed: {error}"))
+                        })?;
+                }
+                Some(Ok(Message::Close(frame))) => {
+                    return Err(rpc(format!("WalletConnect relay closed: {frame:?}")));
+                }
+                Some(Ok(_)) => {}
+                Some(Err(error)) => {
+                    return Err(rpc(format!("WalletConnect relay error: {error}")));
+                }
+                None => return Err(rpc("WalletConnect relay disconnected")),
+            }
+        }
+    }
+}
+
+async fn wait_for_id(relay: &mut Relay, id: u64) -> Result<(), CapabilityError> {
+    loop {
+        let message = relay.next().await?;
+        if message.get("id").and_then(Value::as_u64) == Some(id) {
+            if let Some(error) = message.get("error") {
+                return Err(rpc(format!("WalletConnect relay request failed: {error}")));
+            }
+            return Ok(());
+        }
+    }
+}
+
+async fn publish(
+    relay: &mut Relay,
+    topic: &str,
+    key: &[u8; 32],
+    payload: &Value,
+    tag: u32,
+    prompt: bool,
+) -> Result<u64, CapabilityError> {
+    let message = encrypt(
+        key,
+        &serde_json::to_vec(payload).map_err(|error| internal(error.to_string()))?,
+    )?;
+    relay
+        .request(
+            "irn_publish",
+            json!({
+                "topic": topic,
+                "message": message,
+                "ttl": 300,
+                "tag": tag,
+                "prompt": prompt
+            }),
+        )
+        .await
+}
+
+fn derive_session(
+    pairing_secret: &StaticSecret,
+    responder_public_key: &str,
+) -> Result<(String, [u8; 32]), CapabilityError> {
+    let bytes = unhex(responder_public_key)?;
+    let peer_bytes: [u8; 32] = bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| invalid("invalid WalletConnect responder public key"))?;
+    let peer = PublicKey::from(peer_bytes);
+    let shared = pairing_secret.diffie_hellman(&peer);
+    let hkdf = Hkdf::<Sha256>::new(None, shared.as_bytes());
+    let mut key = [0u8; 32];
+    hkdf.expand(&[], &mut key)
+        .map_err(|_| internal("WalletConnect session key expansion failed"))?;
+    let topic = Sha256::digest(key);
+    Ok((hex(&topic), key))
+}
+
+fn session_accounts(payload: &Value) -> Result<Vec<Address>, CapabilityError> {
+    let accounts = payload
+        .get("params")
+        .and_then(|params| params.get("namespaces"))
+        .and_then(|namespaces| namespaces.get("eip155"))
+        .and_then(|namespace| namespace.get("accounts"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| rpc("WalletConnect session has no eip155 accounts"))?;
+
+    let mut parsed = Vec::new();
+    for account in accounts {
+        let Some(account) = account.as_str() else {
+            continue;
+        };
+        let Some(address) = account.rsplit(':').next() else {
+            continue;
+        };
+        if let Ok(address) = address.parse::<Address>() {
+            parsed.push(address);
+        }
+    }
+    if parsed.is_empty() {
+        return Err(rpc("WalletConnect session returned no usable accounts"));
+    }
+    Ok(parsed)
+}
+
+fn encrypt(key: &[u8; 32], payload: &[u8]) -> Result<String, CapabilityError> {
+    let cipher = ChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| internal("invalid WalletConnect session key"))?;
+    let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+    let encrypted = cipher
+        .encrypt(&nonce, payload)
+        .map_err(|_| internal("WalletConnect encryption failed"))?;
+    let mut envelope = Vec::with_capacity(1 + 12 + encrypted.len());
+    envelope.push(0);
+    envelope.extend_from_slice(&nonce);
+    envelope.extend_from_slice(&encrypted);
+    Ok(data_encoding::BASE64.encode(&envelope))
+}
+
+#[allow(deprecated)]
+fn decrypt(key: &[u8; 32], envelope: &str) -> Result<Vec<u8>, CapabilityError> {
+    let bytes = data_encoding::BASE64
+        .decode(envelope.as_bytes())
+        .map_err(|_| rpc("invalid WalletConnect encrypted envelope"))?;
+    let (kind, body) = bytes
+        .split_first()
+        .ok_or_else(|| rpc("empty WalletConnect envelope"))?;
+    let body = match kind {
+        0 => body,
+        1 => body
+            .get(32..)
+            .ok_or_else(|| rpc("truncated WalletConnect type-1 envelope"))?,
+        other => {
+            return Err(rpc(format!(
+                "unsupported WalletConnect envelope type {other}"
+            )));
+        }
+    };
+    if body.len() < 12 {
+        return Err(rpc("truncated WalletConnect envelope"));
+    }
+    let nonce = Nonce::from_slice(&body[..12]);
+    let cipher = ChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| internal("invalid WalletConnect session key"))?;
+    cipher
+        .decrypt(nonce, &body[12..])
+        .map_err(|_| rpc("WalletConnect decryption failed"))
+}
+
+fn auth_token(key: &SigningKey, relay_url: &str) -> String {
+    let now = unix_timestamp();
+    let header = json!({"typ": "JWT", "alg": "EdDSA"});
+    let claims = json!({
+        "iss": did_key(&key.verifying_key()),
+        "sub": "https://github.com/ZhangPeibin/Fluxion",
+        "aud": relay_url,
+        "iat": now,
+        "exp": now + 3600
+    });
+    let header = base64url(&serde_json::to_vec(&header).expect("JWT header"));
+    let claims = base64url(&serde_json::to_vec(&claims).expect("JWT claims"));
+    let message = format!("{header}.{claims}");
+    let signature = key.sign(message.as_bytes());
+    format!("{message}.{}", base64url(&signature.to_bytes()))
+}
+
+fn did_key(key: &ed25519_dalek::VerifyingKey) -> String {
+    let mut bytes = vec![0xed, 0x01];
+    bytes.extend_from_slice(key.as_bytes());
+    format!("did:key:z{}", bs58::encode(bytes).into_string())
+}
+
+fn base64url(bytes: &[u8]) -> String {
+    data_encoding::BASE64URL_NOPAD.encode(bytes)
+}
+
+fn hex(bytes: &[u8]) -> String {
+    data_encoding::HEXLOWER.encode(bytes)
+}
+
+fn unhex(value: &str) -> Result<Vec<u8>, CapabilityError> {
+    data_encoding::HEXLOWER_PERMISSIVE
+        .decode(value.as_bytes())
+        .map_err(|_| invalid("invalid WalletConnect hex value"))
+}
+
+fn unix_timestamp() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
+
+fn invalid(message: impl Into<String>) -> CapabilityError {
+    CapabilityError::invalid_argument(message)
+}
+
+fn internal(message: impl Into<String>) -> CapabilityError {
+    CapabilityError::internal(message)
+}
+
+fn rpc(message: impl Into<String>) -> CapabilityError {
+    CapabilityError::new(CapabilityErrorCode::RpcError, message, true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encrypts_and_decrypts_session_payloads() {
+        let key = [7u8; 32];
+        let payload = br#"{"jsonrpc":"2.0","result":true}"#;
+        let encrypted = encrypt(&key, payload).unwrap();
+        assert_eq!(decrypt(&key, &encrypted).unwrap(), payload);
+    }
+
+    #[test]
+    fn parses_eip155_accounts() {
+        let payload = json!({
+            "params": {
+                "namespaces": {
+                    "eip155": {
+                        "accounts": [
+                            "eip155:1:0x5ed10018795d667050e996833c60ff02b1388058"
+                        ]
+                    }
+                }
+            }
+        });
+        let accounts = session_accounts(&payload).unwrap();
+        assert_eq!(
+            accounts[0],
+            "0x5ED10018795d667050e996833C60fF02b1388058"
+                .parse::<Address>()
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn renders_a_square_qr_block() {
+        let uri = "wc:0000000000000000000000000000000000000000000000000000000000000000@2?relay-protocol=irn&symKey=1111111111111111111111111111111111111111111111111111111111111111";
+        let code = QrCode::with_error_correction_level(uri.as_bytes(), EcLevel::L).unwrap();
+        let rendered = code
+            .render::<Dense1x2>()
+            .quiet_zone(true)
+            .module_dimensions(1, 1)
+            .build();
+        let lines = rendered.lines().collect::<Vec<_>>();
+        assert!(!lines.is_empty());
+        assert!(
+            lines
+                .iter()
+                .all(|line| line.chars().count() == lines[0].chars().count())
+        );
+    }
+
+    #[test]
+    fn saves_and_loads_a_session() {
+        let path = env::temp_dir().join(format!(
+            "fluxion-walletconnect-test-{}.json",
+            std::process::id()
+        ));
+        let session = Session {
+            topic: "topic".to_string(),
+            sym_key: "key".to_string(),
+            accounts: vec![
+                "0x5ED10018795d667050e996833C60fF02b1388058"
+                    .parse()
+                    .unwrap(),
+            ],
+            chain_id: 1,
+            expiry: unix_timestamp() + 60,
+            responder_public_key: "responder".to_string(),
+            wallet_name: Some("MetaMask".to_string()),
+            wallet_url: Some("https://metamask.io".to_string()),
+            wallet_icons: Vec::new(),
+        };
+        session.save_to(&path).unwrap();
+        let loaded = Session::load_from(&path).unwrap().unwrap();
+        assert_eq!(loaded.accounts, session.accounts);
+        assert_eq!(loaded.wallet_name.as_deref(), Some("MetaMask"));
+        let _ = fs::remove_file(path);
+    }
+}

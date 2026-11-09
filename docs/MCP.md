@@ -101,14 +101,17 @@ OpenCode (`opencode.json` or `~/.config/opencode/opencode.json`):
 ```
 
 Set `FLUXION_REMOTE_URL` / `FLUXION_API_KEY` in the environment that launches the agent when you
-need a non-default remote endpoint. Exact config keys vary by client version; check the client's
+need a non-default remote endpoint. For wallet linking, set `WALLETCONNECT_PROJECT_ID` in the same
+environment. Exact config keys vary by client version; check the client's
 MCP documentation if a snippet is rejected.
 
 ## Lifecycle
 
 - `fluxion mcp` keeps the MCP process alive and reuses one remote client.
 - `swap.quote` uses the remote service; the remote server owns discovery and snapshot warmup.
-- `fluxion mcp` is a stateless bridge and never starts the remote server.
+- `wallet_connect` starts a background pairing task in the MCP process. Keep the process alive and
+  poll `wallet_status` while the user scans; `wallet_disconnect` aborts a pending pairing.
+- `fluxion mcp` is otherwise stateless and never starts the remote server.
 - Start the remote server separately (for local testing or deployment).
 
 ## Skills
@@ -139,6 +142,9 @@ Available tools depend on the installed capabilities:
 | `wallet.assets` | `wallet_assets` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.allowance` | `wallet_allowance` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.collectibles` | `wallet_collectibles` | [capabilities/wallet](capabilities/wallet/README.md) |
+| `wallet.connect` | `wallet_connect` | [capabilities/wallet](capabilities/wallet/README.md) |
+| `wallet.status` | `wallet_status` | [capabilities/wallet](capabilities/wallet/README.md) |
+| `wallet.disconnect` | `wallet_disconnect` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `transaction.simulate` | `transaction_simulate` | [capabilities/transaction](capabilities/transaction/README.md) |
 
 ## Troubleshooting

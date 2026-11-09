@@ -11,6 +11,9 @@ its execution location is an internal Fluxion decision. The first delivered capa
 | `wallet.assets` | available | [wallet/README.md](wallet/README.md) |
 | `wallet.allowance` | available | [wallet/README.md](wallet/README.md) |
 | `wallet.collectibles` | available | [wallet/README.md](wallet/README.md) |
+| `wallet.connect` | available | [wallet/README.md](wallet/README.md) |
+| `wallet.status` | available | [wallet/README.md](wallet/README.md) |
+| `wallet.disconnect` | available | [wallet/README.md](wallet/README.md) |
 | `transaction.simulate` | available | [transaction/README.md](transaction/README.md) |
 
 ## Contract vs execution

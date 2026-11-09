@@ -9,6 +9,9 @@ pub const BALANCE_CAPABILITY: &str = "wallet.balance";
 pub const ASSETS_CAPABILITY: &str = "wallet.assets";
 pub const ALLOWANCE_CAPABILITY: &str = "wallet.allowance";
 pub const COLLECTIBLES_CAPABILITY: &str = "wallet.collectibles";
+pub const CONNECT_CAPABILITY: &str = "wallet.connect";
+pub const STATUS_CAPABILITY: &str = "wallet.status";
+pub const DISCONNECT_CAPABILITY: &str = "wallet.disconnect";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WalletTokenBalance {
@@ -77,6 +80,49 @@ pub struct WalletCollectiblesResponse {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct WalletPeer {
+    pub name: String,
+    pub url: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub icons: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WalletConnectResponse {
+    /// `pending` or `connected`.
+    pub status: String,
+    pub connection_id: String,
+    pub uri: String,
+    pub qr_ascii: String,
+    pub expires_at: i64,
+    pub accounts: Vec<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_id: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WalletStatusResponse {
+    /// `disconnected`, `pending`, `connected`, `expired`, or `error`.
+    pub status: String,
+    pub accounts: Vec<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chain_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connection_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wallet: Option<WalletPeer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WalletDisconnectResponse {
+    pub disconnected: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct WalletBalancesResponse {
     pub address: Address,
     pub block_number: u64,
@@ -89,6 +135,33 @@ pub struct WalletBalancesResponse {
     pub coverage: String,
     pub sources: Vec<AssetSource>,
     pub warnings: Vec<String>,
+}
+
+pub fn describe_connect() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: CONNECT_CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "local",
+        transports: vec!["cli", "mcp-stdio"],
+    }
+}
+
+pub fn describe_status() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: STATUS_CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "local",
+        transports: vec!["cli", "mcp-stdio"],
+    }
+}
+
+pub fn describe_disconnect() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: DISCONNECT_CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "local",
+        transports: vec!["cli", "mcp-stdio"],
+    }
 }
 
 pub fn describe_balance() -> CapabilityDescriptor {
@@ -145,5 +218,14 @@ mod tests {
         let collectibles = describe_collectibles();
         assert_eq!(collectibles.name, "wallet.collectibles");
         assert_eq!(collectibles.execution, "hybrid");
+        let connect = describe_connect();
+        assert_eq!(connect.name, "wallet.connect");
+        assert_eq!(connect.execution, "local");
+        let status = describe_status();
+        assert_eq!(status.name, "wallet.status");
+        assert_eq!(status.execution, "local");
+        let disconnect = describe_disconnect();
+        assert_eq!(disconnect.name, "wallet.disconnect");
+        assert_eq!(disconnect.execution, "local");
     }
 }

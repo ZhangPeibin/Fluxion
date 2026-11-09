@@ -15,8 +15,10 @@ use crate::transaction::{self, SimulateRequest};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest, WalletConfig,
 };
+use crate::walletconnect::Manager;
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
+    let wallet = Manager::new();
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     let mut out = tokio::io::stdout();
     loop {
@@ -26,7 +28,7 @@ pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
                 if line.is_empty() {
                     continue;
                 }
-                if let Some(response) = handle_line(line, &backend).await {
+                if let Some(response) = handle_line(line, &backend, &wallet).await {
                     let mut text = match serde_json::to_string(&response) {
                         Ok(text) => text,
                         Err(error) => {
@@ -52,6 +54,7 @@ pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
 async fn handle_line(
     line: &str,
     backend: &Result<RuntimeClient, CapabilityError>,
+    wallet: &Manager,
 ) -> Option<Value> {
     let value: Value = match serde_json::from_str(line) {
         Ok(value) => value,
@@ -63,12 +66,13 @@ async fn handle_line(
             }));
         }
     };
-    handle_request(value, backend).await
+    handle_request(value, backend, wallet).await
 }
 
 async fn handle_request(
     value: Value,
     backend: &Result<RuntimeClient, CapabilityError>,
+    wallet: &Manager,
 ) -> Option<Value> {
     let method = value
         .get("method")
@@ -91,7 +95,7 @@ async fn handle_request(
         })),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(tools_list()),
-        "tools/call" => Ok(call_tool(params, backend).await),
+        "tools/call" => Ok(call_tool(params, backend, wallet).await),
         other => Err((-32601, format!("method not found: {other}"))),
     };
     Some(match result {
@@ -188,6 +192,30 @@ fn tools_list() -> Value {
                 }
             },
             {
+                "name": "wallet_connect",
+                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. Returns a URI and ASCII QR code immediately; the wallet approves on the user's phone and the session is stored locally. Read-only connection setup; never asks for private keys.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "wallet_status",
+                "description": "Read the locally stored WalletConnect session: status, accounts, chain, expiry and wallet metadata. Does not contact the wallet.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "wallet_disconnect",
+                "description": "Remove the locally stored WalletConnect session and abort any pending pairing.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
                 "name": "transaction_simulate",
                 "description": "Simulate an Ethereum transaction with eth_call at one pinned block. Read-only: returns success/revert, return data and estimated gas; never signs or broadcasts.",
                 "inputSchema": {
@@ -207,7 +235,11 @@ fn tools_list() -> Value {
     })
 }
 
-async fn call_tool(params: Value, backend: &Result<RuntimeClient, CapabilityError>) -> Value {
+async fn call_tool(
+    params: Value,
+    backend: &Result<RuntimeClient, CapabilityError>,
+    wallet: &Manager,
+) -> Value {
     let name = params
         .get("name")
         .and_then(Value::as_str)
@@ -222,6 +254,9 @@ async fn call_tool(params: Value, backend: &Result<RuntimeClient, CapabilityErro
         "wallet_assets" => wallet_assets_tool(&arguments).await,
         "wallet_allowance" => wallet_allowance_tool(&arguments).await,
         "wallet_collectibles" => wallet_collectibles_tool(&arguments).await,
+        "wallet_connect" => wallet_connect_tool(wallet).await,
+        "wallet_status" => wallet_status_tool(wallet).await,
+        "wallet_disconnect" => wallet_disconnect_tool(wallet).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
@@ -370,6 +405,21 @@ async fn wallet_allowance_tool(arguments: &Value) -> Result<Value, CapabilityErr
     )
     .await?;
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
+async fn wallet_connect_tool(wallet: &Manager) -> Result<Value, CapabilityError> {
+    serde_json::to_value(wallet.connect().await?)
+        .map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
+async fn wallet_status_tool(wallet: &Manager) -> Result<Value, CapabilityError> {
+    serde_json::to_value(wallet.status().await?)
+        .map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
+async fn wallet_disconnect_tool(wallet: &Manager) -> Result<Value, CapabilityError> {
+    serde_json::to_value(wallet.disconnect().await?)
+        .map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
 async fn transaction_simulate_tool(arguments: &Value) -> Result<Value, CapabilityError> {
@@ -522,6 +572,9 @@ mod tests {
                 "wallet_assets",
                 "wallet_allowance",
                 "wallet_collectibles",
+                "wallet_connect",
+                "wallet_status",
+                "wallet_disconnect",
                 "transaction_simulate"
             ]
         );
@@ -532,6 +585,7 @@ mod tests {
         let result = futures::executor::block_on(call_tool(
             json!({"name": "nope", "arguments": {}}),
             &Ok(RuntimeClient::new("http://127.0.0.1:1")),
+            &Manager::new(),
         ));
         assert_eq!(result["isError"], true);
     }
@@ -541,6 +595,7 @@ mod tests {
         let result = futures::executor::block_on(call_tool(
             json!({"name": "wallet_balance", "arguments": {"address": "nope"}}),
             &Err(CapabilityError::invalid_argument("remote unavailable")),
+            &Manager::new(),
         ));
         assert_eq!(result["isError"], true);
         assert!(
