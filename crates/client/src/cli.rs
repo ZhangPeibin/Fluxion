@@ -9,6 +9,8 @@ use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest,
     WalletAllowancesResponse, WalletBalancesResponse, WalletCollectiblesResponse, WalletConfig,
 };
+use crate::walletconnect::{self, Manager};
+use fluxion_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
     let Some(first) = args.first().map(String::as_str) else {
@@ -83,6 +85,9 @@ fluxion wallet balance ADDRESS [--tokens LIST]\n  \
 fluxion wallet assets ADDRESS [--include-unknown]\n  \
 fluxion wallet allowance ADDRESS --spender ADDRESS [--tokens LIST]\n  \
 fluxion wallet collectibles ADDRESS [--collections LIST]\n  \
+fluxion wallet connect                    Link a wallet with WalletConnect\n  \
+fluxion wallet status                     Show the linked wallet session\n  \
+fluxion wallet disconnect                 Remove the linked wallet session\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--from ADDRESS]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
@@ -331,11 +336,17 @@ struct WalletArgs {
 }
 
 async fn run_wallet(raw: &[String]) -> i32 {
+    match raw.first().map(String::as_str) {
+        Some("connect") => return run_wallet_connect(&raw[1..]).await,
+        Some("status") => return run_wallet_status(&raw[1..]).await,
+        Some("disconnect") => return run_wallet_disconnect(&raw[1..]).await,
+        _ => {}
+    }
     let args = match parse_wallet_args(raw) {
         Ok(args) => args,
         Err(error) if error.message == "help requested" => {
             println!(
-                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
+                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect\n  fluxion wallet status\n  fluxion wallet disconnect\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
             );
             return 0;
         }
@@ -479,6 +490,154 @@ async fn run_wallet(raw: &[String]) -> i32 {
             report_error(&error, args.json);
             exit_code(error.code)
         }
+    }
+}
+
+async fn run_wallet_connect(raw: &[String]) -> i32 {
+    let json = match parse_wallet_session_args(raw) {
+        Ok(json) => json,
+        Err(error) => {
+            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
+    let manager = Manager::new();
+    let response = match manager.connect().await {
+        Ok(response) => response,
+        Err(error) => {
+            report_error(&error, json);
+            return exit_code(error.code);
+        }
+    };
+
+    if !json && response.status == "pending" {
+        println!("Scan with MetaMask or another WalletConnect wallet:\n");
+        println!("{}", response.qr_ascii);
+        println!();
+        println!("URI: {}", response.uri);
+        println!();
+        println!("waiting for the wallet to approve...");
+    }
+
+    let status = match wait_for_wallet(&manager, response).await {
+        Ok(status) => status,
+        Err(error) => {
+            report_error(&error, json);
+            return exit_code(error.code);
+        }
+    };
+    if json {
+        println!("{}", serde_json::to_string_pretty(&status).unwrap());
+    } else {
+        print_wallet_status_human(&status);
+    }
+    0
+}
+
+async fn wait_for_wallet(
+    manager: &Manager,
+    response: WalletConnectResponse,
+) -> Result<WalletStatusResponse, CapabilityError> {
+    if response.status == "connected" {
+        return walletconnect::status();
+    }
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(300);
+    loop {
+        let status = manager.status().await?;
+        if status.status != "pending" {
+            return Ok(status);
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(CapabilityError::new(
+                CapabilityErrorCode::Timeout,
+                "WalletConnect pairing timed out",
+                true,
+            ));
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+}
+
+async fn run_wallet_status(raw: &[String]) -> i32 {
+    let json = match parse_wallet_session_args(raw) {
+        Ok(json) => json,
+        Err(error) => {
+            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
+    match walletconnect::status() {
+        Ok(status) if json => {
+            println!("{}", serde_json::to_string_pretty(&status).unwrap());
+            0
+        }
+        Ok(status) => {
+            print_wallet_status_human(&status);
+            0
+        }
+        Err(error) => {
+            report_error(&error, json);
+            exit_code(error.code)
+        }
+    }
+}
+
+async fn run_wallet_disconnect(raw: &[String]) -> i32 {
+    let json = match parse_wallet_session_args(raw) {
+        Ok(json) => json,
+        Err(error) => {
+            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
+    match walletconnect::disconnect() {
+        Ok(response) if json => {
+            println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            0
+        }
+        Ok(_) => {
+            println!("wallet disconnected");
+            0
+        }
+        Err(error) => {
+            report_error(&error, json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_wallet_session_args(raw: &[String]) -> Result<bool, CapabilityError> {
+    let mut json = false;
+    for arg in raw {
+        match arg.as_str() {
+            "--json" => json = true,
+            value => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown wallet option: {value}"
+                )));
+            }
+        }
+    }
+    Ok(json)
+}
+
+fn print_wallet_status_human(status: &WalletStatusResponse) {
+    println!("status: {}", status.status);
+    if let Some(chain_id) = status.chain_id {
+        println!("chain: eip155:{chain_id}");
+    }
+    if let Some(expires_at) = status.expires_at {
+        println!("expires_at: {expires_at}");
+    }
+    if let Some(wallet) = &status.wallet {
+        println!("wallet: {} {}", wallet.name, wallet.url);
+    }
+    for account in &status.accounts {
+        println!("account: {account}");
+    }
+    if let Some(error) = &status.error {
+        eprintln!("error: {error}");
     }
 }
 
@@ -995,6 +1154,9 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "wallet.assets" => fluxion_protocol::wallet::describe_assets(),
                 "wallet.allowance" => fluxion_protocol::wallet::describe_allowance(),
                 "wallet.collectibles" => fluxion_protocol::wallet::describe_collectibles(),
+                "wallet.connect" => fluxion_protocol::wallet::describe_connect(),
+                "wallet.status" => fluxion_protocol::wallet::describe_status(),
+                "wallet.disconnect" => fluxion_protocol::wallet::describe_disconnect(),
                 "transaction.simulate" => fluxion_protocol::transaction::describe(),
                 other => {
                     let error = CapabilityError::new(
@@ -1073,6 +1235,13 @@ mod tests {
         assert_eq!(args[0], "ldo-eth");
         let (token_in, token_out) = args[0].split_once('-').unwrap();
         assert_eq!((token_in, token_out), ("ldo", "eth"));
+    }
+
+    #[test]
+    fn parses_wallet_session_arguments() {
+        assert!(parse_wallet_session_args(&["--json".to_string()]).unwrap());
+        assert!(!parse_wallet_session_args(&[]).unwrap());
+        assert!(parse_wallet_session_args(&["--wat".to_string()]).is_err());
     }
 
     #[test]

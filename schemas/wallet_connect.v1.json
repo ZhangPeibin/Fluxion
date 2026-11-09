@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/wallet_connect.v1.json",
+  "title": "Fluxion wallet connect v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status", "connection_id", "uri", "qr_ascii",
+    "expires_at", "accounts"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["pending", "connected"]
+    },
+    "connection_id": { "type": "string" },
+    "uri": { "type": "string" },
+    "qr_ascii": { "type": "string" },
+    "expires_at": { "type": "integer" },
+    "accounts": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" }
+    },
+    "chain_id": { "type": "integer", "minimum": 0 }
+  }
+}

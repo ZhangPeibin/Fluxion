@@ -24,6 +24,9 @@ English · [中文](README.md)
 | `wallet.assets` | Discover an address's ERC20 holdings, then verify each balance locally |
 | `wallet.allowance` | ERC20 allowances for an owner/spender pair |
 | `wallet.collectibles` | ERC721 and ERC1155 holdings |
+| `wallet.connect` | Link a mobile wallet by scanning a WalletConnect QR code |
+| `wallet.status` | Inspect the local wallet session |
+| `wallet.disconnect` | Remove the local wallet session |
 | `transaction.simulate` | Simulate calldata locally and return the result and gas |
 
 `swap.build`, `swap.execute`, and other write operations are still planned.
@@ -59,9 +62,9 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 Quote computation needs continuous pool sync, snapshot maintenance, and route search, so it lives
 in the remote service. A request reads one published snapshot; the quote path makes no RPC calls.
 
-Wallet reads and simulation need to stay close to the user, so they run locally. These read-only
-capabilities do not touch private keys; when signing and execution arrive, keys will still stay
-local.
+Wallet reads, WalletConnect sessions, and simulation need to stay close to the user, so they run
+locally. Plain reads do not touch private keys; `wallet.connect` stores a session only, and signing
+still happens in the phone wallet.
 
 Each capability has one fixed execution location. Agents and users don't choose remote or local,
 and there is no automatic fallback between them.
@@ -95,7 +98,8 @@ See [product architecture](docs/PRODUCT-ARCHITECTURE.md) for the full responsibi
 
 ## Status and limits
 
-Fluxion is pre-1.0. It supports Ethereum mainnet only, and every capability is read-only.
+Fluxion is pre-1.0. It supports Ethereum mainnet only. Account and simulation capabilities are
+read-only; `wallet.connect` only establishes a local WalletConnect session.
 
 - It cannot sign, approve, or broadcast transactions.
 - Full `wallet.assets` and `wallet.collectibles` discovery depends on optional providers. Without

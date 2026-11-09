@@ -1,7 +1,7 @@
 # wallet capabilities
 
-Read-only Local Runtime capabilities for Ethereum accounts. None of these capabilities signs,
-approves, or broadcasts transactions.
+Read-only account capabilities and local WalletConnect session management for Ethereum accounts.
+None of these capabilities signs, approves, or broadcasts transactions.
 
 ## `wallet.balance`
 
@@ -73,6 +73,45 @@ fluxion wallet collectibles 0xowner --collections 0xcollection1,0xcollection2 --
   indexer.
 - `coverage` is `provider+local`, `registry+local`, or `local`.
 
+## `wallet.connect`
+
+Start a WalletConnect v2 pairing and return a URI plus an ASCII QR code. The wallet
+approves on the user's phone; private keys never enter Fluxion.
+
+```bash
+fluxion wallet connect
+fluxion wallet connect --json
+```
+
+- Requires `WALLETCONNECT_PROJECT_ID`.
+- The CLI prints the QR code and waits up to 5 minutes.
+- MCP returns the pending URI/QR immediately; poll `wallet_status` for completion.
+- If a valid session already exists, `wallet.connect` returns `connected` without a new pairing.
+- The session is stored at `~/.fluxion/walletconnect/session.json` with mode `0600`.
+
+## `wallet.status`
+
+Read the stored WalletConnect session.
+
+```bash
+fluxion wallet status
+fluxion wallet status --json
+```
+
+- `disconnected`: no local session.
+- `pending`: a pairing is waiting for the wallet.
+- `connected`: session is active.
+- `expired`: session exists but its expiry has passed.
+- Returns accounts, `chain_id`, expiry, and wallet metadata. It does not contact the wallet.
+
+## `wallet.disconnect`
+
+Remove the local session and abort any pending pairing.
+
+```bash
+fluxion wallet disconnect --json
+```
+
 ## MCP tools
 
 | Tool | Execution |
@@ -81,6 +120,9 @@ fluxion wallet collectibles 0xowner --collections 0xcollection1,0xcollection2 --
 | `wallet_assets` | hybrid |
 | `wallet_allowance` | local |
 | `wallet_collectibles` | hybrid |
+| `wallet_connect` | local |
+| `wallet_status` | local |
+| `wallet_disconnect` | local |
 
 ## Configuration
 
@@ -89,12 +131,17 @@ fluxion wallet collectibles 0xowner --collections 0xcollection1,0xcollection2 --
 - `FLUXION_ONEINCH_BALANCE_URL`: optional provider override
 - `ALCHEMY_API_KEY`: optional; enables full `wallet.collectibles` discovery
 - `FLUXION_ALCHEMY_NFT_URL`: optional Alchemy NFT endpoint override
+- `WALLETCONNECT_PROJECT_ID`: required for `wallet.connect`; create one at https://cloud.reown.com
+- `WALLETCONNECT_RELAY_URL`: optional relay override; defaults to `wss://relay.walletconnect.com`
 
 ## Output
 
-Balances: [`schemas/wallet_balances.v1.json`](../../../schemas/wallet_balances.v1.json).  
-Allowances: [`schemas/wallet_allowances.v1.json`](../../../schemas/wallet_allowances.v1.json).  
-Collectibles: [`schemas/wallet_collectibles.v1.json`](../../../schemas/wallet_collectibles.v1.json).
+- Balances: [`schemas/wallet_balances.v1.json`](../../../schemas/wallet_balances.v1.json)
+- Allowances: [`schemas/wallet_allowances.v1.json`](../../../schemas/wallet_allowances.v1.json)
+- Collectibles: [`schemas/wallet_collectibles.v1.json`](../../../schemas/wallet_collectibles.v1.json)
+- Connect: [`schemas/wallet_connect.v1.json`](../../../schemas/wallet_connect.v1.json)
+- Status: [`schemas/wallet_status.v1.json`](../../../schemas/wallet_status.v1.json)
+- Disconnect: [`schemas/wallet_disconnect.v1.json`](../../../schemas/wallet_disconnect.v1.json)
 
 ```json
 {
@@ -121,6 +168,8 @@ Collectibles: [`schemas/wallet_collectibles.v1.json`](../../../schemas/wallet_co
 
 - Ethereum only.
 - Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
+- WalletConnect sessions currently support `eip155:1` only.
+- `wallet.connect` links a wallet for future signing; it does not sign or send transactions yet.
 - No signing, approvals, private keys, or transaction execution.
 - No USD valuation.
 - `wallet.assets` discovery is best-effort; `coverage` and `warnings` make completeness explicit.

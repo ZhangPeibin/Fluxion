@@ -26,6 +26,12 @@ pub enum CapabilityId {
     WalletAllowance,
     #[serde(rename = "wallet.collectibles")]
     WalletCollectibles,
+    #[serde(rename = "wallet.connect")]
+    WalletConnect,
+    #[serde(rename = "wallet.status")]
+    WalletStatus,
+    #[serde(rename = "wallet.disconnect")]
+    WalletDisconnect,
     #[serde(rename = "transaction.simulate")]
     TransactionSimulate,
 }
@@ -38,6 +44,9 @@ impl CapabilityId {
             Self::WalletAssets => "wallet.assets",
             Self::WalletAllowance => "wallet.allowance",
             Self::WalletCollectibles => "wallet.collectibles",
+            Self::WalletConnect => "wallet.connect",
+            Self::WalletStatus => "wallet.status",
+            Self::WalletDisconnect => "wallet.disconnect",
             Self::TransactionSimulate => "transaction.simulate",
         }
     }
@@ -49,6 +58,9 @@ impl CapabilityId {
             Self::WalletAssets,
             Self::WalletAllowance,
             Self::WalletCollectibles,
+            Self::WalletConnect,
+            Self::WalletStatus,
+            Self::WalletDisconnect,
             Self::TransactionSimulate,
         ]
     }
@@ -83,6 +95,9 @@ mod tests {
                 "wallet.assets",
                 "wallet.allowance",
                 "wallet.collectibles",
+                "wallet.connect",
+                "wallet.status",
+                "wallet.disconnect",
                 "transaction.simulate"
             ]
         );
@@ -94,6 +109,9 @@ mod tests {
             CapabilityId::WalletCollectibles.as_str(),
             "wallet.collectibles"
         );
+        assert_eq!(CapabilityId::WalletConnect.as_str(), "wallet.connect");
+        assert_eq!(CapabilityId::WalletStatus.as_str(), "wallet.status");
+        assert_eq!(CapabilityId::WalletDisconnect.as_str(), "wallet.disconnect");
         assert_eq!(
             CapabilityId::TransactionSimulate.as_str(),
             "transaction.simulate"

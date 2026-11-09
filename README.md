@@ -22,6 +22,9 @@ calldata 模拟。签名、授权和交易执行还没有实现。
 | `wallet.assets` | 发现地址持有的 ERC20，并在本地逐个核对余额 |
 | `wallet.allowance` | 查询 owner/spender 的 ERC20 授权额度 |
 | `wallet.collectibles` | 查询 ERC721/ERC1155 持仓 |
+| `wallet.connect` | 用 WalletConnect 扫码连接手机钱包 |
+| `wallet.status` | 查看本地钱包会话 |
+| `wallet.disconnect` | 删除本地钱包会话 |
 | `transaction.simulate` | 在本地模拟一笔 calldata，返回执行结果和 gas |
 
 `swap.build`、`swap.execute` 等写操作还在计划中。
@@ -56,8 +59,8 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 报价计算需要持续同步池子、维护快照和搜索路由，放在远程服务里更合适。请求进来时只读一个
 已经发布的快照，计算过程中不访问 RPC。
 
-钱包读取和模拟需要贴近用户环境，所以放在本地。这些只读能力不接触私钥；以后做签名和执行时，
-私钥也不会离开本地。
+钱包读取、WalletConnect 会话和模拟需要贴近用户环境，所以放在本地。普通读取不接触私钥；
+`wallet.connect` 只保存会话，签名仍在手机钱包里完成。
 
 每个能力的执行位置是固定的，Agent 和用户都不需要选择 remote 或 local，也不存在两边自动
 fallback。
@@ -91,7 +94,8 @@ fluxion mcp
 
 ## 状态和限制
 
-项目还在 pre-1.0，只支持 Ethereum 主网，所有能力只读。
+项目还在 pre-1.0，只支持 Ethereum 主网。账户和模拟能力只读；`wallet.connect` 只建立本地
+WalletConnect 会话。
 
 - 不能签名、授权或广播交易。
 - `wallet.assets` 和 `wallet.collectibles` 的完整发现依赖可选 provider；没有 key 时会退回
