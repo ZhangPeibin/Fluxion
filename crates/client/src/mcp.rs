@@ -193,7 +193,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "wallet_connect",
-                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. Returns a URI and ASCII QR code immediately; the wallet approves on the user's phone and the session is stored locally. Read-only connection setup; never asks for private keys.",
+                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. Returns a URI, a small PNG QR image and an ASCII QR fallback immediately; the wallet approves on the user's phone and the session is stored locally. Read-only connection setup; never asks for private keys.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {}
@@ -247,6 +247,7 @@ async fn call_tool(
         .and_then(Value::as_str)
         .unwrap_or_default();
     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+    let mut image = None;
     let result = match name {
         "swap_quote" => quote_tool(&arguments, backend).await.and_then(|response| {
             serde_json::to_value(response)
@@ -256,7 +257,10 @@ async fn call_tool(
         "wallet_assets" => wallet_assets_tool(&arguments).await,
         "wallet_allowance" => wallet_allowance_tool(&arguments).await,
         "wallet_collectibles" => wallet_collectibles_tool(&arguments).await,
-        "wallet_connect" => wallet_connect_tool(wallet).await,
+        "wallet_connect" => wallet_connect_tool(wallet).await.map(|(value, png)| {
+            image = png;
+            value
+        }),
         "wallet_status" => wallet_status_tool(&arguments, wallet).await,
         "wallet_disconnect" => wallet_disconnect_tool(wallet).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
@@ -265,7 +269,7 @@ async fn call_tool(
         ))),
     };
     match result {
-        Ok(value) => tool_result(value),
+        Ok(value) => tool_result(value, image),
         Err(error) => tool_error(error),
     }
 }
@@ -409,9 +413,12 @@ async fn wallet_allowance_tool(arguments: &Value) -> Result<Value, CapabilityErr
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
-async fn wallet_connect_tool(wallet: &Manager) -> Result<Value, CapabilityError> {
-    serde_json::to_value(wallet.connect().await?)
-        .map_err(|error| CapabilityError::internal(error.to_string()))
+async fn wallet_connect_tool(wallet: &Manager) -> Result<(Value, Option<String>), CapabilityError> {
+    let response = wallet.connect().await?;
+    let image = response.qr_png_base64.clone();
+    let value = serde_json::to_value(&response)
+        .map_err(|error| CapabilityError::internal(error.to_string()))?;
+    Ok((value, image))
 }
 
 async fn wallet_status_tool(arguments: &Value, wallet: &Manager) -> Result<Value, CapabilityError> {
@@ -527,12 +534,20 @@ fn optional_usize(arguments: &Value, name: &str) -> Result<Option<usize>, Capabi
     }
 }
 
-fn tool_result(value: Value) -> Value {
+fn tool_result(value: Value, image: Option<String>) -> Value {
+    let mut content = vec![json!({
+        "type": "text",
+        "text": serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string()),
+    })];
+    if let Some(data) = image {
+        content.push(json!({
+            "type": "image",
+            "data": data,
+            "mimeType": "image/png",
+        }));
+    }
     json!({
-        "content": [{
-            "type": "text",
-            "text": serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string()),
-        }],
+        "content": content,
         "isError": false,
     })
 }
@@ -616,6 +631,15 @@ mod tests {
                 .unwrap()
                 .contains("INVALID_ARGUMENT")
         );
+    }
+
+    #[test]
+    fn tool_result_can_include_a_qr_image() {
+        let value = tool_result(json!({"status": "pending"}), Some("png".to_string()));
+        assert_eq!(value["content"][0]["type"], "text");
+        assert_eq!(value["content"][1]["type"], "image");
+        assert_eq!(value["content"][1]["mimeType"], "image/png");
+        assert_eq!(value["content"][1]["data"], "png");
     }
 
     #[test]

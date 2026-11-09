@@ -18,7 +18,7 @@ use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use hkdf::Hkdf;
 use qrcode::render::unicode::Dense1x2;
-use qrcode::{EcLevel, QrCode};
+use qrcode::{Color, EcLevel, QrCode};
 use rand::RngCore;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -280,6 +280,10 @@ impl Pairing {
         render_qr(&self.uri)
     }
 
+    pub fn qr_png_base64(&self) -> Result<String, CapabilityError> {
+        qr_png_base64(&self.uri)
+    }
+
     pub async fn wait(self, timeout: Duration) -> Result<Session, CapabilityError> {
         match tokio::time::timeout(timeout, self.wait_inner()).await {
             Ok(result) => result,
@@ -428,6 +432,7 @@ struct Pending {
     connection_id: String,
     uri: String,
     qr_ascii: String,
+    qr_png_base64: Option<String>,
     expires_at: i64,
     status: String,
     error: Option<String>,
@@ -477,6 +482,7 @@ impl Manager {
         let connection_id = pairing.uri()[3..35].to_string();
         let uri = pairing.uri().to_string();
         let qr_ascii = pairing.qr_ascii()?;
+        let qr_png_base64 = pairing.qr_png_base64().ok();
         let expires_at = pairing.expires_at();
 
         let manager = self.clone();
@@ -492,6 +498,7 @@ impl Manager {
             connection_id,
             uri,
             qr_ascii,
+            qr_png_base64,
             expires_at,
             status: "pending".to_string(),
             error: None,
@@ -614,6 +621,7 @@ fn pending_response(pending: &Pending) -> WalletConnectResponse {
         expires_at: pending.expires_at,
         accounts: Vec::new(),
         chain_id: None,
+        qr_png_base64: pending.qr_png_base64.clone(),
     }
 }
 
@@ -626,6 +634,7 @@ fn connected_response(session: Session) -> WalletConnectResponse {
         expires_at: session.expiry,
         accounts: session.accounts,
         chain_id: Some(session.chain_id),
+        qr_png_base64: None,
     }
 }
 
@@ -891,6 +900,93 @@ fn render_qr(uri: &str) -> Result<String, CapabilityError> {
     Ok(out)
 }
 
+fn qr_png_base64(uri: &str) -> Result<String, CapabilityError> {
+    Ok(data_encoding::BASE64.encode(&qr_png(uri)?))
+}
+
+fn qr_png(uri: &str) -> Result<Vec<u8>, CapabilityError> {
+    let code = QrCode::with_error_correction_level(uri.as_bytes(), EcLevel::L)
+        .map_err(|error| internal(format!("cannot render WalletConnect QR: {error}")))?;
+    let modules = code.width();
+    let colors = code.to_colors();
+    let quiet = 4usize;
+    let scale = 4usize;
+    let side = (modules + quiet * 2) * scale;
+    let mut raw = Vec::with_capacity((side + 1) * side);
+    for y in 0..side {
+        raw.push(0);
+        let my = y / scale;
+        for x in 0..side {
+            let mx = x / scale;
+            let dark = mx >= quiet
+                && my >= quiet
+                && mx < quiet + modules
+                && my < quiet + modules
+                && colors[(my - quiet) * modules + (mx - quiet)] == Color::Dark;
+            raw.push(if dark { 0 } else { 255 });
+        }
+    }
+
+    let mut png = vec![137, 80, 78, 71, 13, 10, 26, 10];
+    let mut ihdr = Vec::with_capacity(13);
+    ihdr.extend_from_slice(&(side as u32).to_be_bytes());
+    ihdr.extend_from_slice(&(side as u32).to_be_bytes());
+    ihdr.extend_from_slice(&[8, 0, 0, 0, 0]);
+    write_png_chunk(&mut png, b"IHDR", &ihdr);
+    write_png_chunk(&mut png, b"IDAT", &zlib_store(&raw));
+    write_png_chunk(&mut png, b"IEND", &[]);
+    Ok(png)
+}
+
+fn write_png_chunk(png: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+    png.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    png.extend_from_slice(kind);
+    png.extend_from_slice(data);
+    let mut crc_input = Vec::with_capacity(4 + data.len());
+    crc_input.extend_from_slice(kind);
+    crc_input.extend_from_slice(data);
+    png.extend_from_slice(&crc32(&crc_input).to_be_bytes());
+}
+
+fn zlib_store(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(data.len() + data.len() / 65535 * 5 + 6);
+    out.extend_from_slice(&[0x78, 0x01]);
+    let mut offset = 0;
+    while offset < data.len() {
+        let len = (data.len() - offset).min(65535);
+        let last = offset + len == data.len();
+        out.push(if last { 1 } else { 0 });
+        out.extend_from_slice(&(len as u16).to_le_bytes());
+        out.extend_from_slice(&(!(len as u16)).to_le_bytes());
+        out.extend_from_slice(&data[offset..offset + len]);
+        offset += len;
+    }
+    out.extend_from_slice(&adler32(data).to_be_bytes());
+    out
+}
+
+fn crc32(data: &[u8]) -> u32 {
+    let mut crc = 0xffff_ffffu32;
+    for &byte in data {
+        crc ^= u32::from(byte);
+        for _ in 0..8 {
+            let mask = (crc & 1).wrapping_neg();
+            crc = (crc >> 1) ^ (0xedb8_8320 & mask);
+        }
+    }
+    !crc
+}
+
+fn adler32(data: &[u8]) -> u32 {
+    let mut a = 1u32;
+    let mut b = 0u32;
+    for &byte in data {
+        a = (a + u32::from(byte)) % 65521;
+        b = (b + a) % 65521;
+    }
+    (b << 16) | a
+}
+
 fn did_key(key: &ed25519_dalek::VerifyingKey) -> String {
     let mut bytes = vec![0xed, 0x01];
     bytes.extend_from_slice(key.as_bytes());
@@ -980,6 +1076,13 @@ mod tests {
             "QR should stay compact, got width {}",
             lines[0].chars().count()
         );
+    }
+
+    #[test]
+    fn renders_a_png_qr() {
+        let png = qr_png("wc:test").unwrap();
+        assert!(png.starts_with(&[137, 80, 78, 71, 13, 10, 26, 10]));
+        assert!(png.len() > 100);
     }
 
     #[test]
