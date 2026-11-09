@@ -193,7 +193,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "wallet_connect",
-                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. Returns a URI, a small PNG QR image and an ASCII QR fallback immediately; the wallet approves on the user's phone and the session is stored locally. Read-only connection setup; never asks for private keys.",
+                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. Returns a 51-column terminal QR (qr_ascii), a URI and an optional PNG path immediately; the wallet approves on the user's phone and the session is stored locally. Read-only connection setup; never asks for private keys.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {}
@@ -415,9 +415,6 @@ async fn wallet_allowance_tool(arguments: &Value) -> Result<Value, CapabilityErr
 
 async fn wallet_connect_tool(wallet: &Manager) -> Result<(Value, Option<String>), CapabilityError> {
     let response = wallet.connect().await?;
-    if let Some(path) = response.qr_png_path.as_deref() {
-        let _ = crate::walletconnect::open_qr(path);
-    }
     let image = response.qr_png_base64.clone();
     let value = serde_json::to_value(&response)
         .map_err(|error| CapabilityError::internal(error.to_string()))?;
