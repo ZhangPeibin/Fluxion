@@ -1,86 +1,154 @@
 # Fluxion
 
-Fluxion 是一个开源的 Web3 能力层，给 AI Agent 用。它把常用的链上操作封装成 MCP 工具，
-Agent 不需要为每个协议单独写集成，也不用接触私钥。
+Fluxion 是一个面向 AI Agent 的 Web3 能力层。它把链上操作封装成稳定的 MCP 能力，目标是全链支持，
+而不是绑定某一个网络或协议。
 
-目前跑在 Ethereum 主网上，所有能力都是只读的：报价、余额、代币和 NFT 持仓、授权查询、
-calldata 模拟。签名、授权和交易执行还没有实现。
+当前实现覆盖 Ethereum mainnet，已交付 9 个只读 capability。报价在远端不可变快照上计算；
+钱包读取、WalletConnect 会话和模拟在本地执行。完整的 capability 列表见 [能力](#能力)。
 
 [English](README.en.md) · 中文
 
+[![CI](https://github.com/ZhangPeibin/Fluxion/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ZhangPeibin/Fluxion/actions/workflows/ci.yml)
 ![status](https://img.shields.io/badge/status-pre--1.0-orange)
 ![MCP](https://img.shields.io/badge/MCP-stdio-blueviolet)
 ![Rust](https://img.shields.io/badge/Rust-2024-orange)
 ![Ethereum](https://img.shields.io/badge/Ethereum-mainnet-627eea)
 
-## 现在能做什么
-
-| 能力 | 做什么 |
-|---|---|
-| `swap.quote` | 获取 Ethereum 主网的 exact-in 报价，支持多跳和拆单 |
-| `wallet.balance` | 查询指定代币在固定区块的余额 |
-| `wallet.assets` | 发现地址持有的 ERC20，并在本地逐个核对余额 |
-| `wallet.allowance` | 查询 owner/spender 的 ERC20 授权额度 |
-| `wallet.collectibles` | 查询 ERC721/ERC1155 持仓 |
-| `wallet.connect` | 用 WalletConnect 扫码连接手机钱包 |
-| `wallet.status` | 查看本地钱包会话 |
-| `wallet.disconnect` | 删除本地钱包会话 |
-| `transaction.simulate` | 在本地模拟一笔 calldata，返回执行结果和 gas |
-
-`swap.build`、`swap.execute` 等写操作还在计划中。
-
-## 安装和使用
+## 安装
 
 ```bash
 cargo install --path crates/client
-fluxion mcp
 ```
 
-`fluxion mcp` 把能力暴露成 MCP tool，本身不会启动远程报价服务。远程服务的部署、MCP
-客户端注册和 Skills 配置见 [docs/MCP.md](docs/MCP.md)。
+## 使用
 
-也可以直接当命令行工具用：
+### CLI
+
+```console
+$ fluxion swap ldo-eth 100
+LDO → WETH
+100 LDO → 0.015452346279312091 WETH
+plan: baseline · block 26377973 · lag 0 · 21 ms
+```
+
+其它命令：
 
 ```bash
-fluxion swap ldo-eth 100
-fluxion wallet balance 0xabc... --tokens ETH,USDC
-fluxion wallet collectibles 0xabc...
-fluxion transaction simulate --to 0xabc... --data 0x...
+fluxion wallet balance 0x... --tokens ETH,USDC
+fluxion wallet assets 0x...
+fluxion wallet collectibles 0x...
+fluxion wallet connect
+fluxion transaction simulate --to 0x... --data 0x...
 ```
 
-`swap.quote` 需要连接远程服务：
+`swap.quote` 需要连接 remote 服务：
 
 ```bash
 FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 ```
 
-## 为什么这样拆分
+### Skills
 
-报价计算需要持续同步池子、维护快照和搜索路由，放在远程服务里更合适。请求进来时只读一个
-已经发布的快照，计算过程中不访问 RPC。
+Skills 是给 Agent 的使用说明，不是执行入口。仓库里有三个：
 
-钱包读取、WalletConnect 会话和模拟需要贴近用户环境，所以放在本地。普通读取不接触私钥；
-`wallet.connect` 只保存会话，签名仍在手机钱包里完成。
+- [swap](skills/swap/SKILL.md)：什么时候报价，怎么读 split、sources 和 children
+- [wallet](skills/wallet/SKILL.md)：余额、资产、授权、NFT 和 WalletConnect 扫码
+- [transaction](skills/transaction/SKILL.md)：calldata 模拟和 revert 处理
 
-每个能力的执行位置是固定的，Agent 和用户都不需要选择 remote 或 local，也不存在两边自动
-fallback。
+以 opencode 为例，把仓库的 `skills/` 加入配置：
 
-## 架构
-
-```text
-Agent (opencode / Claude / Codex)
-  │  MCP stdio
-  ▼
-fluxion mcp
-  ├── swap.quote ─────────────────────► Fluxion remote ──► Ethereum RPC / subgraphs
-  └── wallet.* / transaction.simulate ─► local RPC
+```json
+{
+  "skills": {
+    "paths": ["/path/to/Fluxion/skills"]
+  }
+}
 ```
 
-- `swap.quote` 的远程服务负责 discovery、快照和路由，只读。
-- `wallet.*` 和 `transaction.simulate` 在本地执行，只读。
-- 输出都是结构化 JSON，字段和错误码有 schema 约束。
+配置后可以直接对 Agent 说：
 
-更完整的职责划分见 [产品架构](docs/PRODUCT-ARCHITECTURE.md)。
+```text
+帮我看看 0x... 的 ETH、USDC 和 NFT
+LDO 换 ETH，100 个，报个价
+模拟这笔 calldata
+连接钱包
+```
+
+Skills 只影响 Agent 怎么调用能力；执行路由、区块固定和错误码仍在 MCP/runtime 里。
+
+### MCP
+
+```bash
+fluxion mcp
+```
+
+`fluxion mcp` 通过 stdio 暴露能力，不会启动 remote 服务。客户端注册、远程部署和完整配置见
+[docs/MCP.md](docs/MCP.md)。
+
+## 能力
+
+| Capability | 说明 |
+|---|---|
+| `swap.quote` | Ethereum 主网 exact-in 报价，支持多跳和拆单 |
+| `wallet.balance` | 固定区块的 ETH/ERC20 余额 |
+| `wallet.assets` | 发现 ERC20 持仓并在本地核对余额 |
+| `wallet.allowance` | owner/spender 的 ERC20 授权额度 |
+| `wallet.collectibles` | ERC721/ERC1155 持仓 |
+| `wallet.connect` | WalletConnect 扫码连接手机钱包 |
+| `wallet.status` | 查看本地钱包会话 |
+| `wallet.disconnect` | 删除本地钱包会话 |
+| `transaction.simulate` | 固定区块模拟 calldata，返回结果和 gas |
+
+计划中：`wallet.sign`、`swap.build`、`swap.execute`。当前 WalletConnect 会话只用于连接，
+不签名、不授权、不广播。
+
+## 工作方式
+
+每个 capability 的执行位置固定，Agent 和用户都不选择 remote/local：
+
+- `swap.quote` 走 remote。请求只读一个已发布的不可变 snapshot，计算阶段不访问 RPC。
+- `wallet.*` 和 `transaction.simulate` 走 local。读取和模拟固定在指定区块。
+- 响应使用稳定的 JSON schema 和错误码；金额、区块、来源和 coverage 都在结果里。
+
+```text
+Agent ──MCP──▶ fluxion mcp ──▶ capability router
+                                 ├── swap.quote ─────────▶ remote snapshot ──▶ Ethereum
+                                 └── wallet.* / simulate ─▶ local RPC
+```
+
+## 仓库结构
+
+```text
+crates/protocol   capability contract、JSON types、错误码
+crates/remote     discovery、snapshot、routing、split search、HTTP API
+crates/client     CLI、MCP bridge、wallet、WalletConnect、本地模拟
+schemas/          响应 JSON schema
+skills/           Agent 使用说明
+docs/benchmarks/  benchmark 方法和原始数据
+```
+
+链交互使用手写 JSON-RPC 和 ABI 编解码；alloy 只用 `alloy-primitives`。CI 跑 fmt、clippy 和
+unit tests。
+
+## 基准
+
+Ethereum mainnet 的 90 行 runtime benchmark（2026-11-06，309 个池子）：90/90 报价成功，
+HTTP p50/p95 为 35/197 ms，snapshot lag 0/1/1 blocks。82/90 在 ParaSwap ±50 bps 内，79/90
+在 1inch ±50 bps 内。方法和原始数据见 [docs/benchmarks](docs/benchmarks/README.md)。
+
+## 状态
+
+Pre-1.0。当前实现覆盖 Ethereum mainnet，目标支持更多链。
+
+- 账户、报价和模拟能力只读；不能签名、授权或广播交易。
+- `wallet.connect` 只建立 WalletConnect 会话，私钥留在手机钱包。
+- `wallet.assets` / `wallet.collectibles` 的完整发现依赖可选 provider；回退时通过 coverage
+  和 warnings 说明。
+- 非 Enumerable ERC721 只能返回数量；ERC1155 枚举依赖 indexer。
+- 不提供 USD 估值。
+- `swap.quote` 需要单独部署 remote 服务。
+
+下一步是 `wallet.sign`、`swap.build` 和 `swap.execute`。
 
 ## 文档
 
@@ -89,21 +157,8 @@ fluxion mcp
 - 架构：[产品架构](docs/PRODUCT-ARCHITECTURE.md) · [引擎架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
 - 运维：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
 - 研究：[benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
-- 契约：[swap schema](schemas/swap_quote.v1.json) · [wallet schema](schemas/wallet_balances.v1.json) · [allowance schema](schemas/wallet_allowances.v1.json) · [collectibles schema](schemas/wallet_collectibles.v1.json) · [transaction schema](schemas/transaction_simulate.v1.json)
+- 契约：[swap schema](schemas/swap_quote.v1.json) · [wallet schema](schemas/wallet_balances.v1.json) · [allowance schema](schemas/wallet_allowances.v1.json) · [collectibles schema](schemas/wallet_collectibles.v1.json) · [connect schema](schemas/wallet_connect.v1.json) · [status schema](schemas/wallet_status.v1.json) · [disconnect schema](schemas/wallet_disconnect.v1.json) · [transaction schema](schemas/transaction_simulate.v1.json)
 - Skills：[swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md)
-
-## 状态和限制
-
-项目还在 pre-1.0，只支持 Ethereum 主网。账户和模拟能力只读；`wallet.connect` 只建立本地
-WalletConnect 会话。
-
-- 不能签名、授权或广播交易。
-- `wallet.assets` 和 `wallet.collectibles` 的完整发现依赖可选 provider；没有 key 时会退回
-  registry 或显式 collection，并通过 `coverage` 和 `warnings` 说明。
-- 非 Enumerable 的 ERC721 只能返回持仓数量，拿不到 token id；ERC1155 枚举依赖 indexer。
-- 不提供 USD 估值。
-- 远程报价服务需要单独部署。
-- 报价 benchmark 和复现方法见 [docs/benchmarks](docs/benchmarks/README.md)。
 
 ## 开发
 
