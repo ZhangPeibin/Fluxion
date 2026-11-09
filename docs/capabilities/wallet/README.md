@@ -85,10 +85,10 @@ fluxion wallet connect --json
 
 - Requires `WALLETCONNECT_PROJECT_ID`.
 - The CLI prints the QR code and waits up to 5 minutes.
-- MCP returns the pending URI immediately, writes a small PNG QR, opens it with the local image
-  viewer, and returns `qr_png_path` plus an `image/png` content block and an ASCII fallback. The
-  agent should call `wallet_status` with `wait_seconds` (up to 110) instead of asking the user to
-  check manually.
+- MCP returns the pending URI and a 51-column terminal QR (`qr_ascii`) immediately. A small PNG
+  is also written and returned as `qr_png_path` for fallback, but it is not opened automatically.
+  The agent should show `qr_ascii` and call `wallet_status` with `wait_seconds` (up to 110) instead
+  of asking the user to check manually.
 - If a valid session already exists, `wallet.connect` returns `connected` without a new pairing.
 - The session is stored at `~/.fluxion/walletconnect/session.json` with mode `0600`.
 
