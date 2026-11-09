@@ -100,6 +100,8 @@ pub struct WalletConnectResponse {
     pub chain_id: Option<u64>,
     #[serde(skip)]
     pub qr_png_base64: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub qr_png_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

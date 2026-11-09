@@ -128,9 +128,10 @@ OKX, or another WalletConnect wallet.
 
 - Requires `WALLETCONNECT_PROJECT_ID` in the environment that starts `fluxion mcp`.
 - Returns `status: "pending"`, `uri`, `qr_ascii`, and `expires_at` immediately.
-- The MCP result also includes an `image/png` content block: a small, scannable QR. Show that image
-  to the user. `qr_ascii` is only a fallback for clients that cannot render images; the WalletConnect
-  URI is too long for a reliable 32-column terminal QR.
+- The MCP call writes a small PNG QR, opens it with the local image viewer, and returns
+  `qr_png_path`. The result also includes an `image/png` content block for clients that render it.
+  If no window appears, tell the user to open `qr_png_path`. `qr_ascii` is only a fallback; the
+  WalletConnect URI is too long for a reliable 32-column terminal QR.
 - Do not ask for a private key or seed phrase.
 - After showing the QR, immediately call `wallet_status` with `wait_seconds: 90`. If it is still
   `pending`, call it again. Do not ask the user to say "check status".

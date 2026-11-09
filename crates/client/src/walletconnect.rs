@@ -7,6 +7,7 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -124,14 +125,58 @@ impl Session {
     }
 }
 
-pub fn session_path() -> PathBuf {
+fn walletconnect_dir() -> PathBuf {
     let home = env::var_os("FLUXION_HOME")
         .map(PathBuf::from)
         .or_else(|| env::var_os("HOME").map(PathBuf::from))
         .unwrap_or_else(env::temp_dir);
-    home.join(".fluxion")
-        .join("walletconnect")
-        .join("session.json")
+    home.join(".fluxion").join("walletconnect")
+}
+
+pub fn session_path() -> PathBuf {
+    walletconnect_dir().join("session.json")
+}
+
+pub fn open_qr(path: &str) -> Result<(), CapabilityError> {
+    #[cfg(target_os = "macos")]
+    let mut command = Command::new("open");
+    #[cfg(target_os = "linux")]
+    let mut command = Command::new("xdg-open");
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", ""]);
+        command
+    };
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    return Err(internal(
+        "opening a QR image is not supported on this platform",
+    ));
+
+    command
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| internal(format!("cannot open QR image: {error}")))
+}
+
+fn qr_png_path(connection_id: &str) -> PathBuf {
+    walletconnect_dir().join(format!("qr-{connection_id}.png"))
+}
+
+fn write_private_bytes(path: &PathBuf, bytes: &[u8]) -> Result<(), CapabilityError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| internal(format!("cannot create {}: {error}", parent.display())))?;
+    }
+    fs::write(path, bytes)
+        .map_err(|error| internal(format!("cannot write {}: {error}", path.display())))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
 }
 
 pub fn status() -> Result<WalletStatusResponse, CapabilityError> {
@@ -284,6 +329,10 @@ impl Pairing {
         qr_png_base64(&self.uri)
     }
 
+    pub fn qr_png_bytes(&self) -> Result<Vec<u8>, CapabilityError> {
+        qr_png(&self.uri)
+    }
+
     pub async fn wait(self, timeout: Duration) -> Result<Session, CapabilityError> {
         match tokio::time::timeout(timeout, self.wait_inner()).await {
             Ok(result) => result,
@@ -433,6 +482,7 @@ struct Pending {
     uri: String,
     qr_ascii: String,
     qr_png_base64: Option<String>,
+    qr_png_path: Option<String>,
     expires_at: i64,
     status: String,
     error: Option<String>,
@@ -463,10 +513,13 @@ impl Manager {
             }
         }
 
-        if let Some(old) = self.inner.lock().await.pending.take()
-            && let Some(handle) = old.handle
-        {
-            handle.abort();
+        if let Some(old) = self.inner.lock().await.pending.take() {
+            if let Some(path) = &old.qr_png_path {
+                let _ = fs::remove_file(path);
+            }
+            if let Some(handle) = old.handle {
+                handle.abort();
+            }
         }
 
         let config = ConnectConfig::from_env()?;
@@ -482,7 +535,11 @@ impl Manager {
         let connection_id = pairing.uri()[3..35].to_string();
         let uri = pairing.uri().to_string();
         let qr_ascii = pairing.qr_ascii()?;
-        let qr_png_base64 = pairing.qr_png_base64().ok();
+        let qr_png_bytes = pairing.qr_png_bytes()?;
+        let qr_png_base64 = Some(data_encoding::BASE64.encode(&qr_png_bytes));
+        let qr_png_path = qr_png_path(&connection_id);
+        write_private_bytes(&qr_png_path, &qr_png_bytes)?;
+        let qr_png_path = Some(qr_png_path.to_string_lossy().to_string());
         let expires_at = pairing.expires_at();
 
         let manager = self.clone();
@@ -499,6 +556,7 @@ impl Manager {
             uri,
             qr_ascii,
             qr_png_base64,
+            qr_png_path,
             expires_at,
             status: "pending".to_string(),
             error: None,
@@ -570,10 +628,13 @@ impl Manager {
             let mut state = self.inner.lock().await;
             state.pending.take()
         };
-        if let Some(pending) = pending
-            && let Some(handle) = pending.handle
-        {
-            handle.abort();
+        if let Some(pending) = pending {
+            if let Some(path) = &pending.qr_png_path {
+                let _ = fs::remove_file(path);
+            }
+            if let Some(handle) = pending.handle {
+                handle.abort();
+            }
         }
         disconnect()
     }
@@ -588,9 +649,15 @@ impl Manager {
         }
         match result {
             Ok(_) => {
+                if let Some(path) = &pending.qr_png_path {
+                    let _ = fs::remove_file(path);
+                }
                 state.pending = None;
             }
             Err(error) => {
+                if let Some(path) = &pending.qr_png_path {
+                    let _ = fs::remove_file(path);
+                }
                 pending.status = "error".to_string();
                 pending.error = Some(error.message);
                 pending.handle = None;
@@ -622,6 +689,7 @@ fn pending_response(pending: &Pending) -> WalletConnectResponse {
         accounts: Vec::new(),
         chain_id: None,
         qr_png_base64: pending.qr_png_base64.clone(),
+        qr_png_path: pending.qr_png_path.clone(),
     }
 }
 
@@ -635,6 +703,7 @@ fn connected_response(session: Session) -> WalletConnectResponse {
         accounts: session.accounts,
         chain_id: Some(session.chain_id),
         qr_png_base64: None,
+        qr_png_path: None,
     }
 }
 
