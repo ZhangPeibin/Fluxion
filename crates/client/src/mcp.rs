@@ -193,7 +193,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "wallet_connect",
-                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. Returns a 51-column terminal QR (qr_ascii), a URI and an optional PNG path immediately; the wallet approves on the user's phone and the session is stored locally. Read-only connection setup; never asks for private keys.",
+                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. The first text content block is a 51-column fenced QR; reproduce it in your reply before polling status. Also returns a URI and optional PNG path. Read-only connection setup; never asks for private keys.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {}
@@ -535,10 +535,23 @@ fn optional_usize(arguments: &Value, name: &str) -> Result<Option<usize>, Capabi
 }
 
 fn tool_result(value: Value, image: Option<String>) -> Value {
-    let mut content = vec![json!({
+    let mut content = Vec::new();
+    if let Some(qr) = value
+        .get("qr_ascii")
+        .and_then(Value::as_str)
+        .filter(|qr| !qr.trim().is_empty())
+    {
+        content.push(json!({
+            "type": "text",
+            "text": format!(
+                "Scan this QR code with MetaMask or another WalletConnect wallet:\n\n```text\n{qr}```"
+            ),
+        }));
+    }
+    content.push(json!({
         "type": "text",
         "text": serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string()),
-    })];
+    }));
     if let Some(data) = image {
         content.push(json!({
             "type": "image",
@@ -640,6 +653,22 @@ mod tests {
         assert_eq!(value["content"][1]["type"], "image");
         assert_eq!(value["content"][1]["mimeType"], "image/png");
         assert_eq!(value["content"][1]["data"], "png");
+    }
+
+    #[test]
+    fn tool_result_puts_the_raw_qr_before_json() {
+        let value = tool_result(
+            json!({"status": "pending", "qr_ascii": "line one\nline two\n"}),
+            None,
+        );
+        let first = value["content"][0]["text"].as_str().unwrap();
+        assert!(first.contains("```text\nline one\nline two\n```"));
+        assert!(
+            value["content"][1]["text"]
+                .as_str()
+                .unwrap()
+                .contains("qr_ascii")
+        );
     }
 
     #[test]
