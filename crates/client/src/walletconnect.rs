@@ -141,6 +141,20 @@ pub fn status() -> Result<WalletStatusResponse, CapabilityError> {
     Ok(status_from_session(session, None))
 }
 
+pub async fn wait_for_session(wait: Duration) -> Result<WalletStatusResponse, CapabilityError> {
+    if wait.is_zero() {
+        return status();
+    }
+    let deadline = tokio::time::Instant::now() + wait;
+    loop {
+        let current = status()?;
+        if current.status != "disconnected" || tokio::time::Instant::now() >= deadline {
+            return Ok(current);
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+}
+
 pub fn disconnect() -> Result<WalletDisconnectResponse, CapabilityError> {
     let path = session_path();
     match fs::remove_file(&path) {
@@ -263,13 +277,7 @@ impl Pairing {
     }
 
     pub fn qr_ascii(&self) -> Result<String, CapabilityError> {
-        let code = QrCode::with_error_correction_level(self.uri.as_bytes(), EcLevel::L)
-            .map_err(|error| internal(format!("cannot render WalletConnect QR: {error}")))?;
-        Ok(code
-            .render::<Dense1x2>()
-            .quiet_zone(true)
-            .module_dimensions(1, 1)
-            .build())
+        render_qr(&self.uri)
     }
 
     pub async fn wait(self, timeout: Duration) -> Result<Session, CapabilityError> {
@@ -531,6 +539,23 @@ impl Manager {
             return Ok(disconnected_status(None));
         };
         Ok(status_from_session(session, None))
+    }
+
+    pub async fn wait_status(
+        &self,
+        wait: Duration,
+    ) -> Result<WalletStatusResponse, CapabilityError> {
+        if wait.is_zero() {
+            return self.status().await;
+        }
+        let deadline = tokio::time::Instant::now() + wait;
+        loop {
+            let status = self.status().await?;
+            if status.status != "pending" || tokio::time::Instant::now() >= deadline {
+                return Ok(status);
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
     }
 
     pub async fn disconnect(&self) -> Result<WalletDisconnectResponse, CapabilityError> {
@@ -839,6 +864,33 @@ fn auth_token(key: &SigningKey, relay_url: &str) -> String {
     format!("{message}.{}", base64url(&signature.to_bytes()))
 }
 
+fn render_qr(uri: &str) -> Result<String, CapabilityError> {
+    let code = QrCode::with_error_correction_level(uri.as_bytes(), EcLevel::L)
+        .map_err(|error| internal(format!("cannot render WalletConnect QR: {error}")))?;
+    let raw = code
+        .render::<Dense1x2>()
+        .quiet_zone(false)
+        .module_dimensions(1, 1)
+        .build();
+    let lines = raw.lines().collect::<Vec<_>>();
+    let width = lines
+        .iter()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or_default();
+    let mut out = String::new();
+    for line in lines {
+        out.push(' ');
+        out.push_str(line);
+        for _ in line.chars().count()..width {
+            out.push(' ');
+        }
+        out.push(' ');
+        out.push('\n');
+    }
+    Ok(out)
+}
+
 fn did_key(key: &ed25519_dalek::VerifyingKey) -> String {
     let mut bytes = vec![0xed, 0x01];
     bytes.extend_from_slice(key.as_bytes());
@@ -913,20 +965,20 @@ mod tests {
     }
 
     #[test]
-    fn renders_a_square_qr_block() {
+    fn renders_a_compact_square_qr_block() {
         let uri = "wc:0000000000000000000000000000000000000000000000000000000000000000@2?relay-protocol=irn&symKey=1111111111111111111111111111111111111111111111111111111111111111";
-        let code = QrCode::with_error_correction_level(uri.as_bytes(), EcLevel::L).unwrap();
-        let rendered = code
-            .render::<Dense1x2>()
-            .quiet_zone(true)
-            .module_dimensions(1, 1)
-            .build();
+        let rendered = render_qr(uri).unwrap();
         let lines = rendered.lines().collect::<Vec<_>>();
         assert!(!lines.is_empty());
         assert!(
             lines
                 .iter()
                 .all(|line| line.chars().count() == lines[0].chars().count())
+        );
+        assert!(
+            lines[0].chars().count() <= 55,
+            "QR should stay compact, got width {}",
+            lines[0].chars().count()
         );
     }
 

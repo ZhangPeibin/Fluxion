@@ -110,7 +110,8 @@ MCP documentation if a snippet is rejected.
 - `fluxion mcp` keeps the MCP process alive and reuses one remote client.
 - `swap.quote` uses the remote service; the remote server owns discovery and snapshot warmup.
 - `wallet_connect` starts a background pairing task in the MCP process. Keep the process alive and
-  poll `wallet_status` while the user scans; `wallet_disconnect` aborts a pending pairing.
+  call `wallet_status` with `wait_seconds` (up to 110) while the user scans; repeat if it returns
+  `pending`. `wallet_disconnect` aborts a pending pairing.
 - `fluxion mcp` is otherwise stateless and never starts the remote server.
 - Start the remote server separately (for local testing or deployment).
 
