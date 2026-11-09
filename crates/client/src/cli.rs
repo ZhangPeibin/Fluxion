@@ -86,7 +86,7 @@ fluxion wallet assets ADDRESS [--include-unknown]\n  \
 fluxion wallet allowance ADDRESS --spender ADDRESS [--tokens LIST]\n  \
 fluxion wallet collectibles ADDRESS [--collections LIST]\n  \
 fluxion wallet connect                    Link a wallet with WalletConnect\n  \
-fluxion wallet status                     Show the linked wallet session\n  \
+fluxion wallet status [--wait N]          Show the linked wallet session\n  \
 fluxion wallet disconnect                 Remove the linked wallet session\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--from ADDRESS]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
@@ -560,14 +560,19 @@ async fn wait_for_wallet(
 }
 
 async fn run_wallet_status(raw: &[String]) -> i32 {
-    let json = match parse_wallet_session_args(raw) {
-        Ok(json) => json,
+    let (json, wait_seconds) = match parse_wallet_status_args(raw) {
+        Ok(args) => args,
         Err(error) => {
             report_error(&error, raw.iter().any(|arg| arg == "--json"));
             return exit_code(error.code);
         }
     };
-    match walletconnect::status() {
+    let result = if wait_seconds == 0 {
+        walletconnect::status()
+    } else {
+        walletconnect::wait_for_session(std::time::Duration::from_secs(wait_seconds)).await
+    };
+    match result {
         Ok(status) if json => {
             println!("{}", serde_json::to_string_pretty(&status).unwrap());
             0
@@ -605,6 +610,38 @@ async fn run_wallet_disconnect(raw: &[String]) -> i32 {
             exit_code(error.code)
         }
     }
+}
+
+fn parse_wallet_status_args(raw: &[String]) -> Result<(bool, u64), CapabilityError> {
+    let mut json = false;
+    let mut wait_seconds = 0;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--json" => json = true,
+            "--wait" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--wait needs a value"))?;
+                wait_seconds = value.parse().map_err(|_| {
+                    CapabilityError::invalid_argument(format!("invalid --wait: {value}"))
+                })?;
+                if wait_seconds > 300 {
+                    return Err(CapabilityError::invalid_argument(
+                        "--wait must be 300 seconds or less",
+                    ));
+                }
+            }
+            value => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown wallet option: {value}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok((json, wait_seconds))
 }
 
 fn parse_wallet_session_args(raw: &[String]) -> Result<bool, CapabilityError> {
@@ -1242,6 +1279,17 @@ mod tests {
         assert!(parse_wallet_session_args(&["--json".to_string()]).unwrap());
         assert!(!parse_wallet_session_args(&[]).unwrap());
         assert!(parse_wallet_session_args(&["--wat".to_string()]).is_err());
+        assert_eq!(
+            parse_wallet_status_args(&[
+                "--json".to_string(),
+                "--wait".to_string(),
+                "90".to_string()
+            ])
+            .unwrap(),
+            (true, 90)
+        );
+        assert!(parse_wallet_status_args(&["--wait".to_string()]).is_err());
+        assert!(parse_wallet_status_args(&["--wait".to_string(), "301".to_string()]).is_err());
     }
 
     #[test]

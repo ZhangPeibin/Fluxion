@@ -201,10 +201,12 @@ fn tools_list() -> Value {
             },
             {
                 "name": "wallet_status",
-                "description": "Read the locally stored WalletConnect session: status, accounts, chain, expiry and wallet metadata. Does not contact the wallet.",
+                "description": "Read the locally stored WalletConnect session. Use wait_seconds to long-poll a pending pairing; returns as soon as the status changes or the wait expires.",
                 "inputSchema": {
                     "type": "object",
-                    "properties": {}
+                    "properties": {
+                        "wait_seconds": {"type": "integer", "minimum": 0, "maximum": 110, "default": 0}
+                    }
                 }
             },
             {
@@ -255,7 +257,7 @@ async fn call_tool(
         "wallet_allowance" => wallet_allowance_tool(&arguments).await,
         "wallet_collectibles" => wallet_collectibles_tool(&arguments).await,
         "wallet_connect" => wallet_connect_tool(wallet).await,
-        "wallet_status" => wallet_status_tool(wallet).await,
+        "wallet_status" => wallet_status_tool(&arguments, wallet).await,
         "wallet_disconnect" => wallet_disconnect_tool(wallet).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
@@ -412,9 +414,19 @@ async fn wallet_connect_tool(wallet: &Manager) -> Result<Value, CapabilityError>
         .map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
-async fn wallet_status_tool(wallet: &Manager) -> Result<Value, CapabilityError> {
-    serde_json::to_value(wallet.status().await?)
-        .map_err(|error| CapabilityError::internal(error.to_string()))
+async fn wallet_status_tool(arguments: &Value, wallet: &Manager) -> Result<Value, CapabilityError> {
+    let wait = optional_u64(arguments, "wait_seconds")?.unwrap_or(0);
+    if wait > 110 {
+        return Err(CapabilityError::invalid_argument(
+            "wait_seconds must be between 0 and 110",
+        ));
+    }
+    serde_json::to_value(
+        wallet
+            .wait_status(std::time::Duration::from_secs(wait))
+            .await?,
+    )
+    .map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
 async fn wallet_disconnect_tool(wallet: &Manager) -> Result<Value, CapabilityError> {

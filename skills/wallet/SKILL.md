@@ -129,7 +129,9 @@ OKX, or another WalletConnect wallet.
 - Requires `WALLETCONNECT_PROJECT_ID` in the environment that starts `fluxion mcp`.
 - Returns `status: "pending"`, `uri`, `qr_ascii`, and `expires_at` immediately.
 - Show the QR text to the user. Do not ask for a private key or seed phrase.
-- Poll `wallet_status` until it returns `connected`, `expired`, or `error`.
+- After showing the QR, immediately call `wallet_status` with `wait_seconds: 90`. If it is still
+  `pending`, call it again. Do not ask the user to say "check status".
+- Continue until `connected`, `expired`, or `error`.
 - If a valid session already exists, returns `connected` with the stored accounts.
 
 ## `wallet_status`
@@ -137,11 +139,13 @@ OKX, or another WalletConnect wallet.
 Read the local session. No wallet interaction.
 
 ```json
-{"name": "wallet_status", "arguments": {}}
+{"name": "wallet_status", "arguments": {"wait_seconds": 90}}
 ```
 
+- `wait_seconds` is optional, `0..110`. With a value above zero it long-polls a pending pairing
+  and returns as soon as the status changes or the wait expires.
 - `disconnected`: no session.
-- `pending`: waiting for the wallet to scan.
+- `pending`: waiting for the wallet to scan; call again if the wait expires.
 - `connected`: accounts and chain are available.
 - `expired`: session must be recreated.
 - `accounts` are public addresses; they are safe to show.
