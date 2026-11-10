@@ -386,6 +386,7 @@ pub struct Pairing {
     pairing_topic: String,
     pairing_key: [u8; 32],
     uri: String,
+    proposal: Value,
     expires_at: i64,
 }
 
@@ -458,6 +459,7 @@ impl Pairing {
             pairing_topic,
             pairing_key,
             uri,
+            proposal,
             relay_secret,
             expires_at: unix_timestamp() + PAIRING_TIMEOUT_SECS as i64,
         })
@@ -499,7 +501,24 @@ impl Pairing {
         let mut session_key: Option<[u8; 32]> = None;
 
         loop {
-            let message = self.relay.next().await?;
+            let message =
+                match tokio::time::timeout(Duration::from_secs(8), self.relay.next()).await {
+                    Ok(result) => result?,
+                    Err(_) => {
+                        if session_topic.is_none() {
+                            publish(
+                                &mut self.relay,
+                                &self.pairing_topic,
+                                &self.pairing_key,
+                                &self.proposal,
+                                1100,
+                                true,
+                            )
+                            .await?;
+                        }
+                        continue;
+                    }
+                };
             if message.get("method").and_then(Value::as_str) == Some("irn_subscription") {
                 if let Some(id) = message.get("id").cloned() {
                     self.relay
