@@ -123,7 +123,7 @@ fluxion wallet connect --json
 
 - Requires `WALLETCONNECT_PROJECT_ID`.
 - The CLI prints the QR code and waits up to 5 minutes.
-- MCP returns the pending URI and a 51-column terminal QR (`qr_ascii`) immediately. The QR is the
+- MCP returns the pending URI and a 53-column terminal QR (`qr_ascii`) immediately. The QR is the
   first text content block so the agent can reproduce it before polling. A small PNG is also
   written and returned as `qr_png_path` for fallback, but it is not opened automatically. The agent
   should show the QR and call `wallet_status` with `wait_seconds` (up to 110) instead of asking the

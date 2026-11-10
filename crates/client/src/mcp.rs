@@ -194,7 +194,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "wallet_connect",
-                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. The first text content block is a 51-column fenced QR; reproduce it in your reply before polling status. Also returns a URI and optional PNG path. Read-only connection setup; never asks for private keys.",
+                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. The first text content block is a 53-column fenced QR; reproduce it in your reply before polling status. Also returns a URI and optional PNG path. Read-only connection setup; never asks for private keys.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {}

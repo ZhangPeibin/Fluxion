@@ -1218,15 +1218,17 @@ fn render_qr(uri: &str) -> Result<String, CapabilityError> {
         .max()
         .unwrap_or_default();
     let mut out = String::new();
+    out.push('\n');
     for line in lines {
-        out.push(' ');
+        out.push_str("  ");
         out.push_str(line);
         for _ in line.chars().count()..width {
             out.push(' ');
         }
-        out.push(' ');
+        out.push_str("  ");
         out.push('\n');
     }
+    out.push('\n');
     Ok(out)
 }
 
@@ -1392,19 +1394,25 @@ mod tests {
 
     #[test]
     fn renders_a_compact_square_qr_block() {
-        let uri = "wc:0000000000000000000000000000000000000000000000000000000000000000@2?relay-protocol=irn&symKey=1111111111111111111111111111111111111111111111111111111111111111";
+        let uri = "wc:93ca62389f414fae145ca1b411ed989d805fd833592238095c3641e557a43119@2?relay-protocol=irn&symKey=1552f4a10b0a3b8a2b116edbb90de4ce25b415d2180e1186ad3d1139dbfeccb8";
         let rendered = render_qr(uri).unwrap();
         let lines = rendered.lines().collect::<Vec<_>>();
-        assert!(!lines.is_empty());
+        assert_eq!(lines.len(), 27);
+        let qr_lines = lines
+            .iter()
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>();
+        assert_eq!(qr_lines.len(), 25);
         assert!(
-            lines
+            qr_lines
                 .iter()
-                .all(|line| line.chars().count() == lines[0].chars().count())
+                .all(|line| line.chars().count() == qr_lines[0].chars().count())
         );
-        assert!(
-            lines[0].chars().count() <= 55,
-            "QR should stay compact, got width {}",
-            lines[0].chars().count()
+        assert_eq!(
+            qr_lines[0].chars().count(),
+            53,
+            "QR should be 53 columns wide, got {}",
+            qr_lines[0].chars().count()
         );
     }
 
