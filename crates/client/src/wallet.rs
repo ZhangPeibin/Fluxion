@@ -14,7 +14,8 @@ use crate::token;
 
 pub use fluxion_protocol::wallet::{
     AssetSource, CollectibleItem, WalletAllowance, WalletAllowancesResponse,
-    WalletBalancesResponse, WalletCollectible, WalletCollectiblesResponse, WalletTokenBalance,
+    WalletBalancesResponse, WalletCollectible, WalletCollectiblesResponse, WalletSendResponse,
+    WalletTokenBalance,
 };
 
 const DEFAULT_RPC: &str = "https://eth.drpc.org";

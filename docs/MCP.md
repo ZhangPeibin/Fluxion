@@ -152,6 +152,7 @@ Available tools depend on the installed capabilities:
 | `wallet.disconnect` | `wallet_disconnect` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.agent-id` | `wallet_agent_id` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.sign` | `wallet_sign` | [capabilities/wallet](capabilities/wallet/README.md) |
+| `wallet.send` | `wallet_send` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `transaction.simulate` | `transaction_simulate` | [capabilities/transaction](capabilities/transaction/README.md) |
 
 ## Troubleshooting

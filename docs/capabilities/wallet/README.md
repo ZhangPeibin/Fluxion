@@ -1,8 +1,8 @@
 # wallet capabilities
 
-Read-only account capabilities for Ethereum, BSC Agent ID identity, and local WalletConnect session
-management. `wallet.sign` signs messages and EIP-712 typed data only; none of these capabilities
-approves or broadcasts transactions.
+Read-only account capabilities for Ethereum, BSC Agent ID identity, local WalletConnect session
+management, message signing, and ETH/ERC20 transfers. `wallet.sign` signs messages and EIP-712
+typed data; `wallet.send` broadcasts ETH/ERC20 transfers only.
 
 ## `wallet.balance`
 
@@ -111,6 +111,24 @@ fluxion wallet sign --typed-data typed-data.json --json
 - Sessions created before the relay identity was persisted must be recreated with
   `wallet.disconnect` + `wallet.connect`.
 
+## `wallet.send`
+
+Send ETH or an ERC20 transfer through the connected WalletConnect session. The transfer is
+simulated locally before the phone confirmation.
+
+```bash
+fluxion wallet send --to 0x... --token ETH --amount 0.01
+fluxion wallet send --to 0x... --token USDC --amount 10 --json
+```
+
+- Only ETH and ERC20 `transfer` are supported.
+- `from` defaults to the session account and must belong to the session.
+- `token` accepts `ETH`, built-in symbols, or an ERC20 address; unknown addresses need `decimals`.
+- Simulation failure returns `SIMULATION_FAILED` and does not reach the phone.
+- Wallet rejection returns `USER_REJECTED`.
+- After a timeout, check the wallet/transaction history; do not blindly retry.
+- Arbitrary calldata, approvals, NFT transfers and swap execution are out of scope.
+
 ## `wallet.connect`
 
 Start a WalletConnect v2 pairing and return a URI plus an ASCII QR code. The wallet
@@ -167,6 +185,7 @@ fluxion wallet disconnect --json
 | `wallet_collectibles` | hybrid |
 | `wallet_agent_id` | hybrid |
 | `wallet_sign` | local |
+| `wallet_send` | local |
 | `wallet_connect` | local |
 | `wallet_status` | local |
 | `wallet_disconnect` | local |
@@ -193,6 +212,7 @@ fluxion wallet disconnect --json
 - Disconnect: [`schemas/wallet_disconnect.v1.json`](../../../schemas/wallet_disconnect.v1.json)
 - Agent ID: [`schemas/wallet_agent_id.v1.json`](../../../schemas/wallet_agent_id.v1.json)
 - Sign: [`schemas/wallet_sign.v1.json`](../../../schemas/wallet_sign.v1.json)
+- Send: [`schemas/wallet_send.v1.json`](../../../schemas/wallet_send.v1.json)
 
 ```json
 {
@@ -221,8 +241,9 @@ fluxion wallet disconnect --json
 - Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
 - WalletConnect sessions currently support `eip155:1` only.
 - `wallet.agent-id` is BSC only; Binance Agentic Wallet login and execution are not implemented.
-- `wallet.sign` signs messages and EIP-712 typed data only; it does not sign transactions or
-  broadcast.
-- No approvals, private keys, or transaction execution.
+- `wallet.sign` signs messages and EIP-712 typed data only; it does not sign transactions.
+- `wallet.send` broadcasts ETH/ERC20 transfers only; no arbitrary contract calls, approvals or
+  swap execution.
+- No private keys.
 - No USD valuation.
 - `wallet.assets` discovery is best-effort; `coverage` and `warnings` make completeness explicit.

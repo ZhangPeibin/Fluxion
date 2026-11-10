@@ -15,6 +15,7 @@ pub enum CapabilityErrorCode {
     StateIncomplete,
     Unsupported,
     UserRejected,
+    SimulationFailed,
     Timeout,
     Internal,
 }
@@ -38,6 +39,7 @@ impl CapabilityErrorCode {
             Self::StateIncomplete => "STATE_INCOMPLETE",
             Self::Unsupported => "UNSUPPORTED",
             Self::UserRejected => "USER_REJECTED",
+            Self::SimulationFailed => "SIMULATION_FAILED",
             Self::Timeout => "TIMEOUT",
             Self::Internal => "INTERNAL",
         }

@@ -11,7 +11,7 @@ use std::process::Command;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 use chacha20poly1305::aead::{Aead, AeadCore, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use ed25519_dalek::{Signer, SigningKey};
@@ -98,13 +98,6 @@ pub struct SignRequest {
 
 impl Session {
     pub async fn sign(&self, request: SignRequest) -> Result<WalletSignResponse, CapabilityError> {
-        if self.expiry <= unix_timestamp() {
-            return Err(CapabilityError::new(
-                CapabilityErrorCode::StaleState,
-                "WalletConnect session has expired; run wallet.connect again",
-                false,
-            ));
-        }
         let address = request
             .address
             .or_else(|| self.accounts.first().copied())
@@ -133,6 +126,67 @@ impl Session {
                 ("eth_signTypedData_v4", json!([address, typed_json]))
             }
         };
+        let result = self.request_wallet(method, params, request.timeout).await?;
+        let signature = result
+            .as_str()
+            .ok_or_else(|| rpc("wallet returned no signature"))?;
+        if !signature.starts_with("0x") || !signature[2..].chars().all(|ch| ch.is_ascii_hexdigit())
+        {
+            return Err(rpc("wallet returned an invalid signature"));
+        }
+        Ok(WalletSignResponse {
+            address,
+            chain_id: self.chain_id,
+            method: method.to_string(),
+            signature: signature.to_string(),
+        })
+    }
+
+    pub async fn send_transaction(
+        &self,
+        from: Address,
+        to: Address,
+        value: U256,
+        data: String,
+        timeout: Duration,
+    ) -> Result<String, CapabilityError> {
+        if !self.accounts.contains(&from) {
+            return Err(invalid("address is not in the WalletConnect session"));
+        }
+        let transaction = json!({
+            "from": from,
+            "to": to,
+            "value": format!("0x{:x}", value),
+            "data": data,
+        });
+        let result = self
+            .request_wallet("eth_sendTransaction", json!([transaction]), timeout)
+            .await?;
+        let hash = result
+            .as_str()
+            .ok_or_else(|| rpc("wallet returned no transaction hash"))?;
+        if !hash.starts_with("0x")
+            || hash.len() != 66
+            || !hash[2..].chars().all(|ch| ch.is_ascii_hexdigit())
+        {
+            return Err(rpc("wallet returned an invalid transaction hash"));
+        }
+        Ok(hash.to_string())
+    }
+
+    async fn request_wallet(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, CapabilityError> {
+        if self.expiry <= unix_timestamp() {
+            return Err(CapabilityError::new(
+                CapabilityErrorCode::StaleState,
+                "WalletConnect session has expired; run wallet.connect again",
+                false,
+            ));
+        }
         if !self.methods.is_empty() && !self.methods.iter().any(|item| item == method) {
             return Err(CapabilityError::new(
                 CapabilityErrorCode::Unsupported,
@@ -140,7 +194,6 @@ impl Session {
                 false,
             ));
         }
-
         let key = session_key(&self.sym_key)?;
         let config = ConnectConfig::from_env()?;
         let relay_secret = self.relay_secret.as_deref().ok_or_else(|| {
@@ -171,28 +224,20 @@ impl Session {
         });
         publish(&mut relay, &self.topic, &key, &payload, 1108, true).await?;
 
-        let timeout = request.timeout.max(Duration::from_secs(1));
-        let signature = match tokio::time::timeout(
+        let timeout = timeout.max(Duration::from_secs(1));
+        match tokio::time::timeout(
             timeout,
-            wait_for_signature(&mut relay, &self.topic, &key, id),
+            wait_for_response(&mut relay, &self.topic, &key, id),
         )
         .await
         {
-            Ok(result) => result?,
-            Err(_) => {
-                return Err(CapabilityError::new(
-                    CapabilityErrorCode::Timeout,
-                    "wallet signing timed out",
-                    true,
-                ));
-            }
-        };
-        Ok(WalletSignResponse {
-            address,
-            chain_id: self.chain_id,
-            method: method.to_string(),
-            signature,
-        })
+            Ok(result) => result,
+            Err(_) => Err(CapabilityError::new(
+                CapabilityErrorCode::Timeout,
+                "wallet request timed out",
+                true,
+            )),
+        }
     }
 
     pub fn load() -> Result<Option<Self>, CapabilityError> {
@@ -304,6 +349,25 @@ pub async fn sign(request: SignRequest) -> Result<WalletSignResponse, Capability
         )
     })?;
     session.sign(request).await
+}
+
+pub async fn send_transaction(
+    from: Address,
+    to: Address,
+    value: U256,
+    data: String,
+    timeout: Duration,
+) -> Result<String, CapabilityError> {
+    let session = Session::load()?.ok_or_else(|| {
+        CapabilityError::new(
+            CapabilityErrorCode::Unsupported,
+            "wallet is not connected; run wallet.connect first",
+            false,
+        )
+    })?;
+    session
+        .send_transaction(from, to, value, data, timeout)
+        .await
 }
 
 pub fn status() -> Result<WalletStatusResponse, CapabilityError> {
@@ -969,12 +1033,12 @@ fn validate_typed_data(value: &Value, chain_id: u64) -> Result<String, Capabilit
     Ok(text)
 }
 
-async fn wait_for_signature(
+async fn wait_for_response(
     relay: &mut Relay,
     topic: &str,
     key: &[u8; 32],
     request_id: u64,
-) -> Result<String, CapabilityError> {
+) -> Result<Value, CapabilityError> {
     loop {
         let message = relay.next().await?;
         if message.get("method").and_then(Value::as_str) == Some("irn_subscription") {
@@ -1000,16 +1064,10 @@ async fn wait_for_signature(
             if let Some(error) = payload.get("error") {
                 return Err(sign_error(error));
             }
-            let signature = payload
+            return payload
                 .get("result")
-                .and_then(Value::as_str)
-                .ok_or_else(|| rpc("wallet returned no signature"))?;
-            if !signature.starts_with("0x")
-                || !signature[2..].chars().all(|ch| ch.is_ascii_hexdigit())
-            {
-                return Err(rpc("wallet returned an invalid signature"));
-            }
-            return Ok(signature.to_string());
+                .cloned()
+                .ok_or_else(|| rpc("wallet returned no result"));
         } else if let Some(error) = message.get("error") {
             return Err(rpc(format!("WalletConnect relay error: {error}")));
         }
