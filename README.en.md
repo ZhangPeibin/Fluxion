@@ -50,11 +50,11 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 
 ### Skills
 
-Skills are agent instructions, not an execution path. The repository ships three:
+Skills tell the agent when to call a tool and how to read the result. Three are included:
 
-- [swap](skills/swap/SKILL.md): when to quote, and how to read split, sources, and children
+- [swap](skills/swap/SKILL.md): quotes, split allocations, and route output
 - [wallet](skills/wallet/SKILL.md): balances, assets, allowances, NFTs, and WalletConnect
-- [transaction](skills/transaction/SKILL.md): calldata simulation and revert handling
+- [transaction](skills/transaction/SKILL.md): calldata simulation and reverts
 
 For opencode, add the repository `skills/` directory to your config:
 
@@ -75,7 +75,7 @@ Simulate this calldata
 Connect my wallet
 ```
 
-Skills only guide tool use. Execution routing, pinned blocks, and error codes remain in the
+Skills are instructions only. Execution routing, pinned blocks, and error codes live in the
 MCP/runtime.
 
 ### MCP

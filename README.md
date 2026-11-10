@@ -49,11 +49,11 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 
 ### Skills
 
-Skills 是给 Agent 的使用说明，不是执行入口。仓库里有三个：
+Skills 告诉 Agent 什么时候该用哪个工具，以及结果怎么读。仓库带了三个：
 
-- [swap](skills/swap/SKILL.md)：什么时候报价，怎么读 split、sources 和 children
-- [wallet](skills/wallet/SKILL.md)：余额、资产、授权、NFT 和 WalletConnect 扫码
-- [transaction](skills/transaction/SKILL.md)：calldata 模拟和 revert 处理
+- [swap](skills/swap/SKILL.md)：报价、拆单和路由结果
+- [wallet](skills/wallet/SKILL.md)：余额、资产、授权、NFT 和 WalletConnect
+- [transaction](skills/transaction/SKILL.md)：calldata 模拟和 revert
 
 以 opencode 为例，把仓库的 `skills/` 加入配置：
 
@@ -74,7 +74,7 @@ LDO 换 ETH，100 个，报个价
 连接钱包
 ```
 
-Skills 只影响 Agent 怎么调用能力；执行路由、区块固定和错误码仍在 MCP/runtime 里。
+Skills 只是提示词；执行路由、固定区块和错误码都在 MCP/runtime 里。
 
 ### MCP
 
