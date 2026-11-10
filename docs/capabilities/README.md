@@ -14,6 +14,7 @@ its execution location is an internal Fluxion decision. The first delivered capa
 | `wallet.connect` | available | [wallet/README.md](wallet/README.md) |
 | `wallet.status` | available | [wallet/README.md](wallet/README.md) |
 | `wallet.disconnect` | available | [wallet/README.md](wallet/README.md) |
+| `wallet.agent-id` | available | [wallet/README.md](wallet/README.md) |
 | `transaction.simulate` | available | [transaction/README.md](transaction/README.md) |
 
 ## Contract vs execution

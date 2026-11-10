@@ -45,7 +45,8 @@
 `swap.quote` 固定使用 Fluxion remote 服务；`wallet.balance`、`wallet.allowance` 和
 `transaction.simulate` 固定在 local runtime；`wallet.assets` 和 `wallet.collectibles` 是 local verification +
 remote candidate discovery 的 hybrid capability。`wallet.connect` / `wallet.status` /
-`wallet.disconnect` 固定在 local，负责 WalletConnect session。Agent 和用户都不选择 local/remote。
+`wallet.disconnect` 固定在 local，负责 WalletConnect session；`wallet.agent-id` 是 SPACE ID API +
+BSC 校验的 hybrid capability。Agent 和用户都不选择 local/remote。
 
 | 环境变量 | 默认 | 含义 |
 |---|---|---|
@@ -60,6 +61,8 @@ remote candidate discovery 的 hybrid capability。`wallet.connect` / `wallet.st
 | `FLUXION_ALCHEMY_NFT_URL` | `https://eth-mainnet.g.alchemy.com/nft/v3` | 可替换的 Alchemy NFT provider endpoint |
 | `WALLETCONNECT_PROJECT_ID` | 空 | `wallet.connect` 的 WalletConnect Cloud project ID；缺失时返回明确错误 |
 | `WALLETCONNECT_RELAY_URL` | `wss://relay.walletconnect.com` | 可替换的 WalletConnect relay endpoint |
+| `FLUXION_AGENT_ID_API_URL` | `https://agentid.prd.space.id` | `wallet.agent-id` 的 SPACE ID API |
+| `FLUXION_BSC_RPC_URL` | `https://bsc-dataseed.bnbchain.org` | Agent ID 校验/回退使用的 BSC RPC |
 | `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
 CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回

@@ -1,5 +1,6 @@
 //! Agent-facing CLI. Commands are thin clients over a warm local runtime.
 
+use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
 use crate::capability::{CapabilityError, CapabilityErrorCode};
 use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
@@ -88,6 +89,7 @@ fluxion wallet collectibles ADDRESS [--collections LIST]\n  \
 fluxion wallet connect                    Link a wallet with WalletConnect\n  \
 fluxion wallet status [--wait N]          Show the linked wallet session\n  \
 fluxion wallet disconnect                 Remove the linked wallet session\n  \
+fluxion wallet agent-id HANDLE|ADDRESS    Resolve a BSC .ai Agent ID\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--from ADDRESS]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
@@ -340,13 +342,14 @@ async fn run_wallet(raw: &[String]) -> i32 {
         Some("connect") => return run_wallet_connect(&raw[1..]).await,
         Some("status") => return run_wallet_status(&raw[1..]).await,
         Some("disconnect") => return run_wallet_disconnect(&raw[1..]).await,
+        Some("agent-id") => return run_wallet_agent_id(&raw[1..]).await,
         _ => {}
     }
     let args = match parse_wallet_args(raw) {
         Ok(args) => args,
         Err(error) if error.message == "help requested" => {
             println!(
-                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect\n  fluxion wallet status\n  fluxion wallet disconnect\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
+                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
             );
             return 0;
         }
@@ -491,6 +494,109 @@ async fn run_wallet(raw: &[String]) -> i32 {
             exit_code(error.code)
         }
     }
+}
+
+async fn run_wallet_agent_id(raw: &[String]) -> i32 {
+    let args = match parse_wallet_agent_id_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
+    let lookup = if args.value.starts_with("0x") || args.value.starts_with("0X") {
+        match args.value.parse::<alloy_primitives::Address>() {
+            Ok(address) => AgentIdLookup::Address(address),
+            Err(_) => {
+                let error = CapabilityError::invalid_argument("invalid Agent ID address");
+                report_error(&error, args.json);
+                return exit_code(error.code);
+            }
+        }
+    } else {
+        AgentIdLookup::Handle(args.value)
+    };
+    let mut config = AgentIdConfig::from_env();
+    if let Some(rpc_url) = args.rpc_url {
+        config.bsc_rpc_url = rpc_url;
+    }
+    match agent_id::resolve(&config, AgentIdRequest { lookup }).await {
+        Ok(response) if args.json => {
+            println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            0
+        }
+        Ok(response) => {
+            if response.found {
+                println!("Agent ID: {}", response.agent_id.as_deref().unwrap_or("-"));
+                if let Some(owner) = response.owner {
+                    println!("Owner: {owner}");
+                }
+                if let Some(token_id) = &response.token_id {
+                    println!("Token ID: {token_id}");
+                }
+            } else {
+                println!("No Agent ID found for {}", response.query.value);
+            }
+            println!("Coverage: {}", response.coverage);
+            for warning in &response.warnings {
+                eprintln!("warning: {warning}");
+            }
+            0
+        }
+        Err(error) => {
+            report_error(&error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+struct WalletAgentIdArgs {
+    value: String,
+    json: bool,
+    rpc_url: Option<String>,
+}
+
+fn parse_wallet_agent_id_args(raw: &[String]) -> Result<WalletAgentIdArgs, CapabilityError> {
+    let mut value = None;
+    let mut json = false;
+    let mut rpc_url = None;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--json" => json = true,
+            "--rpc-url" => {
+                index += 1;
+                rpc_url = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--rpc-url needs a value")
+                        })?
+                        .clone(),
+                );
+            }
+            arg if arg.starts_with('-') => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown wallet option: {arg}"
+                )));
+            }
+            arg => {
+                if value.is_some() {
+                    return Err(CapabilityError::invalid_argument(
+                        "wallet agent-id accepts one handle or address",
+                    ));
+                }
+                value = Some(arg.to_string());
+            }
+        }
+        index += 1;
+    }
+    Ok(WalletAgentIdArgs {
+        value: value.ok_or_else(|| {
+            CapabilityError::invalid_argument("wallet agent-id needs a handle or address")
+        })?,
+        json,
+        rpc_url,
+    })
 }
 
 async fn run_wallet_connect(raw: &[String]) -> i32 {
@@ -1194,6 +1300,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "wallet.connect" => fluxion_protocol::wallet::describe_connect(),
                 "wallet.status" => fluxion_protocol::wallet::describe_status(),
                 "wallet.disconnect" => fluxion_protocol::wallet::describe_disconnect(),
+                "wallet.agent-id" => fluxion_protocol::wallet::describe_agent_id(),
                 "transaction.simulate" => fluxion_protocol::transaction::describe(),
                 other => {
                     let error = CapabilityError::new(
@@ -1290,6 +1397,22 @@ mod tests {
         );
         assert!(parse_wallet_status_args(&["--wait".to_string()]).is_err());
         assert!(parse_wallet_status_args(&["--wait".to_string(), "301".to_string()]).is_err());
+    }
+
+    #[test]
+    fn parses_wallet_agent_id_arguments() {
+        let args = parse_wallet_agent_id_args(&[
+            "alice.ai".to_string(),
+            "--json".to_string(),
+            "--rpc-url".to_string(),
+            "http://127.0.0.1:8545".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(args.value, "alice.ai");
+        assert!(args.json);
+        assert_eq!(args.rpc_url.as_deref(), Some("http://127.0.0.1:8545"));
+        assert!(parse_wallet_agent_id_args(&[]).is_err());
+        assert!(parse_wallet_agent_id_args(&["a".to_string(), "b".to_string()]).is_err());
     }
 
     #[test]
