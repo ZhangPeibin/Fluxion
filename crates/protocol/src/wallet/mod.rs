@@ -13,6 +13,7 @@ pub const CONNECT_CAPABILITY: &str = "wallet.connect";
 pub const STATUS_CAPABILITY: &str = "wallet.status";
 pub const DISCONNECT_CAPABILITY: &str = "wallet.disconnect";
 pub const AGENT_ID_CAPABILITY: &str = "wallet.agent-id";
+pub const SIGN_CAPABILITY: &str = "wallet.sign";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WalletTokenBalance {
@@ -155,6 +156,15 @@ pub struct WalletAgentIdResponse {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct WalletSignResponse {
+    pub address: Address,
+    pub chain_id: u64,
+    /// `personal_sign` or `eth_signTypedData_v4`.
+    pub method: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct WalletDisconnectResponse {
     pub disconnected: bool,
 }
@@ -172,6 +182,15 @@ pub struct WalletBalancesResponse {
     pub coverage: String,
     pub sources: Vec<AssetSource>,
     pub warnings: Vec<String>,
+}
+
+pub fn describe_sign() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: SIGN_CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "local",
+        transports: vec!["cli", "mcp-stdio"],
+    }
 }
 
 pub fn describe_connect() -> CapabilityDescriptor {
@@ -276,5 +295,8 @@ mod tests {
         let agent_id = describe_agent_id();
         assert_eq!(agent_id.name, "wallet.agent-id");
         assert_eq!(agent_id.execution, "hybrid");
+        let sign = describe_sign();
+        assert_eq!(sign.name, "wallet.sign");
+        assert_eq!(sign.execution, "local");
     }
 }

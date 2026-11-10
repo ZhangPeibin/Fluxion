@@ -8,15 +8,15 @@ use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
-use crate::capability::CapabilityError;
+use crate::capability::{CapabilityError, CapabilityErrorResponse};
 use crate::client::{RuntimeClient, request_id};
-use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
+use crate::swap::quote::QuoteRequest;
 use crate::token;
 use crate::transaction::{self, SimulateRequest};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest, WalletConfig,
 };
-use crate::walletconnect::Manager;
+use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
     let wallet = Manager::new();
@@ -211,6 +211,19 @@ fn tools_list() -> Value {
                 }
             },
             {
+                "name": "wallet_sign",
+                "description": "Sign a message or EIP-712 typed data with the connected WalletConnect session. The user must confirm on their phone. Pass exactly one of message or typed_data. Never asks for a private key.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "message": {"type": "string", "description": "UTF-8 message for personal_sign"},
+                        "typed_data": {"type": "object", "description": "EIP-712 typed data object for eth_signTypedData_v4"},
+                        "address": {"type": "string", "description": "Optional session account address"},
+                        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 110, "default": 90}
+                    }
+                }
+            },
+            {
                 "name": "wallet_agent_id",
                 "description": "Resolve a BSC .ai Agent ID. Pass exactly one of handle (alice or alice.ai) or address. Returns the owner, canonical handle, token id, and whether an Agent ID exists.",
                 "inputSchema": {
@@ -260,6 +273,7 @@ async fn call_tool(
         .and_then(Value::as_str)
         .unwrap_or_default();
     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
+    let capability = capability_for_tool(name);
     let mut image = None;
     let result = match name {
         "swap_quote" => quote_tool(&arguments, backend).await.and_then(|response| {
@@ -275,6 +289,7 @@ async fn call_tool(
             value
         }),
         "wallet_status" => wallet_status_tool(&arguments, wallet).await,
+        "wallet_sign" => wallet_sign_tool(&arguments).await,
         "wallet_agent_id" => wallet_agent_id_tool(&arguments).await,
         "wallet_disconnect" => wallet_disconnect_tool(wallet).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
@@ -284,7 +299,24 @@ async fn call_tool(
     };
     match result {
         Ok(value) => tool_result(value, image),
-        Err(error) => tool_error(error),
+        Err(error) => tool_error(capability, error),
+    }
+}
+
+fn capability_for_tool(name: &str) -> &'static str {
+    match name {
+        "swap_quote" => "swap.quote",
+        "wallet_balance" => "wallet.balance",
+        "wallet_assets" => "wallet.assets",
+        "wallet_allowance" => "wallet.allowance",
+        "wallet_collectibles" => "wallet.collectibles",
+        "wallet_connect" => "wallet.connect",
+        "wallet_status" => "wallet.status",
+        "wallet_sign" => "wallet.sign",
+        "wallet_agent_id" => "wallet.agent-id",
+        "wallet_disconnect" => "wallet.disconnect",
+        "transaction_simulate" => "transaction.simulate",
+        _ => "unknown",
     }
 }
 
@@ -450,6 +482,56 @@ async fn wallet_status_tool(arguments: &Value, wallet: &Manager) -> Result<Value
     .map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+async fn wallet_sign_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let message = arguments
+        .get("message")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let typed_data = match arguments.get("typed_data") {
+        None | Some(Value::Null) => None,
+        Some(Value::Object(_)) => arguments.get("typed_data").cloned(),
+        Some(Value::String(text)) => Some(serde_json::from_str(text).map_err(|error| {
+            CapabilityError::invalid_argument(format!("invalid typed_data: {error}"))
+        })?),
+        Some(_) => {
+            return Err(CapabilityError::invalid_argument(
+                "typed_data must be a JSON object",
+            ));
+        }
+    };
+    let payload = match (message, typed_data) {
+        (Some(message), None) => SignPayload::Message(message),
+        (None, Some(typed_data)) => SignPayload::TypedData(typed_data),
+        _ => {
+            return Err(CapabilityError::invalid_argument(
+                "wallet_sign needs exactly one of message or typed_data",
+            ));
+        }
+    };
+    let address = arguments
+        .get("address")
+        .and_then(Value::as_str)
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument("invalid wallet address"))
+        })
+        .transpose()?;
+    let timeout = optional_u64(arguments, "timeout_seconds")?.unwrap_or(90);
+    if timeout == 0 || timeout > 110 {
+        return Err(CapabilityError::invalid_argument(
+            "timeout_seconds must be between 1 and 110",
+        ));
+    }
+    let response = walletconnect::sign(SignRequest {
+        address,
+        payload,
+        timeout: std::time::Duration::from_secs(timeout),
+    })
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn wallet_agent_id_tool(arguments: &Value) -> Result<Value, CapabilityError> {
     let handle = arguments
         .get("handle")
@@ -611,9 +693,13 @@ fn tool_result(value: Value, image: Option<String>) -> Value {
     })
 }
 
-fn tool_error(error: CapabilityError) -> Value {
-    let value =
-        serde_json::to_value(QuoteErrorResponse::new(request_id(), error)).unwrap_or(Value::Null);
+fn tool_error(capability: &str, error: CapabilityError) -> Value {
+    let value = serde_json::to_value(CapabilityErrorResponse::new(
+        capability,
+        request_id(),
+        error,
+    ))
+    .unwrap_or(Value::Null);
     json!({
         "content": [{
             "type": "text",
@@ -660,6 +746,7 @@ mod tests {
                 "wallet_collectibles",
                 "wallet_connect",
                 "wallet_status",
+                "wallet_sign",
                 "wallet_agent_id",
                 "wallet_disconnect",
                 "transaction_simulate"
@@ -720,11 +807,10 @@ mod tests {
 
     #[test]
     fn error_codes_remain_structured() {
-        let value = tool_error(CapabilityError::new(
-            CapabilityErrorCode::NoPath,
-            "no path",
-            false,
-        ));
+        let value = tool_error(
+            "swap.quote",
+            CapabilityError::new(CapabilityErrorCode::NoPath, "no path", false),
+        );
         assert_eq!(value["isError"], true);
         assert!(
             value["content"][0]["text"]

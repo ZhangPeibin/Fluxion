@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/wallet_sign.v1.json",
+  "title": "Fluxion wallet sign v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["address", "chain_id", "method", "signature"],
+  "properties": {
+    "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "chain_id": { "type": "integer", "minimum": 0 },
+    "method": {
+      "type": "string",
+      "enum": ["personal_sign", "eth_signTypedData_v4"]
+    },
+    "signature": { "type": "string", "pattern": "^0x[0-9a-fA-F]+$" }
+  }
+}
