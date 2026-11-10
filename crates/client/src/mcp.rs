@@ -7,6 +7,7 @@
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
 use crate::capability::CapabilityError;
 use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
@@ -210,6 +211,18 @@ fn tools_list() -> Value {
                 }
             },
             {
+                "name": "wallet_agent_id",
+                "description": "Resolve a BSC .ai Agent ID. Pass exactly one of handle (alice or alice.ai) or address. Returns the owner, canonical handle, token id, and whether an Agent ID exists.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "handle": {"type": "string", "description": "Agent ID handle, e.g. alice or alice.ai"},
+                        "address": {"type": "string", "description": "BSC wallet address"},
+                        "rpc_url": {"type": "string", "description": "Optional BSC RPC override"}
+                    }
+                }
+            },
+            {
                 "name": "wallet_disconnect",
                 "description": "Remove the locally stored WalletConnect session and abort any pending pairing.",
                 "inputSchema": {
@@ -262,6 +275,7 @@ async fn call_tool(
             value
         }),
         "wallet_status" => wallet_status_tool(&arguments, wallet).await,
+        "wallet_agent_id" => wallet_agent_id_tool(&arguments).await,
         "wallet_disconnect" => wallet_disconnect_tool(wallet).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
@@ -434,6 +448,38 @@ async fn wallet_status_tool(arguments: &Value, wallet: &Manager) -> Result<Value
             .await?,
     )
     .map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
+async fn wallet_agent_id_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let handle = arguments
+        .get("handle")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let address = arguments
+        .get("address")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let lookup = match (handle, address) {
+        (Some(handle), None) => AgentIdLookup::Handle(handle.to_string()),
+        (None, Some(address)) => AgentIdLookup::Address(
+            address
+                .parse()
+                .map_err(|_| CapabilityError::invalid_argument("invalid Agent ID address"))?,
+        ),
+        _ => {
+            return Err(CapabilityError::invalid_argument(
+                "wallet_agent_id needs exactly one of handle or address",
+            ));
+        }
+    };
+    let mut config = AgentIdConfig::from_env();
+    if let Some(rpc_url) = arguments.get("rpc_url").and_then(Value::as_str) {
+        config.bsc_rpc_url = rpc_url.to_string();
+    }
+    let response = agent_id::resolve(&config, AgentIdRequest { lookup }).await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
 async fn wallet_disconnect_tool(wallet: &Manager) -> Result<Value, CapabilityError> {
@@ -614,6 +660,7 @@ mod tests {
                 "wallet_collectibles",
                 "wallet_connect",
                 "wallet_status",
+                "wallet_agent_id",
                 "wallet_disconnect",
                 "transaction_simulate"
             ]

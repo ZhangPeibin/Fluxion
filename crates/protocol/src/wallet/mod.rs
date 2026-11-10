@@ -12,6 +12,7 @@ pub const COLLECTIBLES_CAPABILITY: &str = "wallet.collectibles";
 pub const CONNECT_CAPABILITY: &str = "wallet.connect";
 pub const STATUS_CAPABILITY: &str = "wallet.status";
 pub const DISCONNECT_CAPABILITY: &str = "wallet.disconnect";
+pub const AGENT_ID_CAPABILITY: &str = "wallet.agent-id";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WalletTokenBalance {
@@ -122,6 +123,38 @@ pub struct WalletStatusResponse {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct AgentIdQuery {
+    /// `handle` or `address`.
+    pub kind: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WalletAgentIdResponse {
+    pub chain: String,
+    pub chain_id: u64,
+    pub query: AgentIdQuery,
+    pub found: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handle: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tx_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_number: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub as_of_block: Option<u64>,
+    pub coverage: String,
+    pub sources: Vec<AssetSource>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct WalletDisconnectResponse {
     pub disconnected: bool,
 }
@@ -164,6 +197,15 @@ pub fn describe_disconnect() -> CapabilityDescriptor {
         name: DISCONNECT_CAPABILITY,
         schema_version: SCHEMA_VERSION,
         execution: "local",
+        transports: vec!["cli", "mcp-stdio"],
+    }
+}
+
+pub fn describe_agent_id() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: AGENT_ID_CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "hybrid",
         transports: vec!["cli", "mcp-stdio"],
     }
 }
@@ -231,5 +273,8 @@ mod tests {
         let disconnect = describe_disconnect();
         assert_eq!(disconnect.name, "wallet.disconnect");
         assert_eq!(disconnect.execution, "local");
+        let agent_id = describe_agent_id();
+        assert_eq!(agent_id.name, "wallet.agent-id");
+        assert_eq!(agent_id.execution, "hybrid");
     }
 }

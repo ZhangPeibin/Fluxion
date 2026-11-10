@@ -32,6 +32,8 @@ pub enum CapabilityId {
     WalletStatus,
     #[serde(rename = "wallet.disconnect")]
     WalletDisconnect,
+    #[serde(rename = "wallet.agent-id")]
+    WalletAgentId,
     #[serde(rename = "transaction.simulate")]
     TransactionSimulate,
 }
@@ -47,6 +49,7 @@ impl CapabilityId {
             Self::WalletConnect => "wallet.connect",
             Self::WalletStatus => "wallet.status",
             Self::WalletDisconnect => "wallet.disconnect",
+            Self::WalletAgentId => "wallet.agent-id",
             Self::TransactionSimulate => "transaction.simulate",
         }
     }
@@ -61,6 +64,7 @@ impl CapabilityId {
             Self::WalletConnect,
             Self::WalletStatus,
             Self::WalletDisconnect,
+            Self::WalletAgentId,
             Self::TransactionSimulate,
         ]
     }
@@ -98,6 +102,7 @@ mod tests {
                 "wallet.connect",
                 "wallet.status",
                 "wallet.disconnect",
+                "wallet.agent-id",
                 "transaction.simulate"
             ]
         );
@@ -112,6 +117,7 @@ mod tests {
         assert_eq!(CapabilityId::WalletConnect.as_str(), "wallet.connect");
         assert_eq!(CapabilityId::WalletStatus.as_str(), "wallet.status");
         assert_eq!(CapabilityId::WalletDisconnect.as_str(), "wallet.disconnect");
+        assert_eq!(CapabilityId::WalletAgentId.as_str(), "wallet.agent-id");
         assert_eq!(
             CapabilityId::TransactionSimulate.as_str(),
             "transaction.simulate"

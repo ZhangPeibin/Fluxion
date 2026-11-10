@@ -1,7 +1,7 @@
 # wallet capabilities
 
-Read-only account capabilities and local WalletConnect session management for Ethereum accounts.
-None of these capabilities signs, approves, or broadcasts transactions.
+Read-only account capabilities for Ethereum, BSC Agent ID identity, and local WalletConnect session
+management. None of these capabilities signs, approves, or broadcasts transactions.
 
 ## `wallet.balance`
 
@@ -73,6 +73,24 @@ fluxion wallet collectibles 0xowner --collections 0xcollection1,0xcollection2 --
   indexer.
 - `coverage` is `provider+local`, `registry+local`, or `local`.
 
+## `wallet.agent-id`
+
+Resolve a Binance/SPACE ID `.ai` Agent ID on BSC. Agent ID is a soulbound ERC-721
+handle that points at a BSC wallet address.
+
+```bash
+fluxion wallet agent-id alice.ai
+fluxion wallet agent-id 0xA506ac7069937571DC56C5f8FDa53c4A729456c6 --json
+```
+
+- Exactly one of a handle or address is required.
+- Primary source: SPACE ID Agent ID API.
+- Verification/fallback: BSC registry `0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F`.
+- `found: false` means no Agent ID is registered for the handle or address.
+- `coverage` is `api+onchain`, `api`, or `onchain`.
+- This is identity resolution only. It does not log in to Binance Agentic Wallet and does not
+  check Four.meme launch eligibility.
+
 ## `wallet.connect`
 
 Start a WalletConnect v2 pairing and return a URI plus an ASCII QR code. The wallet
@@ -127,6 +145,7 @@ fluxion wallet disconnect --json
 | `wallet_assets` | hybrid |
 | `wallet_allowance` | local |
 | `wallet_collectibles` | hybrid |
+| `wallet_agent_id` | hybrid |
 | `wallet_connect` | local |
 | `wallet_status` | local |
 | `wallet_disconnect` | local |
@@ -140,6 +159,8 @@ fluxion wallet disconnect --json
 - `FLUXION_ALCHEMY_NFT_URL`: optional Alchemy NFT endpoint override
 - `WALLETCONNECT_PROJECT_ID`: required for `wallet.connect`; create one at https://cloud.reown.com
 - `WALLETCONNECT_RELAY_URL`: optional relay override; defaults to `wss://relay.walletconnect.com`
+- `FLUXION_AGENT_ID_API_URL`: optional SPACE ID Agent ID API override
+- `FLUXION_BSC_RPC_URL`: optional BSC RPC override for Agent ID verification/fallback
 
 ## Output
 
@@ -149,6 +170,7 @@ fluxion wallet disconnect --json
 - Connect: [`schemas/wallet_connect.v1.json`](../../../schemas/wallet_connect.v1.json)
 - Status: [`schemas/wallet_status.v1.json`](../../../schemas/wallet_status.v1.json)
 - Disconnect: [`schemas/wallet_disconnect.v1.json`](../../../schemas/wallet_disconnect.v1.json)
+- Agent ID: [`schemas/wallet_agent_id.v1.json`](../../../schemas/wallet_agent_id.v1.json)
 
 ```json
 {
@@ -176,6 +198,7 @@ fluxion wallet disconnect --json
 - Ethereum only.
 - Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
 - WalletConnect sessions currently support `eip155:1` only.
+- `wallet.agent-id` is BSC only; Binance Agentic Wallet login and execution are not implemented.
 - `wallet.connect` links a wallet for future signing; it does not sign or send transactions yet.
 - No signing, approvals, private keys, or transaction execution.
 - No USD valuation.
