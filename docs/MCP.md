@@ -111,7 +111,7 @@ MCP documentation if a snippet is rejected.
 - `swap.quote` uses the remote service; the remote server owns discovery and snapshot warmup.
 - `wallet_sign` uses the stored session and waits for explicit phone confirmation. A rejection
   returns `USER_REJECTED`; it does not retry automatically.
-- `wallet_connect` starts a background pairing task in the MCP process and returns a 51-column
+- `wallet_connect` starts a background pairing task in the MCP process and returns a 53-column
   terminal QR as the first text content block, plus an optional PNG path for fallback. It does not
   open a window by default. Reproduce the QR before polling. Keep the process alive and call
   `wallet_status` with `wait_seconds` (up to 110) while the user scans; repeat if it returns
