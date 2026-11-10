@@ -16,6 +16,7 @@ use crate::transaction::{self, SimulateRequest};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest, WalletConfig,
 };
+use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
@@ -211,6 +212,24 @@ fn tools_list() -> Value {
                 }
             },
             {
+                "name": "wallet_send",
+                "description": "Send ETH or an ERC20 transfer through the connected WalletConnect session. Simulates locally first, then asks the user to confirm in their wallet. Pass to, token, and amount.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "to": {"type": "string", "description": "Recipient address"},
+                        "token": {"type": "string", "description": "ETH, a built-in symbol, or an ERC20 address"},
+                        "amount": {"type": "string", "description": "Human amount, e.g. 0.1"},
+                        "from": {"type": "string", "description": "Optional session account address"},
+                        "decimals": {"type": "integer", "minimum": 0, "maximum": 38},
+                        "block": {"type": "integer", "minimum": 0},
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"},
+                        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 110, "default": 90}
+                    },
+                    "required": ["to", "token", "amount"]
+                }
+            },
+            {
                 "name": "wallet_sign",
                 "description": "Sign a message or EIP-712 typed data with the connected WalletConnect session. The user must confirm on their phone. Pass exactly one of message or typed_data. Never asks for a private key.",
                 "inputSchema": {
@@ -289,6 +308,7 @@ async fn call_tool(
             value
         }),
         "wallet_status" => wallet_status_tool(&arguments, wallet).await,
+        "wallet_send" => wallet_send_tool(&arguments).await,
         "wallet_sign" => wallet_sign_tool(&arguments).await,
         "wallet_agent_id" => wallet_agent_id_tool(&arguments).await,
         "wallet_disconnect" => wallet_disconnect_tool(wallet).await,
@@ -480,6 +500,45 @@ async fn wallet_status_tool(arguments: &Value, wallet: &Manager) -> Result<Value
             .await?,
     )
     .map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
+async fn wallet_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let to = string_arg(arguments, "to")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid recipient address"))?;
+    let from = arguments
+        .get("from")
+        .and_then(Value::as_str)
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument("invalid from address"))
+        })
+        .transpose()?;
+    let timeout = optional_u64(arguments, "timeout_seconds")?.unwrap_or(90);
+    if timeout == 0 || timeout > 110 {
+        return Err(CapabilityError::invalid_argument(
+            "timeout_seconds must be between 1 and 110",
+        ));
+    }
+    let mut config = wallet_config(arguments);
+    if let Some(rpc_url) = arguments.get("rpc_url").and_then(Value::as_str) {
+        config.rpc_url = rpc_url.to_string();
+    }
+    let response = wallet_send::send(
+        &config,
+        SendRequest {
+            from,
+            to,
+            token: string_arg(arguments, "token")?,
+            amount: string_arg(arguments, "amount")?,
+            decimals: optional_u8(arguments, "decimals")?,
+            block: optional_u64(arguments, "block")?,
+            timeout: std::time::Duration::from_secs(timeout),
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
 async fn wallet_sign_tool(arguments: &Value) -> Result<Value, CapabilityError> {
@@ -746,6 +805,7 @@ mod tests {
                 "wallet_collectibles",
                 "wallet_connect",
                 "wallet_status",
+                "wallet_send",
                 "wallet_sign",
                 "wallet_agent_id",
                 "wallet_disconnect",

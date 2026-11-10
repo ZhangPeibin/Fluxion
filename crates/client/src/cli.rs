@@ -10,6 +10,7 @@ use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest,
     WalletAllowancesResponse, WalletBalancesResponse, WalletCollectiblesResponse, WalletConfig,
 };
+use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
 use fluxion_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
 
@@ -92,6 +93,7 @@ fluxion wallet disconnect                 Remove the linked wallet session\n  \
 fluxion wallet agent-id HANDLE|ADDRESS    Resolve a BSC .ai Agent ID\n  \
 fluxion wallet sign --message TEXT        Sign a message with WalletConnect\n  \
 fluxion wallet sign --typed-data FILE     Sign EIP-712 typed data\n  \
+fluxion wallet send --to ADDR --token T --amount A  Send ETH/ERC20\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--from ADDRESS]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
@@ -346,13 +348,14 @@ async fn run_wallet(raw: &[String]) -> i32 {
         Some("disconnect") => return run_wallet_disconnect(&raw[1..]).await,
         Some("agent-id") => return run_wallet_agent_id(&raw[1..]).await,
         Some("sign") => return run_wallet_sign(&raw[1..]).await,
+        Some("send") => return run_wallet_send(&raw[1..]).await,
         _ => {}
     }
     let args = match parse_wallet_args(raw) {
         Ok(args) => args,
         Err(error) if error.message == "help requested" => {
             println!(
-                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
+                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE\n  fluxion wallet send --to ADDR --token T --amount A\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
             );
             return 0;
         }
@@ -497,6 +500,201 @@ async fn run_wallet(raw: &[String]) -> i32 {
             exit_code(error.code)
         }
     }
+}
+
+async fn run_wallet_send(raw: &[String]) -> i32 {
+    let args = match parse_wallet_send_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as("wallet.send", &error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
+    let to = match args.to.parse::<alloy_primitives::Address>() {
+        Ok(address) => address,
+        Err(_) => {
+            let error = CapabilityError::invalid_argument("invalid --to address");
+            report_error_as("wallet.send", &error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let from = match args.from {
+        Some(value) => match value.parse::<alloy_primitives::Address>() {
+            Ok(address) => Some(address),
+            Err(_) => {
+                let error = CapabilityError::invalid_argument("invalid --from address");
+                report_error_as("wallet.send", &error, args.json);
+                return exit_code(error.code);
+            }
+        },
+        None => None,
+    };
+    let mut config = WalletConfig::from_env();
+    if let Some(rpc_url) = args.rpc_url {
+        config.rpc_url = rpc_url;
+    }
+    match wallet_send::send(
+        &config,
+        SendRequest {
+            from,
+            to,
+            token: args.token,
+            amount: args.amount,
+            decimals: args.decimals,
+            block: args.block,
+            timeout: std::time::Duration::from_secs(args.timeout_seconds),
+        },
+    )
+    .await
+    {
+        Ok(response) if args.json => {
+            println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            0
+        }
+        Ok(response) => {
+            println!("From: {}", response.from);
+            println!("To: {}", response.recipient);
+            println!(
+                "Amount: {} {}",
+                response.amount.decimal,
+                token_label(&response.token)
+            );
+            println!("Tx: {}", response.tx_hash);
+            0
+        }
+        Err(error) => {
+            report_error_as("wallet.send", &error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+struct WalletSendArgs {
+    to: String,
+    token: String,
+    amount: String,
+    from: Option<String>,
+    decimals: Option<u8>,
+    block: Option<u64>,
+    rpc_url: Option<String>,
+    json: bool,
+    timeout_seconds: u64,
+}
+
+fn parse_wallet_send_args(raw: &[String]) -> Result<WalletSendArgs, CapabilityError> {
+    let mut to = None;
+    let mut token = None;
+    let mut amount = None;
+    let mut from = None;
+    let mut decimals = None;
+    let mut block = None;
+    let mut rpc_url = None;
+    let mut json = false;
+    let mut timeout_seconds = 90;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--json" => json = true,
+            "--to" => {
+                index += 1;
+                to = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--to needs a value"))?
+                        .clone(),
+                );
+            }
+            "--token" => {
+                index += 1;
+                token = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--token needs a value"))?
+                        .clone(),
+                );
+            }
+            "--amount" => {
+                index += 1;
+                amount = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--amount needs a value"))?
+                        .clone(),
+                );
+            }
+            "--from" => {
+                index += 1;
+                from = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--from needs a value"))?
+                        .clone(),
+                );
+            }
+            "--decimals" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--decimals needs a value"))?;
+                decimals = Some(value.parse().map_err(|_| {
+                    CapabilityError::invalid_argument(format!("invalid --decimals: {value}"))
+                })?);
+            }
+            "--block" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--block needs a value"))?;
+                block = Some(value.parse().map_err(|_| {
+                    CapabilityError::invalid_argument(format!("invalid --block: {value}"))
+                })?);
+            }
+            "--rpc-url" => {
+                index += 1;
+                rpc_url = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--rpc-url needs a value")
+                        })?
+                        .clone(),
+                );
+            }
+            "--timeout" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--timeout needs a value"))?;
+                timeout_seconds = value.parse().map_err(|_| {
+                    CapabilityError::invalid_argument(format!("invalid --timeout: {value}"))
+                })?;
+                if timeout_seconds == 0 || timeout_seconds > 300 {
+                    return Err(CapabilityError::invalid_argument(
+                        "--timeout must be between 1 and 300 seconds",
+                    ));
+                }
+            }
+            arg if arg.starts_with('-') => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown wallet option: {arg}"
+                )));
+            }
+            arg => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unexpected wallet send argument: {arg}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok(WalletSendArgs {
+        to: to.ok_or_else(|| CapabilityError::invalid_argument("wallet send requires --to"))?,
+        token: token
+            .ok_or_else(|| CapabilityError::invalid_argument("wallet send requires --token"))?,
+        amount: amount
+            .ok_or_else(|| CapabilityError::invalid_argument("wallet send requires --amount"))?,
+        from,
+        decimals,
+        block,
+        rpc_url,
+        json,
+        timeout_seconds,
+    })
 }
 
 async fn run_wallet_sign(raw: &[String]) -> i32 {
@@ -1417,6 +1615,7 @@ fn exit_code(code: CapabilityErrorCode) -> i32 {
         CapabilityErrorCode::StaleState | CapabilityErrorCode::StateIncomplete => 5,
         CapabilityErrorCode::Timeout => 6,
         CapabilityErrorCode::UserRejected => 7,
+        CapabilityErrorCode::SimulationFailed => 8,
         CapabilityErrorCode::Internal => 1,
     }
 }
@@ -1455,6 +1654,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "wallet.disconnect" => fluxion_protocol::wallet::describe_disconnect(),
                 "wallet.agent-id" => fluxion_protocol::wallet::describe_agent_id(),
                 "wallet.sign" => fluxion_protocol::wallet::describe_sign(),
+                "wallet.send" => fluxion_protocol::wallet::describe_send(),
                 "transaction.simulate" => fluxion_protocol::transaction::describe(),
                 other => {
                     let error = CapabilityError::new(
@@ -1594,6 +1794,25 @@ mod tests {
         );
         assert!(parse_wallet_sign_args(&[]).is_ok());
         assert!(parse_wallet_sign_args(&["--timeout".to_string(), "0".to_string()]).is_err());
+    }
+
+    #[test]
+    fn parses_wallet_send_arguments() {
+        let args = parse_wallet_send_args(&[
+            "--to".to_string(),
+            "0x0000000000000000000000000000000000000001".to_string(),
+            "--token".to_string(),
+            "ETH".to_string(),
+            "--amount".to_string(),
+            "0.1".to_string(),
+            "--timeout".to_string(),
+            "42".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(args.token, "ETH");
+        assert_eq!(args.amount, "0.1");
+        assert_eq!(args.timeout_seconds, 42);
+        assert!(parse_wallet_send_args(&[]).is_err());
     }
 
     #[test]

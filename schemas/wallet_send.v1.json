@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/wallet_send.v1.json",
+  "title": "Fluxion wallet send v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["from", "recipient", "token", "amount", "chain_id", "tx_hash", "simulation"],
+  "properties": {
+    "from": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "recipient": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "decimals"],
+      "properties": {
+        "symbol": { "type": "string" },
+        "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 255 }
+      }
+    },
+    "amount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw", "decimal"],
+      "properties": {
+        "raw": { "type": "string", "pattern": "^[0-9]+$" },
+        "decimal": { "type": "string" }
+      }
+    },
+    "contract": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "chain_id": { "type": "integer", "minimum": 0 },
+    "tx_hash": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+    "simulation": {
+      "type": "object",
+      "required": ["block_number", "block_hash", "to", "value", "success", "return_data"],
+      "properties": {
+        "block_number": { "type": "integer", "minimum": 0 },
+        "block_hash": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "value": { "type": "object" },
+        "success": { "type": "boolean" },
+        "return_data": { "type": "string" },
+        "gas_estimate": { "type": "string" },
+        "revert_data": { "type": "string" },
+        "error": { "type": "string" }
+      }
+    }
+  }
+}

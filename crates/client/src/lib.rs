@@ -9,6 +9,7 @@ pub mod routing;
 pub mod token;
 pub mod transaction;
 pub mod wallet;
+pub mod wallet_send;
 pub mod walletconnect;
 
 pub use fluxion_protocol::{capability, swap};
