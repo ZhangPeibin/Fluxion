@@ -35,7 +35,8 @@ use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::capability::{CapabilityError, CapabilityErrorCode};
 use fluxion_protocol::wallet::{
-    WalletConnectResponse, WalletDisconnectResponse, WalletPeer, WalletStatusResponse,
+    WalletConnectResponse, WalletDisconnectResponse, WalletPeer, WalletSignResponse,
+    WalletStatusResponse,
 };
 
 const DEFAULT_RELAY_URL: &str = "wss://relay.walletconnect.com";
@@ -76,9 +77,124 @@ pub struct Session {
     pub wallet_url: Option<String>,
     #[serde(default)]
     pub wallet_icons: Vec<String>,
+    #[serde(default)]
+    pub methods: Vec<String>,
+    #[serde(default)]
+    pub relay_secret: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum SignPayload {
+    Message(String),
+    TypedData(Value),
+}
+
+#[derive(Debug, Clone)]
+pub struct SignRequest {
+    pub address: Option<Address>,
+    pub payload: SignPayload,
+    pub timeout: Duration,
 }
 
 impl Session {
+    pub async fn sign(&self, request: SignRequest) -> Result<WalletSignResponse, CapabilityError> {
+        if self.expiry <= unix_timestamp() {
+            return Err(CapabilityError::new(
+                CapabilityErrorCode::StaleState,
+                "WalletConnect session has expired; run wallet.connect again",
+                false,
+            ));
+        }
+        let address = request
+            .address
+            .or_else(|| self.accounts.first().copied())
+            .ok_or_else(|| {
+                CapabilityError::new(
+                    CapabilityErrorCode::Unsupported,
+                    "WalletConnect session has no account",
+                    false,
+                )
+            })?;
+        if !self.accounts.contains(&address) {
+            return Err(invalid("address is not in the WalletConnect session"));
+        }
+        let (method, params) = match request.payload {
+            SignPayload::Message(message) => {
+                if message.len() > 64 * 1024 {
+                    return Err(invalid("message is too large"));
+                }
+                (
+                    "personal_sign",
+                    json!([format!("0x{}", hex(message.as_bytes())), address]),
+                )
+            }
+            SignPayload::TypedData(typed_data) => {
+                let typed_json = validate_typed_data(&typed_data, self.chain_id)?;
+                ("eth_signTypedData_v4", json!([address, typed_json]))
+            }
+        };
+        if !self.methods.is_empty() && !self.methods.iter().any(|item| item == method) {
+            return Err(CapabilityError::new(
+                CapabilityErrorCode::Unsupported,
+                format!("wallet did not approve {method} for this session"),
+                false,
+            ));
+        }
+
+        let key = session_key(&self.sym_key)?;
+        let config = ConnectConfig::from_env()?;
+        let relay_secret = self.relay_secret.as_deref().ok_or_else(|| {
+            CapabilityError::new(
+                CapabilityErrorCode::Unsupported,
+                "WalletConnect session was created by an older Fluxion version; run wallet.disconnect and wallet.connect again",
+                false,
+            )
+        })?;
+        let (mut relay, _) = connect_relay(&config, Some(relay_secret)).await?;
+        let subscribe_id = relay
+            .request("irn_subscribe", json!({"topic": self.topic}))
+            .await?;
+        wait_for_id(&mut relay, subscribe_id).await?;
+
+        let id = relay.next_id();
+        let payload = json!({
+            "id": id,
+            "jsonrpc": "2.0",
+            "method": "wc_sessionRequest",
+            "params": {
+                "request": {
+                    "method": method,
+                    "params": params
+                },
+                "chainId": format!("eip155:{}", self.chain_id)
+            }
+        });
+        publish(&mut relay, &self.topic, &key, &payload, 1108, true).await?;
+
+        let timeout = request.timeout.max(Duration::from_secs(1));
+        let signature = match tokio::time::timeout(
+            timeout,
+            wait_for_signature(&mut relay, &self.topic, &key, id),
+        )
+        .await
+        {
+            Ok(result) => result?,
+            Err(_) => {
+                return Err(CapabilityError::new(
+                    CapabilityErrorCode::Timeout,
+                    "wallet signing timed out",
+                    true,
+                ));
+            }
+        };
+        Ok(WalletSignResponse {
+            address,
+            chain_id: self.chain_id,
+            method: method.to_string(),
+            signature,
+        })
+    }
+
     pub fn load() -> Result<Option<Self>, CapabilityError> {
         Self::load_from(&session_path())
     }
@@ -179,6 +295,17 @@ fn write_private_bytes(path: &PathBuf, bytes: &[u8]) -> Result<(), CapabilityErr
     Ok(())
 }
 
+pub async fn sign(request: SignRequest) -> Result<WalletSignResponse, CapabilityError> {
+    let session = Session::load()?.ok_or_else(|| {
+        CapabilityError::new(
+            CapabilityErrorCode::Unsupported,
+            "wallet is not connected; run wallet.connect first",
+            false,
+        )
+    })?;
+    session.sign(request).await
+}
+
 pub fn status() -> Result<WalletStatusResponse, CapabilityError> {
     let Some(session) = Session::load()? else {
         return Ok(disconnected_status(None));
@@ -215,8 +342,46 @@ pub fn disconnect() -> Result<WalletDisconnectResponse, CapabilityError> {
     Ok(WalletDisconnectResponse { disconnected: true })
 }
 
+async fn connect_relay(
+    config: &ConnectConfig,
+    secret: Option<&str>,
+) -> Result<(Relay, String), CapabilityError> {
+    let relay_key = match secret {
+        Some(secret) => {
+            let bytes = unhex(secret)?;
+            let bytes: [u8; 32] = bytes
+                .as_slice()
+                .try_into()
+                .map_err(|_| internal("invalid WalletConnect relay secret"))?;
+            SigningKey::from_bytes(&bytes)
+        }
+        None => SigningKey::generate(&mut OsRng),
+    };
+    let relay_secret = hex(relay_key.to_bytes().as_slice());
+    let auth = auth_token(&relay_key, &config.relay_url);
+    let mut url = Url::parse(&config.relay_url)
+        .map_err(|error| invalid(format!("invalid relay URL: {error}")))?;
+    url.query_pairs_mut()
+        .append_pair("projectId", &config.project_id)
+        .append_pair("auth", &auth);
+
+    let (socket, _) = connect_async(url.as_str())
+        .await
+        .map_err(|error| rpc(format!("WalletConnect relay connection failed: {error}")))?;
+    let (write, read) = socket.split();
+    Ok((
+        Relay {
+            write,
+            read,
+            next_id: 1_000_000_000,
+        },
+        relay_secret,
+    ))
+}
+
 pub struct Pairing {
     relay: Relay,
+    relay_secret: String,
     pairing_secret: StaticSecret,
     pairing_topic: String,
     pairing_key: [u8; 32],
@@ -226,23 +391,7 @@ pub struct Pairing {
 
 impl Pairing {
     pub async fn start(config: &ConnectConfig) -> Result<Self, CapabilityError> {
-        let relay_key = SigningKey::generate(&mut OsRng);
-        let auth = auth_token(&relay_key, &config.relay_url);
-        let mut url = Url::parse(&config.relay_url)
-            .map_err(|error| invalid(format!("invalid relay URL: {error}")))?;
-        url.query_pairs_mut()
-            .append_pair("projectId", &config.project_id)
-            .append_pair("auth", &auth);
-
-        let (socket, _) = connect_async(url.as_str())
-            .await
-            .map_err(|error| rpc(format!("WalletConnect relay connection failed: {error}")))?;
-        let (write, read) = socket.split();
-        let mut relay = Relay {
-            write,
-            read,
-            next_id: 1_000_000_000,
-        };
+        let (mut relay, relay_secret) = connect_relay(config, None).await?;
 
         let pairing_secret = StaticSecret::random_from_rng(OsRng);
         let pairing_key = pairing_secret.to_bytes();
@@ -309,6 +458,7 @@ impl Pairing {
             pairing_topic,
             pairing_key,
             uri,
+            relay_secret,
             expires_at: unix_timestamp() + PAIRING_TIMEOUT_SECS as i64,
         })
     }
@@ -434,6 +584,20 @@ impl Pairing {
                                 .collect()
                         })
                         .unwrap_or_default();
+                    let methods = payload
+                        .get("params")
+                        .and_then(|params| params.get("namespaces"))
+                        .and_then(|namespaces| namespaces.get("eip155"))
+                        .and_then(|namespace| namespace.get("methods"))
+                        .and_then(Value::as_array)
+                        .map(|methods| {
+                            methods
+                                .iter()
+                                .filter_map(Value::as_str)
+                                .map(str::to_string)
+                                .collect()
+                        })
+                        .unwrap_or_default();
 
                     let ack = json!({
                         "id": payload.get("id").cloned().unwrap_or(Value::Null),
@@ -456,6 +620,8 @@ impl Pairing {
                         wallet_name,
                         wallet_url,
                         wallet_icons,
+                        methods,
+                        relay_secret: Some(self.relay_secret.clone()),
                     };
                     session.save()?;
                     return Ok(session);
@@ -733,6 +899,101 @@ fn status_from_session(session: Session, error: Option<String>) -> WalletStatusR
         connection_id: Some(session.topic.clone()),
         wallet: session.peer(),
         error,
+    }
+}
+
+fn sign_error(error: &Value) -> CapabilityError {
+    if error.get("code").and_then(Value::as_i64) == Some(4001) {
+        CapabilityError::new(
+            CapabilityErrorCode::UserRejected,
+            "wallet rejected the signing request",
+            false,
+        )
+    } else {
+        rpc(format!("wallet signing request failed: {error}"))
+    }
+}
+
+fn session_key(value: &str) -> Result<[u8; 32], CapabilityError> {
+    let bytes = unhex(value)?;
+    bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| internal("invalid WalletConnect session key"))
+}
+
+fn validate_typed_data(value: &Value, chain_id: u64) -> Result<String, CapabilityError> {
+    let text = serde_json::to_string(value)
+        .map_err(|error| invalid(format!("invalid typed data: {error}")))?;
+    if text.len() > 64 * 1024 {
+        return Err(invalid("typed data is too large"));
+    }
+    if let Some(domain_chain) = value.get("domain").and_then(|domain| domain.get("chainId")) {
+        let parsed = match domain_chain {
+            Value::Number(number) => number.as_u64(),
+            Value::String(text) => {
+                let text = text.trim();
+                if let Some(hex) = text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")) {
+                    u64::from_str_radix(hex, 16).ok()
+                } else {
+                    text.parse::<u64>().ok()
+                }
+            }
+            _ => None,
+        };
+        if parsed != Some(chain_id) {
+            return Err(invalid(format!(
+                "typed data domain.chainId must be {chain_id}"
+            )));
+        }
+    }
+    Ok(text)
+}
+
+async fn wait_for_signature(
+    relay: &mut Relay,
+    topic: &str,
+    key: &[u8; 32],
+    request_id: u64,
+) -> Result<String, CapabilityError> {
+    loop {
+        let message = relay.next().await?;
+        if message.get("method").and_then(Value::as_str) == Some("irn_subscription") {
+            if let Some(id) = message.get("id").cloned() {
+                relay
+                    .send_raw(json!({"jsonrpc": "2.0", "id": id, "result": true}))
+                    .await?;
+            }
+            let Some(data) = message.get("params").and_then(|params| params.get("data")) else {
+                continue;
+            };
+            if data.get("topic").and_then(Value::as_str) != Some(topic) {
+                continue;
+            }
+            let Some(encrypted) = data.get("message").and_then(Value::as_str) else {
+                continue;
+            };
+            let payload: Value = serde_json::from_slice(&decrypt(key, encrypted)?)
+                .map_err(|error| internal(format!("invalid WalletConnect message: {error}")))?;
+            if payload.get("id").and_then(Value::as_u64) != Some(request_id) {
+                continue;
+            }
+            if let Some(error) = payload.get("error") {
+                return Err(sign_error(error));
+            }
+            let signature = payload
+                .get("result")
+                .and_then(Value::as_str)
+                .ok_or_else(|| rpc("wallet returned no signature"))?;
+            if !signature.starts_with("0x")
+                || !signature[2..].chars().all(|ch| ch.is_ascii_hexdigit())
+            {
+                return Err(rpc("wallet returned an invalid signature"));
+            }
+            return Ok(signature.to_string());
+        } else if let Some(error) = message.get("error") {
+            return Err(rpc(format!("WalletConnect relay error: {error}")));
+        }
     }
 }
 
@@ -1155,6 +1416,27 @@ mod tests {
     }
 
     #[test]
+    fn validates_typed_data_chain_and_size() {
+        let typed = json!({
+            "types": {},
+            "primaryType": "Person",
+            "domain": {"chainId": 1},
+            "message": {}
+        });
+        assert!(validate_typed_data(&typed, 1).is_ok());
+        assert!(validate_typed_data(&typed, 56).is_err());
+        let hex_chain = json!({"domain": {"chainId": "0x1"}, "message": {}});
+        assert!(validate_typed_data(&hex_chain, 1).is_ok());
+    }
+
+    #[test]
+    fn maps_wallet_rejection_to_user_rejected() {
+        let error = sign_error(&json!({"code": 4001, "message": "User rejected"}));
+        assert_eq!(error.code, CapabilityErrorCode::UserRejected);
+        assert!(!error.retryable);
+    }
+
+    #[test]
     fn saves_and_loads_a_session() {
         let path = env::temp_dir().join(format!(
             "fluxion-walletconnect-test-{}.json",
@@ -1174,6 +1456,8 @@ mod tests {
             wallet_name: Some("MetaMask".to_string()),
             wallet_url: Some("https://metamask.io".to_string()),
             wallet_icons: Vec::new(),
+            methods: vec![],
+            relay_secret: Some("00".repeat(32)),
         };
         session.save_to(&path).unwrap();
         let loaded = Session::load_from(&path).unwrap().unwrap();

@@ -109,6 +109,8 @@ MCP documentation if a snippet is rejected.
 
 - `fluxion mcp` keeps the MCP process alive and reuses one remote client.
 - `swap.quote` uses the remote service; the remote server owns discovery and snapshot warmup.
+- `wallet_sign` uses the stored session and waits for explicit phone confirmation. A rejection
+  returns `USER_REJECTED`; it does not retry automatically.
 - `wallet_connect` starts a background pairing task in the MCP process and returns a 51-column
   terminal QR as the first text content block, plus an optional PNG path for fallback. It does not
   open a window by default. Reproduce the QR before polling. Keep the process alive and call
@@ -149,6 +151,7 @@ Available tools depend on the installed capabilities:
 | `wallet.status` | `wallet_status` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.disconnect` | `wallet_disconnect` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.agent-id` | `wallet_agent_id` | [capabilities/wallet](capabilities/wallet/README.md) |
+| `wallet.sign` | `wallet_sign` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `transaction.simulate` | `transaction_simulate` | [capabilities/transaction](capabilities/transaction/README.md) |
 
 ## Troubleshooting

@@ -1,16 +1,16 @@
 //! Agent-facing CLI. Commands are thin clients over a warm local runtime.
 
 use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
-use crate::capability::{CapabilityError, CapabilityErrorCode};
+use crate::capability::{CapabilityError, CapabilityErrorCode, CapabilityErrorResponse};
 use crate::client::{RuntimeClient, request_id};
-use crate::swap::quote::{QuoteErrorResponse, QuoteRequest};
+use crate::swap::quote::QuoteRequest;
 use crate::token;
 use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest,
     WalletAllowancesResponse, WalletBalancesResponse, WalletCollectiblesResponse, WalletConfig,
 };
-use crate::walletconnect::{self, Manager};
+use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
 use fluxion_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
@@ -90,6 +90,8 @@ fluxion wallet connect                    Link a wallet with WalletConnect\n  \
 fluxion wallet status [--wait N]          Show the linked wallet session\n  \
 fluxion wallet disconnect                 Remove the linked wallet session\n  \
 fluxion wallet agent-id HANDLE|ADDRESS    Resolve a BSC .ai Agent ID\n  \
+fluxion wallet sign --message TEXT        Sign a message with WalletConnect\n  \
+fluxion wallet sign --typed-data FILE     Sign EIP-712 typed data\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--from ADDRESS]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
@@ -343,13 +345,14 @@ async fn run_wallet(raw: &[String]) -> i32 {
         Some("status") => return run_wallet_status(&raw[1..]).await,
         Some("disconnect") => return run_wallet_disconnect(&raw[1..]).await,
         Some("agent-id") => return run_wallet_agent_id(&raw[1..]).await,
+        Some("sign") => return run_wallet_sign(&raw[1..]).await,
         _ => {}
     }
     let args = match parse_wallet_args(raw) {
         Ok(args) => args,
         Err(error) if error.message == "help requested" => {
             println!(
-                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
+                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
             );
             return 0;
         }
@@ -496,11 +499,156 @@ async fn run_wallet(raw: &[String]) -> i32 {
     }
 }
 
+async fn run_wallet_sign(raw: &[String]) -> i32 {
+    let args = match parse_wallet_sign_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as("wallet.sign", &error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
+    let payload = match (args.message, args.typed_data) {
+        (Some(message), None) => SignPayload::Message(message),
+        (None, Some(typed_data)) => SignPayload::TypedData(typed_data),
+        _ => {
+            let error = CapabilityError::invalid_argument(
+                "wallet sign needs exactly one of --message or --typed-data",
+            );
+            report_error_as("wallet.sign", &error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    match walletconnect::sign(SignRequest {
+        address: args.address,
+        payload,
+        timeout: std::time::Duration::from_secs(args.timeout_seconds),
+    })
+    .await
+    {
+        Ok(response) if args.json => {
+            println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            0
+        }
+        Ok(response) => {
+            println!("Address: {}", response.address);
+            println!("Method: {}", response.method);
+            println!("Signature: {}", response.signature);
+            0
+        }
+        Err(error) => {
+            report_error_as("wallet.sign", &error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+struct WalletSignArgs {
+    message: Option<String>,
+    typed_data: Option<serde_json::Value>,
+    address: Option<alloy_primitives::Address>,
+    json: bool,
+    timeout_seconds: u64,
+}
+
+fn parse_wallet_sign_args(raw: &[String]) -> Result<WalletSignArgs, CapabilityError> {
+    let mut message = None;
+    let mut typed_data = None;
+    let mut address = None;
+    let mut json = false;
+    let mut timeout_seconds = 90;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--json" => json = true,
+            "--message" => {
+                index += 1;
+                message = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--message needs a value")
+                        })?
+                        .clone(),
+                );
+            }
+            "--typed-data" => {
+                index += 1;
+                let path = raw.get(index).ok_or_else(|| {
+                    CapabilityError::invalid_argument("--typed-data needs a file")
+                })?;
+                let text = std::fs::read_to_string(path).map_err(|error| {
+                    CapabilityError::invalid_argument(format!("cannot read {path}: {error}"))
+                })?;
+                typed_data = Some(serde_json::from_str(&text).map_err(|error| {
+                    CapabilityError::invalid_argument(format!(
+                        "invalid typed data in {path}: {error}"
+                    ))
+                })?);
+            }
+            "--typed-data-json" => {
+                index += 1;
+                let text = raw.get(index).ok_or_else(|| {
+                    CapabilityError::invalid_argument("--typed-data-json needs a value")
+                })?;
+                typed_data = Some(serde_json::from_str(text).map_err(|error| {
+                    CapabilityError::invalid_argument(format!("invalid typed data: {error}"))
+                })?);
+            }
+            "--address" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--address needs a value"))?;
+                address = Some(
+                    value
+                        .parse()
+                        .map_err(|_| CapabilityError::invalid_argument("invalid --address"))?,
+                );
+            }
+            "--timeout" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--timeout needs a value"))?;
+                timeout_seconds = value.parse().map_err(|_| {
+                    CapabilityError::invalid_argument(format!("invalid --timeout: {value}"))
+                })?;
+                if timeout_seconds == 0 || timeout_seconds > 300 {
+                    return Err(CapabilityError::invalid_argument(
+                        "--timeout must be between 1 and 300 seconds",
+                    ));
+                }
+            }
+            arg if arg.starts_with('-') => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown wallet option: {arg}"
+                )));
+            }
+            arg => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unexpected wallet sign argument: {arg}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok(WalletSignArgs {
+        message,
+        typed_data,
+        address,
+        json,
+        timeout_seconds,
+    })
+}
+
 async fn run_wallet_agent_id(raw: &[String]) -> i32 {
     let args = match parse_wallet_agent_id_args(raw) {
         Ok(args) => args,
         Err(error) => {
-            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            report_error_as(
+                "wallet.agent-id",
+                &error,
+                raw.iter().any(|arg| arg == "--json"),
+            );
             return exit_code(error.code);
         }
     };
@@ -509,7 +657,7 @@ async fn run_wallet_agent_id(raw: &[String]) -> i32 {
             Ok(address) => AgentIdLookup::Address(address),
             Err(_) => {
                 let error = CapabilityError::invalid_argument("invalid Agent ID address");
-                report_error(&error, args.json);
+                report_error_as("wallet.agent-id", &error, args.json);
                 return exit_code(error.code);
             }
         }
@@ -544,7 +692,7 @@ async fn run_wallet_agent_id(raw: &[String]) -> i32 {
             0
         }
         Err(error) => {
-            report_error(&error, args.json);
+            report_error_as("wallet.agent-id", &error, args.json);
             exit_code(error.code)
         }
     }
@@ -1249,8 +1397,12 @@ fn print_human(response: &crate::swap::quote::QuoteResponse, amount: &str) {
 }
 
 fn report_error(error: &CapabilityError, json: bool) {
+    report_error_as("swap.quote", error, json);
+}
+
+fn report_error_as(capability: &str, error: &CapabilityError, json: bool) {
     if json {
-        let response = QuoteErrorResponse::new(request_id(), error.clone());
+        let response = CapabilityErrorResponse::new(capability, request_id(), error.clone());
         println!("{}", serde_json::to_string_pretty(&response).unwrap());
     } else {
         eprintln!("{}: {}", error.code_string(), error.message);
@@ -1264,6 +1416,7 @@ fn exit_code(code: CapabilityErrorCode) -> i32 {
         CapabilityErrorCode::RpcError | CapabilityErrorCode::Unsupported => 4,
         CapabilityErrorCode::StaleState | CapabilityErrorCode::StateIncomplete => 5,
         CapabilityErrorCode::Timeout => 6,
+        CapabilityErrorCode::UserRejected => 7,
         CapabilityErrorCode::Internal => 1,
     }
 }
@@ -1301,6 +1454,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "wallet.status" => fluxion_protocol::wallet::describe_status(),
                 "wallet.disconnect" => fluxion_protocol::wallet::describe_disconnect(),
                 "wallet.agent-id" => fluxion_protocol::wallet::describe_agent_id(),
+                "wallet.sign" => fluxion_protocol::wallet::describe_sign(),
                 "transaction.simulate" => fluxion_protocol::transaction::describe(),
                 other => {
                     let error = CapabilityError::new(
@@ -1413,6 +1567,33 @@ mod tests {
         assert_eq!(args.rpc_url.as_deref(), Some("http://127.0.0.1:8545"));
         assert!(parse_wallet_agent_id_args(&[]).is_err());
         assert!(parse_wallet_agent_id_args(&["a".to_string(), "b".to_string()]).is_err());
+    }
+
+    #[test]
+    fn parses_wallet_sign_arguments() {
+        let args = parse_wallet_sign_args(&[
+            "--message".to_string(),
+            "hello".to_string(),
+            "--timeout".to_string(),
+            "42".to_string(),
+            "--json".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(args.message.as_deref(), Some("hello"));
+        assert!(args.typed_data.is_none());
+        assert!(args.json);
+        assert_eq!(args.timeout_seconds, 42);
+        assert!(
+            parse_wallet_sign_args(&[
+                "--message".to_string(),
+                "hello".to_string(),
+                "--typed-data-json".to_string(),
+                "{}".to_string()
+            ])
+            .is_ok()
+        );
+        assert!(parse_wallet_sign_args(&[]).is_ok());
+        assert!(parse_wallet_sign_args(&["--timeout".to_string(), "0".to_string()]).is_err());
     }
 
     #[test]

@@ -1,13 +1,13 @@
 ---
 name: wallet
-description: Use when the user asks for an Ethereum account's native ETH or ERC20 balances, wants to know which tokens or NFTs an address holds, needs ERC20 allowances for an owner/spender pair, wants to resolve a BSC .ai Agent ID, or wants to link a mobile wallet with WalletConnect. Covers the Fluxion wallet_balance, wallet_assets, wallet_allowance, wallet_collectibles, wallet_agent_id, wallet_connect, wallet_status and wallet_disconnect MCP tools. Read-only for account data; wallet linking never asks for private keys and does not sign or execute transactions.
+description: Use when the user asks for an Ethereum account's native ETH or ERC20 balances, wants to know which tokens or NFTs an address holds, needs ERC20 allowances for an owner/spender pair, wants to resolve a BSC .ai Agent ID, wants to link a mobile wallet with WalletConnect, or wants to sign a message or EIP-712 typed data. Covers the Fluxion wallet_balance, wallet_assets, wallet_allowance, wallet_collectibles, wallet_agent_id, wallet_connect, wallet_status, wallet_sign and wallet_disconnect MCP tools. Read-only for account data; wallet linking and signing never ask for private keys, and signing requires explicit phone confirmation.
 ---
 
 # wallet capabilities
 
-Read-only account capabilities, BSC Agent ID identity, and local WalletConnect session management.
-These capabilities never ask for or handle private keys, and a balance or allowance response is
-never authorization to transact.
+Read-only account capabilities, BSC Agent ID identity, local WalletConnect session management, and
+message/EIP-712 signing. These capabilities never ask for or handle private keys, and a balance or
+allowance response is never authorization to transact.
 
 - Human docs: [`docs/capabilities/wallet`](../../docs/capabilities/wallet/README.md)
 - Schemas:
@@ -16,7 +16,8 @@ never authorization to transact.
   [`wallet_connect`](../../schemas/wallet_connect.v1.json),
   [`wallet_status`](../../schemas/wallet_status.v1.json),
   [`wallet_disconnect`](../../schemas/wallet_disconnect.v1.json),
-  [`wallet_agent_id`](../../schemas/wallet_agent_id.v1.json)
+  [`wallet_agent_id`](../../schemas/wallet_agent_id.v1.json),
+  [`wallet_sign`](../../schemas/wallet_sign.v1.json)
 
 ## Execution model
 
@@ -29,6 +30,7 @@ Do not choose local/remote. Execution is fixed per capability:
 | `wallet.allowance` | local |
 | `wallet.collectibles` | hybrid |
 | `wallet.agent-id` | hybrid |
+| `wallet.sign` | local |
 | `wallet.connect` | local |
 | `wallet.status` | local |
 | `wallet.disconnect` | local |
@@ -147,6 +149,41 @@ Resolve a BSC `.ai` Agent ID from a handle or wallet address.
 }
 ```
 
+## `wallet_sign`
+
+Sign a message or EIP-712 typed data with the connected WalletConnect session. The user confirms
+on their phone.
+
+```json
+{
+  "name": "wallet_sign",
+  "arguments": {
+    "message": "hello"
+  }
+}
+```
+
+```json
+{
+  "name": "wallet_sign",
+  "arguments": {
+    "typed_data": {
+      "types": {},
+      "primaryType": "Person",
+      "domain": {"chainId": 1},
+      "message": {}
+    }
+  }
+}
+```
+
+- Pass exactly one of `message` or `typed_data`.
+- `timeout_seconds` defaults to 90 and is capped at 110.
+- `address` is optional; it must match the session account.
+- The user must confirm on their phone. A rejection returns `USER_REJECTED`.
+- Do not call this on an opaque payload. Show the user what will be signed first.
+- This signs messages/typed data only; it does not sign or send transactions.
+
 ## `wallet_connect`
 
 Start a WalletConnect v2 pairing and return a QR code for the user to scan with MetaMask,
@@ -207,6 +244,7 @@ fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC,LDO --json
 fluxion wallet collectibles 0xowner --json
 fluxion wallet collectibles 0xowner --collections 0xcollection --json
 fluxion wallet agent-id alice.ai --json
+fluxion wallet sign --message "hello" --json
 fluxion wallet connect
 fluxion wallet status
 fluxion wallet disconnect
@@ -244,7 +282,8 @@ Allowances:
 | Code | Meaning | Agent action |
 |---|---|---|
 | `INVALID_ARGUMENT` | Bad address, token or block | Fix the request |
-| `RPC_ERROR` | Local RPC unavailable or returned bad data | Retry or check `FLUXION_RPC_URL` |
+| `RPC_ERROR` | Local RPC/relay unavailable or returned bad data | Retry or check the endpoint |
+| `USER_REJECTED` | User rejected the signing request on their phone | Do not retry automatically |
 | `UNSUPPORTED` | Asset discovery unavailable (for example missing API key) | Use registry-only results or configure a provider |
 | `TIMEOUT` | RPC or discovery timed out | Retry later |
 
@@ -254,6 +293,6 @@ Allowances:
 - Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
 - No USD valuation.
 - `wallet.agent-id` resolves BSC identities only; it does not log in to Binance Agentic Wallet.
-- `wallet.connect` links a wallet but does not sign or execute. Signing is a later capability.
-- Read-only: no approval, signing, or transaction execution.
+- `wallet.sign` signs messages and EIP-712 typed data only; no transaction signing or execution.
+- Read-only account data: no approvals, private keys, or transaction execution.
 - Re-check the pinned block, balances and allowances before building a transaction.

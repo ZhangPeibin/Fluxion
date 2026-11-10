@@ -14,6 +14,7 @@ pub enum CapabilityErrorCode {
     StaleState,
     StateIncomplete,
     Unsupported,
+    UserRejected,
     Timeout,
     Internal,
 }
@@ -36,6 +37,7 @@ impl CapabilityErrorCode {
             Self::StaleState => "STALE_STATE",
             Self::StateIncomplete => "STATE_INCOMPLETE",
             Self::Unsupported => "UNSUPPORTED",
+            Self::UserRejected => "USER_REJECTED",
             Self::Timeout => "TIMEOUT",
             Self::Internal => "INTERNAL",
         }

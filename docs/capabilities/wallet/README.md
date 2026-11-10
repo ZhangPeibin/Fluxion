@@ -1,7 +1,8 @@
 # wallet capabilities
 
 Read-only account capabilities for Ethereum, BSC Agent ID identity, and local WalletConnect session
-management. None of these capabilities signs, approves, or broadcasts transactions.
+management. `wallet.sign` signs messages and EIP-712 typed data only; none of these capabilities
+approves or broadcasts transactions.
 
 ## `wallet.balance`
 
@@ -91,6 +92,25 @@ fluxion wallet agent-id 0xA506ac7069937571DC56C5f8FDa53c4A729456c6 --json
 - This is identity resolution only. It does not log in to Binance Agentic Wallet and does not
   check Four.meme launch eligibility.
 
+## `wallet.sign`
+
+Sign a message or EIP-712 typed data through the connected WalletConnect session. The user must
+confirm on their phone.
+
+```bash
+fluxion wallet sign --message "hello"
+fluxion wallet sign --typed-data typed-data.json --json
+```
+
+- Requires an active `wallet.connect` session.
+- Supports `personal_sign` and `eth_signTypedData_v4`.
+- Returns the signature, address, chain ID and method.
+- The phone rejection is returned as `USER_REJECTED`.
+- Message and typed data are limited to 64 KB.
+- Typed data `domain.chainId` must match the session chain when present.
+- Sessions created before the relay identity was persisted must be recreated with
+  `wallet.disconnect` + `wallet.connect`.
+
 ## `wallet.connect`
 
 Start a WalletConnect v2 pairing and return a URI plus an ASCII QR code. The wallet
@@ -146,6 +166,7 @@ fluxion wallet disconnect --json
 | `wallet_allowance` | local |
 | `wallet_collectibles` | hybrid |
 | `wallet_agent_id` | hybrid |
+| `wallet_sign` | local |
 | `wallet_connect` | local |
 | `wallet_status` | local |
 | `wallet_disconnect` | local |
@@ -171,6 +192,7 @@ fluxion wallet disconnect --json
 - Status: [`schemas/wallet_status.v1.json`](../../../schemas/wallet_status.v1.json)
 - Disconnect: [`schemas/wallet_disconnect.v1.json`](../../../schemas/wallet_disconnect.v1.json)
 - Agent ID: [`schemas/wallet_agent_id.v1.json`](../../../schemas/wallet_agent_id.v1.json)
+- Sign: [`schemas/wallet_sign.v1.json`](../../../schemas/wallet_sign.v1.json)
 
 ```json
 {
@@ -199,7 +221,8 @@ fluxion wallet disconnect --json
 - Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
 - WalletConnect sessions currently support `eip155:1` only.
 - `wallet.agent-id` is BSC only; Binance Agentic Wallet login and execution are not implemented.
-- `wallet.connect` links a wallet for future signing; it does not sign or send transactions yet.
-- No signing, approvals, private keys, or transaction execution.
+- `wallet.sign` signs messages and EIP-712 typed data only; it does not sign transactions or
+  broadcast.
+- No approvals, private keys, or transaction execution.
 - No USD valuation.
 - `wallet.assets` discovery is best-effort; `coverage` and `warnings` make completeness explicit.

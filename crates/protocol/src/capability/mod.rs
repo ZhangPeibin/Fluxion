@@ -10,6 +10,26 @@ pub mod types;
 pub use error::{CapabilityError, CapabilityErrorCode};
 pub use types::{Amount, CapabilityMeta, Provenance, TokenRef};
 
+#[derive(Debug, Clone, Serialize)]
+pub struct CapabilityErrorResponse {
+    #[serde(flatten)]
+    pub meta: CapabilityMeta,
+    pub error: CapabilityError,
+}
+
+impl CapabilityErrorResponse {
+    pub fn new(capability: &str, request_id: impl Into<String>, error: CapabilityError) -> Self {
+        Self {
+            meta: CapabilityMeta {
+                schema_version: SCHEMA_VERSION,
+                capability: capability.to_string(),
+                request_id: request_id.into(),
+            },
+            error,
+        }
+    }
+}
+
 use serde::{Deserialize, Serialize};
 
 pub const SCHEMA_VERSION: u32 = 1;
@@ -34,6 +54,8 @@ pub enum CapabilityId {
     WalletDisconnect,
     #[serde(rename = "wallet.agent-id")]
     WalletAgentId,
+    #[serde(rename = "wallet.sign")]
+    WalletSign,
     #[serde(rename = "transaction.simulate")]
     TransactionSimulate,
 }
@@ -50,6 +72,7 @@ impl CapabilityId {
             Self::WalletStatus => "wallet.status",
             Self::WalletDisconnect => "wallet.disconnect",
             Self::WalletAgentId => "wallet.agent-id",
+            Self::WalletSign => "wallet.sign",
             Self::TransactionSimulate => "transaction.simulate",
         }
     }
@@ -65,6 +88,7 @@ impl CapabilityId {
             Self::WalletStatus,
             Self::WalletDisconnect,
             Self::WalletAgentId,
+            Self::WalletSign,
             Self::TransactionSimulate,
         ]
     }
@@ -103,6 +127,7 @@ mod tests {
                 "wallet.status",
                 "wallet.disconnect",
                 "wallet.agent-id",
+                "wallet.sign",
                 "transaction.simulate"
             ]
         );
@@ -118,6 +143,7 @@ mod tests {
         assert_eq!(CapabilityId::WalletStatus.as_str(), "wallet.status");
         assert_eq!(CapabilityId::WalletDisconnect.as_str(), "wallet.disconnect");
         assert_eq!(CapabilityId::WalletAgentId.as_str(), "wallet.agent-id");
+        assert_eq!(CapabilityId::WalletSign.as_str(), "wallet.sign");
         assert_eq!(
             CapabilityId::TransactionSimulate.as_str(),
             "transaction.simulate"
