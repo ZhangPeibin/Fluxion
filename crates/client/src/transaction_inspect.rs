@@ -17,9 +17,10 @@ use crate::wallet::WalletConfig;
 
 pub use fluxion_protocol::transaction::{
     TransactionInspectApprovalEffect, TransactionInspectArg, TransactionInspectCoverage,
-    TransactionInspectEffects, TransactionInspectFinding, TransactionInspectIntent,
-    TransactionInspectNativeEffect, TransactionInspectNftEffect, TransactionInspectResponse,
-    TransactionInspectSource, TransactionInspectTarget, TransactionInspectTokenEffect,
+    TransactionInspectEffects, TransactionInspectExplanation, TransactionInspectFinding,
+    TransactionInspectIntent, TransactionInspectNativeEffect, TransactionInspectNftEffect,
+    TransactionInspectResponse, TransactionInspectSource, TransactionInspectTarget,
+    TransactionInspectTokenEffect,
 };
 
 #[derive(Debug, Clone)]
@@ -230,7 +231,7 @@ pub async fn inspect_with_policy(
     ];
     sources.extend(simulation.sources);
 
-    Ok(TransactionInspectResponse {
+    let mut response = TransactionInspectResponse {
         chain: request.chain.as_str().to_string(),
         chain_id: request.chain.chain_id(),
         block_number,
@@ -250,9 +251,12 @@ pub async fn inspect_with_policy(
             policy: policy_eval.coverage.to_string(),
         },
         unknowns,
+        explanation: TransactionInspectExplanation::default(),
         sources,
         warnings,
-    })
+    };
+    response.explanation = explain(&response);
+    Ok(response)
 }
 
 fn decode_swap_v2(
@@ -595,6 +599,71 @@ fn policy_finding<const N: usize>(
         evidence: evidence_map,
         confidence: "high".to_string(),
         deterministic: true,
+    }
+}
+
+fn explain(response: &TransactionInspectResponse) -> TransactionInspectExplanation {
+    let label = response
+        .intent
+        .signature
+        .as_deref()
+        .or(response.intent.name.as_deref())
+        .unwrap_or("unknown call");
+    let summary = if response.findings.is_empty() {
+        format!(
+            "{label} on {}: no known findings within current coverage (risk: {}). Review the unknowns before signing.",
+            response.chain, response.risk
+        )
+    } else {
+        let titles = response
+            .findings
+            .iter()
+            .take(3)
+            .map(|finding| finding.title.as_str())
+            .collect::<Vec<_>>()
+            .join("; ");
+        format!(
+            "{label} on {}: {} finding(s), risk {}: {}.",
+            response.chain,
+            response.findings.len(),
+            response.risk,
+            titles
+        )
+    };
+
+    let mut key_changes = Vec::new();
+    for effect in &response.effects.native {
+        key_changes.push(format!(
+            "{} native balance changes by {} raw units",
+            effect.account, effect.delta
+        ));
+    }
+    for effect in &response.effects.tokens {
+        key_changes.push(format!(
+            "{} token {} balance changes by {} raw units",
+            effect.account, effect.token, effect.delta
+        ));
+    }
+    for effect in &response.effects.approvals {
+        key_changes.push(format!(
+            "{} allowance for {} on token {} becomes {}",
+            effect.owner, effect.spender, effect.token, effect.after
+        ));
+    }
+    for effect in &response.effects.nfts {
+        key_changes.push(format!(
+            "NFT {} token {} moves from {} to {}",
+            effect.collection, effect.token_id, effect.from, effect.to
+        ));
+    }
+    if key_changes.is_empty() {
+        key_changes.push("no asset or approval changes were observed".to_string());
+    }
+
+    TransactionInspectExplanation {
+        summary,
+        key_changes,
+        unknowns: response.unknowns.clone(),
     }
 }
 
@@ -2317,6 +2386,8 @@ mod tests {
         assert_eq!(response.risk, "unknown");
         assert_eq!(response.coverage.decode, "complete");
         assert_eq!(response.block_number, 100);
+        assert!(response.explanation.summary.contains("no known findings"));
+        assert!(!response.explanation.unknowns.is_empty());
         assert!(response.findings.is_empty());
         assert_eq!(response.coverage.simulation, "partial");
         assert!(
@@ -2609,6 +2680,20 @@ mod tests {
         assert_eq!(response.risk, "high");
         assert_eq!(response.findings.len(), 1);
         assert_eq!(response.findings[0].id, "AUTH-001");
+        assert!(
+            response
+                .explanation
+                .summary
+                .contains("Unlimited token approval")
+        );
+        assert!(
+            !response
+                .explanation
+                .summary
+                .to_ascii_lowercase()
+                .contains("safe")
+        );
+        assert!(!response.explanation.key_changes.is_empty());
         assert_eq!(response.findings[0].severity, "high");
         assert_eq!(
             response.findings[0].evidence.get("spender").unwrap(),

@@ -62,6 +62,8 @@ known tokens use their registry decimals. Unknown tokens require an explicit `de
 - No policy means `coverage.policy = not_configured`.
 - Policy findings use `POLICY-001`–`POLICY-006`. There is no hidden default policy.
 - `unknowns`: what was not inspected and could change the conclusion.
+- `explanation`: deterministic `summary`, `key_changes` and `unknowns` for host agents. It never says
+  `safe` and is not an LLM decision.
 
 ## Boundaries
 

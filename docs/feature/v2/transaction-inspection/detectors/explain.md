@@ -23,6 +23,16 @@ Input is the structured report only. Output is text plus the report hash/version
 }
 ```
 
+## Implemented Slice
+
+The response now includes a deterministic `explanation` object:
+
+- `summary`: decoded method/chain, finding count and risk, or “no known findings” plus risk;
+- `key_changes`: native/token/NFT/approval effects;
+- `unknowns`: copied from the report.
+
+No LLM is called. The host agent can paraphrase this object. The summary never says `safe`.
+
 ## Rules
 
 - `EXPLAIN-001`: never receives raw calldata as the authoritative source.

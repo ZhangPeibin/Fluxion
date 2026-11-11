@@ -126,6 +126,13 @@ pub struct TransactionInspectSource {
     pub scope: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct TransactionInspectExplanation {
+    pub summary: String,
+    pub key_changes: Vec<String>,
+    pub unknowns: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct TransactionInspectResponse {
     pub chain: String,
@@ -143,6 +150,7 @@ pub struct TransactionInspectResponse {
     pub risk: String,
     pub coverage: TransactionInspectCoverage,
     pub unknowns: Vec<String>,
+    pub explanation: TransactionInspectExplanation,
     pub sources: Vec<TransactionInspectSource>,
     pub warnings: Vec<String>,
 }
