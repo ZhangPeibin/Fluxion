@@ -4,6 +4,7 @@ use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
 use crate::capability::{CapabilityError, CapabilityErrorCode, CapabilityErrorResponse};
 use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
+use crate::signature_inspect::{self, SignatureInspectRequest, SignatureInspectResponse};
 use crate::swap::quote::QuoteRequest;
 use crate::token;
 use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
@@ -42,6 +43,10 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
         }
         "transaction" => {
             let code = run_transaction(&args[1..]).await;
+            (args, Some(code))
+        }
+        "signature" => {
+            let code = run_signature(&args[1..]).await;
             (args, Some(code))
         }
         "tokens" => {
@@ -98,6 +103,7 @@ fluxion wallet sign --typed-data FILE     Sign EIP-712 typed data\n  \
 fluxion wallet send --to ADDR --token T --amount A  Send ETH/ERC20\n  \
 fluxion transaction inspect --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
+fluxion signature inspect --typed-data FILE | --authorization-list FILE | --user-operation FILE\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
@@ -1498,6 +1504,223 @@ async fn run_transaction(raw: &[String]) -> i32 {
     }
 }
 
+struct SignatureArgs {
+    chain: Chain,
+    from: Option<String>,
+    typed_data: Option<String>,
+    authorization_list: Option<String>,
+    user_operation: Option<String>,
+    json: bool,
+}
+
+async fn run_signature(raw: &[String]) -> i32 {
+    if raw.first().map(String::as_str) == Some("--help")
+        || raw.first().map(String::as_str) == Some("-h")
+        || raw.is_empty()
+    {
+        println!(
+            "Usage:\n  fluxion signature inspect --typed-data FILE [--chain bsc|ethereum] [--json]\n  fluxion signature inspect --authorization-list FILE [--chain bsc|ethereum] [--json]\n  fluxion signature inspect --user-operation FILE [--chain bsc|ethereum] [--json]"
+        );
+        return 0;
+    }
+    if raw.first().map(String::as_str) != Some("inspect") {
+        let error = CapabilityError::invalid_argument("expected: signature inspect");
+        report_error(&error, raw.iter().any(|arg| arg == "--json"));
+        return exit_code(error.code);
+    }
+    let args = match parse_signature_args(&raw[1..]) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error(&error, args_json(raw));
+            return exit_code(error.code);
+        }
+    };
+    let selected = [
+        args.typed_data.is_some(),
+        args.authorization_list.is_some(),
+        args.user_operation.is_some(),
+    ]
+    .into_iter()
+    .filter(|selected| *selected)
+    .count();
+    if selected != 1 {
+        let error = CapabilityError::invalid_argument(
+            "signature inspect needs exactly one of --typed-data, --authorization-list or --user-operation",
+        );
+        report_error(&error, args.json);
+        return exit_code(error.code);
+    }
+    let from = match args.from.as_deref() {
+        Some(value) => match value.parse::<alloy_primitives::Address>() {
+            Ok(address) => Some(address),
+            Err(_) => {
+                let error = CapabilityError::invalid_argument("invalid --from address");
+                report_error(&error, args.json);
+                return exit_code(error.code);
+            }
+        },
+        None => None,
+    };
+    let input = |path: Option<&str>| -> Result<Option<serde_json::Value>, CapabilityError> {
+        let Some(path) = path else {
+            return Ok(None);
+        };
+        let text = std::fs::read_to_string(path).map_err(|error| {
+            CapabilityError::invalid_argument(format!("cannot read {path}: {error}"))
+        })?;
+        serde_json::from_str(&text).map(Some).map_err(|error| {
+            CapabilityError::invalid_argument(format!("invalid JSON in {path}: {error}"))
+        })
+    };
+    let typed_data = match input(args.typed_data.as_deref()) {
+        Ok(value) => value,
+        Err(error) => {
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let authorization_list = match input(args.authorization_list.as_deref()) {
+        Ok(value) => value,
+        Err(error) => {
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let user_operation = match input(args.user_operation.as_deref()) {
+        Ok(value) => value,
+        Err(error) => {
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    match signature_inspect::inspect(SignatureInspectRequest {
+        chain: args.chain,
+        from,
+        typed_data,
+        authorization_list,
+        user_operation,
+    }) {
+        Ok(response) => {
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_signature_human(&response);
+            }
+            0
+        }
+        Err(error) => {
+            report_error(&error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_signature_args(raw: &[String]) -> Result<SignatureArgs, CapabilityError> {
+    let mut chain = DEFAULT_CHAIN;
+    let mut from = None;
+    let mut typed_data = None;
+    let mut authorization_list = None;
+    let mut user_operation = None;
+    let mut json = false;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--chain" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--chain needs a value"))?;
+                chain = Chain::parse(value)?;
+            }
+            "--from" => {
+                index += 1;
+                from = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--from needs a value"))?
+                        .clone(),
+                );
+            }
+            "--typed-data" => {
+                index += 1;
+                typed_data = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--typed-data needs a file path")
+                        })?
+                        .clone(),
+                );
+            }
+            "--authorization-list" => {
+                index += 1;
+                authorization_list = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument(
+                                "--authorization-list needs a file path",
+                            )
+                        })?
+                        .clone(),
+                );
+            }
+            "--user-operation" => {
+                index += 1;
+                user_operation = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--user-operation needs a file path")
+                        })?
+                        .clone(),
+                );
+            }
+            "--json" => json = true,
+            value if value.starts_with('-') => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown signature option: {value}"
+                )));
+            }
+            value => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unexpected signature argument: {value}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok(SignatureArgs {
+        chain,
+        from,
+        typed_data,
+        authorization_list,
+        user_operation,
+        json,
+    })
+}
+
+fn args_json(raw: &[String]) -> bool {
+    raw.iter().any(|arg| arg == "--json")
+}
+
+fn print_signature_human(response: &SignatureInspectResponse) {
+    println!(
+        "{} · {} · risk {}",
+        response.kind, response.chain, response.risk
+    );
+    for finding in &response.findings {
+        println!(
+            "{} [{}] {}",
+            finding.severity.to_ascii_uppercase(),
+            finding.id,
+            finding.title
+        );
+    }
+    for unknown in &response.unknowns {
+        eprintln!("unknown: {unknown}");
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
+    }
+}
+
 fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityError> {
     let mut chain = DEFAULT_CHAIN;
     let mut from = None;
@@ -1829,6 +2052,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "wallet.send" => fluxion_protocol::wallet::describe_send(),
                 "transaction.simulate" => fluxion_protocol::transaction::describe(),
                 "transaction.inspect" => fluxion_protocol::transaction::describe_inspect(),
+                "signature.inspect" => fluxion_protocol::signature::describe(),
                 other => {
                     let error = CapabilityError::new(
                         CapabilityErrorCode::Unsupported,
@@ -2074,6 +2298,29 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(ethereum.chain, Chain::Ethereum);
+    }
+
+    #[test]
+    fn parses_signature_arguments() {
+        let parsed = parse_signature_args(&[
+            "--typed-data".to_string(),
+            "permit.json".to_string(),
+            "--chain".to_string(),
+            "ethereum".to_string(),
+            "--json".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(parsed.chain, Chain::Ethereum);
+        assert_eq!(parsed.typed_data.as_deref(), Some("permit.json"));
+        assert!(parsed.json);
+        assert!(
+            parse_signature_args(&[
+                "--typed-data".to_string(),
+                "a".to_string(),
+                "extra".to_string()
+            ])
+            .is_err()
+        );
     }
 
     #[test]
