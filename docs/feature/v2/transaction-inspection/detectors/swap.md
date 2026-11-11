@@ -8,6 +8,14 @@ Check swap calldata for parameters that commonly cause loss, after a swap-buildi
 
 `inspect.decode`, `inspect.effects`.
 
+## Implemented Slice
+
+- Decodes common Uniswap/Pancake V2 `swapExact*` selectors, including `address[]` paths.
+- `SWAP-001`: `amountOutMin == 0` -> high.
+- `SWAP-004`: decoded recipient differs from sender -> high.
+- `SWAP-007`: target outside the built-in router registry -> medium.
+- Deadline, price impact, unknown path tokens and V3/aggregator routers remain pending.
+
 ## Rules
 
 - `SWAP-001`: `amountOutMin` is zero or below policy -> high.

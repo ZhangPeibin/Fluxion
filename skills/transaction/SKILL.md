@@ -42,6 +42,8 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
   `nested_call` evidence. Malformed nested calls reduce decode coverage to `partial`.
 - Address findings cover zero/burn recipients (`ADDR-001`, `ADDR-002`) and self-targets
   (`ADDR-005`, low). Allowlist/session checks wait for policy/session context.
+- Known Uniswap/Pancake V2 swap selectors decode path, minOut, recipient and deadline. Current
+  findings: zero minOut (`SWAP-001`), recipient mismatch (`SWAP-004`), unknown router (`SWAP-007`).
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 
