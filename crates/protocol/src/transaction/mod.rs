@@ -10,6 +10,8 @@ pub const SIMULATE_CAPABILITY: &str = "transaction.simulate";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TransactionSimulateResponse {
+    pub chain: String,
+    pub chain_id: u64,
     pub block_number: u64,
     pub block_hash: B256,
     #[serde(skip_serializing_if = "Option::is_none")]

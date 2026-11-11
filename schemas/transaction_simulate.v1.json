@@ -6,9 +6,11 @@
   "additionalProperties": false,
   "required": [
     "block_number", "block_hash", "to", "value",
-    "success", "return_data"
+    "success", "return_data", "chain", "chain_id"
   ],
   "properties": {
+    "chain": { "type": "string", "enum": ["ethereum", "bsc"] },
+    "chain_id": { "type": "integer", "minimum": 0 },
     "block_number": { "type": "integer", "minimum": 0 },
     "block_hash": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
     "from": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },

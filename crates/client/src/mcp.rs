@@ -9,6 +9,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
 use crate::capability::{CapabilityError, CapabilityErrorResponse};
+use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::QuoteRequest;
 use crate::token;
@@ -139,7 +140,8 @@ fn tools_list() -> Value {
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "address": {"type": "string", "description": "Ethereum address"},
+                        "address": {"type": "string", "description": "Ethereum or BSC address"},
+                        "chain": {"type": "string", "enum": ["bsc", "ethereum"], "default": "bsc"},
                         "tokens": {"type": "array", "items": {"type": "string"}, "description": "Symbols or addresses; empty = built-in registry"},
                         "include_native": {"type": "boolean", "default": true},
                         "block": {"type": "integer", "minimum": 0},
@@ -154,7 +156,8 @@ fn tools_list() -> Value {
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "address": {"type": "string", "description": "Ethereum address"},
+                        "address": {"type": "string", "description": "Ethereum or BSC address"},
+                        "chain": {"type": "string", "enum": ["bsc", "ethereum"], "default": "bsc"},
                         "include_native": {"type": "boolean", "default": true},
                         "include_unknown": {"type": "boolean", "default": false},
                         "block": {"type": "integer", "minimum": 0},
@@ -169,7 +172,8 @@ fn tools_list() -> Value {
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "address": {"type": "string", "description": "Owner Ethereum address"},
+                        "address": {"type": "string", "description": "Owner Ethereum or BSC address"},
+                        "chain": {"type": "string", "enum": ["bsc", "ethereum"], "default": "bsc"},
                         "spender": {"type": "string", "description": "Spender address"},
                         "tokens": {"type": "array", "items": {"type": "string"}, "description": "Symbols or addresses; empty = built-in registry"},
                         "block": {"type": "integer", "minimum": 0},
@@ -184,7 +188,8 @@ fn tools_list() -> Value {
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "address": {"type": "string", "description": "Owner Ethereum address"},
+                        "address": {"type": "string", "description": "Owner Ethereum or BSC address"},
+                        "chain": {"type": "string", "enum": ["bsc", "ethereum"], "default": "bsc"},
                         "collections": {"type": "array", "items": {"type": "string"}, "description": "Optional collection contract addresses"},
                         "include_empty": {"type": "boolean", "default": false},
                         "block": {"type": "integer", "minimum": 0},
@@ -199,7 +204,7 @@ fn tools_list() -> Value {
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "chain": {"type": "string", "enum": ["ethereum", "bsc"], "default": "ethereum"}
+                        "chain": {"type": "string", "enum": ["ethereum", "bsc"], "default": "bsc"}
                     }
                 }
             },
@@ -215,12 +220,12 @@ fn tools_list() -> Value {
             },
             {
                 "name": "wallet_send",
-                "description": "Send ETH or an ERC20 transfer through the connected WalletConnect session. Simulates locally first, then asks the user to confirm in their wallet. Pass to, token, and amount.",
+                "description": "Send a native or ERC20/BEP-20 transfer through the connected WalletConnect session. Simulates locally first, then asks the user to confirm in their wallet. Pass to, token, and amount.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "to": {"type": "string", "description": "Recipient address"},
-                        "token": {"type": "string", "description": "ETH, a built-in symbol, or an ERC20 address"},
+                        "token": {"type": "string", "description": "BNB/ETH, a chain built-in symbol, or a token address"},
                         "amount": {"type": "string", "description": "Human amount, e.g. 0.1"},
                         "from": {"type": "string", "description": "Optional session account address"},
                         "decimals": {"type": "integer", "minimum": 0, "maximum": 38},
@@ -270,6 +275,7 @@ fn tools_list() -> Value {
                 "inputSchema": {
                     "type": "object",
                     "properties": {
+                        "chain": {"type": "string", "enum": ["bsc", "ethereum"], "default": "bsc"},
                         "from": {"type": "string", "description": "Optional sender address"},
                         "to": {"type": "string", "description": "Target contract or recipient"},
                         "data": {"type": "string", "description": "0x-prefixed calldata"},
@@ -353,6 +359,7 @@ async fn wallet_balance_tool(arguments: &Value) -> Result<Value, CapabilityError
     let response = wallet::balance(
         &config,
         BalanceRequest {
+            chain: chain_arg(arguments)?,
             address,
             tokens,
             include_native: bool_arg(arguments, "include_native").unwrap_or(true),
@@ -371,6 +378,7 @@ async fn wallet_assets_tool(arguments: &Value) -> Result<Value, CapabilityError>
     let response = wallet::assets(
         &config,
         AssetsRequest {
+            chain: chain_arg(arguments)?,
             address,
             include_native: bool_arg(arguments, "include_native").unwrap_or(true),
             include_unknown: bool_arg(arguments, "include_unknown").unwrap_or(false),
@@ -381,10 +389,19 @@ async fn wallet_assets_tool(arguments: &Value) -> Result<Value, CapabilityError>
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+fn chain_arg(arguments: &Value) -> Result<Chain, CapabilityError> {
+    arguments
+        .get("chain")
+        .and_then(Value::as_str)
+        .map(Chain::parse)
+        .transpose()
+        .map(|chain| chain.unwrap_or(DEFAULT_CHAIN))
+}
+
 fn wallet_config(arguments: &Value) -> WalletConfig {
     let mut config = WalletConfig::from_env();
     if let Some(rpc_url) = arguments.get("rpc_url").and_then(Value::as_str) {
-        config.rpc_url = rpc_url.to_string();
+        config.set_rpc_url(rpc_url);
     }
     config
 }
@@ -452,6 +469,7 @@ async fn wallet_collectibles_tool(arguments: &Value) -> Result<Value, Capability
     let response = wallet::collectibles(
         &config,
         CollectiblesRequest {
+            chain: chain_arg(arguments)?,
             owner,
             collections,
             include_empty: bool_arg(arguments, "include_empty").unwrap_or(false),
@@ -473,6 +491,7 @@ async fn wallet_allowance_tool(arguments: &Value) -> Result<Value, CapabilityErr
     let response = wallet::allowance(
         &config,
         AllowanceRequest {
+            chain: chain_arg(arguments)?,
             owner,
             spender,
             tokens: token_list_arg(arguments)?,
@@ -492,7 +511,7 @@ async fn wallet_connect_tool(
         .and_then(Value::as_str)
         .map(crate::walletconnect::parse_chain_id)
         .transpose()?
-        .unwrap_or(1);
+        .unwrap_or(DEFAULT_CHAIN.chain_id());
     let response = wallet.connect(chain_id).await?;
     let image = response.qr_png_base64.clone();
     let value = serde_json::to_value(&response)
@@ -536,7 +555,7 @@ async fn wallet_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
     }
     let mut config = wallet_config(arguments);
     if let Some(rpc_url) = arguments.get("rpc_url").and_then(Value::as_str) {
-        config.rpc_url = rpc_url.to_string();
+        config.set_rpc_url(rpc_url);
     }
     let response = wallet_send::send(
         &config,
@@ -664,6 +683,7 @@ async fn transaction_simulate_tool(arguments: &Value) -> Result<Value, Capabilit
     let response = transaction::simulate(
         &config,
         SimulateRequest {
+            chain: chain_arg(arguments)?,
             from,
             to,
             data,

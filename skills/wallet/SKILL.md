@@ -1,12 +1,13 @@
 ---
 name: wallet
-description: Use when the user asks for an Ethereum account's native ETH or ERC20 balances, wants to know which tokens or NFTs an address holds, needs ERC20 allowances for an owner/spender pair, wants to resolve a BSC .ai Agent ID, wants to link a mobile wallet with WalletConnect, wants to sign a message or EIP-712 typed data, or wants to send ETH/ERC20. Covers the Fluxion wallet_balance, wallet_assets, wallet_allowance, wallet_collectibles, wallet_agent_id, wallet_connect, wallet_status, wallet_sign, wallet_send and wallet_disconnect MCP tools. Account data is read-only; linking, signing and sending never ask for private keys.
+description: Use when the user asks for an account's native or token balances, wants to know which tokens or NFTs an address holds, needs allowances, wants to resolve a BSC .ai Agent ID, wants to link a mobile wallet with WalletConnect, wants to sign a message or EIP-712 typed data, or wants to send native/ERC20 funds. Local wallet tools default to BSC and accept Ethereum via chain. Covers the Fluxion wallet_balance, wallet_assets, wallet_allowance, wallet_collectibles, wallet_agent_id, wallet_connect, wallet_status, wallet_sign, wallet_send and wallet_disconnect MCP tools. Account data is read-only; linking, signing and sending never ask for private keys.
 ---
 
 # wallet capabilities
 
 Read-only account capabilities, BSC Agent ID identity, local WalletConnect session management,
-message/EIP-712 signing, and ETH/ERC20 transfers. These capabilities never ask for or handle
+message/EIP-712 signing, and native/ERC20/BEP-20 transfers. Local wallet tools default to BSC;
+pass `chain: "ethereum"` for Ethereum. These capabilities never ask for or handle
 private keys, and a balance or allowance response is never authorization to transact.
 
 - Human docs: [`docs/capabilities/wallet`](../../docs/capabilities/wallet/README.md)
@@ -37,8 +38,9 @@ Do not choose local/remote. Execution is fixed per capability:
 | `wallet.status` | local |
 | `wallet.disconnect` | local |
 
-The agent does not start or manage a server. `FLUXION_RPC_URL` selects the local Ethereum RPC;
-`ONEINCH_API_KEY` enables full `wallet.assets` discovery.
+The agent does not start or manage a server. `FLUXION_BSC_RPC_URL` selects the local BSC RPC
+(default chain); `FLUXION_RPC_URL` selects Ethereum. `ONEINCH_API_KEY` enables full
+`wallet.assets` discovery.
 
 ## `wallet_balance`
 
@@ -49,15 +51,17 @@ Exact balances for a known token set at one pinned block.
   "name": "wallet_balance",
   "arguments": {
     "address": "0x...",
-    "tokens": ["ETH", "USDC", "LDO"],
+    "chain": "bsc",
+    "tokens": ["BNB", "USDT", "CAKE"],
     "include_native": true
   }
 }
 ```
 
 - `address` is required.
-- `tokens` are symbols or addresses; omit it to scan the built-in registry.
-- Native ETH is included unless `include_native` is `false`.
+- `chain` defaults to `bsc`; use `ethereum` for Ethereum.
+- `tokens` are symbols or addresses; omit it to scan the chain registry.
+- Native BNB/ETH is included unless `include_native` is `false`.
 - Coverage is `local`.
 
 ## `wallet_assets`
@@ -69,6 +73,7 @@ Discover what ERC20 tokens an account holds, then verify every balance locally.
   "name": "wallet_assets",
   "arguments": {
     "address": "0x...",
+    "chain": "bsc",
     "include_unknown": false
   }
 }
@@ -224,7 +229,7 @@ OKX, or another WalletConnect wallet.
 ```
 
 - Requires `WALLETCONNECT_PROJECT_ID` in the environment that starts `fluxion mcp`.
-- Pass `chain: "ethereum"` (default) or `chain: "bsc"`.
+- Pass `chain: "bsc"` (default) or `chain: "ethereum"`.
 - Returns `status: "pending"`, `uri`, `qr_ascii`, and `expires_at` immediately.
 - The first text content block of the MCP result contains the 53-column fenced QR. Reproduce that
   block verbatim in your own reply **before** calling `wallet_status`. Do not summarize it.
@@ -265,21 +270,22 @@ Remove the local session and abort a pending pairing.
 ## CLI
 
 ```bash
-fluxion wallet balance 0xabc... --tokens ETH,USDC,LDO --json
+fluxion wallet balance 0xabc... --tokens BNB,USDT,CAKE --json
+fluxion wallet balance 0xabc... --chain ethereum --tokens ETH,USDC --json
 fluxion wallet assets 0xabc... --json
-fluxion wallet assets 0xabc... --include-unknown --json
-fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC,LDO --json
+fluxion wallet assets 0xabc... --chain ethereum --include-unknown --json
+fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT,CAKE --json
 fluxion wallet collectibles 0xowner --json
 fluxion wallet collectibles 0xowner --collections 0xcollection --json
 fluxion wallet agent-id alice.ai --json
 fluxion wallet sign --message "hello" --json
-fluxion wallet send --to 0x... --token ETH --amount 0.01 --json
+fluxion wallet send --to 0x... --token BNB --amount 0.01 --json
 fluxion wallet connect --chain bsc
 fluxion wallet status
 fluxion wallet disconnect
 ```
 
-Common options: `--rpc-url URL`, `--block N`, `--no-native` (balance/assets),
+Common options: `--chain bsc|ethereum`, `--rpc-url URL`, `--block N`, `--no-native` (balance/assets),
 `--include-unknown` (assets), `--spender ADDRESS` (allowance),
 `--collections LIST` / `--include-empty` (collectibles).
 
@@ -287,6 +293,7 @@ Common options: `--rpc-url URL`, `--block N`, `--no-native` (balance/assets),
 
 Balances and assets:
 
+- `chain` / `chain_id`: selected chain
 - `block_number` / `block_hash`: the pinned block for every read.
 - `native` / `tokens[]`: `token.symbol`, `token.address`, `token.decimals`, `amount.raw`,
   `amount.decimal`, `known`.
@@ -319,12 +326,13 @@ Allowances:
 
 ## Boundaries
 
-- Ethereum only.
-- Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
+- BSC and Ethereum.
+- Native BNB/ETH, ERC20/BEP-20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
 - No USD valuation.
 - `wallet.agent-id` resolves BSC identities only; it does not log in to Binance Agentic Wallet.
 - `wallet.sign` signs messages and EIP-712 typed data only; no transaction signing or execution.
 - `wallet.send` sends native/ERC20/BEP-20 transfers only; no arbitrary contract calls, approvals,
   NFT transfers, or swap execution.
+- Local wallet tools default to BSC; use `chain: "ethereum"` for Ethereum.
 - Read-only account data: no private keys.
 - Re-check the pinned block, balances and allowances before building a transaction.

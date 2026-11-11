@@ -1,6 +1,5 @@
 //! ETH/ERC20 transfers through a local WalletConnect session.
 
-use std::env;
 use std::time::Duration;
 
 use alloy_primitives::{Address, U256, address};
@@ -11,7 +10,6 @@ use crate::transaction::{self, SimulateRequest};
 use crate::wallet::{WalletConfig, WalletSendResponse};
 
 const NATIVE: Address = address!("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
-const DEFAULT_BSC_RPC: &str = "https://bsc-dataseed.bnbchain.org";
 
 #[derive(Debug, Clone)]
 pub struct SendRequest {
@@ -84,18 +82,15 @@ pub async fn send(
         ),
     };
 
-    let rpc_url = if session.chain_id == 56 {
-        env::var("FLUXION_BSC_RPC_URL").unwrap_or_else(|_| DEFAULT_BSC_RPC.to_string())
-    } else {
-        config.rpc_url.clone()
-    };
+    let chain = crate::chain::Chain::from_id(session.chain_id)?;
     let chain_config = WalletConfig {
-        rpc_url,
+        rpc_url: config.rpc_url_for(chain),
         ..config.clone()
     };
     let simulation = transaction::simulate(
         &chain_config,
         SimulateRequest {
+            chain,
             from: Some(from),
             to: tx_to,
             data: data.clone(),
@@ -121,6 +116,7 @@ pub async fn send(
         .send_transaction(from, tx_to, value, data, request.timeout)
         .await?;
     Ok(WalletSendResponse {
+        chain: chain.as_str().to_string(),
         from,
         recipient: request.to,
         token: token_ref,

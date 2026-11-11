@@ -4,12 +4,14 @@ use alloy_primitives::{Address, B256, U256};
 use serde_json::{Value, json};
 
 use crate::capability::{Amount, CapabilityError};
+use crate::chain::Chain;
 use crate::wallet::WalletConfig;
 
 pub use fluxion_protocol::transaction::TransactionSimulateResponse;
 
 #[derive(Debug, Clone)]
 pub struct SimulateRequest {
+    pub chain: Chain,
     pub from: Option<Address>,
     pub to: Address,
     pub data: String,
@@ -22,7 +24,7 @@ pub async fn simulate(
     request: SimulateRequest,
 ) -> Result<TransactionSimulateResponse, CapabilityError> {
     let data = normalize_data(&request.data)?;
-    let rpc = Rpc::new(&config.rpc_url);
+    let rpc = Rpc::new(&config.rpc_url_for(request.chain));
     let (block_number, block_hash, tag) = rpc.block(request.block).await?;
     let mut tx = json!({
         "to": request.to,
@@ -51,6 +53,8 @@ pub async fn simulate(
                 .and_then(|value| value.as_str().and_then(decode_hex_u256))
                 .map(|value| value.to_string());
             Ok(TransactionSimulateResponse {
+                chain: request.chain.as_str().to_string(),
+                chain_id: request.chain.chain_id(),
                 block_number,
                 block_hash,
                 from: request.from,
@@ -64,6 +68,8 @@ pub async fn simulate(
             })
         }
         Err(error) => Ok(TransactionSimulateResponse {
+            chain: request.chain.as_str().to_string(),
+            chain_id: request.chain.chain_id(),
             block_number,
             block_hash,
             from: request.from,
@@ -263,6 +269,7 @@ mod tests {
     fn config(base: &str) -> WalletConfig {
         WalletConfig {
             rpc_url: format!("{base}/rpc"),
+            bsc_rpc_url: format!("{base}/rpc"),
             oneinch_api_key: None,
             oneinch_balance_url: "http://unused".to_string(),
             alchemy_api_key: None,
@@ -279,6 +286,7 @@ mod tests {
         let response = simulate(
             &config(&format!("http://{address}")),
             SimulateRequest {
+                chain: Chain::Ethereum,
                 from: None,
                 to: "0x0000000000000000000000000000000000000001"
                     .parse()
@@ -305,6 +313,7 @@ mod tests {
         let response = simulate(
             &config(&format!("http://{address}")),
             SimulateRequest {
+                chain: Chain::Ethereum,
                 from: None,
                 to: "0x0000000000000000000000000000000000000001"
                     .parse()

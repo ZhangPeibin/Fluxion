@@ -1,16 +1,19 @@
 # transaction.simulate
 
-Local read-only EVM transaction simulation at one pinned block.
+Local read-only EVM transaction simulation on BSC (default) or Ethereum.
 
 ```bash
 fluxion transaction simulate \
   --to 0x... --data 0x... \
   --from 0x... --value 0.1 --block 26356654 --json
+
+fluxion transaction simulate --to 0x... --data 0x... --chain ethereum --json
 ```
 
+- Default chain is BSC; use `--chain ethereum` for Ethereum.
 - `to` and `data` are required.
 - `data` must be `0x`-prefixed, even-length hex.
-- `value` is human ETH units; it is converted to wei without floats.
+- `value` is human native units (BNB/ETH); it is converted to wei without floats.
 - `from` is optional but recommended for `msg.sender`-dependent calls.
 - `block` pins the simulation block; otherwise the latest block is used.
 
@@ -18,6 +21,7 @@ fluxion transaction simulate \
 
 See [`schemas/transaction_simulate.v1.json`](../../../schemas/transaction_simulate.v1.json).
 
+- `chain` / `chain_id`: selected chain
 - `block_number` / `block_hash`: pinned state
 - `success`: `eth_call` completed without a JSON-RPC revert
 - `return_data`: raw return bytes (`0x...`)
@@ -31,7 +35,7 @@ A revert or EVM execution error from `eth_call` is returned as a normal response
 
 ## Boundaries
 
-- Ethereum only.
+- BSC and Ethereum.
 - Read-only: no signing, approval, broadcast, or state change.
 - `eth_call` is not a full transaction simulation: it does not model block-level gas accounting,
   state changes across multiple transactions, or MEV.

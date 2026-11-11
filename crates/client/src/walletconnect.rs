@@ -135,6 +135,9 @@ impl Session {
             return Err(rpc("wallet returned an invalid signature"));
         }
         Ok(WalletSignResponse {
+            chain: crate::chain::Chain::from_id(self.chain_id)
+                .map(|chain| chain.as_str().to_string())
+                .unwrap_or_else(|_| format!("eip155:{}", self.chain_id)),
             address,
             chain_id: self.chain_id,
             method: method.to_string(),

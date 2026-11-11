@@ -10,6 +10,7 @@ use alloy_primitives::{Address, B256, U256};
 use serde_json::{Value, json};
 
 use crate::capability::{Amount, CapabilityError, TokenRef};
+use crate::chain::Chain;
 use crate::token;
 
 pub use fluxion_protocol::wallet::{
@@ -19,6 +20,7 @@ pub use fluxion_protocol::wallet::{
 };
 
 const DEFAULT_RPC: &str = "https://eth.drpc.org";
+const DEFAULT_BSC_RPC: &str = "https://bsc-dataseed.bnbchain.org";
 const DEFAULT_ONEINCH_BALANCE: &str = "https://api.1inch.com/balance/v1.2";
 const NATIVE: &str = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 const BALANCE_OF: &str = "70a08231";
@@ -37,6 +39,7 @@ const NAME: &str = "06fdde03";
 #[derive(Debug, Clone)]
 pub struct WalletConfig {
     pub rpc_url: String,
+    pub bsc_rpc_url: String,
     pub oneinch_api_key: Option<String>,
     pub oneinch_balance_url: String,
     pub alchemy_api_key: Option<String>,
@@ -47,6 +50,8 @@ impl WalletConfig {
     pub fn new(rpc_url: impl Into<String>) -> Self {
         Self {
             rpc_url: rpc_url.into(),
+            bsc_rpc_url: std::env::var("FLUXION_BSC_RPC_URL")
+                .unwrap_or_else(|_| DEFAULT_BSC_RPC.to_string()),
             oneinch_api_key: std::env::var("ONEINCH_API_KEY")
                 .ok()
                 .filter(|key| !key.trim().is_empty()),
@@ -67,10 +72,24 @@ impl WalletConfig {
                 .unwrap_or_else(|_| DEFAULT_RPC.to_string()),
         )
     }
+
+    pub fn rpc_url_for(&self, chain: Chain) -> String {
+        match chain {
+            Chain::Ethereum => self.rpc_url.clone(),
+            Chain::Bsc => self.bsc_rpc_url.clone(),
+        }
+    }
+
+    pub fn set_rpc_url(&mut self, url: impl Into<String>) {
+        let url = url.into();
+        self.rpc_url = url.clone();
+        self.bsc_rpc_url = url;
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct BalanceRequest {
+    pub chain: Chain,
     pub address: Address,
     /// Symbols or addresses. Empty means the built-in registry.
     pub tokens: Vec<String>,
@@ -80,6 +99,7 @@ pub struct BalanceRequest {
 
 #[derive(Debug, Clone)]
 pub struct AssetsRequest {
+    pub chain: Chain,
     pub address: Address,
     pub include_native: bool,
     pub include_unknown: bool,
@@ -88,6 +108,7 @@ pub struct AssetsRequest {
 
 #[derive(Debug, Clone)]
 pub struct AllowanceRequest {
+    pub chain: Chain,
     pub owner: Address,
     pub spender: Address,
     /// Symbols or addresses. Empty means the built-in registry.
@@ -99,21 +120,30 @@ pub async fn balance(
     config: &WalletConfig,
     request: BalanceRequest,
 ) -> Result<WalletBalancesResponse, CapabilityError> {
-    let rpc = Rpc::new(&config.rpc_url);
+    let rpc = Rpc::new(&config.rpc_url_for(request.chain));
     let (block_number, block_hash, tag) = rpc.block(request.block).await?;
     let mut tokens = if request.tokens.is_empty() {
-        registry_tokens()
+        registry_tokens(request.chain)
     } else {
-        resolve_tokens(&rpc, &request.tokens, &tag).await?
+        resolve_tokens(&rpc, &request.tokens, &tag, request.chain).await?
     };
     dedupe_tokens(&mut tokens);
 
-    let mut sources = vec![rpc_source(block_number)];
+    let mut sources = vec![rpc_source(request.chain, block_number)];
     let warnings = Vec::new();
-    let (native, mut balances) =
-        verify_tokens(&rpc, request.address, request.include_native, tokens, &tag).await?;
+    let (native, mut balances) = verify_tokens(
+        &rpc,
+        request.address,
+        request.include_native,
+        tokens,
+        &tag,
+        request.chain,
+    )
+    .await?;
     sort_balances(&mut balances);
     Ok(WalletBalancesResponse {
+        chain: request.chain.as_str().to_string(),
+        chain_id: request.chain.chain_id(),
         address: request.address,
         block_number,
         block_hash,
@@ -130,12 +160,12 @@ pub async fn assets(
     config: &WalletConfig,
     request: AssetsRequest,
 ) -> Result<WalletBalancesResponse, CapabilityError> {
-    let rpc = Rpc::new(&config.rpc_url);
+    let rpc = Rpc::new(&config.rpc_url_for(request.chain));
     let (block_number, block_hash, tag) = rpc.block(request.block).await?;
     let mut warnings = Vec::new();
-    let mut sources = vec![rpc_source(block_number)];
+    let mut sources = vec![rpc_source(request.chain, block_number)];
 
-    let discovery = discover_oneinch(config, request.address).await;
+    let discovery = discover_oneinch(config, request.address, request.chain).await;
     let (mut known, unknown, native_seen, coverage) = match discovery {
         Ok((known, unknown, native_seen)) => {
             sources.push(AssetSource {
@@ -150,7 +180,12 @@ pub async fn assets(
                 "asset discovery unavailable; returned built-in registry tokens only: {}",
                 error.message
             ));
-            (registry_tokens(), HashMap::new(), None, "registry+local")
+            (
+                registry_tokens(request.chain),
+                HashMap::new(),
+                None,
+                "registry+local",
+            )
         }
     };
     dedupe_tokens(&mut known);
@@ -171,10 +206,19 @@ pub async fn assets(
         unknown_count = 0;
     }
     let _ = native_seen; // The provider only identifies candidates; native is re-read locally.
-    let (native, mut balances) =
-        verify_tokens(&rpc, request.address, request.include_native, known, &tag).await?;
+    let (native, mut balances) = verify_tokens(
+        &rpc,
+        request.address,
+        request.include_native,
+        known,
+        &tag,
+        request.chain,
+    )
+    .await?;
     sort_balances(&mut balances);
     Ok(WalletBalancesResponse {
+        chain: request.chain.as_str().to_string(),
+        chain_id: request.chain.chain_id(),
         address: request.address,
         block_number,
         block_hash,
@@ -191,12 +235,12 @@ pub async fn allowance(
     config: &WalletConfig,
     request: AllowanceRequest,
 ) -> Result<WalletAllowancesResponse, CapabilityError> {
-    let rpc = Rpc::new(&config.rpc_url);
+    let rpc = Rpc::new(&config.rpc_url_for(request.chain));
     let (block_number, block_hash, tag) = rpc.block(request.block).await?;
     let mut tokens = if request.tokens.is_empty() {
-        registry_tokens()
+        registry_tokens(request.chain)
     } else {
-        resolve_tokens(&rpc, &request.tokens, &tag).await?
+        resolve_tokens(&rpc, &request.tokens, &tag, request.chain).await?
     };
     dedupe_tokens(&mut tokens);
     let mut calls = Vec::with_capacity(tokens.len());
@@ -234,7 +278,7 @@ pub async fn allowance(
             continue;
         };
         allowances.push(WalletAllowance {
-            known: known_token(token.address).is_some(),
+            known: known_token(token.address, request.chain).is_some(),
             amount: Amount::from_raw(raw, token.decimals),
             token,
             spender: request.spender,
@@ -247,6 +291,8 @@ pub async fn allowance(
             .then_with(|| a.token.address.cmp(&b.token.address))
     });
     Ok(WalletAllowancesResponse {
+        chain: request.chain.as_str().to_string(),
+        chain_id: request.chain.chain_id(),
         owner: request.owner,
         spender: request.spender,
         block_number,
@@ -254,7 +300,7 @@ pub async fn allowance(
         allowances,
         coverage: "local".to_string(),
         sources: vec![AssetSource {
-            name: "ethereum-rpc".to_string(),
+            name: rpc_source_name(request.chain).to_string(),
             scope: "verified-allowances".to_string(),
             block: Some(block_number),
         }],
@@ -264,6 +310,7 @@ pub async fn allowance(
 
 #[derive(Debug, Clone)]
 pub struct CollectiblesRequest {
+    pub chain: Chain,
     pub owner: Address,
     /// Explicit ERC721 collection addresses. Empty means the curated registry
     /// (or Alchemy discovery when configured).
@@ -289,13 +336,13 @@ pub async fn collectibles(
     config: &WalletConfig,
     request: CollectiblesRequest,
 ) -> Result<WalletCollectiblesResponse, CapabilityError> {
-    let rpc = Rpc::new(&config.rpc_url);
+    let rpc = Rpc::new(&config.rpc_url_for(request.chain));
     let (block_number, block_hash, tag) = rpc.block(request.block).await?;
-    let mut sources = vec![rpc_source(block_number)];
+    let mut sources = vec![rpc_source(request.chain, block_number)];
     let mut warnings = Vec::new();
     let (collections, coverage) = if request.collections.is_empty() {
         if let Some(key) = config.alchemy_api_key.as_deref() {
-            match discover_alchemy(config, key, request.owner).await {
+            match discover_alchemy(config, key, request.owner, request.chain).await {
                 Ok(mut collections) => {
                     sources.push(AssetSource {
                         name: "alchemy-nft".to_string(),
@@ -313,11 +360,23 @@ pub async fn collectibles(
                     (collections, "provider+local")
                 }
                 Err(error) => {
-                    warnings.push(format!(
-                        "NFT discovery unavailable; falling back to curated registry: {}",
-                        error.message
-                    ));
-                    let collections = curated_collectibles();
+                    let collections = curated_collectibles(request.chain);
+                    let coverage = if collections.is_empty() {
+                        "local"
+                    } else {
+                        "registry+local"
+                    };
+                    warnings.push(if request.chain == Chain::Bsc {
+                        format!(
+                            "NFT discovery unavailable; BSC has no curated collection registry; pass --collections or configure ALCHEMY_API_KEY: {}",
+                            error.message
+                        )
+                    } else {
+                        format!(
+                            "NFT discovery unavailable; falling back to curated registry: {}",
+                            error.message
+                        )
+                    });
                     let collections = load_many_collections(
                         &rpc,
                         request.owner,
@@ -327,11 +386,22 @@ pub async fn collectibles(
                         &mut warnings,
                     )
                     .await?;
-                    (collections, "registry+local")
+                    (collections, coverage)
                 }
             }
         } else {
-            let collections = curated_collectibles();
+            let collections = curated_collectibles(request.chain);
+            let coverage = if collections.is_empty() {
+                "local"
+            } else {
+                "registry+local"
+            };
+            warnings.push(if request.chain == Chain::Bsc {
+                "no NFT indexer configured; BSC has no curated collection registry; pass --collections or configure ALCHEMY_API_KEY".to_string()
+            } else {
+                "no NFT indexer configured; searched the curated collection registry only"
+                    .to_string()
+            });
             let collections = load_many_collections(
                 &rpc,
                 request.owner,
@@ -341,11 +411,7 @@ pub async fn collectibles(
                 &mut warnings,
             )
             .await?;
-            warnings.push(
-                "no NFT indexer configured; searched the curated collection registry only"
-                    .to_string(),
-            );
-            (collections, "registry+local")
+            (collections, coverage)
         }
     } else {
         let collections = load_many_collections(
@@ -360,6 +426,8 @@ pub async fn collectibles(
         (collections, "local")
     };
     Ok(WalletCollectiblesResponse {
+        chain: request.chain.as_str().to_string(),
+        chain_id: request.chain.chain_id(),
         owner: request.owner,
         block_number,
         block_hash,
@@ -370,7 +438,10 @@ pub async fn collectibles(
     })
 }
 
-fn curated_collectibles() -> Vec<Address> {
+fn curated_collectibles(chain: Chain) -> Vec<Address> {
+    if chain == Chain::Bsc {
+        return Vec::new();
+    }
     CURATED_COLLECTIONS
         .iter()
         .filter_map(|value| value.parse().ok())
@@ -521,8 +592,9 @@ async fn discover_alchemy(
     config: &WalletConfig,
     key: &str,
     owner: Address,
+    chain: Chain,
 ) -> Result<Vec<WalletCollectible>, CapabilityError> {
-    let base = config.alchemy_nft_url.trim_end_matches('/');
+    let base = alchemy_nft_url(config, chain);
     let mut page_key: Option<String> = None;
     let mut collections: Vec<WalletCollectible> = Vec::new();
     for _ in 0..5 {
@@ -695,16 +767,32 @@ async fn verify_alchemy_collectibles(
     Ok(())
 }
 
-fn rpc_source(block: u64) -> AssetSource {
+fn rpc_source_name(chain: Chain) -> &'static str {
+    match chain {
+        Chain::Ethereum => "ethereum-rpc",
+        Chain::Bsc => "bsc-rpc",
+    }
+}
+
+fn rpc_source(chain: Chain, block: u64) -> AssetSource {
     AssetSource {
-        name: "ethereum-rpc".to_string(),
+        name: rpc_source_name(chain).to_string(),
         scope: "verified-balances".to_string(),
         block: Some(block),
     }
 }
 
-fn registry_tokens() -> Vec<TokenRef> {
-    token::list()
+fn alchemy_nft_url(config: &WalletConfig, chain: Chain) -> String {
+    let base = config.alchemy_nft_url.trim_end_matches('/');
+    if chain == Chain::Bsc && base.contains("eth-mainnet") {
+        base.replace("eth-mainnet", chain.alchemy_network())
+    } else {
+        base.to_string()
+    }
+}
+
+fn registry_tokens(chain: Chain) -> Vec<TokenRef> {
+    token::list_for_chain(chain.chain_id())
         .iter()
         .filter_map(|token| {
             token.address.parse::<Address>().ok().map(|address| {
@@ -714,11 +802,13 @@ fn registry_tokens() -> Vec<TokenRef> {
         .collect()
 }
 
-fn known_token(address: Address) -> Option<TokenRef> {
-    token::list().iter().find_map(|token| {
-        (token.address.parse::<Address>().ok() == Some(address))
-            .then(|| TokenRef::new(Some(token.symbol.to_string()), address, token.decimals))
-    })
+fn known_token(address: Address, chain: Chain) -> Option<TokenRef> {
+    token::list_for_chain(chain.chain_id())
+        .iter()
+        .find_map(|token| {
+            (token.address.parse::<Address>().ok() == Some(address))
+                .then(|| TokenRef::new(Some(token.symbol.to_string()), address, token.decimals))
+        })
 }
 
 fn dedupe_tokens(tokens: &mut Vec<TokenRef>) {
@@ -730,6 +820,7 @@ async fn resolve_tokens(
     rpc: &Rpc,
     inputs: &[String],
     tag: &str,
+    chain: Chain,
 ) -> Result<Vec<TokenRef>, CapabilityError> {
     let mut tokens = Vec::new();
     for input in inputs {
@@ -737,21 +828,21 @@ async fn resolve_tokens(
         if input.is_empty() {
             continue;
         }
-        if input.eq_ignore_ascii_case("ETH") {
+        if input.eq_ignore_ascii_case(chain.native_symbol()) {
             continue; // Native is controlled by include_native.
         }
         if input.starts_with("0x") || input.starts_with("0X") {
             let address = input.parse::<Address>().map_err(|_| {
                 CapabilityError::invalid_argument(format!("invalid token address: {input}"))
             })?;
-            if let Some(known) = known_token(address) {
+            if let Some(known) = known_token(address, chain) {
                 tokens.push(known);
             } else {
                 let (decimals, symbol) = token_metadata(rpc, address, tag).await?;
                 tokens.push(TokenRef::new(symbol, address, decimals));
             }
         } else {
-            let known = token::resolve(input, None)?;
+            let known = token::resolve_for_chain(input, None, chain.chain_id())?;
             tokens.push(known);
         }
     }
@@ -805,6 +896,7 @@ async fn verify_tokens(
     include_native: bool,
     tokens: Vec<TokenRef>,
     tag: &str,
+    chain: Chain,
 ) -> Result<(Option<WalletTokenBalance>, Vec<WalletTokenBalance>), CapabilityError> {
     let mut calls = Vec::with_capacity(tokens.len() + usize::from(include_native));
     if include_native {
@@ -824,7 +916,11 @@ async fn verify_tokens(
         result
             .and_then(|value| value.as_str().and_then(decode_hex_u256))
             .map(|raw| WalletTokenBalance {
-                token: TokenRef::new(Some("ETH".to_string()), native_address(), 18),
+                token: TokenRef::new(
+                    Some(chain.native_symbol().to_string()),
+                    native_address(),
+                    18,
+                ),
                 amount: Amount::from_raw(raw, 18),
                 known: true,
             })
@@ -842,7 +938,7 @@ async fn verify_tokens(
             continue;
         }
         balances.push(WalletTokenBalance {
-            known: known_token(token.address).is_some(),
+            known: known_token(token.address, chain).is_some(),
             amount: Amount::from_raw(raw, token.decimals),
             token,
         });
@@ -871,6 +967,7 @@ fn hex_address(address: Address) -> String {
 async fn discover_oneinch(
     config: &WalletConfig,
     address: Address,
+    chain: Chain,
 ) -> Result<(Vec<TokenRef>, HashMap<Address, U256>, Option<U256>), CapabilityError> {
     let key = config.oneinch_api_key.as_deref().ok_or_else(|| {
         CapabilityError::new(
@@ -880,8 +977,9 @@ async fn discover_oneinch(
         )
     })?;
     let url = format!(
-        "{}/1/balances/{}",
+        "{}/{}/balances/{}",
         config.oneinch_balance_url.trim_end_matches('/'),
+        chain.chain_id(),
         address
     );
     let response = reqwest::Client::new()
@@ -926,7 +1024,7 @@ async fn discover_oneinch(
         };
         if raw_address.eq_ignore_ascii_case(NATIVE) {
             native = Some(balance);
-        } else if let Some(token) = known_token(token_address) {
+        } else if let Some(token) = known_token(token_address, chain) {
             known.push(token);
         } else {
             unknown.insert(token_address, balance);
@@ -1410,6 +1508,7 @@ mod integration_tests {
     fn config(base: &str) -> WalletConfig {
         WalletConfig {
             rpc_url: format!("{base}/rpc"),
+            bsc_rpc_url: format!("{base}/rpc"),
             oneinch_api_key: Some("test".to_string()),
             oneinch_balance_url: format!("{base}/balance/v1.2"),
             alchemy_api_key: None,
@@ -1423,6 +1522,7 @@ mod integration_tests {
         let response = balance(
             &config(&base),
             BalanceRequest {
+                chain: Chain::Ethereum,
                 address: "0x0000000000000000000000000000000000000001"
                     .parse()
                     .unwrap(),
@@ -1465,6 +1565,7 @@ mod integration_tests {
         let response = allowance(
             &config(&base),
             AllowanceRequest {
+                chain: Chain::Ethereum,
                 owner: "0x0000000000000000000000000000000000000001"
                     .parse()
                     .unwrap(),
@@ -1503,12 +1604,14 @@ mod integration_tests {
         let response = collectibles(
             &WalletConfig {
                 rpc_url: format!("{base}/rpc"),
+                bsc_rpc_url: format!("{base}/rpc"),
                 oneinch_api_key: None,
                 oneinch_balance_url: "http://unused".to_string(),
                 alchemy_api_key: None,
                 alchemy_nft_url: "http://unused".to_string(),
             },
             CollectiblesRequest {
+                chain: Chain::Ethereum,
                 owner,
                 collections: vec![collection],
                 include_empty: false,
@@ -1535,12 +1638,14 @@ mod integration_tests {
         let response = collectibles(
             &WalletConfig {
                 rpc_url: format!("{base}/rpc"),
+                bsc_rpc_url: format!("{base}/rpc"),
                 oneinch_api_key: None,
                 oneinch_balance_url: "http://unused".to_string(),
                 alchemy_api_key: Some("test".to_string()),
                 alchemy_nft_url: format!("{base}/nft/v3"),
             },
             CollectiblesRequest {
+                chain: Chain::Ethereum,
                 owner,
                 collections: Vec::new(),
                 include_empty: false,
@@ -1560,6 +1665,7 @@ mod integration_tests {
         let response = assets(
             &config(&base),
             AssetsRequest {
+                chain: Chain::Ethereum,
                 address: "0x0000000000000000000000000000000000000001"
                     .parse()
                     .unwrap(),
@@ -1592,6 +1698,7 @@ mod integration_tests {
         let response = assets(
             &config(&base),
             AssetsRequest {
+                chain: Chain::Ethereum,
                 address: "0x0000000000000000000000000000000000000001"
                     .parse()
                     .unwrap(),
@@ -1616,6 +1723,7 @@ mod integration_tests {
         let fallback = assets(
             &config(&fallback_base),
             AssetsRequest {
+                chain: Chain::Ethereum,
                 address: "0x0000000000000000000000000000000000000001"
                     .parse()
                     .unwrap(),
