@@ -2,6 +2,7 @@
 
 pub mod agent_id;
 pub mod auth;
+pub mod chain;
 pub mod cli;
 pub mod client;
 pub mod mcp;

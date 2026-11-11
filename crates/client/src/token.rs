@@ -73,6 +73,10 @@ pub fn list() -> &'static [TokenInfo] {
     TOKENS
 }
 
+pub fn list_for_chain(chain_id: u64) -> &'static [TokenInfo] {
+    if chain_id == 56 { BSC_TOKENS } else { TOKENS }
+}
+
 pub fn decimals_for(address: Address) -> Option<u8> {
     TOKENS
         .iter()

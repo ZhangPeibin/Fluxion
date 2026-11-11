@@ -3,10 +3,10 @@
 Fluxion is a Web3 capability layer for AI agents. It turns onchain actions into stable MCP
 capabilities and is designed for multi-chain support, not tied to one network or protocol.
 
-The current implementation covers Ethereum mainnet, plus BSC Agent ID resolution and BNB/BEP-20
-transfers, with 10 read-only capabilities, message signing, and transfers. Quotes run
-against an immutable remote snapshot; wallet reads, WalletConnect sessions, and simulation run
-locally. See [Capabilities](#capabilities) for the complete list.
+The implementation ships 12 capabilities. Local wallet and simulation tools default to BSC;
+Ethereum is available with `--chain ethereum`. `swap.quote` remains an Ethereum mainnet quote.
+Quotes run against an immutable remote snapshot; wallet reads, WalletConnect sessions, and
+simulation run locally. See [Capabilities](#capabilities) for the complete list.
 
 English · [中文](README.md)
 
@@ -36,7 +36,8 @@ plan: baseline · block 26377973 · lag 0 · 21 ms
 Other commands:
 
 ```bash
-fluxion wallet balance 0x... --tokens ETH,USDC
+fluxion wallet balance 0x... --tokens BNB,USDT
+fluxion wallet balance 0x... --tokens ETH,USDC --chain ethereum
 fluxion wallet assets 0x...
 fluxion wallet collectibles 0x...
 fluxion wallet connect
@@ -93,17 +94,20 @@ registration, remote deployment, and full setup live in [docs/MCP.md](docs/MCP.m
 | Capability | Description |
 |---|---|
 | `swap.quote` | Exact-in quotes on Ethereum mainnet, with multi-hop routing and split allocation |
-| `wallet.balance` | ETH/ERC20 balances at a pinned block |
-| `wallet.assets` | Discover ERC20 holdings and verify balances locally |
-| `wallet.allowance` | ERC20 allowances for an owner/spender pair |
+| `wallet.balance` | BNB/ETH and ERC20/BEP-20 balances at a pinned block |
+| `wallet.assets` | Discover token holdings and verify balances locally |
+| `wallet.allowance` | Token allowances for an owner/spender pair |
 | `wallet.collectibles` | ERC721 and ERC1155 holdings |
 | `wallet.connect` | Link a mobile wallet with WalletConnect on Ethereum or BSC |
 | `wallet.status` | Inspect the local wallet session |
 | `wallet.disconnect` | Remove the local wallet session |
 | `wallet.agent-id` | Resolve a BSC `.ai` Agent ID |
 | `wallet.sign` | Sign messages or EIP-712 typed data through WalletConnect |
-| `wallet.send` | Send ETH/ERC20 or BNB/BEP-20 transfers through WalletConnect |
+| `wallet.send` | Send native or ERC20/BEP-20 transfers through WalletConnect |
 | `transaction.simulate` | Simulate calldata at a pinned block and return the result and gas |
+
+Local wallet and simulation tools default to BSC; pass `--chain ethereum` for Ethereum.
+`swap.quote` remains an Ethereum mainnet quote.
 
 Planned: `transaction.send`, `swap.build`, `swap.execute`. `wallet.sign` signs messages and
 EIP-712 typed data only; `wallet.send` sends native/ERC20/BEP-20 transfers only and does not
@@ -150,13 +154,13 @@ ParaSwap and 79/90 within ±50 bps of 1inch. Methodology and raw data:
 
 ## Status
 
-Pre-1.0. The current implementation covers Ethereum mainnet; more chains are the target.
+Pre-1.0. Local wallet and simulation capabilities support BSC (default) and Ethereum; `swap.quote`
+remains Ethereum mainnet.
 
 - Account, quote, and simulation capabilities are read-only; `wallet.sign` signs messages/EIP-712
   only; `wallet.send` sends native/ERC20/BEP-20 transfers only and cannot execute arbitrary calls or
   swaps.
-- `wallet.connect` and `wallet.send` support Ethereum and BSC; other wallet reads remain
-  Ethereum-only.
+- All local wallet capabilities support Ethereum and BSC; local tools default to BSC.
 - `wallet.connect` only establishes a WalletConnect session; keys stay in the phone wallet.
 - `wallet.agent-id` only resolves BSC identity; it is not Binance Agentic Wallet login and does not
   check launch eligibility.

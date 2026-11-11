@@ -3,8 +3,8 @@
 Fluxion 是一个面向 AI Agent 的 Web3 能力层。它把链上操作封装成稳定的 MCP 能力，目标是全链支持，
 而不是绑定某一个网络或协议。
 
-当前实现覆盖 Ethereum mainnet，以及 BSC 上的 Agent ID 解析和 BNB/BEP-20 转账；已交付 10 个
-只读 capability、消息签名和转账。报价在远端不可变快照上计算；
+当前实现交付 12 个 capability：本地 wallet / simulate 默认 BSC，Ethereum 通过
+`--chain ethereum` 使用；`swap.quote` 仍是 Ethereum 主网报价。报价在远端不可变快照上计算；
 钱包读取、WalletConnect 会话和模拟在本地执行。完整的 capability 列表见 [能力](#能力)。
 
 [English](README.en.md) · 中文
@@ -35,7 +35,8 @@ plan: baseline · block 26377973 · lag 0 · 21 ms
 其它命令：
 
 ```bash
-fluxion wallet balance 0x... --tokens ETH,USDC
+fluxion wallet balance 0x... --tokens BNB,USDT
+fluxion wallet balance 0x... --tokens ETH,USDC --chain ethereum
 fluxion wallet assets 0x...
 fluxion wallet collectibles 0x...
 fluxion wallet connect
@@ -91,17 +92,20 @@ fluxion mcp
 | Capability | 说明 |
 |---|---|
 | `swap.quote` | Ethereum 主网 exact-in 报价，支持多跳和拆单 |
-| `wallet.balance` | 固定区块的 ETH/ERC20 余额 |
-| `wallet.assets` | 发现 ERC20 持仓并在本地核对余额 |
-| `wallet.allowance` | owner/spender 的 ERC20 授权额度 |
+| `wallet.balance` | 固定区块的 BNB/ETH 与 ERC20/BEP-20 余额 |
+| `wallet.assets` | 发现代币持仓并在本地核对余额 |
+| `wallet.allowance` | owner/spender 的代币授权额度 |
 | `wallet.collectibles` | ERC721/ERC1155 持仓 |
 | `wallet.connect` | WalletConnect 扫码连接手机钱包 |
 | `wallet.status` | 查看本地钱包会话 |
 | `wallet.disconnect` | 删除本地钱包会话 |
 | `wallet.agent-id` | 解析 BSC 上的 `.ai` Agent ID |
 | `wallet.sign` | 通过 WalletConnect 签名消息或 EIP-712 |
-| `wallet.send` | 通过 WalletConnect 发送 ETH/ERC20 或 BNB/BEP-20 转账 |
+| `wallet.send` | 通过 WalletConnect 发送原生或 ERC20/BEP-20 转账 |
 | `transaction.simulate` | 固定区块模拟 calldata，返回结果和 gas |
+
+本地 wallet / simulate 默认 BSC，Ethereum 使用 `--chain ethereum`；`swap.quote` 仍是
+Ethereum 主网报价。
 
 计划中：`transaction.send`、`swap.build`、`swap.execute`。`wallet.sign` 只签名消息和
 EIP-712 typed data；`wallet.send` 只发送原生/ERC20/BEP-20 transfer，不支持任意 calldata、
@@ -145,11 +149,11 @@ HTTP p50/p95 为 35/197 ms，snapshot lag 0/1/1 blocks。82/90 在 ParaSwap ±50
 
 ## 状态
 
-Pre-1.0。当前实现覆盖 Ethereum mainnet，目标支持更多链。
+Pre-1.0。本地 wallet / simulate 支持 BSC（默认）和 Ethereum；`swap.quote` 仍是 Ethereum 主网。
 
 - 账户、报价和模拟能力只读；`wallet.sign` 只签名消息/EIP-712；`wallet.send` 只发送
   原生/ERC20/BEP-20 transfer，不能任意合约调用、授权或执行 swap。
-- `wallet.connect` / `wallet.send` 支持 Ethereum 和 BSC；其他钱包读取仍只覆盖 Ethereum。
+- 所有本地 wallet 能力支持 Ethereum 和 BSC；本地工具默认 BSC。
 - `wallet.connect` 只建立 WalletConnect 会话，私钥留在手机钱包。
 - `wallet.agent-id` 只解析 BSC 身份，不是 Binance Agentic Wallet 登录，也不检查内盘资格。
 - `wallet.assets` / `wallet.collectibles` 的完整发现依赖可选 provider；回退时通过 coverage

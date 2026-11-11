@@ -2,6 +2,7 @@
 
 use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
 use crate::capability::{CapabilityError, CapabilityErrorCode, CapabilityErrorResponse};
+use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::QuoteRequest;
 use crate::token;
@@ -83,18 +84,18 @@ fluxion ldo-eth 100                     Top-level shorthand alias\n  \
 fluxion capability list                  List capabilities\n  \
 fluxion capability describe NAME        Show capability and execution details\n  \
 fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
-fluxion wallet balance ADDRESS [--tokens LIST]\n  \
-fluxion wallet assets ADDRESS [--include-unknown]\n  \
-fluxion wallet allowance ADDRESS --spender ADDRESS [--tokens LIST]\n  \
-fluxion wallet collectibles ADDRESS [--collections LIST]\n  \
-fluxion wallet connect [--chain bsc]       Link a wallet with WalletConnect\n  \
+fluxion wallet balance ADDRESS [--tokens LIST] [--chain bsc|ethereum]\n  \
+fluxion wallet assets ADDRESS [--include-unknown] [--chain bsc|ethereum]\n  \
+fluxion wallet allowance ADDRESS --spender ADDRESS [--tokens LIST] [--chain]\n  \
+fluxion wallet collectibles ADDRESS [--collections LIST] [--chain]\n  \
+fluxion wallet connect [--chain bsc|ethereum]  Link a wallet with WalletConnect\n  \
 fluxion wallet status [--wait N]          Show the linked wallet session\n  \
 fluxion wallet disconnect                 Remove the linked wallet session\n  \
 fluxion wallet agent-id HANDLE|ADDRESS    Resolve a BSC .ai Agent ID\n  \
 fluxion wallet sign --message TEXT        Sign a message with WalletConnect\n  \
 fluxion wallet sign --typed-data FILE     Sign EIP-712 typed data\n  \
 fluxion wallet send --to ADDR --token T --amount A  Send ETH/ERC20\n  \
-fluxion transaction simulate --to ADDRESS --data HEX [--from ADDRESS]\n  \
+fluxion transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
@@ -329,6 +330,7 @@ enum WalletMode {
 #[derive(Debug)]
 struct WalletArgs {
     mode: WalletMode,
+    chain: Chain,
     address: String,
     spender: Option<String>,
     collections: Vec<String>,
@@ -355,7 +357,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
         Ok(args) => args,
         Err(error) if error.message == "help requested" => {
             println!(
-                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect [--chain bsc]\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE\n  fluxion wallet send --to ADDR --token T --amount A\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
+                "Usage:\n  fluxion wallet balance ADDRESS [--tokens BNB,USDT] [--no-native] [--chain bsc|ethereum]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native] [--chain bsc|ethereum]\n  fluxion wallet connect [--chain bsc|ethereum]\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE\n  fluxion wallet send --to ADDR --token T --amount A\n\nOptions:\n  --rpc-url URL   override the selected chain RPC\n  --block N       pin a block\n  --json          print the structured response"
             );
             return 0;
         }
@@ -377,7 +379,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
     };
     let mut config = WalletConfig::from_env();
     if let Some(rpc_url) = args.rpc_url {
-        config.rpc_url = rpc_url;
+        config.set_rpc_url(rpc_url);
     }
     enum WalletOutput {
         Balances(WalletBalancesResponse),
@@ -388,6 +390,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
         WalletMode::Balance => wallet::balance(
             &config,
             BalanceRequest {
+                chain: args.chain,
                 address,
                 tokens: args.tokens,
                 include_native: args.include_native,
@@ -407,6 +410,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
             wallet::assets(
                 &config,
                 AssetsRequest {
+                    chain: args.chain,
                     address,
                     include_native: args.include_native,
                     include_unknown: args.include_unknown,
@@ -434,6 +438,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
             wallet::allowance(
                 &config,
                 AllowanceRequest {
+                    chain: args.chain,
                     owner: address,
                     spender,
                     tokens: args.tokens,
@@ -460,6 +465,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
             wallet::collectibles(
                 &config,
                 CollectiblesRequest {
+                    chain: args.chain,
                     owner: address,
                     collections,
                     include_empty: args.include_empty,
@@ -531,7 +537,7 @@ async fn run_wallet_send(raw: &[String]) -> i32 {
     };
     let mut config = WalletConfig::from_env();
     if let Some(rpc_url) = args.rpc_url {
-        config.rpc_url = rpc_url;
+        config.set_rpc_url(rpc_url);
     }
     match wallet_send::send(
         &config,
@@ -1066,7 +1072,7 @@ async fn run_wallet_disconnect(raw: &[String]) -> i32 {
 
 fn parse_wallet_connect_args(raw: &[String]) -> Result<(bool, u64), CapabilityError> {
     let mut json = false;
-    let mut chain_id = 1;
+    let mut chain_id = DEFAULT_CHAIN.chain_id();
     let mut index = 0;
     while index < raw.len() {
         match raw[index].as_str() {
@@ -1170,6 +1176,7 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
         None => return Err(CapabilityError::invalid_argument("missing wallet command")),
     };
     let mut address = None;
+    let mut chain = DEFAULT_CHAIN;
     let mut spender = None;
     let mut collections = Vec::new();
     let mut tokens = Vec::new();
@@ -1191,6 +1198,13 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
                         })?
                         .clone(),
                 );
+            }
+            "--chain" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--chain needs a value"))?;
+                chain = Chain::parse(value)?;
             }
             "--collections" => {
                 index += 1;
@@ -1287,6 +1301,7 @@ fn parse_wallet_args(raw: &[String]) -> Result<WalletArgs, CapabilityError> {
     }
     Ok(WalletArgs {
         mode,
+        chain,
         address,
         spender,
         collections,
@@ -1331,6 +1346,7 @@ fn print_wallet_human(response: &WalletBalancesResponse) {
 
 #[derive(Debug)]
 struct TransactionArgs {
+    chain: Chain,
     from: Option<String>,
     to: String,
     data: String,
@@ -1345,7 +1361,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
         || raw.first().map(String::as_str) == Some("-h")
     {
         println!(
-            "Usage:\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value ETH] [--block N] [--json]"
+            "Usage:\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value ETH] [--chain bsc|ethereum] [--block N] [--json]"
         );
         return 0;
     }
@@ -1389,11 +1405,12 @@ async fn run_transaction(raw: &[String]) -> i32 {
     };
     let mut config = WalletConfig::from_env();
     if let Some(rpc_url) = args.rpc_url {
-        config.rpc_url = rpc_url;
+        config.set_rpc_url(rpc_url);
     }
     match transaction::simulate(
         &config,
         SimulateRequest {
+            chain: args.chain,
             from,
             to,
             data: args.data,
@@ -1419,6 +1436,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
 }
 
 fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityError> {
+    let mut chain = DEFAULT_CHAIN;
     let mut from = None;
     let mut to = None;
     let mut data = None;
@@ -1429,6 +1447,13 @@ fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityE
     let mut index = 0;
     while index < raw.len() {
         match raw[index].as_str() {
+            "--chain" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--chain needs a value"))?;
+                chain = Chain::parse(value)?;
+            }
             "--from" => {
                 index += 1;
                 from = Some(
@@ -1497,6 +1522,7 @@ fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityE
         index += 1;
     }
     Ok(TransactionArgs {
+        chain,
         from,
         to: to.ok_or_else(|| CapabilityError::invalid_argument("missing --to"))?,
         data: data.ok_or_else(|| CapabilityError::invalid_argument("missing --data"))?,
@@ -1789,6 +1815,13 @@ mod tests {
             .unwrap(),
             (true, 56)
         );
+        assert_eq!(parse_wallet_connect_args(&[]).unwrap().1, 56);
+        assert_eq!(
+            parse_wallet_connect_args(&["--chain".to_string(), "ethereum".to_string()])
+                .unwrap()
+                .1,
+            1
+        );
         assert!(parse_wallet_connect_args(&["--chain".to_string(), "nope".to_string()]).is_err());
     }
 
@@ -1867,6 +1900,7 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(assets.mode, WalletMode::Assets);
+        assert_eq!(assets.chain, Chain::Bsc);
         assert_eq!(assets.block, Some(123));
         assert!(assets.include_unknown);
         assert!(!assets.include_native);
@@ -1907,7 +1941,17 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(balance.mode, WalletMode::Balance);
+        assert_eq!(balance.chain, Chain::Bsc);
         assert_eq!(balance.tokens, vec!["USDC", "LDO"]);
+
+        let ethereum = parse_wallet_args(&[
+            "balance".to_string(),
+            "0x0000000000000000000000000000000000000001".to_string(),
+            "--chain".to_string(),
+            "ethereum".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(ethereum.chain, Chain::Ethereum);
     }
 
     #[test]
@@ -1924,6 +1968,7 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(parsed.value, "0.5");
+        assert_eq!(parsed.chain, Chain::Bsc);
         assert_eq!(parsed.block, Some(100));
         assert!(parse_transaction_args(&["--data".to_string(), "0x".to_string()]).is_err());
     }

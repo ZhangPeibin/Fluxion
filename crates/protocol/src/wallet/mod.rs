@@ -42,6 +42,8 @@ pub struct WalletAllowance {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WalletAllowancesResponse {
+    pub chain: String,
+    pub chain_id: u64,
     pub owner: Address,
     pub spender: Address,
     pub block_number: u64,
@@ -74,6 +76,8 @@ pub struct WalletCollectible {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WalletCollectiblesResponse {
+    pub chain: String,
+    pub chain_id: u64,
     pub owner: Address,
     pub block_number: u64,
     pub block_hash: B256,
@@ -159,6 +163,7 @@ pub struct WalletAgentIdResponse {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WalletSendResponse {
+    pub chain: String,
     pub from: Address,
     pub recipient: Address,
     pub token: TokenRef,
@@ -172,6 +177,7 @@ pub struct WalletSendResponse {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WalletSignResponse {
+    pub chain: String,
     pub address: Address,
     pub chain_id: u64,
     /// `personal_sign` or `eth_signTypedData_v4`.
@@ -186,6 +192,8 @@ pub struct WalletDisconnectResponse {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct WalletBalancesResponse {
+    pub chain: String,
+    pub chain_id: u64,
     pub address: Address,
     pub block_number: u64,
     pub block_hash: B256,

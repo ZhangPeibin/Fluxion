@@ -54,15 +54,15 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 | `FLUXION_API_KEY` | 空 | 静态 remote 认证 token；设置后不再自动注册 |
 | `FLUXION_REQUIRE_AUTH` | 空 | remote server 设为 `1` 时 `/quote` 需要安装 token |
 | `FLUXION_URL` | `http://127.0.0.1:8080` | 本地 runtime 地址，供 `start/status/serve` 和未来 wallet/execute |
-| `FLUXION_RPC_URL` / `RPC_URL` | `https://eth.drpc.org` | `wallet.balance` / `wallet.assets` 的本地 Ethereum RPC |
+| `FLUXION_RPC_URL` / `RPC_URL` | `https://eth.drpc.org` | 本地 Ethereum RPC；Ethereum 需显式 `--chain ethereum` |
 | `ONEINCH_API_KEY` | 空 | `wallet.assets` 的候选发现；缺失时回退 registry-only |
 | `FLUXION_ONEINCH_BALANCE_URL` | `https://api.1inch.com/balance/v1.2` | 可替换的 1inch Balance provider endpoint |
 | `ALCHEMY_API_KEY` | 空 | `wallet.collectibles` 的 NFT 候选发现；缺失时回退 curated/explicit collections |
-| `FLUXION_ALCHEMY_NFT_URL` | `https://eth-mainnet.g.alchemy.com/nft/v3` | 可替换的 Alchemy NFT provider endpoint |
+| `FLUXION_ALCHEMY_NFT_URL` | `https://eth-mainnet.g.alchemy.com/nft/v3` | 可替换的 Alchemy NFT endpoint；BSC 自动换成 `bnb-mainnet` |
 | `WALLETCONNECT_PROJECT_ID` | 空 | `wallet.connect` 的 WalletConnect Cloud project ID；缺失时返回明确错误 |
 | `WALLETCONNECT_RELAY_URL` | `wss://relay.walletconnect.com` | 可替换的 WalletConnect relay endpoint |
 | `FLUXION_AGENT_ID_API_URL` | `https://agentid.prd.space.id` | `wallet.agent-id` 的 SPACE ID API |
-| `FLUXION_BSC_RPC_URL` | `https://bsc-dataseed.bnbchain.org` | Agent ID 校验和 BSC wallet.send 使用的 BSC RPC |
+| `FLUXION_BSC_RPC_URL` | `https://bsc-dataseed.bnbchain.org` | 默认链 BSC 的本地 RPC：wallet reads、simulate、sign/send、Agent ID |
 | `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
 CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回

@@ -1,19 +1,21 @@
 # wallet capabilities
 
-Read-only account capabilities for Ethereum, BSC Agent ID identity, local WalletConnect session
-management, message signing, and ETH/ERC20 transfers. `wallet.sign` signs messages and EIP-712
-typed data; `wallet.send` broadcasts ETH/ERC20 transfers only.
+Local wallet capabilities for **BSC by default**, with Ethereum available through `--chain
+ethereum`. They cover balances, asset discovery, allowances, NFTs, WalletConnect sessions, message
+signing and native/ERC20/BEP-20 transfers.
 
 ## `wallet.balance`
 
 Exact balances for an explicit token set, queried locally at one pinned block.
 
 ```bash
-fluxion wallet balance 0xabc... --tokens ETH,USDC,LDO --json
+fluxion wallet balance 0xabc... --tokens USDT,CAKE --json
+fluxion wallet balance 0xabc... --tokens ETH,USDC --chain ethereum --json
 ```
 
-- `tokens` may be built-in symbols or `0x` addresses; an empty list uses the built-in registry.
-- Native ETH is included unless `--no-native` is passed.
+- Default chain is BSC; use `--chain ethereum` for Ethereum.
+- `tokens` may be built-in symbols or `0x` addresses; an empty list uses the chain registry.
+- Native BNB/ETH is included unless `--no-native` is passed.
 - Unknown token addresses get `decimals()` / `symbol()` from the token contract.
 - Coverage is always `local`.
 
@@ -23,7 +25,7 @@ Discover a wallet's ERC20 positions, then verify every returned balance locally.
 
 ```bash
 fluxion wallet assets 0xabc... --json
-fluxion wallet assets 0xabc... --include-unknown --json
+fluxion wallet assets 0xabc... --chain ethereum --include-unknown --json
 ```
 
 Flow:
@@ -39,7 +41,7 @@ address
 
 Defaults:
 
-- native ETH + built-in registry tokens
+- native BNB/ETH + built-in chain registry tokens
 - unknown nonzero tokens are summarized in `unknown_count`
 - `--include-unknown` expands unknown tokens (metadata is read from the token contract)
 - if the discovery provider is unavailable, falls back to registry-only discovery and reports
@@ -50,10 +52,12 @@ Defaults:
 Exact ERC20 allowances for one owner/spender pair at a pinned block.
 
 ```bash
-fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC,LDO --json
+fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT,CAKE --json
+fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC --chain ethereum --json
 ```
 
-- `tokens` may be symbols or addresses; an empty list uses the built-in registry.
+- Default chain is BSC; use `--chain ethereum` for Ethereum.
+- `tokens` may be symbols or addresses; an empty list uses the chain registry.
 - Zero allowances are returned so approval checks are unambiguous.
 - Coverage is `local`.
 
@@ -63,12 +67,13 @@ Read ERC721/ERC1155 holdings.
 
 ```bash
 fluxion wallet collectibles 0xowner --json
+fluxion wallet collectibles 0xowner --chain ethereum --json
 fluxion wallet collectibles 0xowner --collections 0xcollection1,0xcollection2 --json
 ```
 
-- If `ALCHEMY_API_KEY` is configured, Alchemy NFT discovery supplies candidate token IDs and
-  local RPC verifies ownership.
-- Without an indexer, `--collections` or the curated collection registry is searched on-chain.
+- Default chain is BSC; use `--chain ethereum` for Ethereum.
+- With `ALCHEMY_API_KEY`, Alchemy NFT discovery uses `bnb-mainnet` or `eth-mainnet`.
+- Without an indexer, pass `--collections`. The Ethereum curated registry is not used on BSC.
 - ERC721 collections that implement `ERC721Enumerable` return token IDs.
 - Non-enumerable ERC721 collections return the count only; ERC1155 enumeration requires the
   indexer.
@@ -113,12 +118,12 @@ fluxion wallet sign --typed-data typed-data.json --json
 
 ## `wallet.send`
 
-Send ETH or an ERC20 transfer through the connected WalletConnect session. The transfer is
-simulated locally before the phone confirmation.
+Send a native or ERC20/BEP-20 transfer through the connected WalletConnect session. The transfer
+is simulated locally before the phone confirmation.
 
 ```bash
-fluxion wallet send --to 0x... --token ETH --amount 0.01
-fluxion wallet send --to 0x... --token USDC --amount 10 --json
+fluxion wallet send --to 0x... --token BNB --amount 0.01
+fluxion wallet send --to 0x... --token USDT --amount 10 --json
 ```
 
 - Only native transfers and ERC20/BEP-20 `transfer` are supported.
@@ -137,12 +142,13 @@ Start a WalletConnect v2 pairing and return a URI plus an ASCII QR code. The wal
 approves on the user's phone; private keys never enter Fluxion.
 
 ```bash
-fluxion wallet connect
+fluxion wallet connect                 # BSC by default
+fluxion wallet connect --chain ethereum
 fluxion wallet connect --json
 ```
 
 - Requires `WALLETCONNECT_PROJECT_ID`.
-- `--chain ethereum` (default) or `--chain bsc` selects the session chain.
+- `--chain bsc` (default) or `--chain ethereum` selects the session chain.
 - The CLI prints the QR code and waits up to 5 minutes.
 - MCP returns the pending URI and a 53-column terminal QR (`qr_ascii`) immediately. The QR is the
   first text content block so the agent can reproduce it before polling. A small PNG is also
@@ -168,7 +174,7 @@ fluxion wallet status --wait 90
 - `pending`: a pairing is waiting for the wallet.
 - `connected`: session is active.
 - `expired`: session exists but its expiry has passed.
-- Returns accounts, `chain_id`, expiry, and wallet metadata. It does not contact the wallet.
+- Returns accounts, chain, expiry, and wallet metadata. It does not contact the wallet.
 
 ## `wallet.disconnect`
 
@@ -196,14 +202,14 @@ fluxion wallet disconnect --json
 ## Configuration
 
 - `FLUXION_RPC_URL` (or `RPC_URL`): local Ethereum RPC; defaults to `https://eth.drpc.org`
+- `FLUXION_BSC_RPC_URL`: local BSC RPC; defaults to `https://bsc-dataseed.bnbchain.org`
 - `ONEINCH_API_KEY`: optional; enables full `wallet.assets` discovery
 - `FLUXION_ONEINCH_BALANCE_URL`: optional provider override
 - `ALCHEMY_API_KEY`: optional; enables full `wallet.collectibles` discovery
-- `FLUXION_ALCHEMY_NFT_URL`: optional Alchemy NFT endpoint override
+- `FLUXION_ALCHEMY_NFT_URL`: optional Alchemy NFT endpoint override (defaults to the selected chain network)
 - `WALLETCONNECT_PROJECT_ID`: required for `wallet.connect`; create one at https://cloud.reown.com
 - `WALLETCONNECT_RELAY_URL`: optional relay override; defaults to `wss://relay.walletconnect.com`
 - `FLUXION_AGENT_ID_API_URL`: optional SPACE ID Agent ID API override
-- `FLUXION_BSC_RPC_URL`: optional BSC RPC override for Agent ID verification/fallback
 
 ## Output
 
@@ -219,11 +225,13 @@ fluxion wallet disconnect --json
 
 ```json
 {
+  "chain": "bsc",
+  "chain_id": 56,
   "address": "0xabc...",
-  "block_number": 26356654,
+  "block_number": 132891764,
   "block_hash": "0x...",
   "native": {
-    "token": {"symbol": "ETH", "address": "0xeeee...", "decimals": 18},
+    "token": {"symbol": "BNB", "address": "0xeeee...", "decimals": 18},
     "amount": {"raw": "5793818533768043911", "decimal": "5.793818533768043911"},
     "known": true
   },
@@ -232,7 +240,7 @@ fluxion wallet disconnect --json
   "coverage": "provider+local",
   "sources": [
     {"name": "1inch-balance", "scope": "candidate-discovery"},
-    {"name": "ethereum-rpc", "scope": "verified-balances", "block": 26356654}
+    {"name": "bsc-rpc", "scope": "verified-balances", "block": 132891764}
   ],
   "warnings": []
 }
@@ -240,13 +248,14 @@ fluxion wallet disconnect --json
 
 ## Boundaries
 
-- Ethereum only.
-- Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
-- WalletConnect sessions currently support `eip155:1` only.
+- BSC and Ethereum.
+- Native BNB/ETH, ERC20/BEP-20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
+- WalletConnect sessions support `eip155:1` and `eip155:56`; create a separate session per chain.
 - `wallet.agent-id` is BSC only; Binance Agentic Wallet login and execution are not implemented.
-- `wallet.connect` and `wallet.send` support Ethereum and BSC; other wallet reads remain Ethereum-only.
+- All local wallet reads, connect, sign, send and simulation support Ethereum and BSC.
+- Default local chain is BSC; use `--chain ethereum` for Ethereum.
 - `wallet.sign` signs messages and EIP-712 typed data only; it does not sign transactions.
-- `wallet.send` broadcasts ETH/ERC20 transfers only; no arbitrary contract calls, approvals or
+- `wallet.send` broadcasts native/ERC20/BEP-20 transfers only; no arbitrary contract calls, approvals or
   swap execution.
 - No private keys.
 - No USD valuation.
