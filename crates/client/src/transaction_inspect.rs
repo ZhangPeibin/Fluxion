@@ -46,6 +46,12 @@ const BUILTIN_SELECTORS: &[&str] = &[
     "0xf2fde38b",
     "0x3659cfe6",
     "0xac9650d8",
+    "0x38ed1739",
+    "0x7ff36ab5",
+    "0x18cbafe5",
+    "0x5c11d795",
+    "0xb6f9de95",
+    "0x791ac947",
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -145,6 +151,7 @@ pub async fn inspect(
     findings.extend(detect_nested_approvals(&decoded.intent));
     findings.extend(detect_contract(&decoded.intent, &metadata.target, &request));
     findings.extend(detect_address(&decoded.intent, &request));
+    findings.extend(detect_swap(&decoded.intent, &request));
     findings.extend(detect_asset_flow(
         &decoded.intent,
         &request,
@@ -191,6 +198,251 @@ pub async fn inspect(
         sources,
         warnings,
     })
+}
+
+fn decode_swap_v2(
+    selector: &str,
+    signature: &str,
+    name: &str,
+    payload: &[u8],
+    token_in: bool,
+) -> DecodedIntent {
+    let static_len = if token_in { 5 * 32 } else { 4 * 32 };
+    let Some(head) = payload.get(..static_len) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap static arguments are missing".to_string(),
+        );
+    };
+    let amount_in = if token_in {
+        Some(U256::from_be_slice(&head[..32]).to_string())
+    } else {
+        None
+    };
+    let amount_out_min_pos = if token_in { 32 } else { 0 };
+    let path_offset_pos = if token_in { 64 } else { 32 };
+    let to_pos = if token_in { 96 } else { 64 };
+    let deadline_pos = if token_in { 128 } else { 96 };
+
+    let amount_out_min =
+        U256::from_be_slice(&head[amount_out_min_pos..amount_out_min_pos + 32]).to_string();
+    let Some(path_offset) = word_to_usize(&head[path_offset_pos..path_offset_pos + 32]) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path offset is invalid".to_string(),
+        );
+    };
+    let Some(recipient) = decode_address(&head[to_pos..to_pos + 32]).ok() else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap recipient is invalid".to_string(),
+        );
+    };
+    let deadline = U256::from_be_slice(&head[deadline_pos..deadline_pos + 32]).to_string();
+
+    if path_offset < static_len || path_offset + 32 > payload.len() {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path offset points outside calldata".to_string(),
+        );
+    }
+    let Some(count) = word_to_usize(&payload[path_offset..path_offset + 32]) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path length is invalid".to_string(),
+        );
+    };
+    if count > 64 {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path has too many tokens".to_string(),
+        );
+    }
+    let path_start = path_offset + 32;
+    let Some(path_end) = path_start.checked_add(count * 32) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path length overflow".to_string(),
+        );
+    };
+    if path_end > payload.len() {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path exceeds calldata".to_string(),
+        );
+    }
+    let mut path = Vec::with_capacity(count);
+    for index in 0..count {
+        let word = &payload[path_start + index * 32..path_start + (index + 1) * 32];
+        let Ok(address) = decode_address(word) else {
+            return known_but_partial(
+                selector,
+                signature,
+                name,
+                format!("swap path token {index} is invalid"),
+            );
+        };
+        path.push(address);
+    }
+
+    let mut args = Vec::new();
+    if let Some(amount_in) = amount_in {
+        args.push(TransactionInspectArg {
+            name: "amountIn".to_string(),
+            kind: "uint256".to_string(),
+            value: amount_in,
+        });
+    }
+    args.push(TransactionInspectArg {
+        name: "amountOutMin".to_string(),
+        kind: "uint256".to_string(),
+        value: amount_out_min,
+    });
+    args.push(TransactionInspectArg {
+        name: "path".to_string(),
+        kind: "address[]".to_string(),
+        value: format!(
+            "[{}]",
+            path.iter()
+                .map(|address| format!("\"{address}\""))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    });
+    args.push(TransactionInspectArg {
+        name: "to".to_string(),
+        kind: "address".to_string(),
+        value: recipient,
+    });
+    args.push(TransactionInspectArg {
+        name: "deadline".to_string(),
+        kind: "uint256".to_string(),
+        value: deadline,
+    });
+
+    let mut warnings = Vec::new();
+    if payload.len() > path_end {
+        warnings.push(format!(
+            "{} trailing bytes after swap path",
+            payload.len() - path_end
+        ));
+    }
+    DecodedIntent {
+        intent: TransactionInspectIntent {
+            selector: selector.to_string(),
+            signature: Some(signature.to_string()),
+            name: Some(name.to_string()),
+            args,
+        },
+        decode_coverage: if warnings.is_empty() {
+            "complete"
+        } else {
+            "partial"
+        },
+        unknowns: Vec::new(),
+        warnings,
+    }
+}
+
+fn detect_swap(
+    intent: &TransactionInspectIntent,
+    request: &InspectRequest,
+) -> Vec<TransactionInspectFinding> {
+    if !intent
+        .name
+        .as_deref()
+        .is_some_and(|name| name.starts_with("swapExact"))
+    {
+        return Vec::new();
+    }
+    let mut findings = Vec::new();
+    if let Some(amount_out_min) = arg_value(intent, "amountOutMin")
+        .and_then(|value| parse_decimal_u256(&value))
+        .filter(|value| value.is_zero())
+    {
+        findings.push(swap_finding(
+            "SWAP-001",
+            "high",
+            "Zero minimum output",
+            "The swap accepts any output amount, exposing the transaction to slippage and MEV.",
+            [("amountOutMin", amount_out_min.to_string())],
+        ));
+    }
+    if let (Some(from), Some(recipient)) = (request.from, arg_value(intent, "to"))
+        && let Some(recipient) = parse_address(&recipient)
+        && recipient != from
+    {
+        findings.push(swap_finding(
+            "SWAP-004",
+            "high",
+            "Swap recipient differs from sender",
+            "The decoded swap sends output to an account other than the sender.",
+            [
+                ("sender", from.to_string()),
+                ("recipient", recipient.to_string()),
+            ],
+        ));
+    }
+    if !is_known_swap_router(request.to) {
+        findings.push(swap_finding(
+            "SWAP-007",
+            "medium",
+            "Unknown swap router",
+            "The swap target is not in the built-in router registry.",
+            [("router", request.to.to_string())],
+        ));
+    }
+    findings
+}
+
+fn swap_finding<const N: usize>(
+    id: &str,
+    severity: &str,
+    title: &str,
+    description: &str,
+    evidence: [(&str, String); N],
+) -> TransactionInspectFinding {
+    let mut evidence_map = BTreeMap::new();
+    for (key, value) in evidence {
+        evidence_map.insert(key.to_string(), value);
+    }
+    evidence_map.insert("source".to_string(), "calldata".to_string());
+    TransactionInspectFinding {
+        id: id.to_string(),
+        category: "swap".to_string(),
+        severity: severity.to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        evidence: evidence_map,
+        confidence: "high".to_string(),
+        deterministic: true,
+    }
+}
+
+fn is_known_swap_router(address: Address) -> bool {
+    [
+        "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+        "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+    ]
+    .iter()
+    .filter_map(|value| parse_address(value))
+    .any(|known| known == address)
 }
 
 fn detect_address(
@@ -1166,6 +1418,60 @@ fn decode_intent(data: &str) -> Result<DecodedIntent, CapabilityError> {
             &TRANSFER_OWNERSHIP[..],
         ),
         "0x3659cfe6" => ("upgradeTo(address)", "upgradeTo", &UPGRADE_TO[..]),
+        "0x38ed1739" => {
+            return Ok(decode_swap_v2(
+                &selector,
+                "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)",
+                "swapExactTokensForTokens",
+                payload,
+                true,
+            ));
+        }
+        "0x7ff36ab5" => {
+            return Ok(decode_swap_v2(
+                &selector,
+                "swapExactETHForTokens(uint256,address[],address,uint256)",
+                "swapExactETHForTokens",
+                payload,
+                false,
+            ));
+        }
+        "0x18cbafe5" => {
+            return Ok(decode_swap_v2(
+                &selector,
+                "swapExactTokensForETH(uint256,uint256,address[],address,uint256)",
+                "swapExactTokensForETH",
+                payload,
+                true,
+            ));
+        }
+        "0x5c11d795" => {
+            return Ok(decode_swap_v2(
+                &selector,
+                "swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)",
+                "swapExactTokensForTokensSupportingFeeOnTransferTokens",
+                payload,
+                true,
+            ));
+        }
+        "0xb6f9de95" => {
+            return Ok(decode_swap_v2(
+                &selector,
+                "swapExactETHForTokensSupportingFeeOnTransferTokens(uint256,address[],address,uint256)",
+                "swapExactETHForTokensSupportingFeeOnTransferTokens",
+                payload,
+                false,
+            ));
+        }
+        "0x791ac947" => {
+            return Ok(decode_swap_v2(
+                &selector,
+                "swapExactTokensForETHSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)",
+                "swapExactTokensForETHSupportingFeeOnTransferTokens",
+                payload,
+                true,
+            ));
+        }
         "0xac9650d8" => return Ok(decode_multicall(&selector, payload)),
         _ => {
             return Ok(DecodedIntent {
@@ -2345,6 +2651,100 @@ mod tests {
                 .iter()
                 .any(|finding| finding.id == "ADDR-005" && finding.severity == "low")
         );
+    }
+
+    fn swap_v2_data(
+        selector: &str,
+        token_in: bool,
+        amount_in: u64,
+        amount_out_min: u64,
+        recipient: &str,
+        path: &[&str],
+    ) -> String {
+        let mut payload = String::new();
+        if token_in {
+            payload.push_str(&uint_word(amount_in));
+        }
+        payload.push_str(&uint_word(amount_out_min));
+        let static_words = if token_in { 5 } else { 4 };
+        payload.push_str(&uint_word(static_words * 32));
+        payload.push_str(&address_word(recipient));
+        payload.push_str(&uint_word(u64::MAX));
+        payload.push_str(&uint_word(path.len() as u64));
+        for token in path {
+            payload.push_str(&address_word(token));
+        }
+        format!("0x{selector}{payload}")
+    }
+
+    #[test]
+    fn decodes_v2_swap_path_and_checks_min_out() {
+        let data = swap_v2_data(
+            "38ed1739",
+            true,
+            1000,
+            0,
+            "0x0000000000000000000000000000000000000001",
+            &[
+                "0x0000000000000000000000000000000000000010",
+                "0x0000000000000000000000000000000000000020",
+            ],
+        );
+        let decoded = decode_intent(&data).unwrap();
+        assert_eq!(decoded.decode_coverage, "complete");
+        assert_eq!(decoded.intent.args.len(), 5);
+        assert_eq!(decoded.intent.args[2].kind, "address[]");
+        assert!(
+            decoded.intent.args[2]
+                .value
+                .contains("0x0000000000000000000000000000000000000020")
+        );
+
+        let mut request = flow_request();
+        request.to = "0x10ED43C718714eb63d5aA57B78B54704E256024E"
+            .parse()
+            .unwrap();
+        let findings = detect_swap(&decoded.intent, &request);
+        assert!(findings.iter().any(|finding| finding.id == "SWAP-001"));
+        assert!(!findings.iter().any(|finding| finding.id == "SWAP-007"));
+    }
+
+    #[test]
+    fn flags_swap_recipient_mismatch_and_unknown_router() {
+        let data = swap_v2_data(
+            "38ed1739",
+            true,
+            1000,
+            1,
+            "0x0000000000000000000000000000000000000002",
+            &[
+                "0x0000000000000000000000000000000000000010",
+                "0x0000000000000000000000000000000000000020",
+            ],
+        );
+        let intent = decode_intent(&data).unwrap().intent;
+        let request = flow_request();
+        let findings = detect_swap(&intent, &request);
+        assert!(findings.iter().any(|finding| finding.id == "SWAP-004"));
+        assert!(findings.iter().any(|finding| finding.id == "SWAP-007"));
+    }
+
+    #[test]
+    fn decodes_eth_swap_without_amount_in() {
+        let data = swap_v2_data(
+            "7ff36ab5",
+            false,
+            0,
+            1,
+            "0x0000000000000000000000000000000000000001",
+            &[
+                "0x0000000000000000000000000000000000000010",
+                "0x0000000000000000000000000000000000000020",
+            ],
+        );
+        let decoded = decode_intent(&data).unwrap();
+        assert_eq!(decoded.intent.args.len(), 4);
+        assert_eq!(decoded.intent.args[0].name, "amountOutMin");
     }
 
     #[tokio::test]
