@@ -29,7 +29,8 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
 - `effects`: native value plus token/NFT/approval effects derived from simulated logs. Native gas
   fees and full state changes are not included.
 - `findings`: rule-ID findings with evidence. Current checks include unlimited ERC20 approval
-  (`AUTH-001`), NFT operator approval (`AUTH-004`), and asset-flow findings (`FLOW-001`–`FLOW-006`).
+  (`AUTH-001`), NFT operator approval (`AUTH-004`), asset-flow findings (`FLOW-001`–`FLOW-006`),
+  and contract findings (`CONTRACT-001`, `CONTRACT-003`).
 - `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
 - `coverage`: decode, metadata, simulation and policy status. Contract metadata is `partial` until
   source verification is configured; simulation is `partial` because it is log-derived.

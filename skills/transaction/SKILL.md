@@ -36,6 +36,8 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
 - Approval findings: unlimited ERC20 approval (`AUTH-001`) and NFT operator approval (`AUTH-004`).
 - Asset-flow findings compare decoded transfer intent with simulated logs (`FLOW-001`–`FLOW-006`);
   treat them as medium-confidence evidence, not proof.
+- Contract findings report unverified targets (`CONTRACT-001`) and EIP-1967 proxy targets
+  (`CONTRACT-003`); a proxy upgrade call is high severity.
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 

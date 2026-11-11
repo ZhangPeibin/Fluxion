@@ -142,6 +142,7 @@ pub async fn inspect(
     warnings.extend(metadata.warnings);
     warnings.extend(simulation.warnings);
     let mut findings = detect_approvals(&decoded.intent);
+    findings.extend(detect_contract(&decoded.intent, &metadata.target, &request));
     findings.extend(detect_asset_flow(
         &decoded.intent,
         &request,
@@ -188,6 +189,98 @@ pub async fn inspect(
         sources,
         warnings,
     })
+}
+
+fn detect_contract(
+    intent: &TransactionInspectIntent,
+    target: &TransactionInspectTarget,
+    request: &InspectRequest,
+) -> Vec<TransactionInspectFinding> {
+    let mut findings = Vec::new();
+    if target.verified == Some(false) {
+        let moves_assets = matches!(
+            intent.name.as_deref(),
+            Some("approve")
+                | Some("increaseAllowance")
+                | Some("decreaseAllowance")
+                | Some("setApprovalForAll")
+                | Some("transfer")
+                | Some("transferFrom")
+                | Some("safeTransferFrom")
+        ) || !request.value.is_zero();
+        findings.push(contract_finding(
+            "CONTRACT-001",
+            if moves_assets { "high" } else { "medium" },
+            "Unverified contract target",
+            "The target contract source is not verified. Verification is not proof of safety, but absence reduces review confidence.",
+            [
+                ("target", target.address.to_string()),
+                ("verified", "false".to_string()),
+            ],
+        ));
+    }
+    if target.proxy == Some(true) {
+        if intent.name.as_deref() == Some("upgradeTo") {
+            findings.push(contract_finding(
+                "CONTRACT-003",
+                "high",
+                "Proxy implementation upgrade",
+                "The transaction changes the implementation behind an upgradeable proxy.",
+                [
+                    ("target", target.address.to_string()),
+                    (
+                        "implementation",
+                        target
+                            .implementation
+                            .map(|value| value.to_string())
+                            .unwrap_or_else(|| "unknown".to_string()),
+                    ),
+                ],
+            ));
+        } else {
+            findings.push(contract_finding(
+                "CONTRACT-003",
+                "low",
+                "Upgradeable proxy target",
+                "The target uses an EIP-1967 proxy. Its implementation can change outside this transaction.",
+                [
+                    ("target", target.address.to_string()),
+                    (
+                        "implementation",
+                        target
+                            .implementation
+                            .map(|value| value.to_string())
+                            .unwrap_or_else(|| "unknown".to_string()),
+                    ),
+                ],
+            ));
+        }
+    }
+    findings
+}
+
+fn contract_finding<const N: usize>(
+    id: &str,
+    severity: &str,
+    title: &str,
+    description: &str,
+    evidence: [(&str, String); N],
+) -> TransactionInspectFinding {
+    let mut evidence_map = BTreeMap::new();
+    for (key, value) in evidence {
+        evidence_map.insert(key.to_string(), value);
+    }
+    evidence_map.insert("source".to_string(), "onchain-metadata".to_string());
+    TransactionInspectFinding {
+        id: id.to_string(),
+        category: "contract".to_string(),
+        severity: severity.to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        evidence: evidence_map,
+        confidence: "high".to_string(),
+        deterministic: true,
+    }
 }
 
 fn detect_asset_flow(
@@ -1866,6 +1959,64 @@ mod tests {
             "complete",
         );
         assert!(findings.iter().any(|finding| finding.id == "FLOW-001"));
+    }
+
+    fn contract_target(proxy: bool) -> TransactionInspectTarget {
+        TransactionInspectTarget {
+            address: "0x0000000000000000000000000000000000000010"
+                .parse()
+                .unwrap(),
+            kind: "contract".to_string(),
+            verified: None,
+            proxy: Some(proxy),
+            implementation: proxy.then(|| {
+                "0x0000000000000000000000000000000000000020"
+                    .parse()
+                    .unwrap()
+            }),
+        }
+    }
+
+    #[test]
+    fn flags_unverified_contract() {
+        let intent = decode_intent("0x").unwrap().intent;
+        let request = flow_request();
+        let mut target = contract_target(false);
+        target.verified = Some(false);
+        let findings = detect_contract(&intent, &target, &request);
+        assert!(findings.iter().any(|finding| finding.id == "CONTRACT-001"));
+        assert_eq!(findings[0].severity, "medium");
+    }
+
+    #[test]
+    fn flags_proxy_upgrade_as_high() {
+        let data = format!(
+            "0x3659cfe6{}",
+            address_word("0x0000000000000000000000000000000000000020")
+        );
+        let intent = decode_intent(&data).unwrap().intent;
+        let findings = detect_contract(&intent, &contract_target(true), &flow_request());
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.id == "CONTRACT-003" && finding.severity == "high")
+        );
+    }
+
+    #[test]
+    fn flags_proxy_target_as_low() {
+        let data = format!(
+            "0x095ea7b3{}{}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(100)
+        );
+        let intent = decode_intent(&data).unwrap().intent;
+        let findings = detect_contract(&intent, &contract_target(true), &flow_request());
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.id == "CONTRACT-003" && finding.severity == "low")
+        );
     }
 
     #[tokio::test]
