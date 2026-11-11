@@ -87,7 +87,7 @@ fluxion wallet balance ADDRESS [--tokens LIST]\n  \
 fluxion wallet assets ADDRESS [--include-unknown]\n  \
 fluxion wallet allowance ADDRESS --spender ADDRESS [--tokens LIST]\n  \
 fluxion wallet collectibles ADDRESS [--collections LIST]\n  \
-fluxion wallet connect                    Link a wallet with WalletConnect\n  \
+fluxion wallet connect [--chain bsc]       Link a wallet with WalletConnect\n  \
 fluxion wallet status [--wait N]          Show the linked wallet session\n  \
 fluxion wallet disconnect                 Remove the linked wallet session\n  \
 fluxion wallet agent-id HANDLE|ADDRESS    Resolve a BSC .ai Agent ID\n  \
@@ -355,7 +355,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
         Ok(args) => args,
         Err(error) if error.message == "help requested" => {
             println!(
-                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE\n  fluxion wallet send --to ADDR --token T --amount A\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
+                "Usage:\n  fluxion wallet balance ADDRESS [--tokens ETH,USDC] [--no-native]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native]\n  fluxion wallet connect [--chain bsc]\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE\n  fluxion wallet send --to ADDR --token T --amount A\n\nOptions:\n  --rpc-url URL   local Ethereum RPC (default FLUXION_RPC_URL)\n  --block N       pin a block\n  --json          print the structured response"
             );
             return 0;
         }
@@ -946,15 +946,15 @@ fn parse_wallet_agent_id_args(raw: &[String]) -> Result<WalletAgentIdArgs, Capab
 }
 
 async fn run_wallet_connect(raw: &[String]) -> i32 {
-    let json = match parse_wallet_session_args(raw) {
-        Ok(json) => json,
+    let (json, chain_id) = match parse_wallet_connect_args(raw) {
+        Ok(args) => args,
         Err(error) => {
             report_error(&error, raw.iter().any(|arg| arg == "--json"));
             return exit_code(error.code);
         }
     };
     let manager = Manager::new();
-    let response = match manager.connect().await {
+    let response = match manager.connect(chain_id).await {
         Ok(response) => response,
         Err(error) => {
             report_error(&error, json);
@@ -1062,6 +1062,31 @@ async fn run_wallet_disconnect(raw: &[String]) -> i32 {
             exit_code(error.code)
         }
     }
+}
+
+fn parse_wallet_connect_args(raw: &[String]) -> Result<(bool, u64), CapabilityError> {
+    let mut json = false;
+    let mut chain_id = 1;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--json" => json = true,
+            "--chain" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--chain needs a value"))?;
+                chain_id = walletconnect::parse_chain_id(value)?;
+            }
+            value => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown wallet option: {value}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok((json, chain_id))
 }
 
 fn parse_wallet_status_args(raw: &[String]) -> Result<(bool, u64), CapabilityError> {
@@ -1751,6 +1776,20 @@ mod tests {
         );
         assert!(parse_wallet_status_args(&["--wait".to_string()]).is_err());
         assert!(parse_wallet_status_args(&["--wait".to_string(), "301".to_string()]).is_err());
+    }
+
+    #[test]
+    fn parses_wallet_connect_chain() {
+        assert_eq!(
+            parse_wallet_connect_args(&[
+                "--chain".to_string(),
+                "bsc".to_string(),
+                "--json".to_string()
+            ])
+            .unwrap(),
+            (true, 56)
+        );
+        assert!(parse_wallet_connect_args(&["--chain".to_string(), "nope".to_string()]).is_err());
     }
 
     #[test]

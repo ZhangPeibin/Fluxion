@@ -121,9 +121,11 @@ fluxion wallet send --to 0x... --token ETH --amount 0.01
 fluxion wallet send --to 0x... --token USDC --amount 10 --json
 ```
 
-- Only ETH and ERC20 `transfer` are supported.
+- Only native transfers and ERC20/BEP-20 `transfer` are supported.
+- On Ethereum use `ETH`; on BSC use `BNB`.
 - `from` defaults to the session account and must belong to the session.
-- `token` accepts `ETH`, built-in symbols, or an ERC20 address; unknown addresses need `decimals`.
+- `token` accepts the native symbol, built-in symbols, or a token address; unknown addresses need `decimals`.
+- BSC built-ins: `WBNB`, `USDT`, `USDC`, `CAKE`.
 - Simulation failure returns `SIMULATION_FAILED` and does not reach the phone.
 - Wallet rejection returns `USER_REJECTED`.
 - After a timeout, check the wallet/transaction history; do not blindly retry.
@@ -140,6 +142,7 @@ fluxion wallet connect --json
 ```
 
 - Requires `WALLETCONNECT_PROJECT_ID`.
+- `--chain ethereum` (default) or `--chain bsc` selects the session chain.
 - The CLI prints the QR code and waits up to 5 minutes.
 - MCP returns the pending URI and a 53-column terminal QR (`qr_ascii`) immediately. The QR is the
   first text content block so the agent can reproduce it before polling. A small PNG is also
@@ -241,6 +244,7 @@ fluxion wallet disconnect --json
 - Native ETH, ERC20, ERC721 and ERC1155 are supported; NFT discovery is best-effort.
 - WalletConnect sessions currently support `eip155:1` only.
 - `wallet.agent-id` is BSC only; Binance Agentic Wallet login and execution are not implemented.
+- `wallet.connect` and `wallet.send` support Ethereum and BSC; other wallet reads remain Ethereum-only.
 - `wallet.sign` signs messages and EIP-712 typed data only; it does not sign transactions.
 - `wallet.send` broadcasts ETH/ERC20 transfers only; no arbitrary contract calls, approvals or
   swap execution.

@@ -195,10 +195,12 @@ fn tools_list() -> Value {
             },
             {
                 "name": "wallet_connect",
-                "description": "Start a WalletConnect v2 pairing for an Ethereum wallet. The first text content block is a 53-column fenced QR; reproduce it in your reply before polling status. Also returns a URI and optional PNG path. Read-only connection setup; never asks for private keys.",
+                "description": "Start a WalletConnect v2 pairing. Pass chain ethereum or bsc. The first text content block is a 53-column fenced QR; reproduce it in your reply before polling status.",
                 "inputSchema": {
                     "type": "object",
-                    "properties": {}
+                    "properties": {
+                        "chain": {"type": "string", "enum": ["ethereum", "bsc"], "default": "ethereum"}
+                    }
                 }
             },
             {
@@ -303,10 +305,12 @@ async fn call_tool(
         "wallet_assets" => wallet_assets_tool(&arguments).await,
         "wallet_allowance" => wallet_allowance_tool(&arguments).await,
         "wallet_collectibles" => wallet_collectibles_tool(&arguments).await,
-        "wallet_connect" => wallet_connect_tool(wallet).await.map(|(value, png)| {
-            image = png;
-            value
-        }),
+        "wallet_connect" => wallet_connect_tool(&arguments, wallet)
+            .await
+            .map(|(value, png)| {
+                image = png;
+                value
+            }),
         "wallet_status" => wallet_status_tool(&arguments, wallet).await,
         "wallet_send" => wallet_send_tool(&arguments).await,
         "wallet_sign" => wallet_sign_tool(&arguments).await,
@@ -479,8 +483,17 @@ async fn wallet_allowance_tool(arguments: &Value) -> Result<Value, CapabilityErr
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
-async fn wallet_connect_tool(wallet: &Manager) -> Result<(Value, Option<String>), CapabilityError> {
-    let response = wallet.connect().await?;
+async fn wallet_connect_tool(
+    arguments: &Value,
+    wallet: &Manager,
+) -> Result<(Value, Option<String>), CapabilityError> {
+    let chain_id = arguments
+        .get("chain")
+        .and_then(Value::as_str)
+        .map(crate::walletconnect::parse_chain_id)
+        .transpose()?
+        .unwrap_or(1);
+    let response = wallet.connect(chain_id).await?;
     let image = response.qr_png_base64.clone();
     let value = serde_json::to_value(&response)
         .map_err(|error| CapabilityError::internal(error.to_string()))?;

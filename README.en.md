@@ -3,8 +3,8 @@
 Fluxion is a Web3 capability layer for AI agents. It turns onchain actions into stable MCP
 capabilities and is designed for multi-chain support, not tied to one network or protocol.
 
-The current implementation covers Ethereum mainnet and BSC Agent ID resolution, with 10 read-only
-capabilities, message signing, and ETH/ERC20 transfers. Quotes run
+The current implementation covers Ethereum mainnet, plus BSC Agent ID resolution and BNB/BEP-20
+transfers, with 10 read-only capabilities, message signing, and transfers. Quotes run
 against an immutable remote snapshot; wallet reads, WalletConnect sessions, and simulation run
 locally. See [Capabilities](#capabilities) for the complete list.
 
@@ -97,17 +97,17 @@ registration, remote deployment, and full setup live in [docs/MCP.md](docs/MCP.m
 | `wallet.assets` | Discover ERC20 holdings and verify balances locally |
 | `wallet.allowance` | ERC20 allowances for an owner/spender pair |
 | `wallet.collectibles` | ERC721 and ERC1155 holdings |
-| `wallet.connect` | Link a mobile wallet with WalletConnect |
+| `wallet.connect` | Link a mobile wallet with WalletConnect on Ethereum or BSC |
 | `wallet.status` | Inspect the local wallet session |
 | `wallet.disconnect` | Remove the local wallet session |
 | `wallet.agent-id` | Resolve a BSC `.ai` Agent ID |
 | `wallet.sign` | Sign messages or EIP-712 typed data through WalletConnect |
-| `wallet.send` | Send ETH/ERC20 transfers through WalletConnect |
+| `wallet.send` | Send ETH/ERC20 or BNB/BEP-20 transfers through WalletConnect |
 | `transaction.simulate` | Simulate calldata at a pinned block and return the result and gas |
 
 Planned: `transaction.send`, `swap.build`, `swap.execute`. `wallet.sign` signs messages and
-EIP-712 typed data only; `wallet.send` sends ETH/ERC20 transfers only and does not support
-arbitrary calldata, approvals, or swap execution.
+EIP-712 typed data only; `wallet.send` sends native/ERC20/BEP-20 transfers only and does not
+support arbitrary calldata, approvals, or swap execution.
 
 ## How it works
 
@@ -153,7 +153,10 @@ ParaSwap and 79/90 within ±50 bps of 1inch. Methodology and raw data:
 Pre-1.0. The current implementation covers Ethereum mainnet; more chains are the target.
 
 - Account, quote, and simulation capabilities are read-only; `wallet.sign` signs messages/EIP-712
-  only; `wallet.send` sends ETH/ERC20 transfers only and cannot execute arbitrary calls or swaps.
+  only; `wallet.send` sends native/ERC20/BEP-20 transfers only and cannot execute arbitrary calls or
+  swaps.
+- `wallet.connect` and `wallet.send` support Ethereum and BSC; other wallet reads remain
+  Ethereum-only.
 - `wallet.connect` only establishes a WalletConnect session; keys stay in the phone wallet.
 - `wallet.agent-id` only resolves BSC identity; it is not Binance Agentic Wallet login and does not
   check launch eligibility.

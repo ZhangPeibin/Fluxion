@@ -63,7 +63,7 @@ pub async fn simulate(
                 error: None,
             })
         }
-        Err(error) if error.revert => Ok(TransactionSimulateResponse {
+        Err(error) => Ok(TransactionSimulateResponse {
             block_number,
             block_hash,
             from: request.from,
@@ -75,7 +75,6 @@ pub async fn simulate(
             revert_data: error.data,
             error: Some(error.message),
         }),
-        Err(error) => Err(rpc_failure(error)),
     }
 }
 
@@ -106,7 +105,6 @@ struct Rpc {
 struct RpcFailure {
     message: String,
     data: Option<String>,
-    revert: bool,
 }
 
 impl Rpc {
@@ -134,7 +132,6 @@ impl Rpc {
             .map_err(|error| RpcFailure {
                 message: format!("local RPC request failed: {error}"),
                 data: None,
-                revert: false,
             })?;
         if !response.status().is_success() {
             let status = response.status();
@@ -142,13 +139,11 @@ impl Rpc {
             return Err(RpcFailure {
                 message: format!("local RPC returned HTTP {status}: {body}"),
                 data: None,
-                revert: false,
             });
         }
         let value: Value = response.json().await.map_err(|error| RpcFailure {
             message: format!("local RPC returned invalid JSON: {error}"),
             data: None,
-            revert: false,
         })?;
         if let Some(error) = value.get("error") {
             let message = error
@@ -156,18 +151,14 @@ impl Rpc {
                 .and_then(Value::as_str)
                 .unwrap_or("JSON-RPC error")
                 .to_string();
-            let revert = error.get("code").and_then(Value::as_i64) == Some(3)
-                || message.to_ascii_lowercase().contains("revert");
             return Err(RpcFailure {
                 message,
                 data: error_data(error),
-                revert,
             });
         }
         value.get("result").cloned().ok_or_else(|| RpcFailure {
             message: "JSON-RPC response has no result".to_string(),
             data: None,
-            revert: false,
         })
     }
 

@@ -62,7 +62,7 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 | `WALLETCONNECT_PROJECT_ID` | 空 | `wallet.connect` 的 WalletConnect Cloud project ID；缺失时返回明确错误 |
 | `WALLETCONNECT_RELAY_URL` | `wss://relay.walletconnect.com` | 可替换的 WalletConnect relay endpoint |
 | `FLUXION_AGENT_ID_API_URL` | `https://agentid.prd.space.id` | `wallet.agent-id` 的 SPACE ID API |
-| `FLUXION_BSC_RPC_URL` | `https://bsc-dataseed.bnbchain.org` | Agent ID 校验/回退使用的 BSC RPC |
+| `FLUXION_BSC_RPC_URL` | `https://bsc-dataseed.bnbchain.org` | Agent ID 校验和 BSC wallet.send 使用的 BSC RPC |
 | `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
 CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回

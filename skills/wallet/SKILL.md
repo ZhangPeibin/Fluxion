@@ -202,12 +202,14 @@ Send ETH or an ERC20 transfer through the connected WalletConnect session.
 ```
 
 - Pass `to`, `token`, and `amount`.
-- `token` may be `ETH`, a built-in symbol, or an ERC20 address.
+- Use `ETH` on Ethereum and `BNB` on BSC.
+- `token` may also be a built-in symbol or token address.
+- BSC built-ins: `WBNB`, `USDT`, `USDC`, `CAKE`.
 - `from` is optional and must match the session account.
 - Always simulate first. A revert returns `SIMULATION_FAILED`; no phone prompt.
 - The user confirms the transfer on their phone. Rejection returns `USER_REJECTED`.
 - On timeout, do not retry blindly; tell the user to check the wallet and transaction history.
-- Only ETH/ERC20 transfer is supported. No arbitrary calldata, approve, NFT, or swap execution.
+- Only native/ERC20/BEP-20 transfers are supported. No arbitrary calldata, approve, NFT, or swap execution.
 
 ## `wallet_connect`
 
@@ -222,6 +224,7 @@ OKX, or another WalletConnect wallet.
 ```
 
 - Requires `WALLETCONNECT_PROJECT_ID` in the environment that starts `fluxion mcp`.
+- Pass `chain: "ethereum"` (default) or `chain: "bsc"`.
 - Returns `status: "pending"`, `uri`, `qr_ascii`, and `expires_at` immediately.
 - The first text content block of the MCP result contains the 53-column fenced QR. Reproduce that
   block verbatim in your own reply **before** calling `wallet_status`. Do not summarize it.
@@ -271,7 +274,7 @@ fluxion wallet collectibles 0xowner --collections 0xcollection --json
 fluxion wallet agent-id alice.ai --json
 fluxion wallet sign --message "hello" --json
 fluxion wallet send --to 0x... --token ETH --amount 0.01 --json
-fluxion wallet connect
+fluxion wallet connect --chain bsc
 fluxion wallet status
 fluxion wallet disconnect
 ```
@@ -321,7 +324,7 @@ Allowances:
 - No USD valuation.
 - `wallet.agent-id` resolves BSC identities only; it does not log in to Binance Agentic Wallet.
 - `wallet.sign` signs messages and EIP-712 typed data only; no transaction signing or execution.
-- `wallet.send` sends ETH/ERC20 transfers only; no arbitrary contract calls, approvals, NFT
-  transfers, or swap execution.
+- `wallet.send` sends native/ERC20/BEP-20 transfers only; no arbitrary contract calls, approvals,
+  NFT transfers, or swap execution.
 - Read-only account data: no private keys.
 - Re-check the pinned block, balances and allowances before building a transaction.
