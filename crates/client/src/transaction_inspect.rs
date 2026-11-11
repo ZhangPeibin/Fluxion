@@ -3255,6 +3255,71 @@ mod tests {
         assert_eq!(response.coverage.policy, "not_configured");
     }
 
+    #[test]
+    fn fixture_corpus_matches_expected_findings() {
+        use std::collections::BTreeSet;
+
+        let cases: Vec<Value> = serde_json::from_str(include_str!(
+            "../tests/fixtures/transaction_inspect/cases.json"
+        ))
+        .unwrap();
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let data = case["data"].as_str().unwrap();
+            let decoded = decode_intent(data).unwrap_or_else(|error| {
+                panic!("{name}: decode failed: {error:?}");
+            });
+            assert_eq!(
+                decoded.decode_coverage,
+                case["expected_decode"].as_str().unwrap(),
+                "{name}: decode coverage"
+            );
+            assert_eq!(
+                decoded.intent.signature.as_deref(),
+                case["expected_signature"].as_str(),
+                "{name}: signature"
+            );
+
+            let request = InspectRequest {
+                chain: Chain::Bsc,
+                from: Some(
+                    "0x0000000000000000000000000000000000000001"
+                        .parse()
+                        .unwrap(),
+                ),
+                to: case["to"].as_str().unwrap().parse().unwrap(),
+                data: data.to_string(),
+                value: U256::ZERO,
+                block: None,
+            };
+            let target = TransactionInspectTarget {
+                address: request.to,
+                kind: "contract".to_string(),
+                verified: None,
+                proxy: None,
+                implementation: None,
+            };
+            let mut findings = detect_approvals(&decoded.intent);
+            findings.extend(detect_nested_approvals(&decoded.intent));
+            findings.extend(detect_signature(&decoded.intent));
+            findings.extend(detect_contract(&decoded.intent, &target, &request));
+            findings.extend(detect_address(&decoded.intent, &request));
+            findings.extend(detect_swap(&decoded.intent, &request));
+
+            let actual = findings
+                .iter()
+                .map(|finding| finding.id.as_str())
+                .collect::<BTreeSet<_>>();
+            let expected = case["expected_findings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_str().unwrap())
+                .collect::<BTreeSet<_>>();
+            assert_eq!(actual, expected, "{name}: findings");
+        }
+    }
+
     #[tokio::test]
     async fn malformed_arguments_are_partial() {
         let base = base_url().await;

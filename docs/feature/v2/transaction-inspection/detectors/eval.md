@@ -25,6 +25,13 @@ Maintain fixtures with:
 
 Each fixture records chain, block, request, expected findings, and expected coverage.
 
+## Implemented Fixture Harness
+
+- Corpus: `crates/client/tests/fixtures/transaction_inspect/cases.json`
+- Harness: `fixture_corpus_matches_expected_findings` in `crates/client/src/transaction_inspect.rs`
+- Cases cover native/transfer/approve/operator/permit/zero/burn/multicall/swap/unknown selector.
+- The harness is offline and checks decode coverage, signature and expected rule IDs.
+
 ## Metrics
 
 - false negatives per rule;
