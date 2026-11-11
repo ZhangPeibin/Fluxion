@@ -208,6 +208,30 @@ impl Rpc {
             })
     }
 
+    pub(crate) async fn simulate_v1(&self, tx: Value, tag: &str) -> Result<Value, CapabilityError> {
+        let payload = json!({
+            "blockStateCalls": [{"calls": [tx]}]
+        });
+        let result = self
+            .call("eth_simulateV1", json!([payload, tag]))
+            .await
+            .map_err(rpc_failure)?;
+        let blocks = result.as_array().ok_or_else(|| {
+            CapabilityError::new(
+                crate::capability::CapabilityErrorCode::RpcError,
+                "eth_simulateV1 returned a non-array result",
+                true,
+            )
+        })?;
+        blocks.first().cloned().ok_or_else(|| {
+            CapabilityError::new(
+                crate::capability::CapabilityErrorCode::RpcError,
+                "eth_simulateV1 returned no block result",
+                true,
+            )
+        })
+    }
+
     pub(crate) async fn block(
         &self,
         requested: Option<u64>,
