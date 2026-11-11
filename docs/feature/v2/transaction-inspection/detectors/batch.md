@@ -8,6 +8,14 @@ Prevent hidden actions inside multicall, Safe batches and aggregator wrappers fr
 
 `inspect.decode`, `inspect.effects`.
 
+## Implemented Slice
+
+- `multicall(bytes[])` is ABI-decoded into `call[i]` arguments.
+- Each nested call is decoded and nested approvals are re-checked.
+- Malformed offsets/lengths or partial nested decoding reduce `coverage.decode` to `partial`.
+- `call[i]` values are capped by the total calldata size; external assembly wrappers and Safe
+  batches remain unsupported.
+
 ## Rules
 
 - `BATCH-001`: multicall payload -> decode every nested call.

@@ -10,6 +10,7 @@ fluxion transaction inspect --to 0x... --data 0x... --chain ethereum --json
 
 - Default chain is BSC; use `--chain ethereum` for Ethereum.
 - Empty `data` is a native transfer.
+- `multicall(bytes[])` is expanded into `call[i]` arguments; nested approvals are checked.
 - Built-in selectors decode signature, name and static arguments.
 - Unknown selectors return `signature: null`, `name: null` and an unknown entry.
 - The block is pinned and returned as `block_number` / `block_hash`.
@@ -30,7 +31,8 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
   fees and full state changes are not included.
 - `findings`: rule-ID findings with evidence. Current checks include unlimited ERC20 approval
   (`AUTH-001`), NFT operator approval (`AUTH-004`), asset-flow findings (`FLOW-001`–`FLOW-006`),
-  and contract findings (`CONTRACT-001`, `CONTRACT-003`).
+  and contract findings (`CONTRACT-001`, `CONTRACT-003`). Nested approvals from decoded multicalls
+  carry a `nested_call` evidence field.
 - `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
 - `coverage`: decode, metadata, simulation and policy status. Contract metadata is `partial` until
   source verification is configured; simulation is `partial` because it is log-derived.

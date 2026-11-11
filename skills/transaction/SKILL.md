@@ -38,6 +38,8 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
   treat them as medium-confidence evidence, not proof.
 - Contract findings report unverified targets (`CONTRACT-001`) and EIP-1967 proxy targets
   (`CONTRACT-003`); a proxy upgrade call is high severity.
+- `multicall(bytes[])` is expanded into `call[i]` arguments, and nested approvals are checked with
+  `nested_call` evidence. Malformed nested calls reduce decode coverage to `partial`.
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 
