@@ -1,3 +1,40 @@
+# transaction.inspect
+
+Deterministic pre-sign inspection of unsigned calldata. It returns intent, target placeholder,
+effects, findings, coverage and explicit unknowns. It is advisory only and never claims safety.
+
+```bash
+fluxion transaction inspect --to 0x... --data 0x... --json
+fluxion transaction inspect --to 0x... --data 0x... --chain ethereum --json
+```
+
+- Default chain is BSC; use `--chain ethereum` for Ethereum.
+- Empty `data` is a native transfer.
+- Built-in selectors decode signature, name and static arguments.
+- Unknown selectors return `signature: null`, `name: null` and an unknown entry.
+- The block is pinned and returned as `block_number` / `block_hash`.
+- `risk` is `unknown` until metadata, simulation and policy are implemented.
+- The first slice does not simulate effects or inspect target metadata.
+
+## Output
+
+See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect.v1.json).
+
+- `intent`: selector, signature, name and decoded arguments.
+- `target`: address and a placeholder kind.
+- `effects`: empty until the effects detector lands.
+- `findings`: rule-ID findings with evidence.
+- `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
+- `coverage`: decode, metadata, simulation and policy status.
+- `unknowns`: what was not inspected and could change the conclusion.
+
+## Boundaries
+
+- Advisory only; no signing, approval or broadcast.
+- Unknown or unsupported calldata stays unknown.
+- A successful inspection is not an execution guarantee.
+- LLM explanation is not part of the deterministic risk decision.
+
 # transaction.simulate
 
 Local read-only EVM transaction simulation on BSC (default) or Ethereum.

@@ -9,6 +9,7 @@ pub mod mcp;
 pub mod routing;
 pub mod token;
 pub mod transaction;
+pub mod transaction_inspect;
 pub mod wallet;
 pub mod wallet_send;
 pub mod walletconnect;

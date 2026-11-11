@@ -3,7 +3,7 @@
 Fluxion 是一个面向 AI Agent 的 Web3 能力层。它把链上操作封装成稳定的 MCP 能力，目标是全链支持，
 而不是绑定某一个网络或协议。
 
-当前实现交付 12 个 capability：本地 wallet / simulate 默认 BSC，Ethereum 通过
+当前实现交付 13 个 capability：本地 wallet / transaction 默认 BSC，Ethereum 通过
 `--chain ethereum` 使用；`swap.quote` 仍是 Ethereum 主网报价。报价在远端不可变快照上计算；
 钱包读取、WalletConnect 会话和模拟在本地执行。完整的 capability 列表见 [能力](#能力)。
 
@@ -40,6 +40,7 @@ fluxion wallet balance 0x... --tokens ETH,USDC --chain ethereum
 fluxion wallet assets 0x...
 fluxion wallet collectibles 0x...
 fluxion wallet connect
+fluxion transaction inspect --to 0x... --data 0x...
 fluxion transaction simulate --to 0x... --data 0x...
 ```
 
@@ -102,6 +103,7 @@ fluxion mcp
 | `wallet.agent-id` | 解析 BSC 上的 `.ai` Agent ID |
 | `wallet.sign` | 通过 WalletConnect 签名消息或 EIP-712 |
 | `wallet.send` | 通过 WalletConnect 发送原生或 ERC20/BEP-20 转账 |
+| `transaction.inspect` | 签名前解码 calldata，返回意图、风险、覆盖范围与未知项 |
 | `transaction.simulate` | 固定区块模拟 calldata，返回结果和 gas |
 
 本地 wallet / simulate 默认 BSC，Ethereum 使用 `--chain ethereum`；`swap.quote` 仍是
@@ -116,14 +118,14 @@ EIP-712 typed data；`wallet.send` 只发送原生/ERC20/BEP-20 transfer，不�
 每个 capability 的执行位置固定，Agent 和用户都不选择 remote/local：
 
 - `swap.quote` 走 remote。请求只读一个已发布的不可变 snapshot，计算阶段不访问 RPC。
-- `wallet.*` 和 `transaction.simulate` 固定在 local；`wallet.agent-id` 额外使用 SPACE ID API
+- `wallet.*`、`transaction.inspect` 和 `transaction.simulate` 固定在 local；`wallet.agent-id` 额外使用 SPACE ID API
   并以 BSC 校验。读取和模拟固定在指定区块。
 - 响应使用稳定的 JSON schema 和错误码；金额、区块、来源和 coverage 都在结果里。
 
 ```text
 Agent ──MCP──▶ fluxion mcp ──▶ capability router
                                  ├── swap.quote ─────────▶ remote snapshot ──▶ Ethereum
-                                 ├── wallet.* / simulate ─▶ local runtime (RPC / WalletConnect)
+                                 ├── wallet.* / transaction.* ─▶ local runtime (RPC / WalletConnect)
                                  └── wallet.agent-id ────▶ SPACE ID API + BSC
 ```
 
@@ -171,7 +173,7 @@ Pre-1.0。本地 wallet / simulate 支持 BSC（默认）和 Ethereum；`swap.qu
 - 架构：[产品架构](docs/PRODUCT-ARCHITECTURE.md) · [引擎架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
 - 运维：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
 - 研究：[benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
-- 契约：[swap schema](schemas/swap_quote.v1.json) · [wallet schema](schemas/wallet_balances.v1.json) · [allowance schema](schemas/wallet_allowances.v1.json) · [collectibles schema](schemas/wallet_collectibles.v1.json) · [connect schema](schemas/wallet_connect.v1.json) · [status schema](schemas/wallet_status.v1.json) · [disconnect schema](schemas/wallet_disconnect.v1.json) · [agent-id schema](schemas/wallet_agent_id.v1.json) · [sign schema](schemas/wallet_sign.v1.json) · [send schema](schemas/wallet_send.v1.json) · [transaction schema](schemas/transaction_simulate.v1.json)
+- 契约：[swap schema](schemas/swap_quote.v1.json) · [wallet schema](schemas/wallet_balances.v1.json) · [allowance schema](schemas/wallet_allowances.v1.json) · [collectibles schema](schemas/wallet_collectibles.v1.json) · [connect schema](schemas/wallet_connect.v1.json) · [status schema](schemas/wallet_status.v1.json) · [disconnect schema](schemas/wallet_disconnect.v1.json) · [agent-id schema](schemas/wallet_agent_id.v1.json) · [sign schema](schemas/wallet_sign.v1.json) · [send schema](schemas/wallet_send.v1.json) · [inspect schema](schemas/transaction_inspect.v1.json) · [transaction schema](schemas/transaction_simulate.v1.json)
 - Skills：[swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md)
 
 ## 开发

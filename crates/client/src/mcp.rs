@@ -14,6 +14,7 @@ use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::QuoteRequest;
 use crate::token;
 use crate::transaction::{self, SimulateRequest};
+use crate::transaction_inspect::{self, InspectRequest};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest, WalletConfig,
 };
@@ -271,7 +272,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "transaction_simulate",
-                "description": "Simulate an Ethereum transaction with eth_call at one pinned block. Read-only: returns success/revert, return data and estimated gas; never signs or broadcasts.",
+                "description": "Simulate a BSC or Ethereum transaction with eth_call at one pinned block. Read-only: returns success/revert, return data and estimated gas; never signs or broadcasts.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -280,6 +281,23 @@ fn tools_list() -> Value {
                         "to": {"type": "string", "description": "Target contract or recipient"},
                         "data": {"type": "string", "description": "0x-prefixed calldata"},
                         "value": {"type": "string", "description": "Optional ETH value in human units", "default": "0"},
+                        "block": {"type": "integer", "minimum": 0},
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"}
+                    },
+                    "required": ["to", "data"]
+                }
+            },
+            {
+                "name": "transaction_inspect",
+                "description": "Inspect unsigned EVM calldata before signing. Decodes the intent, pins a block, and returns findings, coverage and explicit unknowns. Advisory only; never signs or broadcasts and never claims safety.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "chain": {"type": "string", "enum": ["bsc", "ethereum"], "default": "bsc"},
+                        "from": {"type": "string", "description": "Optional sender address"},
+                        "to": {"type": "string", "description": "Target contract or recipient"},
+                        "data": {"type": "string", "description": "0x-prefixed calldata; use 0x for a native transfer"},
+                        "value": {"type": "string", "description": "Optional native value in human units", "default": "0"},
                         "block": {"type": "integer", "minimum": 0},
                         "rpc_url": {"type": "string", "description": "Optional local RPC override"}
                     },
@@ -323,6 +341,7 @@ async fn call_tool(
         "wallet_agent_id" => wallet_agent_id_tool(&arguments).await,
         "wallet_disconnect" => wallet_disconnect_tool(wallet).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
+        "transaction_inspect" => transaction_inspect_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
         ))),
@@ -346,6 +365,7 @@ fn capability_for_tool(name: &str) -> &'static str {
         "wallet_agent_id" => "wallet.agent-id",
         "wallet_disconnect" => "wallet.disconnect",
         "transaction_simulate" => "transaction.simulate",
+        "transaction_inspect" => "transaction.inspect",
         _ => "unknown",
     }
 }
@@ -695,6 +715,41 @@ async fn transaction_simulate_tool(arguments: &Value) -> Result<Value, Capabilit
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+async fn transaction_inspect_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let to = string_arg(arguments, "to")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid --to address"))?;
+    let from = arguments
+        .get("from")
+        .and_then(Value::as_str)
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument("invalid --from address"))
+        })
+        .transpose()?;
+    let data = string_arg(arguments, "data")?;
+    let value = arguments
+        .get("value")
+        .and_then(Value::as_str)
+        .unwrap_or("0");
+    let value = token::parse_amount(value, 18)?;
+    let config = wallet_config(arguments);
+    let response = transaction_inspect::inspect(
+        &config,
+        InspectRequest {
+            chain: chain_arg(arguments)?,
+            from,
+            to,
+            data,
+            value,
+            block: optional_u64(arguments, "block")?,
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn quote_tool(
     arguments: &Value,
     backend: &Result<RuntimeClient, CapabilityError>,
@@ -842,7 +897,8 @@ mod tests {
                 "wallet_sign",
                 "wallet_agent_id",
                 "wallet_disconnect",
-                "transaction_simulate"
+                "transaction_simulate",
+                "transaction_inspect"
             ]
         );
     }

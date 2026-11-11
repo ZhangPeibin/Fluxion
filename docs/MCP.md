@@ -109,7 +109,7 @@ MCP documentation if a snippet is rejected.
 
 - `fluxion mcp` keeps the MCP process alive and reuses one remote client.
 - `swap.quote` uses the remote service; the remote server owns discovery and snapshot warmup.
-- Local wallet and simulation tools default to BSC; pass `chain: "ethereum"` for Ethereum.
+- Local wallet and transaction tools default to BSC; pass `chain: "ethereum"` for Ethereum.
 - `wallet_sign` uses the stored session and waits for explicit phone confirmation. A rejection
   returns `USER_REJECTED`; it does not retry automatically.
 - `wallet_connect` starts a background pairing task in the MCP process and returns a 53-column
@@ -154,6 +154,7 @@ Available tools depend on the installed capabilities:
 | `wallet.agent-id` | `wallet_agent_id` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.sign` | `wallet_sign` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `wallet.send` | `wallet_send` | [capabilities/wallet](capabilities/wallet/README.md) |
+| `transaction.inspect` | `transaction_inspect` | [capabilities/transaction](capabilities/transaction/README.md) |
 | `transaction.simulate` | `transaction_simulate` | [capabilities/transaction](capabilities/transaction/README.md) |
 
 ## Troubleshooting
