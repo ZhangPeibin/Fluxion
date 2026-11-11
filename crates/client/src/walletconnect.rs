@@ -246,9 +246,12 @@ impl Session {
 
     pub fn load_from(path: &PathBuf) -> Result<Option<Self>, CapabilityError> {
         match fs::read(path) {
-            Ok(bytes) => serde_json::from_slice(&bytes)
-                .map(Some)
-                .map_err(|error| internal(format!("invalid WalletConnect session: {error}"))),
+            Ok(bytes) => {
+                let mut session: Self = serde_json::from_slice(&bytes)
+                    .map_err(|error| internal(format!("invalid WalletConnect session: {error}")))?;
+                dedupe_accounts(&mut session.accounts);
+                Ok(Some(session))
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(internal(format!("cannot read {}: {error}", path.display()))),
         }
@@ -1218,6 +1221,16 @@ fn derive_session(
     Ok((hex(&topic), key))
 }
 
+fn dedupe_accounts(accounts: &mut Vec<Address>) {
+    let mut unique = Vec::with_capacity(accounts.len());
+    for account in accounts.drain(..) {
+        if !unique.contains(&account) {
+            unique.push(account);
+        }
+    }
+    *accounts = unique;
+}
+
 fn session_accounts(payload: &Value) -> Result<Vec<Address>, CapabilityError> {
     let accounts = payload
         .get("params")
@@ -1235,7 +1248,9 @@ fn session_accounts(payload: &Value) -> Result<Vec<Address>, CapabilityError> {
         let Some(address) = account.rsplit(':').next() else {
             continue;
         };
-        if let Ok(address) = address.parse::<Address>() {
+        if let Ok(address) = address.parse::<Address>()
+            && !parsed.contains(&address)
+        {
             parsed.push(address);
         }
     }
@@ -1480,6 +1495,7 @@ mod tests {
                 "namespaces": {
                     "eip155": {
                         "accounts": [
+                            "eip155:1:0x5ed10018795d667050e996833c60ff02b1388058",
                             "eip155:1:0x5ed10018795d667050e996833c60ff02b1388058"
                         ]
                     }
@@ -1487,6 +1503,7 @@ mod tests {
             }
         });
         let accounts = session_accounts(&payload).unwrap();
+        assert_eq!(accounts.len(), 1);
         assert_eq!(
             accounts[0],
             "0x5ED10018795d667050e996833C60fF02b1388058"
