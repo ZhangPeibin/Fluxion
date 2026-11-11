@@ -8,6 +8,14 @@ Surface target-code risks that calldata alone cannot prove safe.
 
 `inspect.metadata`.
 
+## Implemented Slice
+
+- `CONTRACT-001` only when a verification provider explicitly reports `verified: false`; missing
+  verification stays `null` and is not a finding.
+- `CONTRACT-003` on EIP-1967 proxy targets: low by default, high for `upgradeTo`.
+
+New-contract age, delegatecall and implementation-change checks remain pending.
+
 ## Rules
 
 - `CONTRACT-001`: target is unverified -> medium, or high when calldata includes approval/value.
