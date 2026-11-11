@@ -142,6 +142,7 @@ pub async fn inspect(
     warnings.extend(metadata.warnings);
     warnings.extend(simulation.warnings);
     let mut findings = detect_approvals(&decoded.intent);
+    findings.extend(detect_nested_approvals(&decoded.intent));
     findings.extend(detect_contract(&decoded.intent, &metadata.target, &request));
     findings.extend(detect_asset_flow(
         &decoded.intent,
@@ -1083,14 +1084,7 @@ fn decode_intent(data: &str) -> Result<DecodedIntent, CapabilityError> {
             &TRANSFER_OWNERSHIP[..],
         ),
         "0x3659cfe6" => ("upgradeTo(address)", "upgradeTo", &UPGRADE_TO[..]),
-        "0xac9650d8" => {
-            return Ok(dynamic_intent(
-                &selector,
-                "multicall(bytes[])",
-                "multicall",
-                "multicall arguments are not decoded in this slice",
-            ));
-        }
+        "0xac9650d8" => return Ok(decode_multicall(&selector, payload)),
         _ => {
             return Ok(DecodedIntent {
                 intent: TransactionInspectIntent {
@@ -1134,6 +1128,154 @@ fn decode_intent(data: &str) -> Result<DecodedIntent, CapabilityError> {
             warnings: vec![error],
         }),
     }
+}
+
+fn decode_multicall(selector: &str, payload: &[u8]) -> DecodedIntent {
+    let signature = "multicall(bytes[])";
+    let name = "multicall";
+    let Some(array_offset) = payload.get(..32).and_then(word_to_usize) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "multicall array offset is missing".to_string(),
+        );
+    };
+    let Some(array_start) = array_offset.checked_add(0) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "multicall array offset overflow".to_string(),
+        );
+    };
+    let Some(length_word) = payload.get(array_start..array_start.saturating_add(32)) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "multicall array length is missing".to_string(),
+        );
+    };
+    let Some(count) = word_to_usize(length_word) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "multicall array length is invalid".to_string(),
+        );
+    };
+    if count > 256 {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "multicall has too many nested calls".to_string(),
+        );
+    }
+
+    let mut args = Vec::with_capacity(count);
+    let mut warnings = Vec::new();
+    let mut unknowns = Vec::new();
+    for index in 0..count {
+        let offset_pos = match array_start
+            .checked_add(32)
+            .and_then(|value| value.checked_add(index * 32))
+        {
+            Some(value) => value,
+            None => {
+                unknowns.push("multicall element offset overflow".to_string());
+                break;
+            }
+        };
+        let Some(offset) = payload
+            .get(offset_pos..offset_pos + 32)
+            .and_then(word_to_usize)
+        else {
+            unknowns.push(format!("multicall element {index} offset is invalid"));
+            continue;
+        };
+        let Some(element_start) = array_start.checked_add(offset) else {
+            unknowns.push(format!("multicall element {index} offset overflow"));
+            continue;
+        };
+        let Some(length) = payload
+            .get(element_start..element_start.saturating_add(32))
+            .and_then(word_to_usize)
+        else {
+            unknowns.push(format!("multicall element {index} length is invalid"));
+            continue;
+        };
+        let Some(data_start) = element_start.checked_add(32) else {
+            unknowns.push(format!("multicall element {index} data offset overflow"));
+            continue;
+        };
+        let Some(data_end) = data_start.checked_add(length) else {
+            unknowns.push(format!("multicall element {index} data length overflow"));
+            continue;
+        };
+        let Some(data) = payload.get(data_start..data_end) else {
+            unknowns.push(format!("multicall element {index} exceeds calldata"));
+            continue;
+        };
+        let call = format!("0x{}", data_encoding::HEXLOWER.encode(data));
+        let nested = match decode_intent(&call) {
+            Ok(decoded) => decoded,
+            Err(error) => {
+                unknowns.push(format!(
+                    "multicall element {index} is invalid: {}",
+                    error.message
+                ));
+                continue;
+            }
+        };
+        if nested.decode_coverage != "complete" {
+            warnings.push(format!(
+                "multicall element {index} has partial decode coverage"
+            ));
+        }
+        args.push(TransactionInspectArg {
+            name: format!("call[{index}]"),
+            kind: "bytes".to_string(),
+            value: call,
+        });
+    }
+
+    DecodedIntent {
+        intent: TransactionInspectIntent {
+            selector: selector.to_string(),
+            signature: Some(signature.to_string()),
+            name: Some(name.to_string()),
+            args,
+        },
+        decode_coverage: if unknowns.is_empty() && warnings.is_empty() {
+            "complete"
+        } else {
+            "partial"
+        },
+        unknowns,
+        warnings,
+    }
+}
+
+fn detect_nested_approvals(intent: &TransactionInspectIntent) -> Vec<TransactionInspectFinding> {
+    let mut findings = Vec::new();
+    for arg in &intent.args {
+        if !arg.name.starts_with("call[") || arg.kind != "bytes" {
+            continue;
+        }
+        let Ok(nested) = decode_intent(&arg.value) else {
+            continue;
+        };
+        let mut nested_findings = detect_approvals(&nested.intent);
+        for finding in &mut nested_findings {
+            finding
+                .evidence
+                .insert("nested_call".to_string(), arg.name.clone());
+        }
+        findings.extend(nested_findings);
+    }
+    findings
 }
 
 fn decode_with_dynamic_bytes(
@@ -1289,22 +1431,6 @@ fn word_to_usize(word: &[u8]) -> Option<usize> {
         return None;
     }
     usize::try_from(U256::from_be_slice(word)).ok()
-}
-
-fn dynamic_intent(selector: &str, signature: &str, name: &str, warning: &str) -> DecodedIntent {
-    DecodedIntent {
-        intent: TransactionInspectIntent {
-            selector: selector.to_string(),
-            signature: Some(signature.to_string()),
-            name: Some(name.to_string()),
-            args: Vec::new(),
-        },
-        decode_coverage: "partial",
-        unknowns: vec![format!(
-            "arguments for selector {selector} were not decoded"
-        )],
-        warnings: vec![warning.to_string()],
-    }
 }
 
 fn decode_args(payload: &[u8], specs: &[ArgSpec]) -> Result<Vec<TransactionInspectArg>, String> {
@@ -2017,6 +2143,96 @@ mod tests {
                 .iter()
                 .any(|finding| finding.id == "CONTRACT-003" && finding.severity == "low")
         );
+    }
+
+    fn multicall_data(calls: &[&str]) -> String {
+        let calls = calls
+            .iter()
+            .map(|call| hex_to_bytes(call).unwrap())
+            .collect::<Vec<_>>();
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&[0u8; 31]);
+        payload.push(32);
+        payload.extend_from_slice(&[0u8; 31]);
+        payload.push(calls.len() as u8);
+
+        let header_size = 32 + calls.len() * 32;
+        let mut offset = header_size;
+        for call in &calls {
+            let mut offset_word = [0u8; 32];
+            offset_word[30] = (offset >> 8) as u8;
+            offset_word[31] = offset as u8;
+            payload.extend_from_slice(&offset_word);
+            offset += 32 + call.len().div_ceil(32) * 32;
+        }
+        for call in &calls {
+            payload.extend_from_slice(&[0u8; 31]);
+            payload.push(call.len() as u8);
+            payload.extend_from_slice(call);
+            let padding = call.len().div_ceil(32) * 32 - call.len();
+            payload.extend(std::iter::repeat_n(0u8, padding));
+        }
+        let mut data = vec![0xac, 0x96, 0x50, 0xd8];
+        data.extend_from_slice(&payload);
+        format!("0x{}", data_encoding::HEXLOWER.encode(&data))
+    }
+
+    #[test]
+    fn decodes_multicall_and_nested_approval() {
+        let approve = format!(
+            "0x095ea7b3{}{:064x}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            U256::MAX
+        );
+        let data = multicall_data(&[approve.as_str()]);
+        let decoded = decode_intent(&data).unwrap();
+        assert_eq!(decoded.decode_coverage, "complete");
+        assert_eq!(
+            decoded.intent.signature.as_deref(),
+            Some("multicall(bytes[])")
+        );
+        assert_eq!(decoded.intent.args.len(), 1);
+        let nested = decode_intent(&decoded.intent.args[0].value).unwrap();
+        assert_eq!(
+            nested.intent.signature.as_deref(),
+            Some("approve(address,uint256)")
+        );
+    }
+
+    #[tokio::test]
+    async fn nested_approval_produces_auth_finding() {
+        let base = base_url().await;
+        let approve = format!(
+            "0x095ea7b3{}{:064x}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            U256::MAX
+        );
+        let data = multicall_data(&[approve.as_str()]);
+        let response = inspect(&config(&base), request(&data)).await.unwrap();
+        assert_eq!(response.risk, "high");
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "AUTH-001")
+        );
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.evidence.contains_key("nested_call"))
+        );
+    }
+
+    #[test]
+    fn malformed_multicall_offset_is_partial() {
+        let data = "0xac9650d8".to_string()
+            + &format!("{:064x}", 32)
+            + &format!("{:064x}", 1)
+            + &format!("{:064x}", 4096);
+        let decoded = decode_intent(&data).unwrap();
+        assert_eq!(decoded.decode_coverage, "partial");
+        assert!(!decoded.unknowns.is_empty());
     }
 
     #[tokio::test]
