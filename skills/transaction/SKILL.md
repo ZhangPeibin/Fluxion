@@ -44,6 +44,8 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
   (`ADDR-005`, low). Allowlist/session checks wait for policy/session context.
 - Known Uniswap/Pancake V2 swap selectors decode path, minOut, recipient and deadline. Current
   findings: zero minOut (`SWAP-001`), recipient mismatch (`SWAP-004`), unknown router (`SWAP-007`).
+- EIP-2612 `permit` calldata: unlimited value (`SIG-003`) and zero deadline (`SIG-002`). Typed-data,
+  Permit2, 7702 and 4337 authorization inspection is tracked separately in #97.
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 
