@@ -144,6 +144,7 @@ pub async fn inspect(
     let mut findings = detect_approvals(&decoded.intent);
     findings.extend(detect_nested_approvals(&decoded.intent));
     findings.extend(detect_contract(&decoded.intent, &metadata.target, &request));
+    findings.extend(detect_address(&decoded.intent, &request));
     findings.extend(detect_asset_flow(
         &decoded.intent,
         &request,
@@ -190,6 +191,87 @@ pub async fn inspect(
         sources,
         warnings,
     })
+}
+
+fn detect_address(
+    intent: &TransactionInspectIntent,
+    request: &InspectRequest,
+) -> Vec<TransactionInspectFinding> {
+    let mut findings = Vec::new();
+    check_address(&mut findings, request.to, "target");
+    if let Some(from) = request.from
+        && from == request.to
+    {
+        findings.push(address_finding(
+            "ADDR-005",
+            "low",
+            "Transaction target is the sender",
+            "The target address is the same as the sender.",
+            "target",
+            request.to,
+        ));
+    }
+    for arg in &intent.args {
+        if arg.name != "to" {
+            continue;
+        }
+        let Some(recipient) = parse_address(&arg.value) else {
+            continue;
+        };
+        if recipient != request.to {
+            check_address(&mut findings, recipient, "recipient");
+        }
+    }
+    findings
+}
+
+fn check_address(findings: &mut Vec<TransactionInspectFinding>, address: Address, role: &str) {
+    if address == Address::ZERO {
+        findings.push(address_finding(
+            "ADDR-001",
+            "high",
+            "Zero address recipient",
+            "The transaction targets or pays the zero address, which cannot recover assets.",
+            role,
+            address,
+        ));
+    }
+    if let Some(burn) = parse_address("0x000000000000000000000000000000000000dEaD")
+        && address == burn
+    {
+        findings.push(address_finding(
+            "ADDR-002",
+            "high",
+            "Burn address recipient",
+            "The transaction targets or pays a known burn address.",
+            role,
+            address,
+        ));
+    }
+}
+
+fn address_finding(
+    id: &str,
+    severity: &str,
+    title: &str,
+    description: &str,
+    role: &str,
+    address: Address,
+) -> TransactionInspectFinding {
+    let mut evidence = BTreeMap::new();
+    evidence.insert("role".to_string(), role.to_string());
+    evidence.insert("address".to_string(), address.to_string());
+    evidence.insert("source".to_string(), "calldata".to_string());
+    TransactionInspectFinding {
+        id: id.to_string(),
+        category: "address".to_string(),
+        severity: severity.to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        evidence,
+        confidence: "high".to_string(),
+        deterministic: true,
+    }
 }
 
 fn detect_contract(
@@ -2233,6 +2315,36 @@ mod tests {
         let decoded = decode_intent(&data).unwrap();
         assert_eq!(decoded.decode_coverage, "partial");
         assert!(!decoded.unknowns.is_empty());
+    }
+
+    #[test]
+    fn flags_zero_target() {
+        let intent = decode_intent("0x").unwrap().intent;
+        let mut request = flow_request();
+        request.to = Address::ZERO;
+        let findings = detect_address(&intent, &request);
+        assert!(findings.iter().any(|finding| finding.id == "ADDR-001"));
+    }
+
+    #[test]
+    fn flags_burn_recipient() {
+        let intent = transfer_intent("0x000000000000000000000000000000000000dEaD", 1);
+        let request = flow_request();
+        let findings = detect_address(&intent, &request);
+        assert!(findings.iter().any(|finding| finding.id == "ADDR-002"));
+    }
+
+    #[test]
+    fn flags_self_target_as_low() {
+        let intent = decode_intent("0x").unwrap().intent;
+        let mut request = flow_request();
+        request.to = request.from.unwrap();
+        let findings = detect_address(&intent, &request);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.id == "ADDR-005" && finding.severity == "low")
+        );
     }
 
     #[tokio::test]
