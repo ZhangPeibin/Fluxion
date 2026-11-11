@@ -29,6 +29,8 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
 - Returns `intent`, `target`, `effects`, `findings`, `risk`, `coverage` and `unknowns`.
 - `target.kind` is `eoa`, `contract` or `unknown`; EIP-1967 proxies report `proxy` and
   `implementation`. `verified: null` means source verification was not checked.
+- `effects` are derived from `eth_simulateV1` logs (native value plus token/NFT/approval events);
+  they are partial and can be forged by contracts, so cross-check before trusting them.
 - Unknown selectors stay unknown; never reinterpret them as safe.
 - `risk` is `unknown` until the relevant detectors are implemented; never treat it as approval.
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.

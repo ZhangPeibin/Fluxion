@@ -15,8 +15,9 @@ fluxion transaction inspect --to 0x... --data 0x... --chain ethereum --json
 - The block is pinned and returned as `block_number` / `block_hash`.
 - `target` distinguishes EOA/contract and detects the EIP-1967 implementation slot.
 - Source verification is `null` unless a verification provider is configured.
-- `risk` is `unknown` until simulation, policy and detectors are implemented.
-- The current slice does not simulate effects.
+- Effects come from `eth_simulateV1` logs when the RPC supports it. They are `partial`, not a full
+  state diff, and arbitrary contracts can forge logs.
+- `risk` is `unknown` until policy and detectors are implemented.
 
 ## Output
 
@@ -25,11 +26,12 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
 - `intent`: selector, signature, name and decoded arguments.
 - `target`: address, `kind`, `verified`, `proxy`, `implementation`. `verified: null` means not
   checked, not safe.
-- `effects`: empty until the effects detector lands.
+- `effects`: native value plus token/NFT/approval effects derived from simulated logs. Native gas
+  fees and full state changes are not included.
 - `findings`: rule-ID findings with evidence.
 - `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
 - `coverage`: decode, metadata, simulation and policy status. Contract metadata is `partial` until
-  source verification is configured.
+  source verification is configured; simulation is `partial` because it is log-derived.
 - `unknowns`: what was not inspected and could change the conclusion.
 
 ## Boundaries

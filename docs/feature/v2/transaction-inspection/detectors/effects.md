@@ -8,14 +8,20 @@ Produce observable native, token, NFT and allowance deltas for the inspected tra
 
 `inspect.core`, `inspect.decode`.
 
-## Preferred Backend
+## Implemented Backend
 
-1. RPC simulation with state diff and logs (`eth_simulateV1`, `debug_traceCall`, or equivalent).
-2. `eth_call` success/revert with reduced coverage.
-3. No simulation: `coverage.simulation = unavailable`.
+BSC public RPC supports `eth_simulateV1`. The current implementation uses its `calls[].logs` to
+derive token/NFT/approval effects and adds native value movement from the transaction itself.
 
-The backend name must appear in `sources`. Public BSC/Ethereum RPC support must be measured before
-depending on a trace API.
+This is **not** a full state diff. `debug_traceCall` is not available on the tested BSC public RPC.
+Effects are marked `partial`, and every report warns that logs can be forged by arbitrary contracts.
+A future trace/state-diff adapter can upgrade coverage without changing the response shape.
+
+Fallback order:
+
+1. `eth_simulateV1` logs and call status.
+2. No simulation: `coverage.simulation = unavailable` with an explicit unknown.
+3. Future trace/state-diff provider when configured.
 
 ## Output
 
@@ -31,10 +37,11 @@ depending on a trace API.
 ## Rules
 
 - `EFFECT-001`: pre/post balance reads must use the same pinned block.
-- `EFFECT-002`: no trace backend -> simulation unknown, never an empty “no effects” claim.
+- `EFFECT-002`: no simulation backend -> simulation unknown, never an empty “no effects” claim.
 - `EFFECT-003`: `eth_call` success alone is not evidence of asset effects.
 - `EFFECT-004`: unknown token decimals must be exposed, not guessed.
 - `EFFECT-005`: fee-on-transfer or rebasing differences must preserve the raw delta.
+- `EFFECT-006`: log-derived effects must be labeled log-derived, never a full state diff.
 
 ## Failure and Unknown Behaviour
 

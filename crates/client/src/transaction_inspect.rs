@@ -4,6 +4,7 @@
 //! claim safety: metadata, simulation and policy are reported as not run.
 
 use alloy_primitives::{Address, B256, U256};
+use serde_json::{Value, json};
 
 use crate::capability::{Amount, CapabilityError};
 use crate::chain::Chain;
@@ -11,9 +12,10 @@ use crate::transaction::{Rpc, normalize_data};
 use crate::wallet::WalletConfig;
 
 pub use fluxion_protocol::transaction::{
-    TransactionInspectArg, TransactionInspectCoverage, TransactionInspectEffects,
-    TransactionInspectIntent, TransactionInspectResponse, TransactionInspectSource,
-    TransactionInspectTarget,
+    TransactionInspectApprovalEffect, TransactionInspectArg, TransactionInspectCoverage,
+    TransactionInspectEffects, TransactionInspectIntent, TransactionInspectNativeEffect,
+    TransactionInspectNftEffect, TransactionInspectResponse, TransactionInspectSource,
+    TransactionInspectTarget, TransactionInspectTokenEffect,
 };
 
 #[derive(Debug, Clone)]
@@ -129,12 +131,29 @@ pub async fn inspect(
     let (block_number, block_hash, tag) = rpc.block(request.block).await?;
     let decoded = decode_intent(&data)?;
     let metadata = inspect_target(&rpc, request.to, &tag).await?;
+    let simulation = inspect_effects(&rpc, &request, &data, &tag).await;
     let mut unknowns = decoded.unknowns;
     unknowns.extend(metadata.unknowns);
-    unknowns.push("asset effects were not simulated".to_string());
+    unknowns.extend(simulation.unknowns);
     unknowns.push("no policy was configured".to_string());
     let mut warnings = decoded.warnings;
     warnings.extend(metadata.warnings);
+    warnings.extend(simulation.warnings);
+    let mut sources = vec![
+        TransactionInspectSource {
+            name: "calldata-decoder".to_string(),
+            scope: "intent".to_string(),
+        },
+        TransactionInspectSource {
+            name: format!("{}-rpc", request.chain.as_str()),
+            scope: "block-pinning".to_string(),
+        },
+        TransactionInspectSource {
+            name: format!("{}-rpc", request.chain.as_str()),
+            scope: "target-metadata".to_string(),
+        },
+    ];
+    sources.extend(simulation.sources);
 
     Ok(TransactionInspectResponse {
         chain: request.chain.as_str().to_string(),
@@ -146,32 +165,280 @@ pub async fn inspect(
         value: Amount::from_raw(request.value, 18),
         intent: decoded.intent,
         target: metadata.target,
-        effects: TransactionInspectEffects::default(),
+        effects: simulation.effects,
         findings: Vec::new(),
         risk: "unknown".to_string(),
         coverage: TransactionInspectCoverage {
             decode: decoded.decode_coverage.to_string(),
             metadata: metadata.coverage.to_string(),
-            simulation: "not_run".to_string(),
+            simulation: simulation.coverage.to_string(),
             policy: "not_configured".to_string(),
         },
         unknowns,
-        sources: vec![
-            TransactionInspectSource {
-                name: "calldata-decoder".to_string(),
-                scope: "intent".to_string(),
-            },
-            TransactionInspectSource {
-                name: format!("{}-rpc", request.chain.as_str()),
-                scope: "block-pinning".to_string(),
-            },
-            TransactionInspectSource {
-                name: format!("{}-rpc", request.chain.as_str()),
-                scope: "target-metadata".to_string(),
-            },
-        ],
+        sources,
         warnings,
     })
+}
+
+struct SimulationMetadata {
+    effects: TransactionInspectEffects,
+    coverage: &'static str,
+    sources: Vec<TransactionInspectSource>,
+    unknowns: Vec<String>,
+    warnings: Vec<String>,
+}
+
+async fn inspect_effects(
+    rpc: &Rpc,
+    request: &InspectRequest,
+    data: &str,
+    tag: &str,
+) -> SimulationMetadata {
+    let mut effects = TransactionInspectEffects::default();
+    let mut unknowns = Vec::new();
+    let mut warnings = Vec::new();
+    let mut sources = Vec::new();
+
+    if !request.value.is_zero() {
+        if let Some(from) = request.from {
+            effects.native.push(TransactionInspectNativeEffect {
+                account: from,
+                delta: format!("-{}", request.value),
+            });
+            effects.native.push(TransactionInspectNativeEffect {
+                account: request.to,
+                delta: request.value.to_string(),
+            });
+            sources.push(TransactionInspectSource {
+                name: "transaction-value".to_string(),
+                scope: "native-effects".to_string(),
+            });
+        } else {
+            unknowns.push(
+                "sender was not provided; native value effects were not attributed".to_string(),
+            );
+        }
+    }
+
+    let mut tx = json!({
+        "to": request.to,
+        "data": data,
+    });
+    if let Some(from) = request.from {
+        tx["from"] = json!(from);
+    } else {
+        warnings.push("sender was not provided; simulation may not reflect the signer".to_string());
+    }
+    if !request.value.is_zero() {
+        tx["value"] = json!(format!("0x{:x}", request.value));
+    }
+
+    let block = match rpc.simulate_v1(tx, tag).await {
+        Ok(block) => block,
+        Err(error) => {
+            unknowns.push(format!("asset effects unavailable: {}", error.message));
+            return SimulationMetadata {
+                effects,
+                coverage: "unavailable",
+                sources,
+                unknowns,
+                warnings,
+            };
+        }
+    };
+    sources.push(TransactionInspectSource {
+        name: "eth_simulateV1".to_string(),
+        scope: "simulated-logs".to_string(),
+    });
+
+    let Some(call) = block
+        .get("calls")
+        .and_then(Value::as_array)
+        .and_then(|calls| calls.first())
+    else {
+        unknowns.push("simulation returned no call result".to_string());
+        return SimulationMetadata {
+            effects,
+            coverage: "partial",
+            sources,
+            unknowns,
+            warnings,
+        };
+    };
+    if call.get("status").and_then(Value::as_str) != Some("0x1") {
+        let detail = call
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("simulation reverted");
+        unknowns.push(format!("transaction simulation failed: {detail}"));
+        return SimulationMetadata {
+            effects,
+            coverage: "partial",
+            sources,
+            unknowns,
+            warnings,
+        };
+    }
+
+    if let Some(logs) = call.get("logs").and_then(Value::as_array) {
+        for log in logs {
+            decode_log(log, &mut effects, &mut warnings);
+        }
+        if logs.is_empty() {
+            warnings
+                .push("simulation produced no logs; token effects may be incomplete".to_string());
+        }
+    } else {
+        unknowns.push("simulation returned no logs; token effects are unknown".to_string());
+    }
+    unknowns.push(
+        "effects are derived from simulated logs; gas fees and full state changes are not included"
+            .to_string(),
+    );
+    warnings.push(
+        "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+            .to_string(),
+    );
+
+    SimulationMetadata {
+        effects,
+        coverage: "partial",
+        sources,
+        unknowns,
+        warnings,
+    }
+}
+
+const TRANSFER_TOPIC: &str = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const APPROVAL_TOPIC: &str = "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925";
+
+fn decode_log(log: &Value, effects: &mut TransactionInspectEffects, warnings: &mut Vec<String>) {
+    let Some(token) = log
+        .get("address")
+        .and_then(Value::as_str)
+        .and_then(parse_address)
+    else {
+        warnings.push("simulation log has an invalid address".to_string());
+        return;
+    };
+    let Some(topics) = log.get("topics").and_then(Value::as_array) else {
+        warnings.push("simulation log has no topics".to_string());
+        return;
+    };
+    let Some(topic0) = topics.first().and_then(Value::as_str) else {
+        warnings.push("simulation log has no topic0".to_string());
+        return;
+    };
+    let data = log.get("data").and_then(Value::as_str).unwrap_or("0x");
+
+    match topic0 {
+        TRANSFER_TOPIC if topics.len() == 3 => {
+            let Some(from) = topics
+                .get(1)
+                .and_then(Value::as_str)
+                .and_then(parse_topic_address)
+            else {
+                warnings.push("ERC20 Transfer log has an invalid from address".to_string());
+                return;
+            };
+            let Some(to) = topics
+                .get(2)
+                .and_then(Value::as_str)
+                .and_then(parse_topic_address)
+            else {
+                warnings.push("ERC20 Transfer log has an invalid to address".to_string());
+                return;
+            };
+            let Some(raw) = parse_u256(data) else {
+                warnings.push("ERC20 Transfer log has invalid amount data".to_string());
+                return;
+            };
+            effects.tokens.push(TransactionInspectTokenEffect {
+                token,
+                account: from,
+                delta: format!("-{raw}"),
+            });
+            effects.tokens.push(TransactionInspectTokenEffect {
+                token,
+                account: to,
+                delta: raw.to_string(),
+            });
+        }
+        TRANSFER_TOPIC if topics.len() == 4 => {
+            let Some(from) = topics
+                .get(1)
+                .and_then(Value::as_str)
+                .and_then(parse_topic_address)
+            else {
+                warnings.push("ERC721 Transfer log has an invalid from address".to_string());
+                return;
+            };
+            let Some(to) = topics
+                .get(2)
+                .and_then(Value::as_str)
+                .and_then(parse_topic_address)
+            else {
+                warnings.push("ERC721 Transfer log has an invalid to address".to_string());
+                return;
+            };
+            let Some(token_id) = topics.get(3).and_then(Value::as_str).and_then(parse_u256) else {
+                warnings.push("ERC721 Transfer log has an invalid token id".to_string());
+                return;
+            };
+            effects.nfts.push(TransactionInspectNftEffect {
+                collection: token,
+                token_id: token_id.to_string(),
+                from,
+                to,
+            });
+        }
+        APPROVAL_TOPIC if topics.len() == 3 => {
+            let Some(owner) = topics
+                .get(1)
+                .and_then(Value::as_str)
+                .and_then(parse_topic_address)
+            else {
+                warnings.push("Approval log has an invalid owner address".to_string());
+                return;
+            };
+            let Some(spender) = topics
+                .get(2)
+                .and_then(Value::as_str)
+                .and_then(parse_topic_address)
+            else {
+                warnings.push("Approval log has an invalid spender address".to_string());
+                return;
+            };
+            let Some(after) = parse_u256(data) else {
+                warnings.push("Approval log has invalid amount data".to_string());
+                return;
+            };
+            effects.approvals.push(TransactionInspectApprovalEffect {
+                token,
+                owner,
+                spender,
+                before: None,
+                after: after.to_string(),
+            });
+        }
+        _ => {}
+    }
+}
+
+fn parse_topic_address(topic: &str) -> Option<Address> {
+    let bytes = hex_to_bytes(topic).ok()?;
+    (bytes.len() == 32).then(|| Address::from_slice(&bytes[12..]))
+}
+
+fn parse_address(value: &str) -> Option<Address> {
+    value.parse().ok()
+}
+
+fn parse_u256(value: &str) -> Option<U256> {
+    let hex = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))?;
+    U256::from_str_radix(hex, 16).ok()
 }
 
 struct TargetMetadata {
@@ -692,6 +959,9 @@ mod tests {
                 "number": "0x64",
                 "hash": "0x0000000000000000000000000000000000000000000000000000000000000064"
             }),
+            "eth_simulateV1" => {
+                json!([{"calls": [{"status": "0x1", "logs": [], "returnData": "0x"}]}])
+            }
             _ => json!("0x0"),
         };
         Json(json!({"jsonrpc": "2.0", "id": 1, "result": result}))
@@ -769,11 +1039,12 @@ mod tests {
         assert_eq!(response.coverage.decode, "complete");
         assert_eq!(response.block_number, 100);
         assert!(response.findings.is_empty());
+        assert_eq!(response.coverage.simulation, "partial");
         assert!(
             response
                 .unknowns
                 .iter()
-                .any(|item| item.contains("not simulated"))
+                .any(|item| item.contains("simulated logs"))
         );
     }
 
@@ -965,6 +1236,86 @@ mod tests {
                     .unwrap()
             )
         );
+    }
+
+    async fn effects_rpc(Json(body): Json<Value>) -> Json<Value> {
+        let result = match body["method"].as_str().unwrap_or_default() {
+            "eth_blockNumber" => json!("0x64"),
+            "eth_getBlockByNumber" => json!({
+                "number": "0x64",
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000064"
+            }),
+            "eth_getCode" => json!("0x6000"),
+            "eth_getStorageAt" => {
+                json!("0x0000000000000000000000000000000000000000000000000000000000000000")
+            }
+            "eth_simulateV1" => json!([{
+                "calls": [{
+                    "status": "0x1",
+                    "returnData": "0x",
+                    "logs": [
+                        {
+                            "address": "0x0000000000000000000000000000000000000010",
+                            "topics": [
+                                "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
+                                format!("0x{}", address_word("0x0000000000000000000000000000000000000001")),
+                                format!("0x{}", address_word("0x0000000000000000000000000000000000000002"))
+                            ],
+                            "data": format!("0x{}", uint_word(100))
+                        },
+                        {
+                            "address": "0x0000000000000000000000000000000000000020",
+                            "topics": [
+                                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                                format!("0x{}", address_word("0x0000000000000000000000000000000000000001")),
+                                format!("0x{}", address_word("0x0000000000000000000000000000000000000002"))
+                            ],
+                            "data": format!("0x{}", uint_word(5))
+                        }
+                    ]
+                }]
+            }]),
+            _ => json!("0x0"),
+        };
+        Json(json!({"jsonrpc": "2.0", "id": 1, "result": result}))
+    }
+
+    #[tokio::test]
+    async fn decodes_approval_and_transfer_logs_into_effects() {
+        let app = Router::new().route("/rpc", post(effects_rpc));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let base = format!("http://{address}");
+        let response = inspect(&config(&base), request("0x")).await.unwrap();
+        assert_eq!(response.coverage.simulation, "partial");
+        assert_eq!(response.effects.approvals.len(), 1);
+        assert_eq!(response.effects.approvals[0].after, "100");
+        assert_eq!(response.effects.tokens.len(), 2);
+        assert_eq!(response.effects.tokens[0].delta, "-5");
+        assert_eq!(response.effects.tokens[1].delta, "5");
+        assert!(
+            response
+                .warnings
+                .iter()
+                .any(|item| item.contains("cross-checked"))
+        );
+    }
+
+    #[tokio::test]
+    async fn native_value_is_reported_as_intended_effect() {
+        let base = base_url().await;
+        let mut request = request("0x");
+        request.from = Some(
+            "0x0000000000000000000000000000000000000001"
+                .parse()
+                .unwrap(),
+        );
+        request.value = U256::from(1_000_000_000_000_000_000u64);
+        let response = inspect(&config(&base), request).await.unwrap();
+        assert_eq!(response.effects.native.len(), 2);
+        assert_eq!(response.effects.native[0].delta, "-1000000000000000000");
+        assert_eq!(response.effects.native[1].delta, "1000000000000000000");
     }
 
     #[tokio::test]
