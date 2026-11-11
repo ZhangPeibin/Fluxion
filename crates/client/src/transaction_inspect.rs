@@ -3,6 +3,8 @@
 //! The first slice decodes calldata and pins a block. It deliberately does not
 //! claim safety: metadata, simulation and policy are reported as not run.
 
+use std::collections::BTreeMap;
+
 use alloy_primitives::{Address, B256, U256};
 use serde_json::{Value, json};
 
@@ -13,9 +15,9 @@ use crate::wallet::WalletConfig;
 
 pub use fluxion_protocol::transaction::{
     TransactionInspectApprovalEffect, TransactionInspectArg, TransactionInspectCoverage,
-    TransactionInspectEffects, TransactionInspectIntent, TransactionInspectNativeEffect,
-    TransactionInspectNftEffect, TransactionInspectResponse, TransactionInspectSource,
-    TransactionInspectTarget, TransactionInspectTokenEffect,
+    TransactionInspectEffects, TransactionInspectFinding, TransactionInspectIntent,
+    TransactionInspectNativeEffect, TransactionInspectNftEffect, TransactionInspectResponse,
+    TransactionInspectSource, TransactionInspectTarget, TransactionInspectTokenEffect,
 };
 
 #[derive(Debug, Clone)]
@@ -139,6 +141,8 @@ pub async fn inspect(
     let mut warnings = decoded.warnings;
     warnings.extend(metadata.warnings);
     warnings.extend(simulation.warnings);
+    let findings = detect_approvals(&decoded.intent);
+    let risk = aggregate_risk(&findings);
     let mut sources = vec![
         TransactionInspectSource {
             name: "calldata-decoder".to_string(),
@@ -166,8 +170,8 @@ pub async fn inspect(
         intent: decoded.intent,
         target: metadata.target,
         effects: simulation.effects,
-        findings: Vec::new(),
-        risk: "unknown".to_string(),
+        findings,
+        risk,
         coverage: TransactionInspectCoverage {
             decode: decoded.decode_coverage.to_string(),
             metadata: metadata.coverage.to_string(),
@@ -178,6 +182,102 @@ pub async fn inspect(
         sources,
         warnings,
     })
+}
+
+fn detect_approvals(intent: &TransactionInspectIntent) -> Vec<TransactionInspectFinding> {
+    let mut findings = Vec::new();
+    match intent.name.as_deref() {
+        Some("approve") | Some("increaseAllowance") => {
+            let spender = arg_value(intent, "spender");
+            let amount = arg_value(intent, "amount").or_else(|| arg_value(intent, "addedValue"));
+            let Some(spender) = spender else {
+                return findings;
+            };
+            let Some(amount) = amount else {
+                return findings;
+            };
+            if amount == U256::MAX.to_string() {
+                findings.push(approval_finding(
+                    "AUTH-001",
+                    "Unlimited token approval",
+                    "The transaction grants an unlimited token allowance.",
+                    spender,
+                    &amount,
+                    "calldata",
+                ));
+            }
+        }
+        Some("setApprovalForAll") => {
+            let Some(operator) = arg_value(intent, "operator") else {
+                return findings;
+            };
+            if arg_value(intent, "approved").as_deref() == Some("true") {
+                findings.push(approval_finding(
+                    "AUTH-004",
+                    "NFT operator approval",
+                    "The transaction grants an operator control over all NFTs in this collection.",
+                    operator,
+                    "all",
+                    "calldata",
+                ));
+            }
+        }
+        _ => {}
+    }
+    findings
+}
+
+fn approval_finding(
+    id: &str,
+    title: &str,
+    description: &str,
+    spender: String,
+    amount: &str,
+    source: &str,
+) -> TransactionInspectFinding {
+    let mut evidence = BTreeMap::new();
+    evidence.insert("spender".to_string(), spender);
+    evidence.insert("amount".to_string(), amount.to_string());
+    evidence.insert("source".to_string(), source.to_string());
+    TransactionInspectFinding {
+        id: id.to_string(),
+        category: "approval".to_string(),
+        severity: "high".to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        evidence,
+        confidence: "high".to_string(),
+        deterministic: true,
+    }
+}
+
+fn arg_value(intent: &TransactionInspectIntent, name: &str) -> Option<String> {
+    intent
+        .args
+        .iter()
+        .find(|arg| arg.name == name)
+        .map(|arg| arg.value.clone())
+}
+
+fn aggregate_risk(findings: &[TransactionInspectFinding]) -> String {
+    let mut level = 0;
+    for finding in findings {
+        level = level.max(match finding.severity.as_str() {
+            "critical" => 4,
+            "high" => 3,
+            "medium" => 2,
+            "low" => 1,
+            _ => 0,
+        });
+    }
+    match level {
+        4 => "critical",
+        3 => "high",
+        2 => "medium",
+        1 => "low",
+        _ => "unknown",
+    }
+    .to_string()
 }
 
 struct SimulationMetadata {
@@ -1316,6 +1416,66 @@ mod tests {
         assert_eq!(response.effects.native.len(), 2);
         assert_eq!(response.effects.native[0].delta, "-1000000000000000000");
         assert_eq!(response.effects.native[1].delta, "1000000000000000000");
+    }
+
+    #[tokio::test]
+    async fn flags_unlimited_erc20_approval() {
+        let base = base_url().await;
+        let data = format!(
+            "0x095ea7b3{}{:064x}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            U256::MAX
+        );
+        let response = inspect(&config(&base), request(&data)).await.unwrap();
+        assert_eq!(response.risk, "high");
+        assert_eq!(response.findings.len(), 1);
+        assert_eq!(response.findings[0].id, "AUTH-001");
+        assert_eq!(response.findings[0].severity, "high");
+        assert_eq!(
+            response.findings[0].evidence.get("spender").unwrap(),
+            "0x0000000000000000000000000000000000000002"
+        );
+    }
+
+    #[tokio::test]
+    async fn flags_increase_allowance_unlimited() {
+        let base = base_url().await;
+        let data = format!(
+            "0x39509351{}{:064x}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            U256::MAX
+        );
+        let response = inspect(&config(&base), request(&data)).await.unwrap();
+        assert_eq!(response.risk, "high");
+        assert_eq!(response.findings[0].id, "AUTH-001");
+    }
+
+    #[tokio::test]
+    async fn flags_nft_operator_approval() {
+        let base = base_url().await;
+        let data = format!(
+            "0xa22cb465{}{}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(1)
+        );
+        let response = inspect(&config(&base), request(&data)).await.unwrap();
+        assert_eq!(response.risk, "high");
+        assert_eq!(response.findings.len(), 1);
+        assert_eq!(response.findings[0].id, "AUTH-004");
+        assert_eq!(response.findings[0].evidence.get("amount").unwrap(), "all");
+    }
+
+    #[tokio::test]
+    async fn finite_approval_has_no_finding_yet() {
+        let base = base_url().await;
+        let data = format!(
+            "0x095ea7b3{}{}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(100)
+        );
+        let response = inspect(&config(&base), request(&data)).await.unwrap();
+        assert!(response.findings.is_empty());
+        assert_eq!(response.risk, "unknown");
     }
 
     #[tokio::test]

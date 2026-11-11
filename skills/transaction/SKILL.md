@@ -32,7 +32,8 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
 - `effects` are derived from `eth_simulateV1` logs (native value plus token/NFT/approval events);
   they are partial and can be forged by contracts, so cross-check before trusting them.
 - Unknown selectors stay unknown; never reinterpret them as safe.
-- `risk` is `unknown` until the relevant detectors are implemented; never treat it as approval.
+- `risk` is the highest deterministic finding, otherwise `unknown`; never treat `low` as approval.
+- Approval findings: unlimited ERC20 approval (`AUTH-001`) and NFT operator approval (`AUTH-004`).
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 
