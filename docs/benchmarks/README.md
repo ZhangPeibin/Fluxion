@@ -1,4 +1,12 @@
-# Quote benchmarks
+# Benchmarks
+
+## Security inspection (11 Nov 2026)
+
+[transaction.inspect / signature.inspect](security-inspection-2026-11-11.md) covers the synthetic
+16-case detector corpus and end-to-end CLI latency. Transaction inspection is RPC-bound
+(~1.1–1.4 s p50 on a public BSC node); signature inspection is local (~4 ms p50).
+
+## Quote benchmarks
 
 ## Latest: 310-pool runtime profile (6 Nov 2026)
 
