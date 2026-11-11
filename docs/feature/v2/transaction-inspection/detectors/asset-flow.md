@@ -8,6 +8,20 @@ Detect asset movement that the user or host agent would not expect from the deco
 
 `inspect.effects`, `inspect.decode`.
 
+## Implemented Slice
+
+Only runs when decode coverage is `complete` and a sender/expected recipient exists.
+
+- native value on known non-payable token methods -> `FLOW-001`;
+- token outflow during approval -> `FLOW-003`;
+- ERC20 outflow above decoded amount -> `FLOW-002`;
+- ERC20/NFT recipient mismatch -> `FLOW-004`;
+- recipient amount below decoded amount -> `FLOW-005` medium;
+- NFT transfer during approval -> `FLOW-006`.
+
+All current flow findings are `confidence: medium` because they depend on simulated logs, which can
+be forged.
+
 ## Rules
 
 - `FLOW-001`: native value leaves the sender without a matching decoded transfer -> high.

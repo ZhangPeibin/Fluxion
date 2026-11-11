@@ -141,7 +141,13 @@ pub async fn inspect(
     let mut warnings = decoded.warnings;
     warnings.extend(metadata.warnings);
     warnings.extend(simulation.warnings);
-    let findings = detect_approvals(&decoded.intent);
+    let mut findings = detect_approvals(&decoded.intent);
+    findings.extend(detect_asset_flow(
+        &decoded.intent,
+        &request,
+        &simulation.effects,
+        decoded.decode_coverage,
+    ));
     let risk = aggregate_risk(&findings);
     let mut sources = vec![
         TransactionInspectSource {
@@ -182,6 +188,270 @@ pub async fn inspect(
         sources,
         warnings,
     })
+}
+
+fn detect_asset_flow(
+    intent: &TransactionInspectIntent,
+    request: &InspectRequest,
+    effects: &TransactionInspectEffects,
+    decode_coverage: &str,
+) -> Vec<TransactionInspectFinding> {
+    if decode_coverage != "complete" {
+        return Vec::new();
+    }
+    let Some(name) = intent.name.as_deref() else {
+        return Vec::new();
+    };
+    let mut findings = Vec::new();
+    let non_payable = matches!(
+        name,
+        "approve"
+            | "increaseAllowance"
+            | "decreaseAllowance"
+            | "setApprovalForAll"
+            | "transferOwnership"
+            | "upgradeTo"
+    );
+    if non_payable
+        && !request.value.is_zero()
+        && let Some(from) = request.from
+    {
+        findings.push(flow_finding(
+            "FLOW-001",
+            "high",
+            "Native value attached to a non-payable call",
+            "The transaction sends native value to a call that is not expected to accept it.",
+            [
+                ("from", from.to_string()),
+                ("to", request.to.to_string()),
+                ("value", request.value.to_string()),
+            ],
+        ));
+    }
+
+    if matches!(
+        name,
+        "approve" | "increaseAllowance" | "decreaseAllowance" | "setApprovalForAll"
+    ) && let Some(from) = request.from
+    {
+        if effects.tokens.iter().any(|effect| {
+            effect.account == from && effect.delta.starts_with('-') && effect.delta != "-0"
+        }) {
+            findings.push(flow_finding(
+                "FLOW-003",
+                "high",
+                "Unexpected token outflow during an approval",
+                "Simulated logs show a token leaving the sender while the decoded call is only an approval.",
+                [
+                    ("from", from.to_string()),
+                    ("target", request.to.to_string()),
+                ],
+            ));
+        }
+        if effects.nfts.iter().any(|effect| effect.from == from) {
+            findings.push(flow_finding(
+                "FLOW-006",
+                "high",
+                "Unexpected NFT transfer during an approval",
+                "Simulated logs show an NFT leaving the sender while the decoded call is only an approval.",
+                [("from", from.to_string()), ("target", request.to.to_string())],
+            ));
+        }
+    }
+
+    match name {
+        "transfer" => {
+            if let (Some(from), Some(recipient), Some(amount)) = (
+                request.from,
+                arg_value(intent, "to"),
+                arg_value(intent, "amount").and_then(|value| parse_decimal_u256(&value)),
+            ) {
+                detect_erc20_transfer(&mut findings, request, effects, from, recipient, amount);
+            }
+        }
+        "transferFrom" => {
+            if let (Some(sender), Some(recipient), Some(amount)) = (
+                arg_value(intent, "from"),
+                arg_value(intent, "to"),
+                arg_value(intent, "amount").and_then(|value| parse_decimal_u256(&value)),
+            ) && let Some(sender) = parse_address(&sender)
+            {
+                detect_erc20_transfer(&mut findings, request, effects, sender, recipient, amount);
+            }
+        }
+        "safeTransferFrom" => detect_nft_transfer(&mut findings, request, effects, intent),
+        _ => {}
+    }
+
+    findings
+}
+
+fn detect_erc20_transfer(
+    findings: &mut Vec<TransactionInspectFinding>,
+    request: &InspectRequest,
+    effects: &TransactionInspectEffects,
+    sender: Address,
+    recipient: String,
+    amount: U256,
+) {
+    let token = request.to;
+    let expected_recipient = parse_address(&recipient);
+    let (_, negative) = token_delta(effects, token, sender);
+    let recipient_positive = expected_recipient
+        .map(|recipient| token_delta(effects, token, recipient).0)
+        .unwrap_or(U256::ZERO);
+    if negative > amount {
+        findings.push(flow_finding(
+            "FLOW-002",
+            "high",
+            "Token outflow exceeds decoded amount",
+            "Simulated logs show more tokens leaving the sender than the calldata amount.",
+            [
+                ("token", token.to_string()),
+                ("sender", sender.to_string()),
+                ("expected", amount.to_string()),
+                ("observed", negative.to_string()),
+            ],
+        ));
+    }
+    if recipient_positive < amount && !recipient_positive.is_zero() {
+        findings.push(flow_finding(
+            "FLOW-005",
+            "medium",
+            "Token amount differs from decoded amount",
+            "The simulated recipient amount is lower than the calldata amount, which may indicate a fee-on-transfer token.",
+            [
+                ("token", token.to_string()),
+                ("recipient", recipient.clone()),
+                ("expected", amount.to_string()),
+                ("observed", recipient_positive.to_string()),
+            ],
+        ));
+    }
+    if let Some(expected) = expected_recipient {
+        for effect in &effects.tokens {
+            if effect.token == token
+                && effect.account != expected
+                && !effect.delta.starts_with('-')
+                && effect.delta != "0"
+            {
+                findings.push(flow_finding(
+                    "FLOW-004",
+                    "high",
+                    "Unexpected token recipient",
+                    "Simulated logs show a token recipient that differs from the decoded calldata.",
+                    [
+                        ("token", token.to_string()),
+                        ("expected", expected.to_string()),
+                        ("observed", effect.account.to_string()),
+                    ],
+                ));
+            }
+        }
+    }
+}
+
+fn detect_nft_transfer(
+    findings: &mut Vec<TransactionInspectFinding>,
+    request: &InspectRequest,
+    effects: &TransactionInspectEffects,
+    intent: &TransactionInspectIntent,
+) {
+    let expected_recipient = arg_value(intent, "to").and_then(|value| parse_address(&value));
+    let expected_from = arg_value(intent, "from").and_then(|value| parse_address(&value));
+    for effect in &effects.nfts {
+        if effect.collection != request.to {
+            continue;
+        }
+        if let Some(expected) = expected_recipient
+            && effect.to != expected
+        {
+            findings.push(flow_finding(
+                "FLOW-004",
+                "high",
+                "Unexpected NFT recipient",
+                "Simulated logs show an NFT recipient that differs from the decoded calldata.",
+                [
+                    ("collection", effect.collection.to_string()),
+                    ("expected", expected.to_string()),
+                    ("observed", effect.to.to_string()),
+                ],
+            ));
+        }
+        if let Some(expected) = expected_from
+            && effect.from != expected
+        {
+            findings.push(flow_finding(
+                "FLOW-002",
+                "high",
+                "NFT sender differs from decoded calldata",
+                "Simulated logs show the NFT leaving a different account than the decoded sender.",
+                [
+                    ("collection", effect.collection.to_string()),
+                    ("expected", expected.to_string()),
+                    ("observed", effect.from.to_string()),
+                ],
+            ));
+        }
+    }
+}
+
+fn token_delta(
+    effects: &TransactionInspectEffects,
+    token: Address,
+    account: Address,
+) -> (U256, U256) {
+    let mut positive = U256::ZERO;
+    let mut negative = U256::ZERO;
+    for effect in &effects.tokens {
+        if effect.token != token || effect.account != account {
+            continue;
+        }
+        if let Some(value) = parse_signed_u256(&effect.delta) {
+            if value.0 {
+                negative = negative.saturating_add(value.1);
+            } else {
+                positive = positive.saturating_add(value.1);
+            }
+        }
+    }
+    (positive, negative)
+}
+
+fn parse_signed_u256(value: &str) -> Option<(bool, U256)> {
+    if let Some(value) = value.strip_prefix('-') {
+        Some((true, U256::from_str_radix(value, 10).ok()?))
+    } else {
+        Some((false, U256::from_str_radix(value, 10).ok()?))
+    }
+}
+
+fn parse_decimal_u256(value: &str) -> Option<U256> {
+    U256::from_str_radix(value, 10).ok()
+}
+
+fn flow_finding<const N: usize>(
+    id: &str,
+    severity: &str,
+    title: &str,
+    description: &str,
+    evidence: [(&str, String); N],
+) -> TransactionInspectFinding {
+    let mut evidence_map = BTreeMap::new();
+    for (key, value) in evidence {
+        evidence_map.insert(key.to_string(), value);
+    }
+    evidence_map.insert("source".to_string(), "calldata+simulated-logs".to_string());
+    TransactionInspectFinding {
+        id: id.to_string(),
+        category: "asset-flow".to_string(),
+        severity: severity.to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        evidence: evidence_map,
+        confidence: "medium".to_string(),
+        deterministic: true,
+    }
 }
 
 fn detect_approvals(intent: &TransactionInspectIntent) -> Vec<TransactionInspectFinding> {
@@ -1476,6 +1746,126 @@ mod tests {
         let response = inspect(&config(&base), request(&data)).await.unwrap();
         assert!(response.findings.is_empty());
         assert_eq!(response.risk, "unknown");
+    }
+
+    fn transfer_intent(recipient: &str, amount: u64) -> TransactionInspectIntent {
+        let data = format!("0xa9059cbb{}{}", address_word(recipient), uint_word(amount));
+        decode_intent(&data).unwrap().intent
+    }
+
+    fn token_effect(
+        token: Address,
+        account: Address,
+        delta: &str,
+    ) -> TransactionInspectTokenEffect {
+        TransactionInspectTokenEffect {
+            token,
+            account,
+            delta: delta.to_string(),
+        }
+    }
+
+    fn flow_request() -> InspectRequest {
+        InspectRequest {
+            chain: Chain::Bsc,
+            from: Some(
+                "0x0000000000000000000000000000000000000001"
+                    .parse()
+                    .unwrap(),
+            ),
+            to: "0x0000000000000000000000000000000000000010"
+                .parse()
+                .unwrap(),
+            data: "0x".to_string(),
+            value: U256::ZERO,
+            block: None,
+        }
+    }
+
+    #[test]
+    fn flags_token_outflow_during_approval() {
+        let data = format!(
+            "0x095ea7b3{}{}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(100)
+        );
+        let intent = decode_intent(&data).unwrap().intent;
+        let request = flow_request();
+        let mut effects = TransactionInspectEffects::default();
+        effects
+            .tokens
+            .push(token_effect(request.to, request.from.unwrap(), "-5"));
+        let findings = detect_asset_flow(&intent, &request, &effects, "complete");
+        assert!(findings.iter().any(|finding| finding.id == "FLOW-003"));
+    }
+
+    #[test]
+    fn flags_unexpected_transfer_recipient() {
+        let intent = transfer_intent("0x0000000000000000000000000000000000000002", 5);
+        let request = flow_request();
+        let mut effects = TransactionInspectEffects::default();
+        effects
+            .tokens
+            .push(token_effect(request.to, request.from.unwrap(), "-5"));
+        effects.tokens.push(token_effect(
+            request.to,
+            "0x0000000000000000000000000000000000000003"
+                .parse()
+                .unwrap(),
+            "5",
+        ));
+        let findings = detect_asset_flow(&intent, &request, &effects, "complete");
+        assert!(findings.iter().any(|finding| finding.id == "FLOW-004"));
+    }
+
+    #[test]
+    fn flags_fee_on_transfer() {
+        let intent = transfer_intent("0x0000000000000000000000000000000000000002", 10);
+        let request = flow_request();
+        let mut effects = TransactionInspectEffects::default();
+        effects
+            .tokens
+            .push(token_effect(request.to, request.from.unwrap(), "-10"));
+        effects.tokens.push(token_effect(
+            request.to,
+            "0x0000000000000000000000000000000000000002"
+                .parse()
+                .unwrap(),
+            "9",
+        ));
+        let findings = detect_asset_flow(&intent, &request, &effects, "complete");
+        assert!(findings.iter().any(|finding| finding.id == "FLOW-005"));
+    }
+
+    #[test]
+    fn flags_outflow_above_decoded_amount() {
+        let intent = transfer_intent("0x0000000000000000000000000000000000000002", 5);
+        let request = flow_request();
+        let mut effects = TransactionInspectEffects::default();
+        effects
+            .tokens
+            .push(token_effect(request.to, request.from.unwrap(), "-6"));
+        let findings = detect_asset_flow(&intent, &request, &effects, "complete");
+        assert!(findings.iter().any(|finding| finding.id == "FLOW-002"));
+    }
+
+    #[test]
+    fn flags_native_value_on_approval() {
+        let data = format!(
+            "0x095ea7b3{}{}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(100)
+        );
+        let intent = decode_intent(&data).unwrap().intent;
+        let mut request = flow_request();
+        request.value = U256::from(1u64);
+        let findings = detect_asset_flow(
+            &intent,
+            &request,
+            &TransactionInspectEffects::default(),
+            "complete",
+        );
+        assert!(findings.iter().any(|finding| finding.id == "FLOW-001"));
     }
 
     #[tokio::test]

@@ -34,6 +34,8 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
 - Unknown selectors stay unknown; never reinterpret them as safe.
 - `risk` is the highest deterministic finding, otherwise `unknown`; never treat `low` as approval.
 - Approval findings: unlimited ERC20 approval (`AUTH-001`) and NFT operator approval (`AUTH-004`).
+- Asset-flow findings compare decoded transfer intent with simulated logs (`FLOW-001`–`FLOW-006`);
+  treat them as medium-confidence evidence, not proof.
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 
