@@ -11,6 +11,7 @@ use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
 use crate::capability::{CapabilityError, CapabilityErrorResponse};
 use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
+use crate::signature_inspect::{self, SignatureInspectRequest};
 use crate::swap::quote::QuoteRequest;
 use crate::token;
 use crate::transaction::{self, SimulateRequest};
@@ -307,6 +308,20 @@ fn tools_list() -> Value {
                     },
                     "required": ["to", "data"]
                 }
+            },
+            {
+                "name": "signature_inspect",
+                "description": "Inspect EIP-712 typed data, EIP-7702 authorization lists or an ERC-4337 user operation before signing. Advisory only; never signs or broadcasts.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "chain": {"type": "string", "enum": ["bsc", "ethereum"], "default": "bsc"},
+                        "from": {"type": "string", "description": "Optional signer address"},
+                        "typed_data": {"type": "object", "description": "EIP-712 typed data object"},
+                        "authorization_list": {"type": "array", "description": "EIP-7702 authorization list"},
+                        "user_operation": {"type": "object", "description": "ERC-4337 user operation"}
+                    }
+                }
             }
         ]
     })
@@ -346,6 +361,7 @@ async fn call_tool(
         "wallet_disconnect" => wallet_disconnect_tool(wallet).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         "transaction_inspect" => transaction_inspect_tool(&arguments).await,
+        "signature_inspect" => signature_inspect_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
         ))),
@@ -370,6 +386,7 @@ fn capability_for_tool(name: &str) -> &'static str {
         "wallet_disconnect" => "wallet.disconnect",
         "transaction_simulate" => "transaction.simulate",
         "transaction_inspect" => "transaction.inspect",
+        "signature_inspect" => "signature.inspect",
         _ => "unknown",
     }
 }
@@ -765,6 +782,38 @@ async fn transaction_inspect_tool(arguments: &Value) -> Result<Value, Capability
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+async fn signature_inspect_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let from = arguments
+        .get("from")
+        .and_then(Value::as_str)
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument("invalid --from address"))
+        })
+        .transpose()?;
+    let typed_data = arguments
+        .get("typed_data")
+        .filter(|value| !value.is_null())
+        .cloned();
+    let authorization_list = arguments
+        .get("authorization_list")
+        .filter(|value| !value.is_null())
+        .cloned();
+    let user_operation = arguments
+        .get("user_operation")
+        .filter(|value| !value.is_null())
+        .cloned();
+    let response = signature_inspect::inspect(SignatureInspectRequest {
+        chain: chain_arg(arguments)?,
+        from,
+        typed_data,
+        authorization_list,
+        user_operation,
+    })?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn quote_tool(
     arguments: &Value,
     backend: &Result<RuntimeClient, CapabilityError>,
@@ -913,7 +962,8 @@ mod tests {
                 "wallet_agent_id",
                 "wallet_disconnect",
                 "transaction_simulate",
-                "transaction_inspect"
+                "transaction_inspect",
+                "signature_inspect"
             ]
         );
     }

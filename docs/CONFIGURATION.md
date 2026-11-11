@@ -43,7 +43,7 @@
 ## Execution routing
 
 `swap.quote` 固定使用 Fluxion remote 服务；`wallet.balance`、`wallet.allowance`、
-`transaction.inspect` 和 `transaction.simulate` 固定在 local runtime；`wallet.assets` 和 `wallet.collectibles` 是 local verification +
+`transaction.inspect`、`signature.inspect` 和 `transaction.simulate` 固定在 local runtime；`wallet.assets` 和 `wallet.collectibles` 是 local verification +
 remote candidate discovery 的 hybrid capability。`wallet.connect` / `wallet.status` /
 `wallet.disconnect` / `wallet.sign` / `wallet.send` 固定在 local，负责 WalletConnect session；`wallet.agent-id` 是
 SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 local/remote。

@@ -223,7 +223,9 @@ Detectors:
 - [batch](detectors/batch.md) - multicall, Safe batches and hidden nested calls.
 - [address](detectors/address.md) - zero/burn/self/session mismatch/allowlist.
 - [swap](detectors/swap.md) - router path, minOut, deadline, recipient and price impact.
-- [signature](detectors/signature.md) - Permit2, EIP-2612, EIP-7702 and 4337 user operations.
+- [signature](detectors/signature.md) - EIP-2612 permit calldata in `transaction.inspect`;
+  typed data, Permit2 signatures, EIP-7702 and 4337 are exposed by the companion
+  `signature.inspect` capability.
 - [policy](detectors/policy.md) - spend/chain/target/method/spender constraints.
 - [explain](detectors/explain.md) - optional plain-language explanation contract.
 

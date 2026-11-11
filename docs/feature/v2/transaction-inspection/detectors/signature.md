@@ -9,15 +9,20 @@ ERC-4337 user operations.
 
 `inspect.core`.
 
-## Implemented Slice
+## Implemented
 
-EIP-2612 `permit` calldata only:
+`transaction.inspect` handles EIP-2612 `permit` calldata. The companion `signature.inspect`
+capability handles non-calldata authorization:
 
-- `SIG-003`: value is `uint256::MAX` -> high.
-- `SIG-002`: deadline is zero -> high.
+- `SIG-001`: EIP-712 domain chain mismatch.
+- `SIG-002`: Permit2 deadline/expiration zero or expired.
+- `SIG-003`: Permit2 unlimited amount or zero spender.
+- `SIG-004`: EIP-7702 authorization present, wrong chain or zero address.
+- `SIG-005`: ERC-4337 paymaster or account factory present.
+- `SIG-006`: unsupported/undecodable typed data or invalid userOp sender.
 
-Typed data, Permit2 signatures, EIP-7702 authorizations, ERC-4337 user operations and domain-chain
-mismatch are tracked in #97.
+UserOp callData and signatures are explicitly not inspected. Typed-data keys other than Permit2
+are reported as unknown.
 
 ## Rules
 
