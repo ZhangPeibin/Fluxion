@@ -8,6 +8,15 @@ Detect addresses that are invalid, unexpected, or outside the caller's policy.
 
 `inspect.core`, `inspect.decode`.
 
+## Implemented Slice
+
+- zero target or decoded recipient -> `ADDR-001` high;
+- known burn address (`0x…dEaD`) target or recipient -> `ADDR-002` high;
+- target equals sender -> `ADDR-005` low.
+
+Session mismatch and allowlist checks remain pending because `transaction.inspect` does not yet take
+session/policy context.
+
 ## Rules
 
 - `ADDR-001`: recipient is the zero address -> high; native transfers are unrecoverable.
