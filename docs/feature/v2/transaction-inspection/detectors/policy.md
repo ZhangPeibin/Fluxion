@@ -24,6 +24,20 @@ allowlists and session account.
 
 Policy is optional and supplied by the caller. There is no global hidden policy.
 
+## Implemented Slice
+
+Policy is optional JSON. Amounts are human units; native uses 18 decimals and known tokens use
+registry decimals. Unknown token caps require `max_token_spend[].decimals`.
+
+- `POLICY-001`: chain outside `chains`.
+- `POLICY-002`: native value above `max_native_spend`.
+- `POLICY-003`: simulated token outflow above `max_token_spend`.
+- `POLICY-004`: target/method/spender outside allowlist.
+- `POLICY-005`: no policy configured.
+- `POLICY-006`: enforce mode cannot verify because simulation is unavailable.
+
+Advisory is the default. Policy never signs or blocks by itself; enforcement still needs the signer.
+
 ## Rules
 
 - `POLICY-001`: chain not allowed -> block.

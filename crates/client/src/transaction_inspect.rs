@@ -6,10 +6,12 @@
 use std::collections::BTreeMap;
 
 use alloy_primitives::{Address, B256, U256};
+use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::capability::{Amount, CapabilityError};
 use crate::chain::Chain;
+use crate::token;
 use crate::transaction::{Rpc, normalize_data};
 use crate::wallet::WalletConfig;
 
@@ -134,6 +136,49 @@ pub async fn inspect(
     config: &WalletConfig,
     request: InspectRequest,
 ) -> Result<TransactionInspectResponse, CapabilityError> {
+    inspect_with_policy(config, request, None).await
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct InspectPolicy {
+    #[serde(default)]
+    pub mode: String,
+    #[serde(default)]
+    pub chains: Vec<String>,
+    #[serde(default)]
+    pub max_native_spend: Option<String>,
+    #[serde(default)]
+    pub max_token_spend: Vec<TokenSpendPolicy>,
+    #[serde(default)]
+    pub target_allowlist: Vec<Address>,
+    #[serde(default)]
+    pub method_allowlist: Vec<String>,
+    #[serde(default)]
+    pub spender_allowlist: Vec<Address>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TokenSpendPolicy {
+    pub token: Address,
+    pub amount: String,
+    #[serde(default)]
+    pub decimals: Option<u8>,
+}
+
+pub async fn inspect_with_policy(
+    config: &WalletConfig,
+    request: InspectRequest,
+    policy: Option<InspectPolicy>,
+) -> Result<TransactionInspectResponse, CapabilityError> {
+    if let Some(policy) = policy.as_ref()
+        && !policy.mode.is_empty()
+        && !policy.mode.eq_ignore_ascii_case("advisory")
+        && !policy.mode.eq_ignore_ascii_case("enforce")
+    {
+        return Err(CapabilityError::invalid_argument(
+            "policy.mode must be advisory or enforce",
+        ));
+    }
     let data = normalize_data(&request.data)?;
     let rpc = Rpc::new(&config.rpc_url_for(request.chain));
     let (block_number, block_hash, tag) = rpc.block(request.block).await?;
@@ -159,6 +204,15 @@ pub async fn inspect(
         &simulation.effects,
         decoded.decode_coverage,
     ));
+    let policy_eval = evaluate_policy(
+        policy.as_ref(),
+        &request,
+        &decoded.intent,
+        &simulation.effects,
+        simulation.coverage,
+    )?;
+    findings.extend(policy_eval.findings);
+    unknowns.extend(policy_eval.unknowns);
     let risk = aggregate_risk(&findings);
     let mut sources = vec![
         TransactionInspectSource {
@@ -193,7 +247,7 @@ pub async fn inspect(
             decode: decoded.decode_coverage.to_string(),
             metadata: metadata.coverage.to_string(),
             simulation: simulation.coverage.to_string(),
-            policy: "not_configured".to_string(),
+            policy: policy_eval.coverage.to_string(),
         },
         unknowns,
         sources,
@@ -358,6 +412,189 @@ fn decode_swap_v2(
         },
         unknowns: Vec::new(),
         warnings,
+    }
+}
+
+struct PolicyEvaluation {
+    findings: Vec<TransactionInspectFinding>,
+    coverage: &'static str,
+    unknowns: Vec<String>,
+}
+
+fn evaluate_policy(
+    policy: Option<&InspectPolicy>,
+    request: &InspectRequest,
+    intent: &TransactionInspectIntent,
+    effects: &TransactionInspectEffects,
+    simulation_coverage: &str,
+) -> Result<PolicyEvaluation, CapabilityError> {
+    let Some(policy) = policy else {
+        return Ok(PolicyEvaluation {
+            findings: Vec::new(),
+            coverage: "not_configured",
+            unknowns: Vec::new(),
+        });
+    };
+    let enforce = policy.mode.eq_ignore_ascii_case("enforce");
+    let mut findings = Vec::new();
+    let mut unknowns = Vec::new();
+
+    if !policy.chains.is_empty()
+        && !policy
+            .chains
+            .iter()
+            .any(|chain| chain.eq_ignore_ascii_case(request.chain.as_str()))
+    {
+        findings.push(policy_finding(
+            "POLICY-001",
+            "high",
+            "Chain not allowed by policy",
+            "The transaction chain is outside the configured policy.",
+            [("chain", request.chain.as_str().to_string())],
+        ));
+    }
+
+    if let Some(max) = policy.max_native_spend.as_deref() {
+        let max = token::parse_amount(max, 18)?;
+        if request.value > max {
+            findings.push(policy_finding(
+                "POLICY-002",
+                "high",
+                "Native spend exceeds policy cap",
+                "The native value exceeds the configured maximum.",
+                [
+                    ("value", request.value.to_string()),
+                    ("max", max.to_string()),
+                ],
+            ));
+        }
+    }
+
+    if !policy.target_allowlist.is_empty() && !policy.target_allowlist.contains(&request.to) {
+        findings.push(policy_finding(
+            "POLICY-004",
+            "high",
+            "Target outside policy allowlist",
+            "The target address is not allowed by policy.",
+            [("target", request.to.to_string())],
+        ));
+    }
+
+    if !policy.method_allowlist.is_empty() {
+        let allowed = intent
+            .signature
+            .as_deref()
+            .is_some_and(|signature| policy.method_allowlist.iter().any(|item| item == signature));
+        if !allowed {
+            findings.push(policy_finding(
+                "POLICY-004",
+                "high",
+                "Method outside policy allowlist",
+                "The decoded method is not allowed by policy.",
+                [(
+                    "method",
+                    intent
+                        .signature
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
+                )],
+            ));
+        }
+    }
+
+    if !policy.spender_allowlist.is_empty() {
+        for arg in &intent.args {
+            if arg.name != "spender" && arg.name != "operator" {
+                continue;
+            }
+            let Some(spender) = parse_address(&arg.value) else {
+                unknowns.push(format!("policy could not parse {} address", arg.name));
+                continue;
+            };
+            if !policy.spender_allowlist.contains(&spender) {
+                findings.push(policy_finding(
+                    "POLICY-004",
+                    "high",
+                    "Spender outside policy allowlist",
+                    "The decoded spender is not allowed by policy.",
+                    [("spender", spender.to_string())],
+                ));
+            }
+        }
+    }
+
+    if let Some(from) = request.from {
+        for cap in &policy.max_token_spend {
+            let decimals = cap
+                .decimals
+                .or_else(|| token::decimals_for(cap.token))
+                .ok_or_else(|| {
+                    CapabilityError::invalid_argument(format!(
+                        "unknown decimals for policy token {}; set policy.max_token_spend[].decimals",
+                        cap.token
+                    ))
+                })?;
+            let max = token::parse_amount(&cap.amount, decimals)?;
+            let (_, outflow) = token_delta(effects, cap.token, from);
+            if outflow > max {
+                findings.push(policy_finding(
+                    "POLICY-003",
+                    "high",
+                    "Token spend exceeds policy cap",
+                    "The simulated token outflow exceeds the configured maximum.",
+                    [
+                        ("token", cap.token.to_string()),
+                        ("observed", outflow.to_string()),
+                        ("max", max.to_string()),
+                    ],
+                ));
+            }
+        }
+    }
+
+    if enforce && simulation_coverage == "unavailable" {
+        findings.push(policy_finding(
+            "POLICY-006",
+            "high",
+            "Policy cannot be enforced without simulation",
+            "The policy is in enforce mode but asset effects are unavailable.",
+            [("simulation", simulation_coverage.to_string())],
+        ));
+        unknowns.push("policy enforcement could not verify asset effects".to_string());
+    }
+
+    Ok(PolicyEvaluation {
+        findings,
+        coverage: if unknowns.is_empty() {
+            "complete"
+        } else {
+            "partial"
+        },
+        unknowns,
+    })
+}
+
+fn policy_finding<const N: usize>(
+    id: &str,
+    severity: &str,
+    title: &str,
+    description: &str,
+    evidence: [(&str, String); N],
+) -> TransactionInspectFinding {
+    let mut evidence_map = BTreeMap::new();
+    for (key, value) in evidence {
+        evidence_map.insert(key.to_string(), value);
+    }
+    evidence_map.insert("source".to_string(), "policy".to_string());
+    TransactionInspectFinding {
+        id: id.to_string(),
+        category: "policy".to_string(),
+        severity: severity.to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        evidence: evidence_map,
+        confidence: "high".to_string(),
+        deterministic: true,
     }
 }
 
@@ -2870,6 +3107,67 @@ mod tests {
                 .iter()
                 .any(|finding| finding.category == "signature")
         );
+    }
+
+    #[tokio::test]
+    async fn policy_enforces_native_spend_cap() {
+        let base = base_url().await;
+        let mut request = flow_request();
+        request.value = U256::from(2_000_000_000_000_000_000u64);
+        let policy = InspectPolicy {
+            mode: "advisory".to_string(),
+            max_native_spend: Some("1".to_string()),
+            ..Default::default()
+        };
+        let response = inspect_with_policy(&config(&base), request, Some(policy))
+            .await
+            .unwrap();
+        assert_eq!(response.risk, "high");
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "POLICY-002")
+        );
+        assert_eq!(response.coverage.policy, "complete");
+    }
+
+    #[tokio::test]
+    async fn policy_checks_target_and_method_allowlists() {
+        let base = base_url().await;
+        let intent = transfer_intent("0x0000000000000000000000000000000000000002", 1);
+        let data = format!(
+            "0xa9059cbb{}{}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(1)
+        );
+        let policy = InspectPolicy {
+            mode: "advisory".to_string(),
+            target_allowlist: vec![
+                "0x0000000000000000000000000000000000000099"
+                    .parse()
+                    .unwrap(),
+            ],
+            method_allowlist: vec!["approve(address,uint256)".to_string()],
+            ..Default::default()
+        };
+        let response = inspect_with_policy(&config(&base), request(&data), Some(policy))
+            .await
+            .unwrap();
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "POLICY-004")
+        );
+        assert_eq!(intent.name.as_deref(), Some("transfer"));
+    }
+
+    #[tokio::test]
+    async fn policy_absent_is_not_configured() {
+        let base = base_url().await;
+        let response = inspect(&config(&base), request("0x")).await.unwrap();
+        assert_eq!(response.coverage.policy, "not_configured");
     }
 
     #[tokio::test]

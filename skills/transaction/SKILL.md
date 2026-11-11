@@ -46,6 +46,9 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
   findings: zero minOut (`SWAP-001`), recipient mismatch (`SWAP-004`), unknown router (`SWAP-007`).
 - EIP-2612 `permit` calldata: unlimited value (`SIG-003`) and zero deadline (`SIG-002`). Typed-data,
   Permit2, 7702 and 4337 authorization inspection is tracked separately in #97.
+- Optional `policy` object: `mode`, `chains`, `max_native_spend`, `max_token_spend`,
+  `target_allowlist`, `method_allowlist`, `spender_allowlist`. No policy means
+  `coverage.policy = not_configured`.
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 
@@ -89,6 +92,7 @@ It defaults to BSC (`FLUXION_BSC_RPC_URL`); pass `chain: "ethereum"` to use `FLU
 
 ```bash
 fluxion transaction inspect --to 0x... --data 0x... --json
+fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
 fluxion transaction simulate \
   --to 0x... --data 0x... \
   --from 0x... --value 0.1 --block 26356654 --json
