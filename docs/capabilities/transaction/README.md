@@ -32,8 +32,9 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
 - `findings`: rule-ID findings with evidence. Current checks include unlimited ERC20 approval
   (`AUTH-001`), NFT operator approval (`AUTH-004`), asset-flow findings (`FLOW-001`–`FLOW-006`),
   contract findings (`CONTRACT-001`, `CONTRACT-003`), address findings (`ADDR-001`, `ADDR-002`,
-  `ADDR-005`), and swap findings (`SWAP-001`, `SWAP-004`, `SWAP-007`). Nested approvals from decoded
-  multicalls carry a `nested_call` evidence field.
+  `ADDR-005`), swap findings (`SWAP-001`, `SWAP-004`, `SWAP-007`), and EIP-2612 permit findings
+  (`SIG-002`, `SIG-003`). Nested approvals from decoded multicalls carry a `nested_call` evidence
+  field.
 - `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
 - `coverage`: decode, metadata, simulation and policy status. Contract metadata is `partial` until
   source verification is configured; simulation is `partial` because it is log-derived.

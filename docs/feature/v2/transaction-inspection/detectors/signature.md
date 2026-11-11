@@ -9,6 +9,16 @@ ERC-4337 user operations.
 
 `inspect.core`.
 
+## Implemented Slice
+
+EIP-2612 `permit` calldata only:
+
+- `SIG-003`: value is `uint256::MAX` -> high.
+- `SIG-002`: deadline is zero -> high.
+
+Typed data, Permit2 signatures, EIP-7702 authorizations, ERC-4337 user operations and domain-chain
+mismatch are tracked in #97.
+
 ## Rules
 
 - `SIG-001`: EIP-712 domain chain ID differs from the session chain -> high.

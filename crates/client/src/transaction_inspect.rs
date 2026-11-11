@@ -152,6 +152,7 @@ pub async fn inspect(
     findings.extend(detect_contract(&decoded.intent, &metadata.target, &request));
     findings.extend(detect_address(&decoded.intent, &request));
     findings.extend(detect_swap(&decoded.intent, &request));
+    findings.extend(detect_signature(&decoded.intent));
     findings.extend(detect_asset_flow(
         &decoded.intent,
         &request,
@@ -357,6 +358,70 @@ fn decode_swap_v2(
         },
         unknowns: Vec::new(),
         warnings,
+    }
+}
+
+fn detect_signature(intent: &TransactionInspectIntent) -> Vec<TransactionInspectFinding> {
+    if intent.name.as_deref() != Some("permit") {
+        return Vec::new();
+    }
+    let mut findings = Vec::new();
+    let spender = arg_value(intent, "spender").unwrap_or_else(|| "unknown".to_string());
+    let value = arg_value(intent, "value");
+    let deadline = arg_value(intent, "deadline");
+
+    if value.as_deref() == Some(U256::MAX.to_string().as_str()) {
+        findings.push(signature_finding(
+            "SIG-003",
+            "high",
+            "Unlimited permit approval",
+            "The EIP-2612 permit grants an unlimited token allowance.",
+            &spender,
+            value.as_deref().unwrap_or("unknown"),
+            deadline.as_deref().unwrap_or("unknown"),
+        ));
+    }
+    if deadline
+        .as_deref()
+        .and_then(parse_decimal_u256)
+        .is_some_and(|value| value.is_zero())
+    {
+        findings.push(signature_finding(
+            "SIG-002",
+            "high",
+            "Expired permit deadline",
+            "The permit deadline is zero, so the authorization cannot be valid for a future block.",
+            &spender,
+            value.as_deref().unwrap_or("unknown"),
+            "0",
+        ));
+    }
+    findings
+}
+
+fn signature_finding(
+    id: &str,
+    severity: &str,
+    title: &str,
+    description: &str,
+    spender: &str,
+    value: &str,
+    deadline: &str,
+) -> TransactionInspectFinding {
+    let mut evidence = BTreeMap::new();
+    evidence.insert("spender".to_string(), spender.to_string());
+    evidence.insert("value".to_string(), value.to_string());
+    evidence.insert("deadline".to_string(), deadline.to_string());
+    evidence.insert("source".to_string(), "calldata".to_string());
+    TransactionInspectFinding {
+        id: id.to_string(),
+        category: "signature".to_string(),
+        severity: severity.to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        evidence,
+        confidence: "high".to_string(),
+        deterministic: true,
     }
 }
 
@@ -2745,6 +2810,66 @@ mod tests {
         let decoded = decode_intent(&data).unwrap();
         assert_eq!(decoded.intent.args.len(), 4);
         assert_eq!(decoded.intent.args[0].name, "amountOutMin");
+    }
+
+    fn permit_data(value: U256, deadline: u64) -> String {
+        format!(
+            "0xd505accf{}{}{:064x}{}{}{}{}",
+            address_word("0x0000000000000000000000000000000000000001"),
+            address_word("0x0000000000000000000000000000000000000002"),
+            value,
+            uint_word(deadline),
+            uint_word(27),
+            "11".repeat(32),
+            "22".repeat(32)
+        )
+    }
+
+    #[tokio::test]
+    async fn flags_unlimited_permit() {
+        let base = base_url().await;
+        let response = inspect(&config(&base), request(&permit_data(U256::MAX, 100)))
+            .await
+            .unwrap();
+        assert_eq!(response.risk, "high");
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "SIG-003")
+        );
+    }
+
+    #[tokio::test]
+    async fn flags_expired_permit_deadline() {
+        let base = base_url().await;
+        let response = inspect(&config(&base), request(&permit_data(U256::from(100u64), 0)))
+            .await
+            .unwrap();
+        assert_eq!(response.risk, "high");
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "SIG-002")
+        );
+    }
+
+    #[tokio::test]
+    async fn normal_permit_has_no_signature_finding() {
+        let base = base_url().await;
+        let response = inspect(
+            &config(&base),
+            request(&permit_data(U256::from(100u64), 999)),
+        )
+        .await
+        .unwrap();
+        assert!(
+            !response
+                .findings
+                .iter()
+                .any(|finding| finding.category == "signature")
+        );
     }
 
     #[tokio::test]
