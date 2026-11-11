@@ -1,7 +1,36 @@
 ---
 name: transaction
-description: Use when the user wants to simulate a BSC or Ethereum transaction, calldata or contract call before building/signing, or uses the Fluxion transaction_simulate MCP tool. Read-only; never signs, approves, or broadcasts.
+description: Use when the user wants to inspect or simulate BSC or Ethereum calldata before signing, or uses the Fluxion transaction_inspect or transaction_simulate MCP tool. Read-only; never signs, approves, or broadcasts.
 ---
+
+# transaction capabilities
+
+`transaction.inspect` is a deterministic pre-sign report. `transaction.simulate` executes only an
+`eth_call`. Neither signs or broadcasts.
+
+## transaction.inspect
+
+```json
+{
+  "name": "transaction_inspect",
+  "arguments": {
+    "chain": "bsc",
+    "from": "0x...",
+    "to": "0x...",
+    "data": "0x...",
+    "value": "0",
+    "block": 132893125
+  }
+}
+```
+
+- `chain` defaults to `bsc`; use `ethereum` for Ethereum.
+- Empty `data` represents a native transfer.
+- Returns `intent`, `target`, `effects`, `findings`, `risk`, `coverage` and `unknowns`.
+- Unknown selectors stay unknown; never reinterpret them as safe.
+- `risk` is `unknown` until the relevant detectors are implemented; never treat it as approval.
+- Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
+- Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 
 # transaction.simulate
 
@@ -42,6 +71,7 @@ It defaults to BSC (`FLUXION_BSC_RPC_URL`); pass `chain: "ethereum"` to use `FLU
 ## CLI
 
 ```bash
+fluxion transaction inspect --to 0x... --data 0x... --json
 fluxion transaction simulate \
   --to 0x... --data 0x... \
   --from 0x... --value 0.1 --block 26356654 --json

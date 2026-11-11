@@ -7,6 +7,7 @@ use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::QuoteRequest;
 use crate::token;
 use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
+use crate::transaction_inspect::{self, InspectRequest, TransactionInspectResponse};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest,
     WalletAllowancesResponse, WalletBalancesResponse, WalletCollectiblesResponse, WalletConfig,
@@ -95,6 +96,7 @@ fluxion wallet agent-id HANDLE|ADDRESS    Resolve a BSC .ai Agent ID\n  \
 fluxion wallet sign --message TEXT        Sign a message with WalletConnect\n  \
 fluxion wallet sign --typed-data FILE     Sign EIP-712 typed data\n  \
 fluxion wallet send --to ADDR --token T --amount A  Send ETH/ERC20\n  \
+fluxion transaction inspect --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
@@ -1361,15 +1363,19 @@ async fn run_transaction(raw: &[String]) -> i32 {
         || raw.first().map(String::as_str) == Some("-h")
     {
         println!(
-            "Usage:\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value ETH] [--chain bsc|ethereum] [--block N] [--json]"
+            "Usage:\n  fluxion transaction inspect --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]"
         );
         return 0;
     }
-    if raw.first().map(String::as_str) != Some("simulate") {
-        let error = CapabilityError::invalid_argument("expected: transaction simulate");
-        report_error(&error, raw.iter().any(|arg| arg == "--json"));
-        return exit_code(error.code);
-    }
+    let inspect_mode = match raw.first().map(String::as_str) {
+        Some("inspect") => true,
+        Some("simulate") => false,
+        _ => {
+            let error = CapabilityError::invalid_argument("expected: transaction inspect|simulate");
+            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
     let args = match parse_transaction_args(&raw[1..]) {
         Ok(args) => args,
         Err(error) => {
@@ -1407,6 +1413,36 @@ async fn run_transaction(raw: &[String]) -> i32 {
     if let Some(rpc_url) = args.rpc_url {
         config.set_rpc_url(rpc_url);
     }
+
+    if inspect_mode {
+        return match transaction_inspect::inspect(
+            &config,
+            InspectRequest {
+                chain: args.chain,
+                from,
+                to,
+                data: args.data,
+                value,
+                block: args.block,
+            },
+        )
+        .await
+        {
+            Ok(response) => {
+                if args.json {
+                    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                } else {
+                    print_transaction_inspect_human(&response);
+                }
+                0
+            }
+            Err(error) => {
+                report_error(&error, args.json);
+                exit_code(error.code)
+            }
+        };
+    }
+
     match transaction::simulate(
         &config,
         SimulateRequest {
@@ -1553,6 +1589,52 @@ fn print_transaction_human(response: &TransactionSimulateResponse) {
     }
     if response.return_data != "0x" {
         println!("return: {}", response.return_data);
+    }
+}
+
+fn print_transaction_inspect_human(response: &TransactionInspectResponse) {
+    let label = response
+        .intent
+        .signature
+        .as_deref()
+        .or(response.intent.name.as_deref())
+        .unwrap_or("unknown");
+    println!(
+        "{} · block {} · risk {}",
+        label, response.block_number, response.risk
+    );
+    println!(
+        "{} -> {} · value {}",
+        response
+            .from
+            .map(|address| address.to_string())
+            .unwrap_or_else(|| "unknown".to_string()),
+        response.to,
+        response.value.decimal
+    );
+    for arg in &response.intent.args {
+        println!("{:<12} {}", arg.name, arg.value);
+    }
+    println!(
+        "coverage: decode={} metadata={} simulation={} policy={}",
+        response.coverage.decode,
+        response.coverage.metadata,
+        response.coverage.simulation,
+        response.coverage.policy
+    );
+    for finding in &response.findings {
+        println!(
+            "{} [{}] {}",
+            finding.severity.to_ascii_uppercase(),
+            finding.id,
+            finding.title
+        );
+    }
+    for unknown in &response.unknowns {
+        eprintln!("unknown: {unknown}");
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
     }
 }
 
@@ -1707,6 +1789,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "wallet.sign" => fluxion_protocol::wallet::describe_sign(),
                 "wallet.send" => fluxion_protocol::wallet::describe_send(),
                 "transaction.simulate" => fluxion_protocol::transaction::describe(),
+                "transaction.inspect" => fluxion_protocol::transaction::describe_inspect(),
                 other => {
                     let error = CapabilityError::new(
                         CapabilityErrorCode::Unsupported,

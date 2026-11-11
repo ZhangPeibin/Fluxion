@@ -1,4 +1,4 @@
-//! Local read-only EVM transaction simulation.
+//! Local read-only EVM transaction simulation and shared JSON-RPC helpers.
 
 use alloy_primitives::{Address, B256, U256};
 use serde_json::{Value, json};
@@ -84,7 +84,7 @@ pub async fn simulate(
     }
 }
 
-fn normalize_data(data: &str) -> Result<String, CapabilityError> {
+pub(crate) fn normalize_data(data: &str) -> Result<String, CapabilityError> {
     let data = data.trim();
     let Some(hex) = data.strip_prefix("0x").or_else(|| data.strip_prefix("0X")) else {
         return Err(CapabilityError::invalid_argument(
@@ -103,7 +103,7 @@ fn decode_hex_u256(value: &str) -> Option<U256> {
     U256::from_str_radix(value.trim_start_matches("0x"), 16).ok()
 }
 
-struct Rpc {
+pub(crate) struct Rpc {
     client: reqwest::Client,
     url: String,
 }
@@ -114,7 +114,7 @@ struct RpcFailure {
 }
 
 impl Rpc {
-    fn new(url: &str) -> Self {
+    pub(crate) fn new(url: &str) -> Self {
         Self {
             client: reqwest::Client::new(),
             url: url.to_string(),
@@ -168,7 +168,10 @@ impl Rpc {
         })
     }
 
-    async fn block(&self, requested: Option<u64>) -> Result<(u64, B256, String), CapabilityError> {
+    pub(crate) async fn block(
+        &self,
+        requested: Option<u64>,
+    ) -> Result<(u64, B256, String), CapabilityError> {
         let number = match requested {
             Some(number) => number,
             None => {

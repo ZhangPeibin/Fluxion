@@ -3,7 +3,7 @@
 Fluxion is a Web3 capability layer for AI agents. It turns onchain actions into stable MCP
 capabilities and is designed for multi-chain support, not tied to one network or protocol.
 
-The implementation ships 12 capabilities. Local wallet and simulation tools default to BSC;
+The implementation ships 13 capabilities. Local wallet and transaction tools default to BSC;
 Ethereum is available with `--chain ethereum`. `swap.quote` remains an Ethereum mainnet quote.
 Quotes run against an immutable remote snapshot; wallet reads, WalletConnect sessions, and
 simulation run locally. See [Capabilities](#capabilities) for the complete list.
@@ -41,6 +41,7 @@ fluxion wallet balance 0x... --tokens ETH,USDC --chain ethereum
 fluxion wallet assets 0x...
 fluxion wallet collectibles 0x...
 fluxion wallet connect
+fluxion transaction inspect --to 0x... --data 0x...
 fluxion transaction simulate --to 0x... --data 0x...
 ```
 
@@ -104,6 +105,7 @@ registration, remote deployment, and full setup live in [docs/MCP.md](docs/MCP.m
 | `wallet.agent-id` | Resolve a BSC `.ai` Agent ID |
 | `wallet.sign` | Sign messages or EIP-712 typed data through WalletConnect |
 | `wallet.send` | Send native or ERC20/BEP-20 transfers through WalletConnect |
+| `transaction.inspect` | Decode unsigned calldata and return intent, risk, coverage and unknowns |
 | `transaction.simulate` | Simulate calldata at a pinned block and return the result and gas |
 
 Local wallet and simulation tools default to BSC; pass `--chain ethereum` for Ethereum.
@@ -119,7 +121,7 @@ Each capability has one fixed execution location. Agents and users do not choose
 
 - `swap.quote` is remote. A request reads one published immutable snapshot; the compute path makes
   no RPC calls.
-- `wallet.*` and `transaction.simulate` are local; `wallet.agent-id` also uses the SPACE ID API
+- `wallet.*`, `transaction.inspect` and `transaction.simulate` are local; `wallet.agent-id` also uses the SPACE ID API
   and verifies against BSC. Reads and simulation are pinned to a block.
 - Responses use stable JSON schemas and error codes; amounts, blocks, sources, and coverage are part
   of the result.
@@ -127,7 +129,7 @@ Each capability has one fixed execution location. Agents and users do not choose
 ```text
 Agent ──MCP──▶ fluxion mcp ──▶ capability router
                                  ├── swap.quote ─────────▶ remote snapshot ──▶ Ethereum
-                                 ├── wallet.* / simulate ─▶ local runtime (RPC / WalletConnect)
+                                 ├── wallet.* / transaction.* ─▶ local runtime (RPC / WalletConnect)
                                  └── wallet.agent-id ────▶ SPACE ID API + BSC
 ```
 
@@ -180,7 +182,7 @@ Next: `transaction.send`, `swap.build`, and `swap.execute`.
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
-- Contracts: [swap schema](schemas/swap_quote.v1.json) · [wallet schema](schemas/wallet_balances.v1.json) · [allowance schema](schemas/wallet_allowances.v1.json) · [collectibles schema](schemas/wallet_collectibles.v1.json) · [connect schema](schemas/wallet_connect.v1.json) · [status schema](schemas/wallet_status.v1.json) · [disconnect schema](schemas/wallet_disconnect.v1.json) · [agent-id schema](schemas/wallet_agent_id.v1.json) · [sign schema](schemas/wallet_sign.v1.json) · [send schema](schemas/wallet_send.v1.json) · [transaction schema](schemas/transaction_simulate.v1.json)
+- Contracts: [swap schema](schemas/swap_quote.v1.json) · [wallet schema](schemas/wallet_balances.v1.json) · [allowance schema](schemas/wallet_allowances.v1.json) · [collectibles schema](schemas/wallet_collectibles.v1.json) · [connect schema](schemas/wallet_connect.v1.json) · [status schema](schemas/wallet_status.v1.json) · [disconnect schema](schemas/wallet_disconnect.v1.json) · [agent-id schema](schemas/wallet_agent_id.v1.json) · [sign schema](schemas/wallet_sign.v1.json) · [send schema](schemas/wallet_send.v1.json) · [inspect schema](schemas/transaction_inspect.v1.json) · [transaction schema](schemas/transaction_simulate.v1.json)
 - Skills: [swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md)
 
 ## Development

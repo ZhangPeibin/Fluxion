@@ -60,6 +60,8 @@ pub enum CapabilityId {
     WalletSend,
     #[serde(rename = "transaction.simulate")]
     TransactionSimulate,
+    #[serde(rename = "transaction.inspect")]
+    TransactionInspect,
 }
 
 impl CapabilityId {
@@ -77,6 +79,7 @@ impl CapabilityId {
             Self::WalletSign => "wallet.sign",
             Self::WalletSend => "wallet.send",
             Self::TransactionSimulate => "transaction.simulate",
+            Self::TransactionInspect => "transaction.inspect",
         }
     }
 
@@ -94,6 +97,7 @@ impl CapabilityId {
             Self::WalletSign,
             Self::WalletSend,
             Self::TransactionSimulate,
+            Self::TransactionInspect,
         ]
     }
 }
@@ -133,7 +137,8 @@ mod tests {
                 "wallet.agent-id",
                 "wallet.sign",
                 "wallet.send",
-                "transaction.simulate"
+                "transaction.simulate",
+                "transaction.inspect"
             ]
         );
         assert_eq!(CapabilityId::SwapQuote.as_str(), "swap.quote");
@@ -153,6 +158,10 @@ mod tests {
         assert_eq!(
             CapabilityId::TransactionSimulate.as_str(),
             "transaction.simulate"
+        );
+        assert_eq!(
+            CapabilityId::TransactionInspect.as_str(),
+            "transaction.inspect"
         );
     }
 }
