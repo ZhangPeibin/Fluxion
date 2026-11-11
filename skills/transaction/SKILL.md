@@ -49,6 +49,8 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
 - Optional `policy` object: `mode`, `chains`, `max_native_spend`, `max_token_spend`,
   `target_allowlist`, `method_allowlist`, `spender_allowlist`. No policy means
   `coverage.policy = not_configured`.
+- `explanation` contains a deterministic `summary`, `key_changes` and `unknowns`; use it for the
+  user-facing explanation, never as a safety guarantee.
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 
