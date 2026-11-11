@@ -26,6 +26,24 @@ pub struct InspectRequest {
     pub block: Option<u64>,
 }
 
+const BUILTIN_SELECTORS: &[&str] = &[
+    "0xa9059cbb",
+    "0x23b872dd",
+    "0x095ea7b3",
+    "0x39509351",
+    "0xa457c2d7",
+    "0xa22cb465",
+    "0x42842e0e",
+    "0xd0e30db0",
+    "0x2e1a7d4d",
+    "0xd505accf",
+    "0xb88d4fde",
+    "0xf242432a",
+    "0xf2fde38b",
+    "0x3659cfe6",
+    "0xac9650d8",
+];
+
 #[derive(Debug, Clone, Copy)]
 enum ArgType {
     Address,
@@ -76,7 +94,15 @@ const SAFE_TRANSFER_FROM: [ArgSpec; 3] = [
     arg("to", "address", ArgType::Address),
     arg("tokenId", "uint256", ArgType::Uint),
 ];
+const ERC1155_SAFE_TRANSFER_FROM: [ArgSpec; 4] = [
+    arg("from", "address", ArgType::Address),
+    arg("to", "address", ArgType::Address),
+    arg("id", "uint256", ArgType::Uint),
+    arg("amount", "uint256", ArgType::Uint),
+];
 const WITHDRAW: [ArgSpec; 1] = [arg("wad", "uint256", ArgType::Uint)];
+const TRANSFER_OWNERSHIP: [ArgSpec; 1] = [arg("newOwner", "address", ArgType::Address)];
+const UPGRADE_TO: [ArgSpec; 1] = [arg("newImplementation", "address", ArgType::Address)];
 const PERMIT: [ArgSpec; 7] = [
     arg("owner", "address", ArgType::Address),
     arg("spender", "address", ArgType::Address),
@@ -144,6 +170,14 @@ pub async fn inspect(
     })
 }
 
+fn selector_is_ambiguous(selector: &str) -> bool {
+    BUILTIN_SELECTORS
+        .iter()
+        .filter(|candidate| **candidate == selector)
+        .count()
+        > 1
+}
+
 fn decode_intent(data: &str) -> Result<DecodedIntent, CapabilityError> {
     let bytes = hex_to_bytes(data)?;
     if bytes.is_empty() {
@@ -166,6 +200,21 @@ fn decode_intent(data: &str) -> Result<DecodedIntent, CapabilityError> {
     }
 
     let selector = format!("0x{}", data_encoding::HEXLOWER.encode(&bytes[..4]));
+    if selector_is_ambiguous(&selector) {
+        return Ok(DecodedIntent {
+            intent: TransactionInspectIntent {
+                selector: selector.clone(),
+                signature: None,
+                name: None,
+                args: Vec::new(),
+            },
+            decode_coverage: "partial",
+            unknowns: vec![format!("selector {selector} is ambiguous")],
+            warnings: vec![format!(
+                "selector {selector} appears more than once in the built-in registry"
+            )],
+        });
+    }
     let payload = &bytes[4..];
     let (signature, name, specs) = match selector.as_str() {
         "0xa9059cbb" => ("transfer(address,uint256)", "transfer", &TRANSFER[..]),
@@ -203,13 +252,29 @@ fn decode_intent(data: &str) -> Result<DecodedIntent, CapabilityError> {
             &PERMIT[..],
         ),
         "0xb88d4fde" => {
-            return Ok(dynamic_intent(
+            return Ok(decode_with_dynamic_bytes(
                 &selector,
                 "safeTransferFrom(address,address,uint256,bytes)",
                 "safeTransferFrom",
-                "dynamic arguments are not decoded in this slice",
+                &SAFE_TRANSFER_FROM,
+                payload,
             ));
         }
+        "0xf242432a" => {
+            return Ok(decode_with_dynamic_bytes(
+                &selector,
+                "safeTransferFrom(address,address,uint256,uint256,bytes)",
+                "safeTransferFrom",
+                &ERC1155_SAFE_TRANSFER_FROM,
+                payload,
+            ));
+        }
+        "0xf2fde38b" => (
+            "transferOwnership(address)",
+            "transferOwnership",
+            &TRANSFER_OWNERSHIP[..],
+        ),
+        "0x3659cfe6" => ("upgradeTo(address)", "upgradeTo", &UPGRADE_TO[..]),
         "0xac9650d8" => {
             return Ok(dynamic_intent(
                 &selector,
@@ -261,6 +326,161 @@ fn decode_intent(data: &str) -> Result<DecodedIntent, CapabilityError> {
             warnings: vec![error],
         }),
     }
+}
+
+fn decode_with_dynamic_bytes(
+    selector: &str,
+    signature: &str,
+    name: &str,
+    specs: &[ArgSpec],
+    payload: &[u8],
+) -> DecodedIntent {
+    let static_len = specs.len() * 32;
+    let Some(head) = payload.get(..static_len) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            format!(
+                "expected at least {static_len} argument bytes, found {}",
+                payload.len()
+            ),
+        );
+    };
+    let mut args = match decode_args(head, specs) {
+        Ok(args) => args,
+        Err(error) => return known_but_partial(selector, signature, name, error),
+    };
+    let Some(offset_word) = payload.get(static_len..static_len + 32) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "dynamic bytes offset is missing".to_string(),
+        );
+    };
+    let Some(offset) = word_to_usize(offset_word) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "dynamic bytes offset is out of range".to_string(),
+        );
+    };
+    if offset < static_len + 32 || offset + 32 > payload.len() {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "dynamic bytes offset points outside calldata".to_string(),
+        );
+    }
+    let Some(length) = word_to_usize(&payload[offset..offset + 32]) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "dynamic bytes length is out of range".to_string(),
+        );
+    };
+    let Some(data_start) = offset.checked_add(32) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "dynamic bytes offset overflow".to_string(),
+        );
+    };
+    let Some(data_end) = data_start.checked_add(length) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "dynamic bytes length overflow".to_string(),
+        );
+    };
+    let Some(padded_length) = length.checked_add(31).map(|value| value / 32 * 32) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "dynamic bytes padding overflow".to_string(),
+        );
+    };
+    let Some(padded_end) = data_start.checked_add(padded_length) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "dynamic bytes padding overflow".to_string(),
+        );
+    };
+    if padded_end > payload.len() {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "dynamic bytes length exceeds calldata".to_string(),
+        );
+    }
+    args.push(TransactionInspectArg {
+        name: "data".to_string(),
+        kind: "bytes".to_string(),
+        value: format!(
+            "0x{}",
+            data_encoding::HEXLOWER.encode(&payload[data_start..data_end])
+        ),
+    });
+    let mut warnings = Vec::new();
+    if payload.len() > padded_end {
+        warnings.push(format!(
+            "{} trailing bytes after dynamic argument",
+            payload.len() - padded_end
+        ));
+    }
+    DecodedIntent {
+        intent: TransactionInspectIntent {
+            selector: selector.to_string(),
+            signature: Some(signature.to_string()),
+            name: Some(name.to_string()),
+            args,
+        },
+        decode_coverage: if warnings.is_empty() {
+            "complete"
+        } else {
+            "partial"
+        },
+        unknowns: Vec::new(),
+        warnings,
+    }
+}
+
+fn known_but_partial(
+    selector: &str,
+    signature: &str,
+    name: &str,
+    warning: String,
+) -> DecodedIntent {
+    DecodedIntent {
+        intent: TransactionInspectIntent {
+            selector: selector.to_string(),
+            signature: Some(signature.to_string()),
+            name: Some(name.to_string()),
+            args: Vec::new(),
+        },
+        decode_coverage: "partial",
+        unknowns: vec![format!(
+            "arguments for selector {selector} could not be decoded"
+        )],
+        warnings: vec![warning],
+    }
+}
+
+fn word_to_usize(word: &[u8]) -> Option<usize> {
+    if word.len() != 32 {
+        return None;
+    }
+    usize::try_from(U256::from_be_slice(word)).ok()
 }
 
 fn dynamic_intent(selector: &str, signature: &str, name: &str, warning: &str) -> DecodedIntent {
@@ -478,6 +698,102 @@ mod tests {
             error.code,
             crate::capability::CapabilityErrorCode::InvalidArgument
         );
+    }
+
+    fn address_word(address: &str) -> String {
+        format!("{:0>64}", address.trim_start_matches("0x"))
+    }
+
+    fn uint_word(value: u64) -> String {
+        format!("{value:064x}")
+    }
+
+    #[tokio::test]
+    async fn decodes_erc721_safe_transfer_from_dynamic_bytes() {
+        let base = base_url().await;
+        let data = format!(
+            "0xb88d4fde{}{}{}{}{}1234{}",
+            address_word("0x0000000000000000000000000000000000000001"),
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(3),
+            uint_word(128),
+            uint_word(2),
+            "00".repeat(30)
+        );
+        let response = inspect(&config(&base), request(&data)).await.unwrap();
+        assert_eq!(response.coverage.decode, "complete");
+        assert_eq!(
+            response.intent.signature.as_deref(),
+            Some("safeTransferFrom(address,address,uint256,bytes)")
+        );
+        assert_eq!(response.intent.args.len(), 4);
+        assert_eq!(response.intent.args[3].value, "0x1234");
+    }
+
+    #[tokio::test]
+    async fn decodes_erc1155_safe_transfer_from_empty_bytes() {
+        let base = base_url().await;
+        let data = format!(
+            "0xf242432a{}{}{}{}{}{}",
+            address_word("0x0000000000000000000000000000000000000001"),
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(7),
+            uint_word(9),
+            uint_word(160),
+            uint_word(0)
+        );
+        let response = inspect(&config(&base), request(&data)).await.unwrap();
+        assert_eq!(response.coverage.decode, "complete");
+        assert_eq!(response.intent.args.len(), 5);
+        assert_eq!(response.intent.args[4].value, "0x");
+    }
+
+    #[tokio::test]
+    async fn malformed_dynamic_offset_is_partial() {
+        let base = base_url().await;
+        let data = format!(
+            "0xb88d4fde{}{}{}{}",
+            address_word("0x0000000000000000000000000000000000000001"),
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(3),
+            uint_word(4096)
+        );
+        let response = inspect(&config(&base), request(&data)).await.unwrap();
+        assert_eq!(response.coverage.decode, "partial");
+        assert!(response.warnings[0].contains("outside calldata"));
+    }
+
+    #[tokio::test]
+    async fn decodes_ownership_and_upgrade_selectors() {
+        let base = base_url().await;
+        let ownership = format!(
+            "0xf2fde38b{}",
+            address_word("0x0000000000000000000000000000000000000003")
+        );
+        let response = inspect(&config(&base), request(&ownership)).await.unwrap();
+        assert_eq!(
+            response.intent.signature.as_deref(),
+            Some("transferOwnership(address)")
+        );
+
+        let upgrade = format!(
+            "0x3659cfe6{}",
+            address_word("0x0000000000000000000000000000000000000004")
+        );
+        let response = inspect(&config(&base), request(&upgrade)).await.unwrap();
+        assert_eq!(
+            response.intent.signature.as_deref(),
+            Some("upgradeTo(address)")
+        );
+    }
+
+    #[test]
+    fn builtin_selectors_are_unique() {
+        let mut selectors = BUILTIN_SELECTORS.to_vec();
+        selectors.sort_unstable();
+        selectors.dedup();
+        assert_eq!(selectors.len(), BUILTIN_SELECTORS.len());
+        assert!(!selector_is_ambiguous("0xa9059cbb"));
     }
 
     #[tokio::test]

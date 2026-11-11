@@ -19,10 +19,13 @@ Ship a small, reviewed registry first:
 - `decreaseAllowance(address,uint256)` `0xa457c2d7`
 - `setApprovalForAll(address,bool)` `0xa22cb465`
 - `safeTransferFrom(address,address,uint256)` `0x42842e0e`
-- `safeTransferFrom(address,address,uint256,bytes)` `0xb88d4fde`
-- `multicall(bytes[])` `0xac9650d8`
+- `safeTransferFrom(address,address,uint256,bytes)` `0xb88d4fde` (dynamic bytes supported)
+- `safeTransferFrom(address,address,uint256,uint256,bytes)` `0xf242432a` (ERC1155, dynamic bytes supported)
+- `multicall(bytes[])` `0xac9650d8` (decoded by the batch spec)
 - `deposit()` `0xd0e30db0`
 - `withdraw(uint256)` `0x2e1a7d4d`
+- `transferOwnership(address)` `0xf2fde38b`
+- `upgradeTo(address)` `0x3659cfe6`
 - `permit(address,address,uint256,uint256,uint8,bytes32,bytes32)` `0xd505accf`
 
 The registry is append-only. A selector collision must produce `unknown`, never an arbitrary
@@ -33,7 +36,8 @@ winner.
 - `DECODE-001`: unknown selector -> `signature: null`, `name: null`, no args.
 - `DECODE-002`: known selector with malformed argument length -> unknown args plus a warning.
 - `DECODE-003`: dynamic arguments (bytes/string/arrays) must not be truncated silently.
-- `DECODE-004`: selector collision -> unknown and a warning.
+- `DECODE-004`: selector collision -> unknown and a warning; the built-in registry is test-enforced
+  unique.
 
 ## Argument Model
 
@@ -47,6 +51,8 @@ summarized when full decoding is not available, but the summary must be explicit
 ## Failure and Unknown Behaviour
 
 - No ABI source is required for built-in selectors.
+- Dynamic `bytes` is decoded for ERC721/ERC1155 safe transfers. `bytes[]` multicall decoding belongs
+  to the batch detector.
 - Contract-specific ABI lookup is a later extension; unknown remains valid.
 - Proxy target decoding is handled by `inspect.metadata`, not guessed here.
 
