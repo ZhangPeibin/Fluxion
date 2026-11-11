@@ -7,7 +7,7 @@ use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::QuoteRequest;
 use crate::token;
 use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
-use crate::transaction_inspect::{self, InspectRequest, TransactionInspectResponse};
+use crate::transaction_inspect::{self, InspectPolicy, InspectRequest, TransactionInspectResponse};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest,
     WalletAllowancesResponse, WalletBalancesResponse, WalletCollectiblesResponse, WalletConfig,
@@ -1355,6 +1355,7 @@ struct TransactionArgs {
     value: String,
     block: Option<u64>,
     rpc_url: Option<String>,
+    policy: Option<String>,
     json: bool,
 }
 
@@ -1363,7 +1364,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
         || raw.first().map(String::as_str) == Some("-h")
     {
         println!(
-            "Usage:\n  fluxion transaction inspect --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]"
+            "Usage:\n  fluxion transaction inspect --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--policy FILE] [--json]\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]"
         );
         return 0;
     }
@@ -1415,7 +1416,32 @@ async fn run_transaction(raw: &[String]) -> i32 {
     }
 
     if inspect_mode {
-        return match transaction_inspect::inspect(
+        let policy = match args.policy.as_deref() {
+            Some(path) => {
+                let text = match std::fs::read_to_string(path) {
+                    Ok(text) => text,
+                    Err(error) => {
+                        let error = CapabilityError::invalid_argument(format!(
+                            "cannot read policy file {path}: {error}"
+                        ));
+                        report_error(&error, args.json);
+                        return exit_code(error.code);
+                    }
+                };
+                match serde_json::from_str::<InspectPolicy>(&text) {
+                    Ok(policy) => Some(policy),
+                    Err(error) => {
+                        let error = CapabilityError::invalid_argument(format!(
+                            "invalid policy file {path}: {error}"
+                        ));
+                        report_error(&error, args.json);
+                        return exit_code(error.code);
+                    }
+                }
+            }
+            None => None,
+        };
+        return match transaction_inspect::inspect_with_policy(
             &config,
             InspectRequest {
                 chain: args.chain,
@@ -1425,6 +1451,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
                 value,
                 block: args.block,
             },
+            policy,
         )
         .await
         {
@@ -1479,6 +1506,7 @@ fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityE
     let mut value = "0".to_string();
     let mut block = None;
     let mut rpc_url = None;
+    let mut policy = None;
     let mut json = false;
     let mut index = 0;
     while index < raw.len() {
@@ -1540,6 +1568,16 @@ fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityE
                         .clone(),
                 );
             }
+            "--policy" => {
+                index += 1;
+                policy = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--policy needs a file path")
+                        })?
+                        .clone(),
+                );
+            }
             "--json" => json = true,
             value if value.starts_with('-') => {
                 return Err(CapabilityError::invalid_argument(format!(
@@ -1565,6 +1603,7 @@ fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityE
         value,
         block,
         rpc_url,
+        policy,
         json,
     })
 }
@@ -2048,9 +2087,12 @@ mod tests {
             "0.5".to_string(),
             "--block".to_string(),
             "100".to_string(),
+            "--policy".to_string(),
+            "policy.json".to_string(),
         ])
         .unwrap();
         assert_eq!(parsed.value, "0.5");
+        assert_eq!(parsed.policy.as_deref(), Some("policy.json"));
         assert_eq!(parsed.chain, Chain::Bsc);
         assert_eq!(parsed.block, Some(100));
         assert!(parse_transaction_args(&["--data".to_string(), "0x".to_string()]).is_err());

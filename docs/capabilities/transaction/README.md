@@ -6,6 +6,7 @@ effects, findings, coverage and explicit unknowns. It is advisory only and never
 ```bash
 fluxion transaction inspect --to 0x... --data 0x... --json
 fluxion transaction inspect --to 0x... --data 0x... --chain ethereum --json
+fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
 ```
 
 - Default chain is BSC; use `--chain ethereum` for Ethereum.
@@ -38,6 +39,28 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
 - `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
 - `coverage`: decode, metadata, simulation and policy status. Contract metadata is `partial` until
   source verification is configured; simulation is `partial` because it is log-derived.
+
+## Policy
+
+`--policy FILE` accepts a JSON policy. Amounts are human units; native values use 18 decimals and
+known tokens use their registry decimals. Unknown tokens require an explicit `decimals` field.
+
+```json
+{
+  "mode": "advisory",
+  "chains": ["bsc"],
+  "max_native_spend": "0.1",
+  "max_token_spend": [{"token": "0x...", "amount": "100"}],
+  "target_allowlist": ["0x..."],
+  "method_allowlist": ["transfer(address,uint256)"],
+  "spender_allowlist": ["0x..."]
+}
+```
+
+- `mode` is `advisory` (default) or `enforce`; enforce adds `POLICY-006` when simulation is
+  unavailable.
+- No policy means `coverage.policy = not_configured`.
+- Policy findings use `POLICY-001`–`POLICY-006`. There is no hidden default policy.
 - `unknowns`: what was not inspected and could change the conclusion.
 
 ## Boundaries

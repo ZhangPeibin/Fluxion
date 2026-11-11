@@ -14,7 +14,7 @@ use crate::client::{RuntimeClient, request_id};
 use crate::swap::quote::QuoteRequest;
 use crate::token;
 use crate::transaction::{self, SimulateRequest};
-use crate::transaction_inspect::{self, InspectRequest};
+use crate::transaction_inspect::{self, InspectPolicy, InspectRequest};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest, WalletConfig,
 };
@@ -299,7 +299,11 @@ fn tools_list() -> Value {
                         "data": {"type": "string", "description": "0x-prefixed calldata; use 0x for a native transfer"},
                         "value": {"type": "string", "description": "Optional native value in human units", "default": "0"},
                         "block": {"type": "integer", "minimum": 0},
-                        "rpc_url": {"type": "string", "description": "Optional local RPC override"}
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"},
+                        "policy": {
+                            "type": "object",
+                            "description": "Optional caller policy: mode, chains, max_native_spend, max_token_spend, target_allowlist, method_allowlist, spender_allowlist"
+                        }
                     },
                     "required": ["to", "data"]
                 }
@@ -734,8 +738,18 @@ async fn transaction_inspect_tool(arguments: &Value) -> Result<Value, Capability
         .and_then(Value::as_str)
         .unwrap_or("0");
     let value = token::parse_amount(value, 18)?;
+    let policy = arguments
+        .get("policy")
+        .filter(|value| !value.is_null())
+        .cloned()
+        .map(|value| {
+            serde_json::from_value::<InspectPolicy>(value).map_err(|error| {
+                CapabilityError::invalid_argument(format!("invalid policy: {error}"))
+            })
+        })
+        .transpose()?;
     let config = wallet_config(arguments);
-    let response = transaction_inspect::inspect(
+    let response = transaction_inspect::inspect_with_policy(
         &config,
         InspectRequest {
             chain: chain_arg(arguments)?,
@@ -745,6 +759,7 @@ async fn transaction_inspect_tool(arguments: &Value) -> Result<Value, Capability
             value,
             block: optional_u64(arguments, "block")?,
         },
+        policy,
     )
     .await?;
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
