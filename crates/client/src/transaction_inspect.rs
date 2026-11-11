@@ -3,7 +3,7 @@
 //! The first slice decodes calldata and pins a block. It deliberately does not
 //! claim safety: metadata, simulation and policy are reported as not run.
 
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, B256, U256};
 
 use crate::capability::{Amount, CapabilityError};
 use crate::chain::Chain;
@@ -126,12 +126,15 @@ pub async fn inspect(
 ) -> Result<TransactionInspectResponse, CapabilityError> {
     let data = normalize_data(&request.data)?;
     let rpc = Rpc::new(&config.rpc_url_for(request.chain));
-    let (block_number, block_hash, _) = rpc.block(request.block).await?;
+    let (block_number, block_hash, tag) = rpc.block(request.block).await?;
     let decoded = decode_intent(&data)?;
+    let metadata = inspect_target(&rpc, request.to, &tag).await?;
     let mut unknowns = decoded.unknowns;
+    unknowns.extend(metadata.unknowns);
     unknowns.push("asset effects were not simulated".to_string());
-    unknowns.push("target metadata was not inspected".to_string());
     unknowns.push("no policy was configured".to_string());
+    let mut warnings = decoded.warnings;
+    warnings.extend(metadata.warnings);
 
     Ok(TransactionInspectResponse {
         chain: request.chain.as_str().to_string(),
@@ -142,16 +145,13 @@ pub async fn inspect(
         to: request.to,
         value: Amount::from_raw(request.value, 18),
         intent: decoded.intent,
-        target: TransactionInspectTarget {
-            address: request.to,
-            kind: "unknown".to_string(),
-        },
+        target: metadata.target,
         effects: TransactionInspectEffects::default(),
         findings: Vec::new(),
         risk: "unknown".to_string(),
         coverage: TransactionInspectCoverage {
             decode: decoded.decode_coverage.to_string(),
-            metadata: "not_run".to_string(),
+            metadata: metadata.coverage.to_string(),
             simulation: "not_run".to_string(),
             policy: "not_configured".to_string(),
         },
@@ -165,10 +165,88 @@ pub async fn inspect(
                 name: format!("{}-rpc", request.chain.as_str()),
                 scope: "block-pinning".to_string(),
             },
+            TransactionInspectSource {
+                name: format!("{}-rpc", request.chain.as_str()),
+                scope: "target-metadata".to_string(),
+            },
         ],
-        warnings: decoded.warnings,
+        warnings,
     })
 }
+
+struct TargetMetadata {
+    target: TransactionInspectTarget,
+    coverage: &'static str,
+    unknowns: Vec<String>,
+    warnings: Vec<String>,
+}
+
+async fn inspect_target(
+    rpc: &Rpc,
+    address: Address,
+    tag: &str,
+) -> Result<TargetMetadata, CapabilityError> {
+    let code = rpc.code(address, tag).await?;
+    if code == "0x" {
+        return Ok(TargetMetadata {
+            target: TransactionInspectTarget {
+                address,
+                kind: "eoa".to_string(),
+                verified: None,
+                proxy: Some(false),
+                implementation: None,
+            },
+            coverage: "complete",
+            unknowns: Vec::new(),
+            warnings: Vec::new(),
+        });
+    }
+
+    let slot: B256 = EIP1967_IMPLEMENTATION_SLOT
+        .parse()
+        .map_err(|_| CapabilityError::internal("invalid EIP-1967 implementation slot"))?;
+    let (proxy, implementation, mut unknowns, mut warnings) =
+        match rpc.storage_at(address, slot, tag).await {
+            Ok(value) if value != B256::ZERO => (
+                Some(true),
+                Some(Address::from_slice(&value.as_slice()[12..])),
+                Vec::new(),
+                Vec::new(),
+            ),
+            Ok(_) => (Some(false), None, Vec::new(), Vec::new()),
+            Err(error) => (
+                None,
+                None,
+                vec![format!(
+                    "proxy storage could not be read: {}",
+                    error.message
+                )],
+                Vec::new(),
+            ),
+        };
+
+    unknowns.push("contract source verification was not configured".to_string());
+    warnings.push(
+        "verified=null means source verification was not checked, not that the contract is safe"
+            .to_string(),
+    );
+
+    Ok(TargetMetadata {
+        target: TransactionInspectTarget {
+            address,
+            kind: "contract".to_string(),
+            verified: None,
+            proxy,
+            implementation,
+        },
+        coverage: "partial",
+        unknowns,
+        warnings,
+    })
+}
+
+const EIP1967_IMPLEMENTATION_SLOT: &str =
+    "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
 
 fn selector_is_ambiguous(selector: &str) -> bool {
     BUILTIN_SELECTORS
@@ -627,6 +705,47 @@ mod tests {
         format!("http://{address}")
     }
 
+    async fn metadata_rpc(Json(body): Json<Value>) -> Json<Value> {
+        let method = body["method"].as_str().unwrap_or_default();
+        let address = body["params"][0].as_str().unwrap_or_default();
+        let result = match method {
+            "eth_blockNumber" => json!("0x64"),
+            "eth_getBlockByNumber" => json!({
+                "number": "0x64",
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000064"
+            }),
+            "eth_getCode" if address.ends_with("01") => json!("0x"),
+            "eth_getCode" => json!("0x6000"),
+            "eth_getStorageAt" if address.ends_with("03") => {
+                json!("0x0000000000000000000000000000000000000000000000000000000000000004")
+            }
+            "eth_getStorageAt" => {
+                json!("0x0000000000000000000000000000000000000000000000000000000000000000")
+            }
+            _ => json!("0x0"),
+        };
+        Json(json!({"jsonrpc": "2.0", "id": 1, "result": result}))
+    }
+
+    async fn metadata_base_url() -> String {
+        let app = Router::new().route("/rpc", post(metadata_rpc));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        format!("http://{address}")
+    }
+
+    fn request_to(to: &str, data: &str) -> InspectRequest {
+        InspectRequest {
+            chain: Chain::Bsc,
+            from: None,
+            to: to.parse().unwrap(),
+            data: data.to_string(),
+            value: U256::ZERO,
+            block: None,
+        }
+    }
+
     fn request(data: &str) -> InspectRequest {
         InspectRequest {
             chain: Chain::Bsc,
@@ -794,6 +913,58 @@ mod tests {
         selectors.dedup();
         assert_eq!(selectors.len(), BUILTIN_SELECTORS.len());
         assert!(!selector_is_ambiguous("0xa9059cbb"));
+    }
+
+    #[tokio::test]
+    async fn distinguishes_eoa_and_contract() {
+        let base = metadata_base_url().await;
+        let eoa = inspect(
+            &config(&base),
+            request_to("0x0000000000000000000000000000000000000001", "0x"),
+        )
+        .await
+        .unwrap();
+        assert_eq!(eoa.target.kind, "eoa");
+        assert_eq!(eoa.target.proxy, Some(false));
+        assert_eq!(eoa.coverage.metadata, "complete");
+
+        let contract = inspect(
+            &config(&base),
+            request_to("0x0000000000000000000000000000000000000002", "0x"),
+        )
+        .await
+        .unwrap();
+        assert_eq!(contract.target.kind, "contract");
+        assert_eq!(contract.target.verified, None);
+        assert_eq!(contract.target.proxy, Some(false));
+        assert_eq!(contract.coverage.metadata, "partial");
+        assert!(
+            contract
+                .unknowns
+                .iter()
+                .any(|item| item.contains("source verification"))
+        );
+    }
+
+    #[tokio::test]
+    async fn detects_eip1967_proxy_implementation() {
+        let base = metadata_base_url().await;
+        let response = inspect(
+            &config(&base),
+            request_to("0x0000000000000000000000000000000000000003", "0x"),
+        )
+        .await
+        .unwrap();
+        assert_eq!(response.target.kind, "contract");
+        assert_eq!(response.target.proxy, Some(true));
+        assert_eq!(
+            response.target.implementation,
+            Some(
+                "0x0000000000000000000000000000000000000004"
+                    .parse()
+                    .unwrap()
+            )
+        );
     }
 
     #[tokio::test]

@@ -168,6 +168,46 @@ impl Rpc {
         })
     }
 
+    pub(crate) async fn code(
+        &self,
+        address: Address,
+        tag: &str,
+    ) -> Result<String, CapabilityError> {
+        let value = self
+            .call("eth_getCode", json!([address, tag]))
+            .await
+            .map_err(rpc_failure)?;
+        value.as_str().map(str::to_string).ok_or_else(|| {
+            CapabilityError::new(
+                crate::capability::CapabilityErrorCode::RpcError,
+                "eth_getCode returned a non-string result",
+                true,
+            )
+        })
+    }
+
+    pub(crate) async fn storage_at(
+        &self,
+        address: Address,
+        slot: B256,
+        tag: &str,
+    ) -> Result<B256, CapabilityError> {
+        let value = self
+            .call("eth_getStorageAt", json!([address, slot, tag]))
+            .await
+            .map_err(rpc_failure)?;
+        value
+            .as_str()
+            .and_then(|value| value.parse::<B256>().ok())
+            .ok_or_else(|| {
+                CapabilityError::new(
+                    crate::capability::CapabilityErrorCode::RpcError,
+                    "eth_getStorageAt returned an invalid result",
+                    true,
+                )
+            })
+    }
+
     pub(crate) async fn block(
         &self,
         requested: Option<u64>,

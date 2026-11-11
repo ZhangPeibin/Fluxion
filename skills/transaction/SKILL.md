@@ -27,6 +27,8 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
 - `chain` defaults to `bsc`; use `ethereum` for Ethereum.
 - Empty `data` represents a native transfer.
 - Returns `intent`, `target`, `effects`, `findings`, `risk`, `coverage` and `unknowns`.
+- `target.kind` is `eoa`, `contract` or `unknown`; EIP-1967 proxies report `proxy` and
+  `implementation`. `verified: null` means source verification was not checked.
 - Unknown selectors stay unknown; never reinterpret them as safe.
 - `risk` is `unknown` until the relevant detectors are implemented; never treat it as approval.
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.

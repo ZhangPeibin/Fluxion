@@ -1,6 +1,6 @@
 # transaction.inspect
 
-Deterministic pre-sign inspection of unsigned calldata. It returns intent, target placeholder,
+Deterministic pre-sign inspection of unsigned calldata. It returns intent, target metadata,
 effects, findings, coverage and explicit unknowns. It is advisory only and never claims safety.
 
 ```bash
@@ -13,19 +13,23 @@ fluxion transaction inspect --to 0x... --data 0x... --chain ethereum --json
 - Built-in selectors decode signature, name and static arguments.
 - Unknown selectors return `signature: null`, `name: null` and an unknown entry.
 - The block is pinned and returned as `block_number` / `block_hash`.
-- `risk` is `unknown` until metadata, simulation and policy are implemented.
-- The first slice does not simulate effects or inspect target metadata.
+- `target` distinguishes EOA/contract and detects the EIP-1967 implementation slot.
+- Source verification is `null` unless a verification provider is configured.
+- `risk` is `unknown` until simulation, policy and detectors are implemented.
+- The current slice does not simulate effects.
 
 ## Output
 
 See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect.v1.json).
 
 - `intent`: selector, signature, name and decoded arguments.
-- `target`: address and a placeholder kind.
+- `target`: address, `kind`, `verified`, `proxy`, `implementation`. `verified: null` means not
+  checked, not safe.
 - `effects`: empty until the effects detector lands.
 - `findings`: rule-ID findings with evidence.
 - `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
-- `coverage`: decode, metadata, simulation and policy status.
+- `coverage`: decode, metadata, simulation and policy status. Contract metadata is `partial` until
+  source verification is configured.
 - `unknowns`: what was not inspected and could change the conclusion.
 
 ## Boundaries
