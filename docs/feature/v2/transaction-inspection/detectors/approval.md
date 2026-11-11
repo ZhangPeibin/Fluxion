@@ -9,6 +9,14 @@ power.
 
 `inspect.decode`, `inspect.effects`.
 
+## Implemented Slice
+
+The first detector uses decoded calldata, not forged logs:
+
+- `approve` / `increaseAllowance` with `uint256::MAX` -> `AUTH-001` high.
+- `setApprovalForAll(operator, true)` -> `AUTH-004` high.
+- finite approvals and allowlist caps remain pending `inspect.policy`.
+
 ## Rules
 
 - `AUTH-001`: ERC20 `approve` or `increaseAllowance` to `uint256::MAX` -> high.

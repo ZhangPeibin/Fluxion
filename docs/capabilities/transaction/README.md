@@ -17,7 +17,7 @@ fluxion transaction inspect --to 0x... --data 0x... --chain ethereum --json
 - Source verification is `null` unless a verification provider is configured.
 - Effects come from `eth_simulateV1` logs when the RPC supports it. They are `partial`, not a full
   state diff, and arbitrary contracts can forge logs.
-- `risk` is `unknown` until policy and detectors are implemented.
+- `risk` reflects known deterministic findings, otherwise `unknown`. It is never `safe`.
 
 ## Output
 
@@ -28,7 +28,8 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
   checked, not safe.
 - `effects`: native value plus token/NFT/approval effects derived from simulated logs. Native gas
   fees and full state changes are not included.
-- `findings`: rule-ID findings with evidence.
+- `findings`: rule-ID findings with evidence. Current approval checks: unlimited ERC20 approval
+  (`AUTH-001`) and NFT operator approval (`AUTH-004`).
 - `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
 - `coverage`: decode, metadata, simulation and policy status. Contract metadata is `partial` until
   source verification is configured; simulation is `partial` because it is log-derived.
