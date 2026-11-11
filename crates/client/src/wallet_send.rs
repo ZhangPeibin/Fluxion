@@ -1,5 +1,6 @@
 //! ETH/ERC20 transfers through a local WalletConnect session.
 
+use std::env;
 use std::time::Duration;
 
 use alloy_primitives::{Address, U256, address};
@@ -10,6 +11,7 @@ use crate::transaction::{self, SimulateRequest};
 use crate::wallet::{WalletConfig, WalletSendResponse};
 
 const NATIVE: Address = address!("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+const DEFAULT_BSC_RPC: &str = "https://bsc-dataseed.bnbchain.org";
 
 #[derive(Debug, Clone)]
 pub struct SendRequest {
@@ -59,7 +61,8 @@ pub async fn send(
         ));
     }
 
-    let transfer_token = resolve_transfer_token(&request.token, request.decimals)?;
+    let transfer_token =
+        resolve_transfer_token(&request.token, request.decimals, session.chain_id)?;
     let (token_ref, decimals) = match &transfer_token {
         TransferToken::Native => (TokenRef::new(Some("ETH".to_string()), NATIVE, 18), 18u8),
         TransferToken::Erc20(token) => (token.clone(), token.decimals),
@@ -81,8 +84,17 @@ pub async fn send(
         ),
     };
 
+    let rpc_url = if session.chain_id == 56 {
+        env::var("FLUXION_BSC_RPC_URL").unwrap_or_else(|_| DEFAULT_BSC_RPC.to_string())
+    } else {
+        config.rpc_url.clone()
+    };
+    let chain_config = WalletConfig {
+        rpc_url,
+        ..config.clone()
+    };
     let simulation = transaction::simulate(
-        config,
+        &chain_config,
         SimulateRequest {
             from: Some(from),
             to: tx_to,
@@ -123,12 +135,16 @@ pub async fn send(
 fn resolve_transfer_token(
     input: &str,
     decimals: Option<u8>,
+    chain_id: u64,
 ) -> Result<TransferToken, CapabilityError> {
     let input = input.trim();
-    if input.eq_ignore_ascii_case("ETH") {
+    let native = if chain_id == 56 { "BNB" } else { "ETH" };
+    if input.eq_ignore_ascii_case(native) {
         return Ok(TransferToken::Native);
     }
-    Ok(TransferToken::Erc20(token::resolve(input, decimals)?))
+    Ok(TransferToken::Erc20(token::resolve_for_chain(
+        input, decimals, chain_id,
+    )?))
 }
 
 fn encode_transfer(to: Address, amount: U256) -> Vec<u8> {
@@ -164,10 +180,10 @@ mod tests {
     #[test]
     fn resolves_native_and_erc20_tokens() {
         assert!(matches!(
-            resolve_transfer_token("eth", None).unwrap(),
+            resolve_transfer_token("eth", None, 1).unwrap(),
             TransferToken::Native
         ));
-        let usdc = resolve_transfer_token("USDC", None).unwrap();
+        let usdc = resolve_transfer_token("USDC", None, 1).unwrap();
         match usdc {
             TransferToken::Erc20(token) => assert_eq!(token.decimals, 6),
             TransferToken::Native => panic!("USDC must be ERC20"),

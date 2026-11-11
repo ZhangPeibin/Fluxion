@@ -3,8 +3,8 @@
 Fluxion 是一个面向 AI Agent 的 Web3 能力层。它把链上操作封装成稳定的 MCP 能力，目标是全链支持，
 而不是绑定某一个网络或协议。
 
-当前实现覆盖 Ethereum mainnet，并在 BSC 上提供 Agent ID 解析，已交付 10 个只读 capability、
-消息签名和 ETH/ERC20 转账。报价在远端不可变快照上计算；
+当前实现覆盖 Ethereum mainnet，以及 BSC 上的 Agent ID 解析和 BNB/BEP-20 转账；已交付 10 个
+只读 capability、消息签名和转账。报价在远端不可变快照上计算；
 钱包读取、WalletConnect 会话和模拟在本地执行。完整的 capability 列表见 [能力](#能力)。
 
 [English](README.en.md) · 中文
@@ -100,12 +100,12 @@ fluxion mcp
 | `wallet.disconnect` | 删除本地钱包会话 |
 | `wallet.agent-id` | 解析 BSC 上的 `.ai` Agent ID |
 | `wallet.sign` | 通过 WalletConnect 签名消息或 EIP-712 |
-| `wallet.send` | 通过 WalletConnect 发送 ETH/ERC20 转账 |
+| `wallet.send` | 通过 WalletConnect 发送 ETH/ERC20 或 BNB/BEP-20 转账 |
 | `transaction.simulate` | 固定区块模拟 calldata，返回结果和 gas |
 
 计划中：`transaction.send`、`swap.build`、`swap.execute`。`wallet.sign` 只签名消息和
-EIP-712 typed data；`wallet.send` 只发送 ETH/ERC20 transfer，不支持任意 calldata、授权或
-swap 执行。
+EIP-712 typed data；`wallet.send` 只发送原生/ERC20/BEP-20 transfer，不支持任意 calldata、
+授权或 swap 执行。
 
 ## 工作方式
 
@@ -148,7 +148,8 @@ HTTP p50/p95 为 35/197 ms，snapshot lag 0/1/1 blocks。82/90 在 ParaSwap ±50
 Pre-1.0。当前实现覆盖 Ethereum mainnet，目标支持更多链。
 
 - 账户、报价和模拟能力只读；`wallet.sign` 只签名消息/EIP-712；`wallet.send` 只发送
-  ETH/ERC20 transfer，不能任意合约调用、授权或执行 swap。
+  原生/ERC20/BEP-20 transfer，不能任意合约调用、授权或执行 swap。
+- `wallet.connect` / `wallet.send` 支持 Ethereum 和 BSC；其他钱包读取仍只覆盖 Ethereum。
 - `wallet.connect` 只建立 WalletConnect 会话，私钥留在手机钱包。
 - `wallet.agent-id` 只解析 BSC 身份，不是 Binance Agentic Wallet 登录，也不检查内盘资格。
 - `wallet.assets` / `wallet.collectibles` 的完整发现依赖可选 provider；回退时通过 coverage

@@ -24,6 +24,13 @@ macro_rules! token {
     };
 }
 
+static BSC_TOKENS: &[TokenInfo] = &[
+    token!("WBNB", "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", 18),
+    token!("USDT", "0x55d398326f99059ff775485246999027b3197955", 18),
+    token!("USDC", "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", 18),
+    token!("CAKE", "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82", 18),
+];
+
 static TOKENS: &[TokenInfo] = &[
     token!("WETH", "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", 18),
     token!("USDC", "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", 6),
@@ -74,6 +81,26 @@ pub fn decimals_for(address: Address) -> Option<u8> {
 }
 
 pub fn resolve(input: &str, decimals_override: Option<u8>) -> Result<TokenRef, CapabilityError> {
+    resolve_from(TOKENS, input, decimals_override)
+}
+
+pub fn resolve_for_chain(
+    input: &str,
+    decimals_override: Option<u8>,
+    chain_id: u64,
+) -> Result<TokenRef, CapabilityError> {
+    if chain_id == 56 {
+        resolve_from(BSC_TOKENS, input, decimals_override)
+    } else {
+        resolve(input, decimals_override)
+    }
+}
+
+fn resolve_from(
+    tokens: &[TokenInfo],
+    input: &str,
+    decimals_override: Option<u8>,
+) -> Result<TokenRef, CapabilityError> {
     let input = input.trim();
     if input.is_empty() {
         return Err(CapabilityError::invalid_argument("empty token"));
@@ -82,7 +109,7 @@ pub fn resolve(input: &str, decimals_override: Option<u8>) -> Result<TokenRef, C
         let address = input.parse::<Address>().map_err(|_| {
             CapabilityError::invalid_argument(format!("invalid token address: {input}"))
         })?;
-        let known = TOKENS
+        let known = tokens
             .iter()
             .find(|token| token.address.parse::<Address>().ok() == Some(address));
         let (symbol, decimals) = match (known, decimals_override) {
@@ -100,7 +127,7 @@ pub fn resolve(input: &str, decimals_override: Option<u8>) -> Result<TokenRef, C
 
     let upper = input.to_ascii_uppercase();
     let symbol = if upper == "ETH" { "WETH" } else { input };
-    let token = TOKENS
+    let token = tokens
         .iter()
         .find(|token| token.symbol.eq_ignore_ascii_case(symbol))
         .ok_or_else(|| {
@@ -168,6 +195,8 @@ mod tests {
         let usdc = resolve("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", None).unwrap();
         assert_eq!(usdc.decimals, 6);
         assert!(resolve("0x0000000000000000000000000000000000000001", None).is_err());
+        assert_eq!(resolve_for_chain("USDT", None, 56).unwrap().decimals, 18);
+        assert!(resolve_for_chain("CAKE", None, 1).is_err());
         assert_eq!(
             resolve("0x0000000000000000000000000000000000000001", Some(18))
                 .unwrap()

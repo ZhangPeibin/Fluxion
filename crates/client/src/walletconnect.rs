@@ -340,6 +340,16 @@ fn write_private_bytes(path: &PathBuf, bytes: &[u8]) -> Result<(), CapabilityErr
     Ok(())
 }
 
+pub fn parse_chain_id(value: &str) -> Result<u64, CapabilityError> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "ethereum" | "eth" | "mainnet" | "1" => Ok(1),
+        "bsc" | "bnb" | "binance" | "56" => Ok(56),
+        other => Err(invalid(format!(
+            "unsupported chain `{other}`; expected ethereum or bsc"
+        ))),
+    }
+}
+
 pub async fn sign(request: SignRequest) -> Result<WalletSignResponse, CapabilityError> {
     let session = Session::load()?.ok_or_else(|| {
         CapabilityError::new(
@@ -451,11 +461,12 @@ pub struct Pairing {
     pairing_key: [u8; 32],
     uri: String,
     proposal: Value,
+    chain_id: u64,
     expires_at: i64,
 }
 
 impl Pairing {
-    pub async fn start(config: &ConnectConfig) -> Result<Self, CapabilityError> {
+    pub async fn start(config: &ConnectConfig, chain_id: u64) -> Result<Self, CapabilityError> {
         let (mut relay, relay_secret) = connect_relay(config, None).await?;
 
         let pairing_secret = StaticSecret::random_from_rng(OsRng);
@@ -483,14 +494,14 @@ impl Pairing {
                 "relays": [{"protocol": "irn"}],
                 "requiredNamespaces": {
                     "eip155": {
-                        "chains": ["eip155:1"],
+                        "chains": [format!("eip155:{chain_id}")],
                         "methods": ["eth_signTransaction", "eth_signTypedData_v4"],
                         "events": ["chainChanged", "accountsChanged"]
                     }
                 },
                 "optionalNamespaces": {
                     "eip155": {
-                        "chains": ["eip155:1"],
+                        "chains": [format!("eip155:{chain_id}")],
                         "methods": ["eth_sendTransaction", "personal_sign", "eth_signTypedData"],
                         "events": []
                     }
@@ -524,6 +535,7 @@ impl Pairing {
             pairing_key,
             uri,
             proposal,
+            chain_id,
             relay_secret,
             expires_at: unix_timestamp() + PAIRING_TIMEOUT_SECS as i64,
         })
@@ -693,7 +705,7 @@ impl Pairing {
                         topic: topic.to_string(),
                         sym_key: hex(key),
                         accounts,
-                        chain_id: 1,
+                        chain_id: self.chain_id,
                         expiry,
                         responder_public_key: controller
                             .and_then(|controller| controller.get("publicKey"))
@@ -732,6 +744,7 @@ struct Pending {
     qr_ascii: String,
     qr_png_base64: Option<String>,
     qr_png_path: Option<String>,
+    chain_id: u64,
     expires_at: i64,
     status: String,
     error: Option<String>,
@@ -745,10 +758,20 @@ impl Manager {
         }
     }
 
-    pub async fn connect(&self) -> Result<WalletConnectResponse, CapabilityError> {
+    pub async fn connect(&self, chain_id: u64) -> Result<WalletConnectResponse, CapabilityError> {
         if let Some(session) = Session::load()?
             && session.expiry > unix_timestamp()
         {
+            if session.chain_id != chain_id {
+                return Err(CapabilityError::new(
+                    CapabilityErrorCode::Unsupported,
+                    format!(
+                        "active WalletConnect session is eip155:{}; disconnect before connecting to eip155:{chain_id}",
+                        session.chain_id
+                    ),
+                    false,
+                ));
+            }
             return Ok(connected_response(session));
         }
 
@@ -756,6 +779,7 @@ impl Manager {
             let state = self.inner.lock().await;
             if let Some(pending) = &state.pending
                 && pending.status == "pending"
+                && pending.chain_id == chain_id
                 && pending.expires_at > unix_timestamp()
             {
                 return Ok(pending_response(pending));
@@ -772,15 +796,16 @@ impl Manager {
         }
 
         let config = ConnectConfig::from_env()?;
-        let pairing = tokio::time::timeout(Duration::from_secs(20), Pairing::start(&config))
-            .await
-            .map_err(|_| {
-                CapabilityError::new(
-                    CapabilityErrorCode::Timeout,
-                    "WalletConnect relay connection timed out",
-                    true,
-                )
-            })??;
+        let pairing =
+            tokio::time::timeout(Duration::from_secs(20), Pairing::start(&config, chain_id))
+                .await
+                .map_err(|_| {
+                    CapabilityError::new(
+                        CapabilityErrorCode::Timeout,
+                        "WalletConnect relay connection timed out",
+                        true,
+                    )
+                })??;
         let connection_id = pairing.uri()[3..35].to_string();
         let uri = pairing.uri().to_string();
         let qr_ascii = pairing.qr_ascii()?;
@@ -806,6 +831,7 @@ impl Manager {
             qr_ascii,
             qr_png_base64,
             qr_png_path,
+            chain_id,
             expires_at,
             status: "pending".to_string(),
             error: None,
@@ -936,7 +962,7 @@ fn pending_response(pending: &Pending) -> WalletConnectResponse {
         qr_ascii: pending.qr_ascii.clone(),
         expires_at: pending.expires_at,
         accounts: Vec::new(),
-        chain_id: None,
+        chain_id: Some(pending.chain_id),
         qr_png_base64: pending.qr_png_base64.clone(),
         qr_png_path: pending.qr_png_path.clone(),
     }

@@ -26,8 +26,8 @@ See [`schemas/transaction_simulate.v1.json`](../../../schemas/transaction_simula
 - `error`: normalized RPC/revert message
 - `value`: raw + decimal ETH value supplied
 
-A revert is returned as a normal response with `success: false`; transport/RPC failures are returned
-as capability errors.
+A revert or EVM execution error from `eth_call` is returned as a normal response with
+`success: false`; transport/RPC failures before the call are returned as capability errors.
 
 ## Boundaries
 
