@@ -53,6 +53,12 @@ pub struct TransactionInspectIntent {
 pub struct TransactionInspectTarget {
     pub address: Address,
     pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verified: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<Address>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
