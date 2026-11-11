@@ -1,0 +1,118 @@
+[
+  {
+    "name": "typed data domain mismatch",
+    "kind": "typed_data",
+    "input": {
+      "typed_data": {
+        "domain": {
+          "chainId": 1
+        },
+        "primaryType": "Mail",
+        "message": {}
+      }
+    },
+    "expected_findings": [
+      "SIG-001"
+    ],
+    "expected_risk": "high"
+  },
+  {
+    "name": "permit2 unlimited and no expiration",
+    "kind": "typed_data",
+    "input": {
+      "typed_data": {
+        "domain": {
+          "chainId": 56
+        },
+        "primaryType": "PermitSingle",
+        "message": {
+          "spender": "0x0000000000000000000000000000000000000002",
+          "sigDeadline": "1",
+          "details": {
+            "token": "0x0000000000000000000000000000000000000010",
+            "amount": "1461501637330902918203684832716283019655932542975",
+            "expiration": "0",
+            "nonce": 0
+          }
+        }
+      }
+    },
+    "expected_findings": [
+      "SIG-002",
+      "SIG-003"
+    ],
+    "expected_risk": "high"
+  },
+  {
+    "name": "permit2 zero spender",
+    "kind": "typed_data",
+    "input": {
+      "typed_data": {
+        "domain": {
+          "chainId": 56
+        },
+        "primaryType": "PermitSingle",
+        "message": {
+          "spender": "0x0000000000000000000000000000000000000000",
+          "sigDeadline": "9999999999",
+          "details": {
+            "token": "0x0000000000000000000000000000000000000010",
+            "amount": "1",
+            "expiration": "9999999999",
+            "nonce": 0
+          }
+        }
+      }
+    },
+    "expected_findings": [
+      "SIG-003"
+    ],
+    "expected_risk": "high"
+  },
+  {
+    "name": "eip7702 authorization",
+    "kind": "authorization_list",
+    "input": {
+      "authorization_list": [
+        {
+          "chainId": 1,
+          "address": "0x0000000000000000000000000000000000000002"
+        }
+      ]
+    },
+    "expected_findings": [
+      "SIG-004"
+    ],
+    "expected_risk": "high"
+  },
+  {
+    "name": "erc4337 paymaster",
+    "kind": "user_operation",
+    "input": {
+      "user_operation": {
+        "sender": "0x0000000000000000000000000000000000000001",
+        "paymaster": "0x0000000000000000000000000000000000000003",
+        "callData": "0x"
+      }
+    },
+    "expected_findings": [
+      "SIG-005"
+    ],
+    "expected_risk": "medium"
+  },
+  {
+    "name": "unknown typed data",
+    "kind": "typed_data",
+    "input": {
+      "typed_data": {
+        "domain": {
+          "chainId": 56
+        },
+        "primaryType": "Mail",
+        "message": {}
+      }
+    },
+    "expected_findings": [],
+    "expected_risk": "unknown"
+  }
+]

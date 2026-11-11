@@ -624,6 +624,52 @@ mod tests {
     }
 
     #[test]
+    fn fixture_corpus_matches_expected_findings() {
+        use std::collections::BTreeSet;
+
+        let cases: Vec<Value> = serde_json::from_str(include_str!(
+            "../tests/fixtures/signature_inspect/cases.json"
+        ))
+        .unwrap();
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let typed_data = case["input"].get("typed_data").cloned();
+            let authorization_list = case["input"].get("authorization_list").cloned();
+            let user_operation = case["input"].get("user_operation").cloned();
+            let response = inspect(SignatureInspectRequest {
+                chain: Chain::Bsc,
+                from: None,
+                typed_data,
+                authorization_list,
+                user_operation,
+            })
+            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+            assert_eq!(
+                response.kind,
+                case["kind"].as_str().unwrap(),
+                "{name}: kind"
+            );
+            assert_eq!(
+                response.risk,
+                case["expected_risk"].as_str().unwrap(),
+                "{name}: risk"
+            );
+            let actual = response
+                .findings
+                .iter()
+                .map(|finding| finding.id.as_str())
+                .collect::<BTreeSet<_>>();
+            let expected = case["expected_findings"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_str().unwrap())
+                .collect::<BTreeSet<_>>();
+            assert_eq!(actual, expected, "{name}: findings");
+        }
+    }
+
+    #[test]
     fn unknown_typed_data_stays_unknown() {
         let response = inspect(request(json!({
             "domain": {"chainId": 56},
