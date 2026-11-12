@@ -57,7 +57,8 @@
         "kind": { "type": "string", "enum": ["eoa", "contract", "unknown"] },
         "verified": { "type": ["boolean", "null"] },
         "proxy": { "type": ["boolean", "null"] },
-        "implementation": { "type": ["string", "null"], "pattern": "^0x[0-9a-fA-F]{40}$" }
+        "implementation": { "type": ["string", "null"], "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "proxy_kind": { "type": "string" }
       }
     },
     "effects": {
