@@ -1,3 +1,11 @@
 /target
 /.worktrees/
 .env
+
+# Foundry security lab
+/tests/security/out/
+/tests/security/cache/
+/tests/security/broadcast/
+/tests/security/deployments.json
+
+__pycache__/

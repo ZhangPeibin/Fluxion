@@ -86,6 +86,12 @@ especially p95. `signature.inspect` is local and sub-10 ms at p95 in this run.
 - No LLM explanation was benchmarked; explanation is deterministic and local.
 - Public RPC latency is noisy; these numbers are not an SLA.
 
+## Red-team follow-up
+
+The local Foundry/Anvil adversarial corpus is in
+[redteam-2026-11-11.md](redteam-2026-11-11.md). It adds 11 detect cases, 2 controls and 3 explicit
+known gaps.
+
 ## Decision
 
 Keep the deterministic detector path. Do not market the report as a safety guarantee. Before any

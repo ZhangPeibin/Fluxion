@@ -1,0 +1,477 @@
+[
+  {
+    "name": "benign transfer",
+    "mode": "control",
+    "kind": "transaction",
+    "to": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "data": "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c800000000000000000000000000000000000000000000000000000000000003e8",
+    "expect": [],
+    "actual": [],
+    "risk": "unknown",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 23.88633298687637
+  },
+  {
+    "name": "benign finite approve",
+    "mode": "control",
+    "kind": "transaction",
+    "to": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "data": "0x095ea7b30000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc00000000000000000000000000000000000000000000000000000000000003e8",
+    "expect": [],
+    "actual": [],
+    "risk": "unknown",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 8.486250066198409
+  },
+  {
+    "name": "unlimited approve",
+    "mode": "detect",
+    "kind": "transaction",
+    "to": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "data": "0x095ea7b30000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bcffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "expect": [
+      "AUTH-001"
+    ],
+    "actual": [
+      "AUTH-001"
+    ],
+    "risk": "high",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 7.96241604257375
+  },
+  {
+    "name": "nft operator approval",
+    "mode": "detect",
+    "kind": "transaction",
+    "to": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+    "data": "0xa22cb4650000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc0000000000000000000000000000000000000000000000000000000000000001",
+    "expect": [
+      "AUTH-004"
+    ],
+    "actual": [
+      "AUTH-004"
+    ],
+    "risk": "high",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 7.990584010258317
+  },
+  {
+    "name": "multicall hidden approve",
+    "mode": "detect",
+    "kind": "transaction",
+    "to": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+    "data": "0xac9650d80000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000044095ea7b30000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bcffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000000000000000000000000000000000000000000000000000",
+    "expect": [
+      "AUTH-001"
+    ],
+    "actual": [
+      "AUTH-001"
+    ],
+    "risk": "high",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "transaction simulation failed: simulation reverted",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe"
+    ],
+    "passed": true,
+    "latency_ms": 8.583417045883834
+  },
+  {
+    "name": "transfer to zero",
+    "mode": "detect",
+    "kind": "transaction",
+    "to": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "data": "0xa9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+    "expect": [
+      "ADDR-001"
+    ],
+    "actual": [
+      "ADDR-001"
+    ],
+    "risk": "high",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 8.862707996740937
+  },
+  {
+    "name": "transfer to burn",
+    "mode": "detect",
+    "kind": "transaction",
+    "to": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "data": "0xa9059cbb000000000000000000000000000000000000000000000000000000000000dead0000000000000000000000000000000000000000000000000000000000000001",
+    "expect": [
+      "ADDR-002"
+    ],
+    "actual": [
+      "ADDR-002"
+    ],
+    "risk": "high",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 8.191541070118546
+  },
+  {
+    "name": "swap zero minOut",
+    "mode": "detect",
+    "kind": "transaction",
+    "to": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+    "data": "0x38ed173900000000000000000000000000000000000000000000000000000000000003e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000000000000000000000000000000000002540be3ff00000000000000000000000000000000000000000000000000000000000000020000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa30000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa3",
+    "expect": [
+      "SWAP-001",
+      "SWAP-007"
+    ],
+    "actual": [
+      "SWAP-001",
+      "SWAP-007"
+    ],
+    "risk": "high",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulation produced no logs; token effects may be incomplete",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 8.212166023440659
+  },
+  {
+    "name": "proxy upgrade",
+    "mode": "detect",
+    "kind": "transaction",
+    "to": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+    "data": "0x3659cfe60000000000000000000000005fc8d32690cc91d4c39d9d3abcbd16989f875707",
+    "expect": [
+      "CONTRACT-003"
+    ],
+    "actual": [
+      "CONTRACT-003"
+    ],
+    "risk": "high",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulation produced no logs; token effects may be incomplete",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 8.349500014446676
+  },
+  {
+    "name": "fee on transfer",
+    "mode": "detect",
+    "kind": "transaction",
+    "to": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+    "data": "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c800000000000000000000000000000000000000000000000000000000000003e8",
+    "expect": [
+      "FLOW-004",
+      "FLOW-005"
+    ],
+    "actual": [
+      "FLOW-005",
+      "FLOW-004"
+    ],
+    "risk": "high",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 8.746542036533356
+  },
+  {
+    "name": "fake transfer logs",
+    "mode": "known_gap",
+    "kind": "transaction",
+    "to": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+    "data": "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c800000000000000000000000000000000000000000000000000000000000003e8",
+    "expect": [],
+    "actual": [],
+    "risk": "unknown",
+    "coverage": {
+      "decode": "complete",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 9.781582979485393
+  },
+  {
+    "name": "hidden delegatecall",
+    "mode": "known_gap",
+    "kind": "transaction",
+    "to": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "data": "0xbb1757cf0000000000000000000000008a791620dd6260079bf849dc5567adc3f2fdc318000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000045c36b18600000000000000000000000000000000000000000000000000000000",
+    "expect": [],
+    "actual": [],
+    "risk": "unknown",
+    "coverage": {
+      "decode": "partial",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "selector 0xbb1757cf is not in the built-in ABI registry",
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 10.214209090918303
+  },
+  {
+    "name": "unverified benign target",
+    "mode": "known_gap",
+    "kind": "transaction",
+    "to": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+    "data": "0x5c36b186",
+    "expect": [],
+    "actual": [],
+    "risk": "unknown",
+    "coverage": {
+      "decode": "partial",
+      "metadata": "partial",
+      "simulation": "partial",
+      "policy": "not_configured"
+    },
+    "unknowns": [
+      "selector 0x5c36b186 is not in the built-in ABI registry",
+      "contract source verification was not configured",
+      "effects are derived from simulated logs; gas fees and full state changes are not included",
+      "no policy was configured"
+    ],
+    "warnings": [
+      "verified=null means source verification was not checked, not that the contract is safe",
+      "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
+    ],
+    "passed": true,
+    "latency_ms": 8.248291909694672
+  },
+  {
+    "name": "permit2 unlimited + no expiration",
+    "mode": "detect",
+    "kind": "signature",
+    "input": {
+      "domain": {
+        "name": "Permit2",
+        "chainId": 56
+      },
+      "primaryType": "PermitSingle",
+      "message": {
+        "spender": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "sigDeadline": "9999999999",
+        "details": {
+          "token": "0x0000000000000000000000000000000000000010",
+          "amount": "1461501637330902918203684832716283019655932542975",
+          "expiration": "0",
+          "nonce": 0
+        }
+      }
+    },
+    "expect": [
+      "SIG-002",
+      "SIG-003"
+    ],
+    "actual": [
+      "SIG-003",
+      "SIG-002"
+    ],
+    "risk": "high",
+    "coverage": "partial",
+    "unknowns": [],
+    "warnings": [],
+    "passed": true,
+    "latency_ms": 4.583625006489456
+  },
+  {
+    "name": "eip7702 authorization",
+    "mode": "detect",
+    "kind": "signature",
+    "input_type": "authorization_list",
+    "input": [
+      {
+        "chainId": 1,
+        "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+      }
+    ],
+    "expect": [
+      "SIG-004"
+    ],
+    "actual": [
+      "SIG-004"
+    ],
+    "risk": "high",
+    "coverage": "partial",
+    "unknowns": [],
+    "warnings": [],
+    "passed": true,
+    "latency_ms": 4.215333028696477
+  },
+  {
+    "name": "erc4337 paymaster",
+    "mode": "detect",
+    "kind": "signature",
+    "input_type": "user_operation",
+    "input": {
+      "sender": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "paymaster": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+      "callData": "0x"
+    },
+    "expect": [
+      "SIG-005"
+    ],
+    "actual": [
+      "SIG-005"
+    ],
+    "risk": "medium",
+    "coverage": "partial",
+    "unknowns": [
+      "user operation callData was not decoded"
+    ],
+    "warnings": [],
+    "passed": true,
+    "latency_ms": 4.234499996528029
+  }
+]
