@@ -7,6 +7,7 @@ use alloy_primitives::{Address, U256, address};
 use crate::capability::{Amount, CapabilityError, CapabilityErrorCode, TokenRef};
 use crate::token;
 use crate::transaction::{self, SimulateRequest};
+use crate::transaction_inspect::{self, InspectPolicy, InspectRequest};
 use crate::wallet::{WalletConfig, WalletSendResponse};
 
 const NATIVE: Address = address!("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
@@ -20,6 +21,7 @@ pub struct SendRequest {
     pub decimals: Option<u8>,
     pub block: Option<u64>,
     pub timeout: Duration,
+    pub policy: Option<InspectPolicy>,
 }
 
 enum TransferToken {
@@ -110,6 +112,30 @@ pub async fn send(
             detail,
             false,
         ));
+    }
+
+    if let Some(policy) = request.policy {
+        let inspection = transaction_inspect::inspect_with_policy(
+            &chain_config,
+            InspectRequest {
+                chain,
+                from: Some(from),
+                to: tx_to,
+                data: data.clone(),
+                value,
+                block: request.block,
+            },
+            Some(policy),
+        )
+        .await?;
+        if inspection.policy.blocked {
+            let reasons = inspection.policy.reasons.join("; ");
+            return Err(CapabilityError::new(
+                CapabilityErrorCode::PolicyBlocked,
+                format!("wallet.send blocked by policy: {reasons}"),
+                false,
+            ));
+        }
     }
 
     let tx_hash = session

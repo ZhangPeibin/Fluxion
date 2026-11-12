@@ -24,6 +24,8 @@ Every `transaction.inspect` response includes:
   and cross-check status. It is stable for the same request/block/code version.
 - `cross_check` is `not_configured`, `match`, `mismatch`, or `unavailable`.
 - `limitations` names missing coverage and trust assumptions that may change the conclusion.
+- `policy` reports `mode`, `decision`, `blocked`, and reasons. `wallet.send --policy` uses the same
+  decision and fails with `POLICY_BLOCKED` before the wallet request.
 
 ## Rule catalog
 

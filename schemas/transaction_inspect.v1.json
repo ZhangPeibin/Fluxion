@@ -7,7 +7,7 @@
   "required": [
     "chain", "chain_id", "block_number", "block_hash", "to", "value",
     "intent", "target", "effects", "findings", "risk", "coverage",
-    "unknowns", "assurance", "explanation", "sources", "warnings"
+    "unknowns", "policy", "assurance", "explanation", "sources", "warnings"
   ],
   "properties": {
     "chain": { "type": "string", "enum": ["ethereum", "bsc"] },
@@ -159,6 +159,17 @@
       }
     },
     "unknowns": { "type": "array", "items": { "type": "string" } },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "decision", "blocked", "reasons"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["not_configured", "advisory", "enforce"] },
+        "decision": { "type": "string", "enum": ["not_configured", "allow", "warn", "block"] },
+        "blocked": { "type": "boolean" },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "assurance": {
       "type": "object",
       "additionalProperties": false,

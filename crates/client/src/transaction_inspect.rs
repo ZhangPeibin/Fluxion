@@ -21,8 +21,8 @@ pub use fluxion_protocol::transaction::{
     TransactionInspectApprovalEffect, TransactionInspectArg, TransactionInspectAssurance,
     TransactionInspectCoverage, TransactionInspectEffects, TransactionInspectExplanation,
     TransactionInspectFinding, TransactionInspectIntent, TransactionInspectNativeEffect,
-    TransactionInspectNftEffect, TransactionInspectResponse, TransactionInspectSource,
-    TransactionInspectTarget, TransactionInspectTokenEffect,
+    TransactionInspectNftEffect, TransactionInspectPolicyResult, TransactionInspectResponse,
+    TransactionInspectSource, TransactionInspectTarget, TransactionInspectTokenEffect,
 };
 
 #[derive(Debug, Clone)]
@@ -397,6 +397,22 @@ async fn inspect_with_options(
     )?;
     findings.extend(policy_eval.findings);
     unknowns.extend(policy_eval.unknowns);
+    let policy_mode = policy
+        .as_ref()
+        .map(|policy| {
+            if policy.mode.is_empty() {
+                "advisory".to_string()
+            } else {
+                policy.mode.to_ascii_lowercase()
+            }
+        })
+        .unwrap_or_else(|| "not_configured".to_string());
+    let policy_result = TransactionInspectPolicyResult {
+        mode: policy_mode,
+        decision: policy_eval.decision.to_string(),
+        blocked: policy_eval.blocked,
+        reasons: policy_eval.reasons,
+    };
     let risk = aggregate_risk(&findings);
     let mut sources = vec![
         TransactionInspectSource {
@@ -438,6 +454,7 @@ async fn inspect_with_options(
             policy: policy_eval.coverage.to_string(),
         },
         unknowns,
+        policy: policy_result,
         assurance: TransactionInspectAssurance {
             ruleset_version: RULESET_VERSION.to_string(),
             report_id: String::new(),
@@ -756,6 +773,9 @@ fn decode_swap_v2(
 struct PolicyEvaluation {
     findings: Vec<TransactionInspectFinding>,
     coverage: &'static str,
+    decision: &'static str,
+    blocked: bool,
+    reasons: Vec<String>,
     unknowns: Vec<String>,
 }
 
@@ -770,6 +790,9 @@ fn evaluate_policy(
         return Ok(PolicyEvaluation {
             findings: Vec::new(),
             coverage: "not_configured",
+            decision: "not_configured",
+            blocked: false,
+            reasons: Vec::new(),
             unknowns: Vec::new(),
         });
     };
@@ -901,6 +924,17 @@ fn evaluate_policy(
         unknowns.push("policy enforcement could not verify asset effects".to_string());
     }
 
+    let reasons = findings
+        .iter()
+        .map(|finding| format!("{}: {}", finding.id, finding.title))
+        .collect::<Vec<_>>();
+    let decision = if findings.is_empty() {
+        "allow"
+    } else if enforce {
+        "block"
+    } else {
+        "warn"
+    };
     Ok(PolicyEvaluation {
         findings,
         coverage: if unknowns.is_empty() {
@@ -908,6 +942,9 @@ fn evaluate_policy(
         } else {
             "partial"
         },
+        decision,
+        blocked: enforce && !reasons.is_empty(),
+        reasons,
         unknowns,
     })
 }
@@ -4476,6 +4513,40 @@ mod tests {
         )
         .await;
         assert_eq!(result.status, "unavailable");
+    }
+
+    #[tokio::test]
+    async fn enforce_policy_blocks_high_findings() {
+        let base = base_url().await;
+        let mut request = flow_request();
+        request.value = U256::from(2_000_000_000_000_000_000u64);
+        let policy = InspectPolicy {
+            mode: "enforce".to_string(),
+            max_native_spend: Some("1".to_string()),
+            ..Default::default()
+        };
+        let response = inspect_with_policy(&config(&base), request, Some(policy))
+            .await
+            .unwrap();
+        assert_eq!(response.policy.mode, "enforce");
+        assert_eq!(response.policy.decision, "block");
+        assert!(response.policy.blocked);
+        assert!(!response.policy.reasons.is_empty());
+    }
+
+    #[tokio::test]
+    async fn enforce_policy_allows_clean_transaction() {
+        let base = base_url().await;
+        let policy = InspectPolicy {
+            mode: "enforce".to_string(),
+            max_native_spend: Some("1".to_string()),
+            ..Default::default()
+        };
+        let response = inspect_with_policy(&config(&base), request("0x"), Some(policy))
+            .await
+            .unwrap();
+        assert_eq!(response.policy.decision, "allow");
+        assert!(!response.policy.blocked);
     }
 
     #[tokio::test]

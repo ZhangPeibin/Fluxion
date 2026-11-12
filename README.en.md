@@ -427,7 +427,7 @@ only routes.
 | `wallet.balance` / `assets` / `allowance` / `collectibles` | local | local RPC at a pinned block | RPC failure -> `RPC_ERROR` |
 | `wallet.connect` / `status` / `disconnect` | local | local session + WalletConnect relay | No session, pairing failure, or expiry -> explicit error |
 | `wallet.agent-id` | local | SPACE ID API + BSC RPC verification | API failure -> configured on-chain fallback or unknown |
-| `wallet.sign` / `wallet.send` | local | local session -> relay -> phone confirmation | Rejection -> `USER_REJECTED`; timeout -> `TIMEOUT` |
+| `wallet.sign` / `wallet.send` | local | local session -> relay -> phone confirmation | Rejection -> `USER_REJECTED`; timeout -> `TIMEOUT`; policy block -> `POLICY_BLOCKED` |
 | `transaction.inspect` | local | local RPC: block, code, simulate, trace, source | Missing dimensions -> `coverage` / `unknowns` |
 | `transaction.simulate` | local | local RPC: `eth_call` + `eth_estimateGas` | RPC/revert -> capability error or `success=false` |
 | `signature.inspect` | local | caller-provided typed data / authorization / userOp JSON | Undecodable -> `SIG-006` or invalid argument |

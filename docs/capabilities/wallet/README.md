@@ -124,6 +124,7 @@ is simulated locally before the phone confirmation.
 ```bash
 fluxion wallet send --to 0x... --token BNB --amount 0.01
 fluxion wallet send --to 0x... --token USDT --amount 10 --json
+fluxion wallet send --to 0x... --token USDT --amount 10 --policy policy.json
 ```
 
 - Only native transfers and ERC20/BEP-20 `transfer` are supported.
@@ -132,6 +133,8 @@ fluxion wallet send --to 0x... --token USDT --amount 10 --json
 - `token` accepts the native symbol, built-in symbols, or a token address; unknown addresses need `decimals`.
 - BSC built-ins: `WBNB`, `USDT`, `USDC`, `CAKE`.
 - Simulation failure returns `SIMULATION_FAILED` and does not reach the phone.
+- With `--policy`, the generated transfer is inspected before phone confirmation. Enforce-mode
+  high-risk findings return `POLICY_BLOCKED`; advisory mode returns findings but does not block.
 - Wallet rejection returns `USER_REJECTED`.
 - After a timeout, check the wallet/transaction history; do not blindly retry.
 - Arbitrary calldata, approvals, NFT transfers and swap execution are out of scope.

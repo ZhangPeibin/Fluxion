@@ -8,6 +8,7 @@
     "expect": [],
     "actual": [],
     "risk": "unknown",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -24,7 +25,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 15.612915973179042
+    "latency_ms": 15.289750066585839
   },
   {
     "name": "benign finite approve",
@@ -35,6 +36,7 @@
     "expect": [],
     "actual": [],
     "risk": "unknown",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -51,7 +53,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.495749979279935
+    "latency_ms": 12.271000072360039
   },
   {
     "name": "unlimited approve",
@@ -66,6 +68,7 @@
       "AUTH-001"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -82,7 +85,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.365041067823768
+    "latency_ms": 11.959625058807433
   },
   {
     "name": "nft operator approval",
@@ -97,6 +100,7 @@
       "AUTH-004"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -112,7 +116,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 11.808541952632368
+    "latency_ms": 11.872333008795977
   },
   {
     "name": "multicall hidden approve",
@@ -127,6 +131,7 @@
       "AUTH-001"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -140,7 +145,7 @@
     ],
     "warnings": [],
     "passed": true,
-    "latency_ms": 12.716791010461748
+    "latency_ms": 11.80379104334861
   },
   {
     "name": "transfer to zero",
@@ -155,6 +160,7 @@
       "ADDR-001"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -171,7 +177,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 11.986500001512468
+    "latency_ms": 11.907333973795176
   },
   {
     "name": "transfer to burn",
@@ -186,6 +192,7 @@
       "ADDR-002"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -202,7 +209,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.577750021591783
+    "latency_ms": 12.571875005960464
   },
   {
     "name": "swap zero minOut",
@@ -219,6 +226,7 @@
       "SWAP-007"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -235,7 +243,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.426875066012144
+    "latency_ms": 11.855041957460344
   },
   {
     "name": "proxy upgrade",
@@ -250,6 +258,7 @@
       "CONTRACT-003"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -266,7 +275,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.038500048220158
+    "latency_ms": 11.166832991875708
   },
   {
     "name": "fee on transfer",
@@ -283,6 +292,7 @@
       "FLOW-005"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -299,7 +309,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.429708032868803
+    "latency_ms": 12.356082908809185
   },
   {
     "name": "fake transfer logs",
@@ -314,6 +324,7 @@
       "EFFECT-007"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -329,7 +340,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.825833051465452
+    "latency_ms": 12.901291018351912
   },
   {
     "name": "fake approval logs",
@@ -344,6 +355,7 @@
       "EFFECT-009"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -359,7 +371,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.912416947074234
+    "latency_ms": 12.64924998395145
   },
   {
     "name": "benign NFT transfer",
@@ -370,6 +382,7 @@
     "expect": [],
     "actual": [],
     "risk": "unknown",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -386,7 +399,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.236166978254914
+    "latency_ms": 12.741415994241834
   },
   {
     "name": "fake NFT transfer logs",
@@ -401,6 +414,7 @@
       "EFFECT-010"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -416,7 +430,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 11.942000011913478
+    "latency_ms": 11.775083956308663
   },
   {
     "name": "hidden delegatecall",
@@ -431,6 +445,7 @@
       "CONTRACT-004"
     ],
     "risk": "high",
+    "decision": "not_configured",
     "coverage": {
       "decode": "partial",
       "metadata": "complete",
@@ -447,7 +462,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.994084041565657
+    "latency_ms": 12.894375016912818
   },
   {
     "name": "unverified benign target",
@@ -462,6 +477,7 @@
       "CONTRACT-001"
     ],
     "risk": "medium",
+    "decision": "not_configured",
     "coverage": {
       "decode": "partial",
       "metadata": "complete",
@@ -479,7 +495,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 11.40937500167638
+    "latency_ms": 11.437458917498589
   },
   {
     "name": "policy native cap",
@@ -489,15 +505,18 @@
     "data": "0x",
     "value": "1",
     "policy": {
+      "mode": "enforce",
       "max_native_spend": "0.5"
     },
     "expect": [
       "POLICY-002"
     ],
+    "expect_decision": "block",
     "actual": [
       "POLICY-002"
     ],
     "risk": "high",
+    "decision": "block",
     "coverage": {
       "decode": "complete",
       "metadata": "complete",
@@ -511,7 +530,7 @@
     ],
     "warnings": [],
     "passed": true,
-    "latency_ms": 11.967625003308058
+    "latency_ms": 10.63291693571955
   },
   {
     "name": "permit2 unlimited + no expiration",
@@ -543,11 +562,12 @@
       "SIG-003"
     ],
     "risk": "high",
+    "decision": null,
     "coverage": "partial",
     "unknowns": [],
     "warnings": [],
     "passed": true,
-    "latency_ms": 5.189541028812528
+    "latency_ms": 5.705957999452949
   },
   {
     "name": "eip7702 authorization",
@@ -567,11 +587,12 @@
       "SIG-004"
     ],
     "risk": "high",
+    "decision": null,
     "coverage": "partial",
     "unknowns": [],
     "warnings": [],
     "passed": true,
-    "latency_ms": 4.890291951596737
+    "latency_ms": 4.92591701913625
   },
   {
     "name": "erc4337 paymaster",
@@ -590,12 +611,13 @@
       "SIG-005"
     ],
     "risk": "medium",
+    "decision": null,
     "coverage": "partial",
     "unknowns": [
       "user operation callData was not decoded"
     ],
     "warnings": [],
     "passed": true,
-    "latency_ms": 4.982292070053518
+    "latency_ms": 4.772957996465266
   }
 ]

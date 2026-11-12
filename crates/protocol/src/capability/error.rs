@@ -16,6 +16,7 @@ pub enum CapabilityErrorCode {
     Unsupported,
     UserRejected,
     SimulationFailed,
+    PolicyBlocked,
     Timeout,
     Internal,
 }
@@ -40,6 +41,7 @@ impl CapabilityErrorCode {
             Self::Unsupported => "UNSUPPORTED",
             Self::UserRejected => "USER_REJECTED",
             Self::SimulationFailed => "SIMULATION_FAILED",
+            Self::PolicyBlocked => "POLICY_BLOCKED",
             Self::Timeout => "TIMEOUT",
             Self::Internal => "INTERNAL",
         }

@@ -62,12 +62,15 @@ known tokens use their registry decimals. Unknown tokens require an explicit `de
 }
 ```
 
-- `mode` is `advisory` (default) or `enforce`; enforce adds `POLICY-006` when simulation is
-  unavailable.
+- `mode` is `advisory` (default) or `enforce`.
+- `advisory` returns `decision: warn` on high findings; `enforce` returns `decision: block`.
 - No policy means `coverage.policy = not_configured`.
 - Policy findings use `POLICY-001`–`POLICY-006`. There is no hidden default policy.
+- `wallet.send --policy FILE` runs the same check before the phone request and fails with
+  `POLICY_BLOCKED` when enforcement blocks the transfer.
 - `unknowns`: what was not inspected and could change the conclusion.
 - `assurance`: ruleset version, stable report ID, RPC cross-check status, and limitations.
+- `policy`: policy mode, `decision` (`allow`/`warn`/`block`), `blocked`, and reasons.
 - `explanation`: deterministic `summary`, `key_changes` and `unknowns` for host agents. It never says
   `safe` and is not an LLM decision.
 

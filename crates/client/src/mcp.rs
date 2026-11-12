@@ -233,7 +233,11 @@ fn tools_list() -> Value {
                         "decimals": {"type": "integer", "minimum": 0, "maximum": 38},
                         "block": {"type": "integer", "minimum": 0},
                         "rpc_url": {"type": "string", "description": "Optional local RPC override"},
-                        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 110, "default": 90}
+                        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 110, "default": 90},
+                        "policy": {
+                            "type": "object",
+                            "description": "Optional enforcement policy; mode=enforce blocks on high policy findings"
+                        }
                     },
                     "required": ["to", "token", "amount"]
                 }
@@ -594,6 +598,16 @@ async fn wallet_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
             "timeout_seconds must be between 1 and 110",
         ));
     }
+    let policy = arguments
+        .get("policy")
+        .filter(|value| !value.is_null())
+        .cloned()
+        .map(|value| {
+            serde_json::from_value::<InspectPolicy>(value).map_err(|error| {
+                CapabilityError::invalid_argument(format!("invalid policy: {error}"))
+            })
+        })
+        .transpose()?;
     let mut config = wallet_config(arguments);
     if let Some(rpc_url) = arguments.get("rpc_url").and_then(Value::as_str) {
         config.set_rpc_url(rpc_url);
@@ -608,6 +622,7 @@ async fn wallet_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
             decimals: optional_u8(arguments, "decimals")?,
             block: optional_u64(arguments, "block")?,
             timeout: std::time::Duration::from_secs(timeout),
+            policy,
         },
     )
     .await?;

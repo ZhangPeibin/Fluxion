@@ -389,8 +389,9 @@ def cases(deployments: dict[str, str]) -> list[dict]:
             "to": token,
             "data": "0x",
             "value": "1",
-            "policy": {"max_native_spend": "0.5"},
+            "policy": {"mode": "enforce", "max_native_spend": "0.5"},
             "expect": ["POLICY-002"],
+            "expect_decision": "block",
         },
         {
             "name": "permit2 unlimited + no expiration",
@@ -447,8 +448,11 @@ def run_case(binary: str, case: dict, temp: Path) -> dict:
     response = json.loads(output)
     actual = sorted({finding["id"] for finding in response["findings"]})
     expected = case["expect"]
+    actual_decision = response.get("policy", {}).get("decision")
     if case["mode"] == "detect":
         passed = set(expected).issubset(set(actual))
+        if case.get("expect_decision"):
+            passed = passed and actual_decision == case["expect_decision"]
     elif case["mode"] == "control":
         passed = not actual
     else:
@@ -457,6 +461,7 @@ def run_case(binary: str, case: dict, temp: Path) -> dict:
         **case,
         "actual": actual,
         "risk": response["risk"],
+        "decision": actual_decision,
         "coverage": response.get("coverage"),
         "unknowns": response.get("unknowns", []),
         "warnings": response.get("warnings", []),
@@ -469,8 +474,8 @@ def markdown(results: list[dict]) -> str:
     lines = [
         "Local red-team corpus against anvil (chain-id 56).",
         "",
-        "| case | mode | risk | expected | actual | result | latency |",
-        "|---|---|---|---|---|---:|---:|",
+        "| case | mode | risk | policy | expected | actual | result | latency |",
+        "|---|---|---|---|---|---|---:|---:|",
     ]
     for result in results:
         result_label = "pass" if result["passed"] else "FAIL"
@@ -478,6 +483,7 @@ def markdown(results: list[dict]) -> str:
             result_label = "known-gap"
         lines.append(
             f"| {result['name']} | {result['mode']} | {result['risk']} | "
+            f"{result.get('decision') or '-'} | "
             f"{', '.join(result['expect']) or 'none'} | "
             f"{', '.join(result['actual']) or 'none'} | {result_label} | "
             f"{result['latency_ms']:.0f} ms |"
