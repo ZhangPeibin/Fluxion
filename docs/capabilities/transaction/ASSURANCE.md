@@ -111,7 +111,8 @@ corresponding coverage value.
 
 - RPC data is trusted for block, code, simulation, and trace. No light-client proof is used.
 - `FLUXION_VERIFY_RPC_URL` can cross-check block hash and target code, but not every state read.
-- `FLUXION_THREAT_INTEL_FILE` is operator-provided and may be incomplete or stale.
+- `FLUXION_THREAT_INTEL_FILE` is operator-provided and may be incomplete or stale. Configure
+  `FLUXION_THREAT_INTEL_PUBKEY` to require an Ed25519-signed feed.
 - `debug_traceCall` is optional; public BSC RPC does not provide it.
 - Source verification is optional; missing key or provider failure is `verified=null`.
 - Balance/allowance verification depends on standard getters; non-standard tokens degrade to

@@ -7,7 +7,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use alloy_primitives::{Address, B256, U256};
-use serde::Deserialize;
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
@@ -443,7 +444,11 @@ async fn inspect_with_options(
         let _ = intel;
         sources.push(TransactionInspectSource {
             name: "threat-intel".to_string(),
-            scope: "address-registry".to_string(),
+            scope: if intel.signed {
+                "address-registry-signed".to_string()
+            } else {
+                "address-registry-unsigned".to_string()
+            },
         });
     }
     sources.extend(metadata.sources);
@@ -2602,7 +2607,7 @@ fn parse_u256(value: &str) -> Option<U256> {
     U256::from_str_radix(hex, 16).ok()
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct ThreatIntelEntry {
     label: String,
     #[serde(default)]
@@ -2612,6 +2617,7 @@ struct ThreatIntelEntry {
 #[derive(Debug, Clone)]
 struct ThreatIntel {
     entries: BTreeMap<Address, ThreatIntelEntry>,
+    signed: bool,
 }
 
 impl ThreatIntel {
@@ -2633,18 +2639,62 @@ impl ThreatIntel {
                 );
             }
         };
-        let file: ThreatIntelFile = match serde_json::from_str(&text) {
+        let pubkey = std::env::var("FLUXION_THREAT_INTEL_PUBKEY")
+            .ok()
+            .filter(|value| !value.trim().is_empty());
+        let (intel, warning) = Self::from_json(&text, pubkey.as_deref());
+        (
+            intel,
+            warning.map(|warning| format!("threat intel file {path}: {warning}")),
+        )
+    }
+
+    fn from_json(text: &str, pubkey: Option<&str>) -> (Option<Self>, Option<String>) {
+        let file: ThreatIntelFile = match serde_json::from_str(text) {
             Ok(file) => file,
-            Err(error) => {
+            Err(error) => return (None, Some(format!("is invalid: {error}"))),
+        };
+        if let Some(expires_at) = file.expires_at
+            && expires_at < now_seconds_i64()
+        {
+            return (None, Some("is expired".to_string()));
+        }
+        let signed = match pubkey {
+            None => {
+                let warning = if file.signature.is_some() {
+                    "has a signature but FLUXION_THREAT_INTEL_PUBKEY is not configured".to_string()
+                } else {
+                    "is unsigned; configure FLUXION_THREAT_INTEL_PUBKEY for signed feeds"
+                        .to_string()
+                };
                 return (
-                    None,
-                    Some(format!("threat intel file {path} is invalid: {error}")),
+                    Some(Self {
+                        entries: file.addresses,
+                        signed: false,
+                    }),
+                    Some(warning),
                 );
+            }
+            Some(pubkey) => {
+                let Some(signature) = file.signature.as_deref() else {
+                    return (
+                        None,
+                        Some("is signed mode but has no signature".to_string()),
+                    );
+                };
+                if let Err(error) = verify_threat_intel_signature(&file, pubkey, signature) {
+                    return (
+                        None,
+                        Some(format!("signature verification failed: {error}")),
+                    );
+                }
+                true
             }
         };
         (
             Some(Self {
                 entries: file.addresses,
+                signed,
             }),
             None,
         )
@@ -2655,10 +2705,57 @@ impl ThreatIntel {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct ThreatIntelFile {
     #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
+    issued_at: Option<i64>,
+    #[serde(default)]
+    expires_at: Option<i64>,
+    #[serde(default)]
+    signature: Option<String>,
+    #[serde(default)]
     addresses: BTreeMap<Address, ThreatIntelEntry>,
+}
+
+fn threat_intel_payload(file: &ThreatIntelFile) -> Value {
+    json!({
+        "version": file.version,
+        "issued_at": file.issued_at,
+        "expires_at": file.expires_at,
+        "addresses": file.addresses,
+    })
+}
+
+fn verify_threat_intel_signature(
+    file: &ThreatIntelFile,
+    pubkey: &str,
+    signature: &str,
+) -> Result<(), String> {
+    let key_bytes = hex_to_bytes(pubkey).map_err(|error| error.message)?;
+    let signature_bytes = hex_to_bytes(signature).map_err(|error| error.message)?;
+    let key_bytes: [u8; 32] = key_bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| "public key must be 32 bytes".to_string())?;
+    let signature_bytes: [u8; 64] = signature_bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| "signature must be 64 bytes".to_string())?;
+    let key = VerifyingKey::from_bytes(&key_bytes).map_err(|error| error.to_string())?;
+    let signature = Signature::from_bytes(&signature_bytes);
+    let payload =
+        serde_json::to_vec(&threat_intel_payload(file)).map_err(|error| error.to_string())?;
+    key.verify(&payload, &signature)
+        .map_err(|error| error.to_string())
+}
+
+fn now_seconds_i64() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or(0)
 }
 
 struct TargetMetadata {
@@ -4958,6 +5055,56 @@ mod tests {
     }
 
     #[test]
+    fn verifies_signed_threat_intel() {
+        use ed25519_dalek::{Signer, SigningKey};
+
+        let key = SigningKey::from_bytes(&[7u8; 32]);
+        let address: Address = "0x0000000000000000000000000000000000000002"
+            .parse()
+            .unwrap();
+        let file = ThreatIntelFile {
+            version: Some("test".to_string()),
+            issued_at: Some(1),
+            expires_at: Some(now_seconds_i64() + 3600),
+            signature: None,
+            addresses: BTreeMap::from([(
+                address,
+                ThreatIntelEntry {
+                    label: "signed fixture".to_string(),
+                    source: Some("test".to_string()),
+                },
+            )]),
+        };
+        let payload = serde_json::to_vec(&threat_intel_payload(&file)).unwrap();
+        let signature = key.sign(&payload);
+        let mut value = serde_json::to_value(&file).unwrap();
+        value["signature"] = json!(format!(
+            "0x{}",
+            data_encoding::HEXLOWER.encode(&signature.to_bytes())
+        ));
+        let pubkey = data_encoding::HEXLOWER.encode(key.verifying_key().as_bytes());
+        let (intel, warning) = ThreatIntel::from_json(&value.to_string(), Some(&pubkey));
+        assert!(warning.is_none());
+        assert!(intel.unwrap().signed);
+
+        value["signature"] = json!(format!("0x{}", "00".repeat(64)));
+        let (intel, warning) = ThreatIntel::from_json(&value.to_string(), Some(&pubkey));
+        assert!(intel.is_none());
+        assert!(warning.unwrap().contains("signature verification failed"));
+    }
+
+    #[test]
+    fn expired_threat_intel_is_rejected() {
+        let file = json!({
+            "expires_at": 1,
+            "addresses": {}
+        });
+        let (intel, warning) = ThreatIntel::from_json(&file.to_string(), None);
+        assert!(intel.is_none());
+        assert!(warning.unwrap().contains("expired"));
+    }
+
+    #[test]
     fn flags_known_threat_intel_address() {
         let attacker: Address = "0x0000000000000000000000000000000000000002"
             .parse()
@@ -4977,6 +5124,7 @@ mod tests {
                     source: Some("fixture".to_string()),
                 },
             )]),
+            signed: false,
         };
         let findings = detect_threat_intel(
             &intent,
