@@ -58,6 +58,10 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 | `ONEINCH_API_KEY` | 空 | `wallet.assets` 的候选发现；缺失时回退 registry-only |
 | `FLUXION_ONEINCH_BALANCE_URL` | `https://api.1inch.com/balance/v1.2` | 可替换的 1inch Balance provider endpoint |
 | `ALCHEMY_API_KEY` | 空 | `wallet.collectibles` 的 NFT 候选发现；缺失时回退 curated/explicit collections |
+| `BSCSCAN_API_KEY` | 空 | `transaction.inspect` 的 BSC 合约源码验证；缺失时 `verified=null` |
+| `ETHERSCAN_API_KEY` | 空 | `transaction.inspect` 的 Ethereum 合约源码验证；缺失时 `verified=null` |
+| `FLUXION_BSCSCAN_API_URL` | `https://api.bscscan.com/api` | BscScan 兼容验证端点覆盖 |
+| `FLUXION_ETHERSCAN_API_URL` | `https://api.etherscan.io/api` | Etherscan 兼容验证端点覆盖 |
 | `FLUXION_ALCHEMY_NFT_URL` | `https://eth-mainnet.g.alchemy.com/nft/v3` | 可替换的 Alchemy NFT endpoint；BSC 自动换成 `bnb-mainnet` |
 | `WALLETCONNECT_PROJECT_ID` | 空 | `wallet.connect` 的 WalletConnect Cloud project ID；缺失时返回明确错误 |
 | `WALLETCONNECT_RELAY_URL` | `wss://relay.walletconnect.com` | 可替换的 WalletConnect relay endpoint |

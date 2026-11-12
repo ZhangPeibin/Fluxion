@@ -12,6 +12,8 @@ Surface target-code risks that calldata alone cannot prove safe.
 
 - `CONTRACT-001` only when a verification provider explicitly reports `verified: false`; missing
   verification stays `null` and is not a finding.
+- BscScan/Etherscan verification is configured through `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`.
+  Provider failure or a missing key degrades to `verified=null`, never `false`.
 - `CONTRACT-003` on EIP-1967 proxy targets: low by default, high for `upgradeTo`.
 - `CONTRACT-004` on unexpected internal `DELEGATECALL` from `debug_traceCall`; normal EIP-1967
   delegatecalls to the known implementation are skipped.

@@ -89,9 +89,9 @@ especially p95. `signature.inspect` is local and sub-10 ms at p95 in this run.
 ## Red-team follow-up
 
 The local Foundry/Anvil adversarial corpus is in
-[redteam-2026-11-11.md](redteam-2026-11-11.md). It adds 14 detect cases, 2 controls and one
-explicit known gap. Remediation added balance/allowance verification (`EFFECT-007/009/010`) and
-internal-call tracing (`CONTRACT-004`); use the red-team report for post-verification local timings.
+[redteam-2026-11-11.md](redteam-2026-11-11.md). It adds 15 detect cases and 2 controls. Remediation
+added balance/allowance verification (`EFFECT-007/009/010`), internal-call tracing (`CONTRACT-004`)
+and source-verification plumbing (`CONTRACT-001`); use the red-team report for local timings.
 
 ## Decision
 

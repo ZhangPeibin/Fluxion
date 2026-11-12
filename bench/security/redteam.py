@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
+import threading
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[2]
 SECURITY = ROOT / "tests" / "security"
@@ -23,6 +27,7 @@ ACCOUNT = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 RECIPIENT = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
 ATTACKER = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
 BURN = "0x000000000000000000000000000000000000dEaD"
+VERIFIER_ENV: dict[str, str] = {}
 
 
 def word(value: int) -> str:
@@ -77,13 +82,20 @@ def swap_data(token_in: str, token_out: str, recipient: str, min_out: int) -> st
     )
 
 
-def run(command: list[str], *, cwd: Path | None = None, timeout: int = 120) -> str:
+def run(
+    command: list[str],
+    *,
+    cwd: Path | None = None,
+    timeout: int = 120,
+    env: dict[str, str] | None = None,
+) -> str:
     completed = subprocess.run(
         command,
         cwd=cwd,
         capture_output=True,
         text=True,
         timeout=timeout,
+        env={**os.environ, **env} if env else None,
     )
     if completed.returncode != 0:
         raise RuntimeError(
@@ -330,11 +342,11 @@ def cases(deployments: dict[str, str]) -> list[dict]:
         },
         {
             "name": "unverified benign target",
-            "mode": "known_gap",
+            "mode": "detect",
             "kind": "transaction",
             "to": benign,
             "data": "0x5c36b186",
-            "expect": [],
+            "expect": ["CONTRACT-001"],
         },
         {
             "name": "permit2 unlimited + no expiration",
@@ -376,7 +388,7 @@ def run_case(binary: str, case: dict, temp: Path) -> dict:
         command = [binary, "signature", "inspect", flag, str(path), "--json"]
 
     started = time.perf_counter()
-    output = run(command)
+    output = run(command, env=VERIFIER_ENV)
     elapsed_ms = (time.perf_counter() - started) * 1000
     response = json.loads(output)
     actual = sorted({finding["id"] for finding in response["findings"]})
@@ -417,6 +429,44 @@ def markdown(results: list[dict]) -> str:
             f"{result['latency_ms']:.0f} ms |"
         )
     return "\n".join(lines)
+
+
+class VerificationHandler(BaseHTTPRequestHandler):
+    benign = ""
+
+    def do_GET(self) -> None:
+        query = parse_qs(urlparse(self.path).query)
+        address = query.get("address", [""])[0].lower()
+        verified = address != self.benign.lower()
+        payload = {
+            "status": "1",
+            "message": "OK",
+            "result": [
+                {
+                    "SourceCode": "contract Mock {}" if verified else "",
+                    "ABI": "[]",
+                    "Proxy": "0",
+                    "Implementation": "",
+                }
+            ],
+        }
+        body = json.dumps(payload).encode()
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *_args: object) -> None:
+        pass
+
+
+def start_verifier(benign: str) -> tuple[ThreadingHTTPServer, threading.Thread]:
+    VerificationHandler.benign = benign
+    server = ThreadingHTTPServer(("127.0.0.1", 0), VerificationHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
 
 
 def main() -> int:
@@ -461,6 +511,12 @@ def main() -> int:
                 raise RuntimeError("anvil did not start")
 
         deployments = deploy()
+        verifier, verifier_thread = start_verifier(deployments["benign"])
+        global VERIFIER_ENV
+        VERIFIER_ENV = {
+            "BSCSCAN_API_KEY": "test",
+            "FLUXION_BSCSCAN_API_URL": f"http://127.0.0.1:{verifier.server_port}/api",
+        }
         # Warm the local node/process path once before recording per-case latency.
         run(inspect_command(args.bin, deployments["token"], transfer_data(RECIPIENT, 1)))
         results = []
@@ -484,6 +540,9 @@ def main() -> int:
             args.json_out.write_text(json.dumps(results, indent=2) + "\n")
         return 0 if all(result["passed"] for result in results) else 1
     finally:
+        if "verifier" in locals():
+            verifier.shutdown()
+            verifier.server_close()
         if started_here and anvil is not None:
             anvil.terminate()
             anvil.wait(timeout=10)
