@@ -6,6 +6,9 @@
 16-case detector corpus and end-to-end CLI latency. Transaction inspection is RPC-bound
 (~1.1–1.4 s p50 on a public BSC node); signature inspection is local (~4 ms p50).
 
+[Local red-team corpus](redteam-2026-11-11.md) adds Foundry/Anvil adversarial contracts:
+11/11 detect cases matched, 2/2 controls had no findings, and three known gaps are explicit.
+
 ## Quote benchmarks
 
 ## Latest: 310-pool runtime profile (6 Nov 2026)
