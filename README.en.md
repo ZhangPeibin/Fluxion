@@ -83,6 +83,7 @@ that is internal Fluxion routing.
 | Capability | CLI | Description |
 |---|---|---|
 | `swap.quote` | `fluxion swap ldo-eth 100` | Ethereum mainnet exact-in quotes, multi-hop, split allocation |
+| `swap.build` | `fluxion swap build --quote quote.json --recipient 0x...` | Build V2 swap calldata from a quote |
 
 #### 2. Wallet
 
@@ -476,6 +477,7 @@ only routes.
 | Capability | Location | Data path | Failure semantics |
 |---|---|---|---|
 | `swap.quote` | remote | remote snapshot -> local route computation | Remote unavailable -> `RPC_ERROR` |
+| `swap.build` | local | quote JSON -> local ABI encoding | Non-V2/split/non-Ethereum -> `UNSUPPORTED` |
 | `wallet.balance` / `assets` / `allowance` / `collectibles` | local | local RPC at a pinned block | RPC failure -> `RPC_ERROR` |
 | `wallet.connect` / `status` / `disconnect` | local | local session + WalletConnect relay | No session, pairing failure, or expiry -> explicit error |
 | `wallet.agent-id` | local | SPACE ID API + BSC RPC verification | API failure -> configured on-chain fallback or unknown |
@@ -531,6 +533,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - Security: [rule catalog](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
+- Contracts: [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json)
 - Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills: [swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md)
 
@@ -551,7 +554,7 @@ Pre-1.0. Local wallet, transaction, and signature capabilities support BSC (defa
 - There is no USD valuation.
 - `swap.quote` needs a separately deployed remote service.
 
-Next: `transaction.send`, `swap.build`, and `swap.execute`.
+Next: `transaction.send` and `swap.execute`.
 
 ## Development
 

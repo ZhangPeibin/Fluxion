@@ -1,6 +1,6 @@
 ---
 name: swap
-description: Use when the user asks for an exact-in swap quote on Ethereum (for example LDO to ETH), needs amount_out, route allocations, price impact or quote freshness, or uses the Fluxion swap_quote MCP tool. Do not use for signing, wallet or transaction execution.
+description: Use when the user asks for an exact-in swap quote on Ethereum (for example LDO to ETH), needs amount_out, route allocations, price impact or quote freshness, wants to build V2 swap calldata from a quote, or uses the Fluxion swap_quote or swap_build MCP tools. Do not use for signing, wallet or transaction execution.
 ---
 
 # swap.quote
@@ -37,11 +37,25 @@ Do not choose local/remote. `swap.quote` always uses the remote Fluxion service.
 `transaction.simulate` use the local runtime. The agent does not start or manage any server
 process.
 
+## swap.build
+
+Build local Uniswap V2 calldata from a saved quote:
+
+```bash
+fluxion swap build --quote quote.json --recipient 0x... --slippage-bps 50 --json
+```
+
+- Ethereum only; one `uniswap-v2` allocation; no split/nested/V3/Curve routes.
+- Returns `router`, `data`, `value`, `amount_out_min`, `deadline`, `path`, `hops`.
+- Never signs or broadcasts.
+
 ## CLI
 
 ```bash
 fluxion capability describe swap.quote --json
+fluxion capability describe swap.build --json
 fluxion swap quote --in LDO --out ETH --amount 100 --json
+fluxion swap build --quote quote.json --recipient 0x... --json
 fluxion ldo-eth 100 --json
 ```
 

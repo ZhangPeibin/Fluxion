@@ -3,12 +3,26 @@
 [English](README.md) · 中文
 
 `swap.quote` 是 Fluxion 的第一个 capability：Ethereum mainnet 上的 exact-in swap 报价。它返回
-金额、拆单分配、hop 路径和状态来源信息。它是只读的，不签名、不授权、不广播。
+金额、拆单分配、hop 路径和状态来源信息。`swap.build` 把单条 V2 allocation 转成 router
+calldata。两者都只读，不签名、不授权、不广播。
+
+## `swap.build`
+
+```bash
+fluxion swap quote --in USDC --out WETH --amount 100 --json > /tmp/quote.json
+fluxion swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 --json
+```
+
+- 只支持 Ethereum。
+- 只支持单条 allocation，hop 必须全部是 `uniswap-v2`。
+- 输出 `router`、`data`、`value`、`amount_out_min`、`deadline`、`path`、`hops`。
+- 拒绝拆单、嵌套 allocation、V3、Curve 和断开的 hop。
+- schema：`schemas/swap_build.v1.json`。
 
 ## 执行模型
 
-`swap.quote` 固定使用远程 Fluxion 服务；`wallet` / `execute` capability 使用 local runtime。
-Agent 和用户都不选择 local/remote。
+`swap.quote` 固定使用远程 Fluxion 服务；`swap.build` 和 `wallet` / `execute` capability 使用
+local runtime。Agent 和用户都不选择 local/remote。
 
 远程 endpoint 通过 `FLUXION_REMOTE_URL`（或 `--url`）配置；认证和注册见
 [docs/MCP.md](../../MCP.md)。这是 endpoint 配置，不是执行模式。
@@ -186,7 +200,7 @@ CLI 退出码：`2` 参数错误，`3` 无路径/流动性，`4` RPC/不支持�
 ## 边界
 
 - 只读：本 capability 不构造、不模拟、不签名、不执行交易。
-- `swap.build`、`swap.simulate`、`swap.execute` 是未来 local-only capability。
+- `swap.simulate`、`swap.execute` 和通用 `transaction.send` 是未来 local-only capability；`swap.build` 已可用。
 - 报价成功不代表执行保证；执行前必须重新检查新鲜度、滑点、gas、MEV 和用户授权。
 - Skills 是文档，不是安全边界。
 

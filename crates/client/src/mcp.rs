@@ -13,6 +13,7 @@ use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
 use crate::signature_inspect::{self, SignatureInspectRequest};
 use crate::swap::quote::QuoteRequest;
+use crate::swap_build::{self, BuildRequest};
 use crate::token;
 use crate::transaction::{self, SimulateRequest};
 use crate::transaction_inspect::{self, InspectPolicy, InspectRequest};
@@ -21,6 +22,7 @@ use crate::wallet::{
 };
 use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
+use fluxion_protocol::swap::QuoteResponse;
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
     let wallet = Manager::new();
@@ -134,6 +136,20 @@ fn tools_list() -> Value {
                         "split_max_branches": {"type": "integer", "minimum": 2, "maximum": 8}
                     },
                     "required": ["token_in", "token_out", "amount"]
+                }
+            },
+            {
+                "name": "swap_build",
+                "description": "Build Uniswap V2 swap calldata from a swap.quote response. Local, read-only; currently supports one uniswap-v2 allocation and never signs or broadcasts.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "quote": {"type": "object", "description": "The swap.quote JSON response"},
+                        "recipient": {"type": "string", "description": "Output recipient address"},
+                        "slippage_bps": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 50},
+                        "deadline": {"type": "integer", "minimum": 0, "description": "Unix deadline; defaults to now + 600"}
+                    },
+                    "required": ["quote", "recipient"]
                 }
             },
             {
@@ -352,6 +368,7 @@ async fn call_tool(
             serde_json::to_value(response)
                 .map_err(|error| CapabilityError::internal(error.to_string()))
         }),
+        "swap_build" => swap_build_tool(&arguments),
         "wallet_balance" => wallet_balance_tool(&arguments).await,
         "wallet_assets" => wallet_assets_tool(&arguments).await,
         "wallet_allowance" => wallet_allowance_tool(&arguments).await,
@@ -383,6 +400,7 @@ async fn call_tool(
 fn capability_for_tool(name: &str) -> &'static str {
     match name {
         "swap_quote" => "swap.quote",
+        "swap_build" => "swap.build",
         "wallet_balance" => "wallet.balance",
         "wallet_assets" => "wallet.assets",
         "wallet_allowance" => "wallet.allowance",
@@ -453,6 +471,43 @@ fn wallet_config(arguments: &Value) -> WalletConfig {
         config.set_rpc_url(rpc_url);
     }
     config
+}
+
+fn swap_build_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let quote: QuoteResponse = serde_json::from_value(
+        arguments
+            .get("quote")
+            .cloned()
+            .ok_or_else(|| CapabilityError::invalid_argument("swap_build requires quote"))?,
+    )
+    .map_err(|error| CapabilityError::invalid_argument(format!("invalid quote: {error}")))?;
+    let recipient = string_arg(arguments, "recipient")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid recipient address"))?;
+    let slippage_bps = arguments
+        .get("slippage_bps")
+        .and_then(Value::as_u64)
+        .unwrap_or(50)
+        .try_into()
+        .map_err(|_| CapabilityError::invalid_argument("invalid slippage_bps"))?;
+    let deadline = arguments
+        .get("deadline")
+        .and_then(Value::as_u64)
+        .unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_secs() + 600)
+                .unwrap_or(0)
+        });
+    let response = swap_build::build(
+        &quote,
+        BuildRequest {
+            recipient,
+            slippage_bps,
+            deadline,
+        },
+    )?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
 fn token_list_arg(arguments: &Value) -> Result<Vec<String>, CapabilityError> {
@@ -982,6 +1037,7 @@ mod tests {
             names,
             vec![
                 "swap_quote",
+                "swap_build",
                 "wallet_balance",
                 "wallet_assets",
                 "wallet_allowance",

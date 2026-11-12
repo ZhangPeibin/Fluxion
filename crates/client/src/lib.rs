@@ -8,6 +8,7 @@ pub mod client;
 pub mod mcp;
 pub mod routing;
 pub mod signature_inspect;
+pub mod swap_build;
 pub mod token;
 pub mod transaction;
 pub mod transaction_inspect;

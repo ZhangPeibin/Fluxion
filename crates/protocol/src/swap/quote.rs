@@ -1,7 +1,7 @@
 //! `swap.quote` request/response contract.
 
 use alloy_primitives::{Address, U256};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::capability::{
     Amount, CapabilityError, CapabilityMeta, Provenance, SCHEMA_VERSION, TokenRef,
@@ -49,7 +49,7 @@ fn parse_u256(field: &str, value: &str) -> Result<U256, CapabilityError> {
         .map_err(|_| CapabilityError::invalid_argument(format!("invalid {field}: {value}")))
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HopResponse {
     pub operation: String,
     pub platform: String,
@@ -62,20 +62,20 @@ pub struct HopResponse {
     pub amount_out: Amount,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllocationResponse {
     pub amount_in: Amount,
     pub amount_out: Amount,
     pub hops: Vec<HopResponse>,
     /// Prefix branches when multiple pools feed one intermediate node.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<AllocationResponse>,
     /// Suffix branches when a shared prefix fans out into multiple pools.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<AllocationResponse>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QuoteResponse {
     #[serde(flatten)]
     pub meta: CapabilityMeta,

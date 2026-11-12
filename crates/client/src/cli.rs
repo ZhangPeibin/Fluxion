@@ -6,6 +6,7 @@ use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
 use crate::signature_inspect::{self, SignatureInspectRequest, SignatureInspectResponse};
 use crate::swap::quote::QuoteRequest;
+use crate::swap_build::{self, BuildRequest};
 use crate::token;
 use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
 use crate::transaction_inspect::{self, InspectPolicy, InspectRequest, TransactionInspectResponse};
@@ -15,6 +16,7 @@ use crate::wallet::{
 };
 use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
+use fluxion_protocol::swap::QuoteResponse;
 use fluxion_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
@@ -60,6 +62,7 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
         "swap" => {
             let code = match args.get(1).map(String::as_str) {
                 Some("quote") => run_quote(&args[2..]).await,
+                Some("build") => run_swap_build(&args[2..]).await,
                 Some(value) if !value.starts_with('-') => run_alias(&args[1..]).await,
                 _ => run_quote(&args[1..]).await,
             };
@@ -90,6 +93,7 @@ fluxion ldo-eth 100                     Top-level shorthand alias\n  \
 fluxion capability list                  List capabilities\n  \
 fluxion capability describe NAME        Show capability and execution details\n  \
 fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
+fluxion swap build --quote FILE --recipient ADDRESS [--slippage-bps N]\n  \
 fluxion wallet balance ADDRESS [--tokens LIST] [--chain bsc|ethereum]\n  \
 fluxion wallet assets ADDRESS [--include-unknown] [--chain bsc|ethereum]\n  \
 fluxion wallet allowance ADDRESS --spender ADDRESS [--tokens LIST] [--chain]\n  \
@@ -258,6 +262,178 @@ async fn run_alias(args: &[String]) -> i32 {
     }
     forwarded.extend_from_slice(rest);
     run_quote(&forwarded).await
+}
+
+#[derive(Debug)]
+struct BuildArgs {
+    quote: String,
+    recipient: String,
+    slippage_bps: u16,
+    deadline: Option<u64>,
+    json: bool,
+}
+
+async fn run_swap_build(raw: &[String]) -> i32 {
+    if raw.first().map(String::as_str) == Some("--help")
+        || raw.first().map(String::as_str) == Some("-h")
+    {
+        println!(
+            "Usage:\n  fluxion swap build --quote FILE --recipient ADDRESS [--slippage-bps N] [--deadline UNIX_SECONDS] [--json]"
+        );
+        return 0;
+    }
+    let args = match parse_build_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            return exit_code(error.code);
+        }
+    };
+    let text = match std::fs::read_to_string(&args.quote) {
+        Ok(text) => text,
+        Err(error) => {
+            let error = CapabilityError::invalid_argument(format!(
+                "cannot read quote file {}: {error}",
+                args.quote
+            ));
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let quote: QuoteResponse = match serde_json::from_str(&text) {
+        Ok(quote) => quote,
+        Err(error) => {
+            let error = CapabilityError::invalid_argument(format!(
+                "invalid quote file {}: {error}",
+                args.quote
+            ));
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let recipient = match args.recipient.parse::<alloy_primitives::Address>() {
+        Ok(address) => address,
+        Err(_) => {
+            let error = CapabilityError::invalid_argument("invalid --recipient address");
+            report_error(&error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let deadline = args.deadline.unwrap_or_else(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs() + 600)
+            .unwrap_or(0)
+    });
+    match swap_build::build(
+        &quote,
+        BuildRequest {
+            recipient,
+            slippage_bps: args.slippage_bps,
+            deadline,
+        },
+    ) {
+        Ok(response) => {
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                println!("router: {}", response.router);
+                println!("chain: {} ({})", response.chain, response.chain_id);
+                if let Some(block) = response.quote_block {
+                    println!("quote block: {block}");
+                }
+                println!(
+                    "amount out min: {} {}",
+                    response.amount_out_min.decimal, response.token_out
+                );
+                println!("deadline: {}", response.deadline);
+                println!("data: {}", response.data);
+            }
+            0
+        }
+        Err(error) => {
+            report_error(&error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_build_args(raw: &[String]) -> Result<BuildArgs, CapabilityError> {
+    let mut quote = None;
+    let mut recipient = None;
+    let mut slippage_bps = 50u16;
+    let mut deadline = None;
+    let mut json = false;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--quote" => {
+                index += 1;
+                quote = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--quote needs a file"))?
+                        .clone(),
+                );
+            }
+            "--recipient" => {
+                index += 1;
+                recipient = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--recipient needs a value")
+                        })?
+                        .clone(),
+                );
+            }
+            "--slippage-bps" => {
+                index += 1;
+                slippage_bps = raw
+                    .get(index)
+                    .ok_or_else(|| {
+                        CapabilityError::invalid_argument("--slippage-bps needs a value")
+                    })?
+                    .parse()
+                    .map_err(|_| CapabilityError::invalid_argument("invalid --slippage-bps"))?;
+                if slippage_bps > 10_000 {
+                    return Err(CapabilityError::invalid_argument(
+                        "--slippage-bps must be between 0 and 10000",
+                    ));
+                }
+            }
+            "--deadline" => {
+                index += 1;
+                deadline = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--deadline needs a value")
+                        })?
+                        .parse()
+                        .map_err(|_| CapabilityError::invalid_argument("invalid --deadline"))?,
+                );
+            }
+            "--json" => json = true,
+            value if value.starts_with('-') => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown swap build option: {value}"
+                )));
+            }
+            value => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unexpected swap build argument: {value}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok(BuildArgs {
+        quote: quote
+            .ok_or_else(|| CapabilityError::invalid_argument("swap build requires --quote"))?,
+        recipient: recipient
+            .ok_or_else(|| CapabilityError::invalid_argument("swap build requires --recipient"))?,
+        slippage_bps,
+        deadline,
+        json,
+    })
 }
 
 async fn run_quote(raw: &[String]) -> i32 {
@@ -2158,6 +2334,7 @@ async fn run_capability(raw: &[String]) -> i32 {
             let json = raw.iter().any(|arg| arg == "--json");
             let descriptor = match name.as_str() {
                 "swap.quote" => crate::swap::describe(),
+                "swap.build" => fluxion_protocol::swap::build::describe(),
                 "wallet.balance" => fluxion_protocol::wallet::describe_balance(),
                 "wallet.assets" => fluxion_protocol::wallet::describe_assets(),
                 "wallet.allowance" => fluxion_protocol::wallet::describe_allowance(),
