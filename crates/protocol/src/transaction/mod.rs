@@ -59,6 +59,8 @@ pub struct TransactionInspectTarget {
     pub proxy: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub implementation: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy_kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

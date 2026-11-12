@@ -26,8 +26,8 @@ Establish what the target is before evaluating calldata semantics.
 
 ## Detection Guidance
 
-- Detect proxies only for known, evidenced patterns: EIP-1967 implementation/admin slots, EIP-1822
-  (UUPS) slot, and explicitly supported minimal-proxy bytecode.
+- Detect proxies only for known, evidenced patterns: EIP-1967 implementation/beacon slots, EIP-1822
+  (UUPS) slot, and EIP-1167 minimal-proxy bytecode. `proxy_kind` records the detected pattern.
 - Verification requires a source provider such as Etherscan/BscScan or an equivalent. Missing API
   key yields `verified: unknown`, not `false`.
 - Do not infer safety from verification. Verification means source is available, not that the code

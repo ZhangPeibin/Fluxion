@@ -2504,6 +2504,7 @@ async fn inspect_target(
                 verified: None,
                 proxy: Some(false),
                 implementation: None,
+                proxy_kind: None,
             },
             coverage: "complete",
             sources: Vec::new(),
@@ -2512,28 +2513,8 @@ async fn inspect_target(
         });
     }
 
-    let slot: B256 = EIP1967_IMPLEMENTATION_SLOT
-        .parse()
-        .map_err(|_| CapabilityError::internal("invalid EIP-1967 implementation slot"))?;
-    let (proxy, implementation, mut unknowns, mut warnings) =
-        match rpc.storage_at(address, slot, tag).await {
-            Ok(value) if value != B256::ZERO => (
-                Some(true),
-                Some(Address::from_slice(&value.as_slice()[12..])),
-                Vec::new(),
-                Vec::new(),
-            ),
-            Ok(_) => (Some(false), None, Vec::new(), Vec::new()),
-            Err(error) => (
-                None,
-                None,
-                vec![format!(
-                    "proxy storage could not be read: {}",
-                    error.message
-                )],
-                Vec::new(),
-            ),
-        };
+    let (proxy, implementation, proxy_kind, mut unknowns, mut warnings) =
+        detect_proxy(rpc, address, &code, tag).await;
 
     let (verified, source_proxy, source_implementation, sources) = match verifier {
         Some(verifier) => {
@@ -2561,6 +2542,7 @@ async fn inspect_target(
     };
     let proxy = proxy.or(source_proxy);
     let implementation = implementation.or(source_implementation);
+    let proxy_kind = proxy_kind.or_else(|| source_proxy.map(|_| "provider".to_string()));
     let coverage = if verified.is_some() && proxy.is_some() {
         "complete"
     } else {
@@ -2574,6 +2556,7 @@ async fn inspect_target(
             verified,
             proxy,
             implementation,
+            proxy_kind,
         },
         coverage,
         sources,
@@ -2582,8 +2565,176 @@ async fn inspect_target(
     })
 }
 
+async fn detect_proxy(
+    rpc: &Rpc,
+    address: Address,
+    code: &str,
+    tag: &str,
+) -> (
+    Option<bool>,
+    Option<Address>,
+    Option<String>,
+    Vec<String>,
+    Vec<String>,
+) {
+    if let Some(implementation) = minimal_proxy_implementation(code) {
+        return (
+            Some(true),
+            Some(implementation),
+            Some("eip1167".to_string()),
+            Vec::new(),
+            Vec::new(),
+        );
+    }
+
+    let impl_slot: B256 = match EIP1967_IMPLEMENTATION_SLOT.parse() {
+        Ok(slot) => slot,
+        Err(_) => {
+            return (
+                None,
+                None,
+                None,
+                vec!["invalid EIP-1967 slot".to_string()],
+                Vec::new(),
+            );
+        }
+    };
+    match rpc.storage_at(address, impl_slot, tag).await {
+        Ok(value) if value != B256::ZERO => {
+            return (
+                Some(true),
+                Some(Address::from_slice(&value.as_slice()[12..])),
+                Some("eip1967".to_string()),
+                Vec::new(),
+                Vec::new(),
+            );
+        }
+        Ok(_) => {}
+        Err(error) => {
+            return (
+                None,
+                None,
+                None,
+                vec![format!(
+                    "proxy storage could not be read: {}",
+                    error.message
+                )],
+                Vec::new(),
+            );
+        }
+    }
+
+    let proviable_slot: B256 = match EIP1822_PROXIABLE_SLOT.parse() {
+        Ok(slot) => slot,
+        Err(_) => {
+            return (
+                None,
+                None,
+                None,
+                vec!["invalid EIP-1822 slot".to_string()],
+                Vec::new(),
+            );
+        }
+    };
+    match rpc.storage_at(address, proviable_slot, tag).await {
+        Ok(value) if value != B256::ZERO => {
+            return (
+                Some(true),
+                Some(Address::from_slice(&value.as_slice()[12..])),
+                Some("eip1822".to_string()),
+                Vec::new(),
+                Vec::new(),
+            );
+        }
+        Ok(_) => {}
+        Err(error) => {
+            return (
+                None,
+                None,
+                None,
+                vec![format!(
+                    "EIP-1822 storage could not be read: {}",
+                    error.message
+                )],
+                Vec::new(),
+            );
+        }
+    }
+
+    let beacon_slot: B256 = match EIP1967_BEACON_SLOT.parse() {
+        Ok(slot) => slot,
+        Err(_) => {
+            return (
+                None,
+                None,
+                None,
+                vec!["invalid beacon slot".to_string()],
+                Vec::new(),
+            );
+        }
+    };
+    match rpc.storage_at(address, beacon_slot, tag).await {
+        Ok(value) if value != B256::ZERO => {
+            let beacon = Address::from_slice(&value.as_slice()[12..]);
+            return match rpc
+                .call_hex(beacon, "0x5c60da1b", tag)
+                .await
+                .ok()
+                .and_then(|value| parse_topic_address(&value))
+            {
+                Some(implementation) => (
+                    Some(true),
+                    Some(implementation),
+                    Some("eip1967-beacon".to_string()),
+                    Vec::new(),
+                    Vec::new(),
+                ),
+                None => (
+                    Some(true),
+                    None,
+                    Some("eip1967-beacon".to_string()),
+                    vec!["beacon implementation could not be read".to_string()],
+                    Vec::new(),
+                ),
+            };
+        }
+        Ok(_) => {}
+        Err(error) => {
+            return (
+                None,
+                None,
+                None,
+                vec![format!(
+                    "beacon storage could not be read: {}",
+                    error.message
+                )],
+                Vec::new(),
+            );
+        }
+    }
+
+    (Some(false), None, None, Vec::new(), Vec::new())
+}
+
+fn minimal_proxy_implementation(code: &str) -> Option<Address> {
+    let code = code.strip_prefix("0x").unwrap_or(code);
+    let prefix = "363d3d373d3d3d363d73";
+    let suffix = "5af43d82803e903d91602b57fd5bf3";
+    if code.len() != 90
+        || !code[..20].eq_ignore_ascii_case(prefix)
+        || !code[60..].eq_ignore_ascii_case(suffix)
+    {
+        return None;
+    }
+    format!("0x{}", &code[20..60]).parse().ok()
+}
+
 const EIP1967_IMPLEMENTATION_SLOT: &str =
     "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+const EIP1967_BEACON_SLOT: &str =
+    "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50";
+const EIP1822_PROXIABLE_SLOT: &str =
+    "0xc5f16f0fcc639fa48a6947836d9850f504798523bf8c9a3a87d5876cf622bcf7";
 
 fn selector_is_ambiguous(selector: &str) -> bool {
     BUILTIN_SELECTORS
@@ -3776,6 +3927,7 @@ mod tests {
                     .parse()
                     .unwrap()
             }),
+            proxy_kind: proxy.then(|| "eip1967".to_string()),
         }
     }
 
@@ -4199,6 +4351,7 @@ mod tests {
                 verified: None,
                 proxy: None,
                 implementation: None,
+                proxy_kind: None,
             };
             let mut findings = detect_approvals(&decoded.intent);
             findings.extend(detect_nested_approvals(&decoded.intent));
@@ -4560,6 +4713,68 @@ mod tests {
             crate::capability::CapabilityErrorCode::InvalidArgument
         );
         assert!(error.message.contains("262144"));
+    }
+
+    #[test]
+    fn detects_eip1167_minimal_proxy_bytecode() {
+        let implementation = "1234567890abcdef1234567890abcdef12345678";
+        let code = format!("0x363d3d373d3d3d363d73{implementation}5af43d82803e903d91602b57fd5bf3");
+        assert_eq!(
+            minimal_proxy_implementation(&code),
+            Some(format!("0x{implementation}").parse().unwrap())
+        );
+        assert!(minimal_proxy_implementation("0x6000").is_none());
+    }
+
+    async fn eip1822_rpc(Json(body): Json<Value>) -> Json<Value> {
+        let method = body["method"].as_str().unwrap_or_default();
+        let result = match method {
+            "eth_blockNumber" => json!("0x64"),
+            "eth_getBlockByNumber" => json!({
+                "number": "0x64",
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000064"
+            }),
+            "eth_getCode" => json!("0x6000"),
+            "eth_getStorageAt" => {
+                let slot = body["params"][1].as_str().unwrap_or_default();
+                if slot.eq_ignore_ascii_case(EIP1822_PROXIABLE_SLOT) {
+                    json!("0x0000000000000000000000000000000000000000000000000000000000000020")
+                } else {
+                    json!("0x0000000000000000000000000000000000000000000000000000000000000000")
+                }
+            }
+            "eth_simulateV1" => {
+                json!([{"calls": [{"status": "0x1", "logs": [], "returnData": "0x"}]}])
+            }
+            "debug_traceCall" => json!({
+                "type": "CALL",
+                "from": "0x0000000000000000000000000000000000000001",
+                "to": "0x0000000000000000000000000000000000000010",
+                "input": "0x"
+            }),
+            _ => json!("0x0"),
+        };
+        Json(json!({"jsonrpc": "2.0", "id": 1, "result": result}))
+    }
+
+    #[tokio::test]
+    async fn detects_eip1822_proxy_slot() {
+        let app = Router::new().route("/rpc", post(eip1822_rpc));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let base = format!("http://{address}");
+        let response = inspect(&config(&base), request("0x")).await.unwrap();
+        assert_eq!(response.target.proxy, Some(true));
+        assert_eq!(response.target.proxy_kind.as_deref(), Some("eip1822"));
+        assert_eq!(
+            response.target.implementation,
+            Some(
+                "0x0000000000000000000000000000000000000020"
+                    .parse()
+                    .unwrap()
+            )
+        );
     }
 
     #[test]
