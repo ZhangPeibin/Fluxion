@@ -117,6 +117,7 @@ pub struct TransactionInspectCoverage {
     pub decode: String,
     pub metadata: String,
     pub simulation: String,
+    pub trace: String,
     pub policy: String,
 }
 

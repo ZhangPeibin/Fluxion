@@ -17,8 +17,8 @@ fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
 - The block is pinned and returned as `block_number` / `block_hash`.
 - `target` distinguishes EOA/contract and detects the EIP-1967 implementation slot.
 - Source verification is `null` unless a verification provider is configured.
-- Effects come from `eth_simulateV1` logs when the RPC supports it. They are `partial`, not a full
-  state diff, and arbitrary contracts can forge logs.
+- Effects come from `eth_simulateV1` logs plus balance/allowance verification. They are `partial`,
+  not a full state diff. Internal calls are checked with `debug_traceCall` when available.
 - `risk` reflects known deterministic findings, otherwise `unknown`. It is never `safe`.
 
 ## Output
@@ -33,14 +33,15 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
   `EFFECT-009` or `EFFECT-010`. Native gas fees are not included.
 - `findings`: rule-ID findings with evidence. Current checks include unlimited ERC20 approval
   (`AUTH-001`), NFT operator approval (`AUTH-004`), asset-flow findings (`FLOW-001`–`FLOW-006`),
-  contract findings (`CONTRACT-001`, `CONTRACT-003`), address findings (`ADDR-001`, `ADDR-002`,
+  contract findings (`CONTRACT-001`, `CONTRACT-003`, `CONTRACT-004`), address findings (`ADDR-001`, `ADDR-002`,
   `ADDR-005`), swap findings (`SWAP-001`, `SWAP-004`, `SWAP-007`), EIP-2612 permit findings
   (`SIG-002`, `SIG-003`), and log/state mismatch findings (`EFFECT-007`, `EFFECT-009`,
   `EFFECT-010`). Nested approvals from decoded multicalls carry a `nested_call` evidence
   field.
 - `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
-- `coverage`: decode, metadata, simulation and policy status. Contract metadata is `partial` until
-  source verification is configured; simulation is `partial` because it is log-derived.
+- `coverage`: decode, metadata, simulation, trace and policy status. Contract metadata is `partial`
+  until source verification is configured; simulation is `partial` because it is log-derived;
+  trace is `complete` only when the RPC supports `debug_traceCall`.
 
 ## Policy
 

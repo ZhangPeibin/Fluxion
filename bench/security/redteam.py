@@ -322,11 +322,11 @@ def cases(deployments: dict[str, str]) -> list[dict]:
         },
         {
             "name": "hidden delegatecall",
-            "mode": "known_gap",
+            "mode": "detect",
             "kind": "transaction",
             "to": delegate,
             "data": claim_data,
-            "expect": [],
+            "expect": ["CONTRACT-004"],
         },
         {
             "name": "unverified benign target",

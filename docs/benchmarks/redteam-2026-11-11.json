@@ -3,7 +3,7 @@
     "name": "benign transfer",
     "mode": "control",
     "kind": "transaction",
-    "to": "0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43",
+    "to": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
     "data": "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c800000000000000000000000000000000000000000000000000000000000003e8",
     "expect": [],
     "actual": [],
@@ -12,6 +12,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -25,13 +26,13 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 13.34512501489371
+    "latency_ms": 11.872374918311834
   },
   {
     "name": "benign finite approve",
     "mode": "control",
     "kind": "transaction",
-    "to": "0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43",
+    "to": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
     "data": "0x095ea7b30000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc00000000000000000000000000000000000000000000000000000000000003e8",
     "expect": [],
     "actual": [],
@@ -40,6 +41,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -53,13 +55,13 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 11.102833086624742
+    "latency_ms": 11.063666897825897
   },
   {
     "name": "unlimited approve",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43",
+    "to": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
     "data": "0x095ea7b30000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bcffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
     "expect": [
       "AUTH-001"
@@ -72,6 +74,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -85,13 +88,13 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 10.57629194110632
+    "latency_ms": 11.27799996174872
   },
   {
     "name": "nft operator approval",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0x36b58F5C1969B7b6591D752ea6F5486D069010AB",
+    "to": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
     "data": "0xa22cb4650000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc0000000000000000000000000000000000000000000000000000000000000001",
     "expect": [
       "AUTH-004"
@@ -104,6 +107,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -116,13 +120,13 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 11.293999967165291
+    "latency_ms": 10.392374941147864
   },
   {
     "name": "multicall hidden approve",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0x8198f5d8F8CfFE8f9C413d98a0A55aEB8ab9FbB7",
+    "to": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d",
     "data": "0xac9650d80000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000044095ea7b30000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bcffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000000000000000000000000000000000000000000000000000",
     "expect": [
       "AUTH-001"
@@ -135,6 +139,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -146,13 +151,13 @@
       "verified=null means source verification was not checked, not that the contract is safe"
     ],
     "passed": true,
-    "latency_ms": 10.07279206532985
+    "latency_ms": 10.41087496560067
   },
   {
     "name": "transfer to zero",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43",
+    "to": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
     "data": "0xa9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
     "expect": [
       "ADDR-001"
@@ -165,6 +170,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -178,13 +184,13 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 10.708749992772937
+    "latency_ms": 11.138833011500537
   },
   {
     "name": "transfer to burn",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43",
+    "to": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
     "data": "0xa9059cbb000000000000000000000000000000000000000000000000000000000000dead0000000000000000000000000000000000000000000000000000000000000001",
     "expect": [
       "ADDR-002"
@@ -197,6 +203,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -210,14 +217,14 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 11.141832917928696
+    "latency_ms": 10.892542079091072
   },
   {
     "name": "swap zero minOut",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0xf4B146FbA71F41E0592668ffbF264F1D186b2Ca8",
-    "data": "0x38ed173900000000000000000000000000000000000000000000000000000000000003e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000000000000000000000000000000000002540be3ff0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000d8a5a9b31c3c0232e196d518e89fd8bf83acad43000000000000000000000000d8a5a9b31c3c0232e196d518e89fd8bf83acad43",
+    "to": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
+    "data": "0x38ed173900000000000000000000000000000000000000000000000000000000000003e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000000000000000000000000000000000000000000000000000002540be3ff0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000959922be3caee4b8cd9a407cc3ac1c251c2007b1000000000000000000000000959922be3caee4b8cd9a407cc3ac1c251c2007b1",
     "expect": [
       "SWAP-001",
       "SWAP-007"
@@ -231,6 +238,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -244,14 +252,14 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 10.146833956241608
+    "latency_ms": 10.261915973387659
   },
   {
     "name": "proxy upgrade",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0x202CCe504e04bEd6fC0521238dDf04Bc9E8E15aB",
-    "data": "0x3659cfe60000000000000000000000000355b7b8cb128fa5692729ab3aaa199c1753f726",
+    "to": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
+    "data": "0x3659cfe600000000000000000000000059b670e9fa9d0a427751af201d676719a970857b",
     "expect": [
       "CONTRACT-003"
     ],
@@ -263,6 +271,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -276,13 +285,13 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 10.055791004560888
+    "latency_ms": 11.568334070034325
   },
   {
     "name": "fee on transfer",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0xDC11f7E700A4c898AE5CAddB1082cFfa76512aDD",
+    "to": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
     "data": "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c800000000000000000000000000000000000000000000000000000000000003e8",
     "expect": [
       "FLOW-004",
@@ -297,6 +306,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -310,13 +320,13 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 13.437332934699953
+    "latency_ms": 12.920540990307927
   },
   {
     "name": "fake transfer logs",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0x51A1ceB83B83F1985a81C295d1fF28Afef186E02",
+    "to": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
     "data": "0xa9059cbb00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c800000000000000000000000000000000000000000000000000000000000003e8",
     "expect": [
       "EFFECT-007"
@@ -329,6 +339,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -341,13 +352,13 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 12.418500031344593
+    "latency_ms": 13.128958060406148
   },
   {
     "name": "fake approval logs",
     "mode": "detect",
     "kind": "transaction",
-    "to": "0x51A1ceB83B83F1985a81C295d1fF28Afef186E02",
+    "to": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
     "data": "0x095ea7b30000000000000000000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc00000000000000000000000000000000000000000000000000000000000003e8",
     "expect": [
       "EFFECT-009"
@@ -360,6 +371,7 @@
       "decode": "complete",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -372,21 +384,26 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 10.936333099380136
+    "latency_ms": 12.358500040136278
   },
   {
     "name": "hidden delegatecall",
-    "mode": "known_gap",
+    "mode": "detect",
     "kind": "transaction",
-    "to": "0x172076E0166D1F9Cc711C77Adf8488051744980C",
-    "data": "0xbb1757cf0000000000000000000000004ee6ecad1c2dae9f525404de8555724e3c35d07b000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000045c36b18600000000000000000000000000000000000000000000000000000000",
-    "expect": [],
-    "actual": [],
-    "risk": "unknown",
+    "to": "0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f",
+    "data": "0xbb1757cf0000000000000000000000004a679253410272dd5232b3ff7cf5dbb88f295319000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000045c36b18600000000000000000000000000000000000000000000000000000000",
+    "expect": [
+      "CONTRACT-004"
+    ],
+    "actual": [
+      "CONTRACT-004"
+    ],
+    "risk": "high",
     "coverage": {
       "decode": "partial",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -400,13 +417,13 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 9.992124978452921
+    "latency_ms": 11.000083992257714
   },
   {
     "name": "unverified benign target",
     "mode": "known_gap",
     "kind": "transaction",
-    "to": "0x4EE6eCAD1c2Dae9f525404De8555724e3c35d07B",
+    "to": "0x4A679253410272dd5232B3Ff7cF5dbB88f295319",
     "data": "0x5c36b186",
     "expect": [],
     "actual": [],
@@ -415,6 +432,7 @@
       "decode": "partial",
       "metadata": "partial",
       "simulation": "partial",
+      "trace": "complete",
       "policy": "not_configured"
     },
     "unknowns": [
@@ -428,7 +446,7 @@
       "simulated logs can be emitted by arbitrary contracts and must be cross-checked"
     ],
     "passed": true,
-    "latency_ms": 10.123457992449403
+    "latency_ms": 11.13699993584305
   },
   {
     "name": "permit2 unlimited + no expiration",
@@ -464,7 +482,7 @@
     "unknowns": [],
     "warnings": [],
     "passed": true,
-    "latency_ms": 5.438582971692085
+    "latency_ms": 6.000000052154064
   },
   {
     "name": "eip7702 authorization",
@@ -488,7 +506,7 @@
     "unknowns": [],
     "warnings": [],
     "passed": true,
-    "latency_ms": 5.0214160000905395
+    "latency_ms": 5.537291988730431
   },
   {
     "name": "erc4337 paymaster",
@@ -513,6 +531,6 @@
     ],
     "warnings": [],
     "passed": true,
-    "latency_ms": 4.932250012643635
+    "latency_ms": 5.103499977849424
   }
 ]

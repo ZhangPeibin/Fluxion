@@ -149,11 +149,12 @@
     "coverage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["decode", "metadata", "simulation", "policy"],
+      "required": ["decode", "metadata", "simulation", "trace", "policy"],
       "properties": {
         "decode": { "$ref": "#/$defs/coverage" },
         "metadata": { "$ref": "#/$defs/coverage" },
         "simulation": { "$ref": "#/$defs/coverage" },
+        "trace": { "$ref": "#/$defs/coverage" },
         "policy": { "$ref": "#/$defs/coverage" }
       }
     },
