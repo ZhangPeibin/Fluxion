@@ -128,6 +128,15 @@ pub struct TransactionInspectSource {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct TransactionInspectPolicyResult {
+    pub mode: String,
+    /// `not_configured`, `allow`, `warn`, or `block`.
+    pub decision: String,
+    pub blocked: bool,
+    pub reasons: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct TransactionInspectAssurance {
     pub ruleset_version: String,
     pub report_id: String,
@@ -161,6 +170,7 @@ pub struct TransactionInspectResponse {
     pub risk: String,
     pub coverage: TransactionInspectCoverage,
     pub unknowns: Vec<String>,
+    pub policy: TransactionInspectPolicyResult,
     pub assurance: TransactionInspectAssurance,
     pub explanation: TransactionInspectExplanation,
     pub sources: Vec<TransactionInspectSource>,

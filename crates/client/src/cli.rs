@@ -543,6 +543,31 @@ async fn run_wallet_send(raw: &[String]) -> i32 {
         },
         None => None,
     };
+    let policy = match args.policy.as_deref() {
+        Some(path) => {
+            let text = match std::fs::read_to_string(path) {
+                Ok(text) => text,
+                Err(error) => {
+                    let error = CapabilityError::invalid_argument(format!(
+                        "cannot read policy file {path}: {error}"
+                    ));
+                    report_error_as("wallet.send", &error, args.json);
+                    return exit_code(error.code);
+                }
+            };
+            match serde_json::from_str::<InspectPolicy>(&text) {
+                Ok(policy) => Some(policy),
+                Err(error) => {
+                    let error = CapabilityError::invalid_argument(format!(
+                        "invalid policy file {path}: {error}"
+                    ));
+                    report_error_as("wallet.send", &error, args.json);
+                    return exit_code(error.code);
+                }
+            }
+        }
+        None => None,
+    };
     let mut config = WalletConfig::from_env();
     if let Some(rpc_url) = args.rpc_url {
         config.set_rpc_url(rpc_url);
@@ -557,6 +582,7 @@ async fn run_wallet_send(raw: &[String]) -> i32 {
             decimals: args.decimals,
             block: args.block,
             timeout: std::time::Duration::from_secs(args.timeout_seconds),
+            policy,
         },
     )
     .await
@@ -591,6 +617,7 @@ struct WalletSendArgs {
     decimals: Option<u8>,
     block: Option<u64>,
     rpc_url: Option<String>,
+    policy: Option<String>,
     json: bool,
     timeout_seconds: u64,
 }
@@ -603,6 +630,7 @@ fn parse_wallet_send_args(raw: &[String]) -> Result<WalletSendArgs, CapabilityEr
     let mut decimals = None;
     let mut block = None;
     let mut rpc_url = None;
+    let mut policy = None;
     let mut json = false;
     let mut timeout_seconds = 90;
     let mut index = 0;
@@ -669,6 +697,16 @@ fn parse_wallet_send_args(raw: &[String]) -> Result<WalletSendArgs, CapabilityEr
                         .clone(),
                 );
             }
+            "--policy" => {
+                index += 1;
+                policy = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--policy needs a file path")
+                        })?
+                        .clone(),
+                );
+            }
             "--timeout" => {
                 index += 1;
                 let value = raw
@@ -706,6 +744,7 @@ fn parse_wallet_send_args(raw: &[String]) -> Result<WalletSendArgs, CapabilityEr
         decimals,
         block,
         rpc_url,
+        policy,
         json,
         timeout_seconds,
     })
@@ -2011,6 +2050,7 @@ fn exit_code(code: CapabilityErrorCode) -> i32 {
         CapabilityErrorCode::Timeout => 6,
         CapabilityErrorCode::UserRejected => 7,
         CapabilityErrorCode::SimulationFailed => 8,
+        CapabilityErrorCode::PolicyBlocked => 9,
         CapabilityErrorCode::Internal => 1,
     }
 }
@@ -2225,9 +2265,12 @@ mod tests {
             "0.1".to_string(),
             "--timeout".to_string(),
             "42".to_string(),
+            "--policy".to_string(),
+            "policy.json".to_string(),
         ])
         .unwrap();
         assert_eq!(args.token, "ETH");
+        assert_eq!(args.policy.as_deref(), Some("policy.json"));
         assert_eq!(args.amount, "0.1");
         assert_eq!(args.timeout_seconds, 42);
         assert!(parse_wallet_send_args(&[]).is_err());
