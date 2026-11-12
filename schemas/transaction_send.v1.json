@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/transaction_send.v1.json",
+  "title": "Fluxion transaction.send v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "chain", "chain_id", "from", "to", "value", "data", "tx_hash",
+    "simulation", "inspection"
+  ],
+  "properties": {
+    "chain": { "type": "string", "enum": ["ethereum", "bsc"] },
+    "chain_id": { "type": "integer", "minimum": 0 },
+    "from": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "to": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw", "decimal"],
+      "properties": {
+        "raw": { "type": "string", "pattern": "^[0-9]+$" },
+        "decimal": { "type": "string" }
+      }
+    },
+    "data": { "type": "string", "pattern": "^0x[0-9a-fA-F]*$" },
+    "tx_hash": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+    "simulation": {
+      "type": "object",
+      "required": ["success"]
+    },
+    "inspection": {
+      "type": "object",
+      "required": ["risk", "findings", "coverage", "assurance", "policy"]
+    }
+  }
+}

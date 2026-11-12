@@ -17,6 +17,7 @@ use crate::swap_build::{self, BuildRequest};
 use crate::token;
 use crate::transaction::{self, SimulateRequest};
 use crate::transaction_inspect::{self, InspectPolicy, InspectRequest};
+use crate::transaction_send::{self, SendRequest as TransactionSendRequest};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest, WalletConfig,
 };
@@ -334,6 +335,24 @@ fn tools_list() -> Value {
                 }
             },
             {
+                "name": "transaction_send",
+                "description": "Simulate and inspect arbitrary calldata, then send it through the connected WalletConnect session. Policy in enforce mode can block before the phone request. The wallet remains the signing boundary.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "from": {"type": "string", "description": "Optional session account address"},
+                        "to": {"type": "string", "description": "Target contract or recipient"},
+                        "data": {"type": "string", "description": "0x-prefixed calldata"},
+                        "value": {"type": "string", "description": "Optional native value in human units", "default": "0"},
+                        "block": {"type": "integer", "minimum": 0},
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"},
+                        "policy": {"type": "object", "description": "Optional policy; enforce can block the send"},
+                        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 110, "default": 90}
+                    },
+                    "required": ["to", "data"]
+                }
+            },
+            {
                 "name": "signature_inspect",
                 "description": "Inspect EIP-712 typed data, EIP-7702 authorization lists or an ERC-4337 user operation before signing. Advisory only; never signs or broadcasts.",
                 "inputSchema": {
@@ -386,6 +405,7 @@ async fn call_tool(
         "wallet_disconnect" => wallet_disconnect_tool(wallet).await,
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         "transaction_inspect" => transaction_inspect_tool(&arguments).await,
+        "transaction_send" => transaction_send_tool(&arguments).await,
         "signature_inspect" => signature_inspect_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
@@ -412,6 +432,7 @@ fn capability_for_tool(name: &str) -> &'static str {
         "wallet_disconnect" => "wallet.disconnect",
         "transaction_simulate" => "transaction.simulate",
         "transaction_inspect" => "transaction.inspect",
+        "transaction_send" => "transaction.send",
         "signature_inspect" => "signature.inspect",
         _ => "unknown",
     }
@@ -867,6 +888,57 @@ async fn transaction_inspect_tool(arguments: &Value) -> Result<Value, Capability
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+async fn transaction_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let to = string_arg(arguments, "to")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid --to address"))?;
+    let from = arguments
+        .get("from")
+        .and_then(Value::as_str)
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument("invalid --from address"))
+        })
+        .transpose()?;
+    let value = arguments
+        .get("value")
+        .and_then(Value::as_str)
+        .unwrap_or("0");
+    let value = token::parse_amount(value, 18)?;
+    let timeout = optional_u64(arguments, "timeout_seconds")?.unwrap_or(90);
+    if timeout == 0 || timeout > 110 {
+        return Err(CapabilityError::invalid_argument(
+            "timeout_seconds must be between 1 and 110",
+        ));
+    }
+    let policy = arguments
+        .get("policy")
+        .filter(|value| !value.is_null())
+        .cloned()
+        .map(|value| {
+            serde_json::from_value::<InspectPolicy>(value).map_err(|error| {
+                CapabilityError::invalid_argument(format!("invalid policy: {error}"))
+            })
+        })
+        .transpose()?;
+    let config = wallet_config(arguments);
+    let response = transaction_send::send(
+        &config,
+        TransactionSendRequest {
+            from,
+            to,
+            data: string_arg(arguments, "data")?,
+            value,
+            block: optional_u64(arguments, "block")?,
+            timeout: std::time::Duration::from_secs(timeout),
+            policy,
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn signature_inspect_tool(arguments: &Value) -> Result<Value, CapabilityError> {
     let from = arguments
         .get("from")
@@ -1050,6 +1122,7 @@ mod tests {
                 "wallet_disconnect",
                 "transaction_simulate",
                 "transaction_inspect",
+                "transaction_send",
                 "signature_inspect"
             ]
         );

@@ -106,6 +106,7 @@ that is internal Fluxion routing.
 |---|---|---|
 | `transaction.inspect` | `fluxion transaction inspect --to 0x... --data 0x...` | Pre-sign calldata, effects, trace, source, policy |
 | `transaction.simulate` | `fluxion transaction simulate --to 0x... --data 0x...` | Pinned `eth_call` + gas |
+| `transaction.send` | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | Simulate + inspect + policy + phone + broadcast |
 
 #### 4. Signature authorization
 
@@ -484,6 +485,7 @@ only routes.
 | `wallet.sign` / `wallet.send` | local | local session -> relay -> phone confirmation | Rejection -> `USER_REJECTED`; timeout -> `TIMEOUT`; policy block -> `POLICY_BLOCKED` |
 | `transaction.inspect` | local | local RPC: block, code, simulate, trace, source | Missing dimensions -> `coverage` / `unknowns` |
 | `transaction.simulate` | local | local RPC: `eth_call` + `eth_estimateGas` | RPC/revert -> capability error or `success=false` |
+| `transaction.send` | local | RPC simulate/inspect -> WalletConnect -> phone | Simulation failure, policy block, rejection or timeout never broadcast |
 | `signature.inspect` | local | caller-provided typed data / authorization / userOp JSON | Undecodable -> `SIG-006` or invalid argument |
 
 ### Request flows
@@ -533,7 +535,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - Security: [rule catalog](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- Contracts: [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json)
+- Contracts: [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
 - Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills: [swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md)
 
@@ -554,7 +556,7 @@ Pre-1.0. Local wallet, transaction, and signature capabilities support BSC (defa
 - There is no USD valuation.
 - `swap.quote` needs a separately deployed remote service.
 
-Next: `transaction.send` and `swap.execute`.
+Next: `swap.execute`.
 
 ## Development
 

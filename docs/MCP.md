@@ -157,6 +157,7 @@ Available tools depend on the installed capabilities:
 | `wallet.send` | `wallet_send` | [capabilities/wallet](capabilities/wallet/README.md) |
 | `transaction.inspect` | `transaction_inspect` | [capabilities/transaction](capabilities/transaction/README.md) |
 | `transaction.simulate` | `transaction_simulate` | [capabilities/transaction](capabilities/transaction/README.md) |
+| `transaction.send` | `transaction_send` | [capabilities/transaction](capabilities/transaction/README.md) |
 | `signature.inspect` | `signature_inspect` | [capabilities/signature](capabilities/signature/README.md) |
 
 ## Troubleshooting
