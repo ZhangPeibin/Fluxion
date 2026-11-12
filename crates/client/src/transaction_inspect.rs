@@ -4422,6 +4422,62 @@ mod tests {
         assert_eq!(result.status, "match");
     }
 
+    async fn mismatch_rpc(Json(body): Json<Value>) -> Json<Value> {
+        let result = match body["method"].as_str().unwrap_or_default() {
+            "eth_blockNumber" => json!("0x64"),
+            "eth_getBlockByNumber" => json!({
+                "number": "0x64",
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000065"
+            }),
+            "eth_getCode" => json!("0x6000"),
+            _ => json!("0x0"),
+        };
+        Json(json!({"jsonrpc": "2.0", "id": 1, "result": result}))
+    }
+
+    async fn mismatch_base_url() -> String {
+        let app = Router::new().route("/rpc", post(mismatch_rpc));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        format!("http://{address}")
+    }
+
+    #[tokio::test]
+    async fn secondary_rpc_cross_check_detects_mismatch() {
+        let primary_base = base_url().await;
+        let mismatch_base = mismatch_base_url().await;
+        let primary = Rpc::new(&format!("{primary_base}/rpc"));
+        let (number, hash, tag) = primary.block(None).await.unwrap();
+        let result = cross_check(
+            &primary,
+            Some(&format!("{mismatch_base}/rpc")),
+            request("0x").to,
+            &tag,
+            number,
+            hash,
+        )
+        .await;
+        assert_eq!(result.status, "mismatch");
+    }
+
+    #[tokio::test]
+    async fn secondary_rpc_cross_check_reports_unavailable() {
+        let primary_base = base_url().await;
+        let primary = Rpc::new(&format!("{primary_base}/rpc"));
+        let (number, hash, tag) = primary.block(None).await.unwrap();
+        let result = cross_check(
+            &primary,
+            Some("http://127.0.0.1:1"),
+            request("0x").to,
+            &tag,
+            number,
+            hash,
+        )
+        .await;
+        assert_eq!(result.status, "unavailable");
+    }
+
     #[tokio::test]
     async fn rejects_oversized_calldata() {
         let data = format!("0x{}", "00".repeat(MAX_DATA_BYTES + 1));
