@@ -54,11 +54,12 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 
 ### Skills
 
-Skills tell the agent when to call a tool and how to read the result. Three are included:
+Skills tell the agent when to call a tool and how to read the result. Four are included:
 
 - [swap](skills/swap/SKILL.md): quotes, split allocations, and route output
 - [wallet](skills/wallet/SKILL.md): balances, assets, allowances, NFTs, and WalletConnect
-- [transaction](skills/transaction/SKILL.md): calldata simulation and reverts
+- [transaction](skills/transaction/SKILL.md): calldata inspection, simulation, and reverts
+- [signature](skills/signature/SKILL.md): EIP-712, Permit2, 7702, and 4337 authorization
 
 For opencode, add the repository `skills/` directory to your config:
 
@@ -106,7 +107,7 @@ registration, remote deployment, and full setup live in [docs/MCP.md](docs/MCP.m
 | `wallet.agent-id` | Resolve a BSC `.ai` Agent ID |
 | `wallet.sign` | Sign messages or EIP-712 typed data through WalletConnect |
 | `wallet.send` | Send native or ERC20/BEP-20 transfers through WalletConnect |
-| `transaction.inspect` | Decode unsigned calldata and return intent, risk, coverage and unknowns |
+| `transaction.inspect` | Decode unsigned calldata; verify effects, internal calls and source; return evidence, coverage and unknowns |
 | `transaction.simulate` | Simulate calldata at a pinned block and return the result and gas |
 | `signature.inspect` | Inspect EIP-712, Permit2, 7702 and 4337 authorization |
 
@@ -135,6 +136,35 @@ Agent ──MCP──▶ fluxion mcp ──▶ capability router
                                  └── wallet.agent-id ────▶ SPACE ID API + BSC
 ```
 
+## Security inspection
+
+Pre-sign inspection is not “ask a model to look at it”. `transaction.inspect` /
+`signature.inspect` run a deterministic pipeline:
+
+1. Decode calldata or typed data; unknown selectors/types stay `unknown`.
+2. Simulate the target transaction at a pinned block and parse logs.
+3. Re-simulate `balanceOf` / `allowance` / `ownerOf` and verify logs against real state changes.
+   Forged logs produce `EFFECT-007/009/010`.
+4. When the RPC supports `debug_traceCall`, inspect internal calls and unexpected delegatecalls;
+   otherwise report `coverage.trace=unavailable`.
+5. Optionally verify source through BscScan / Etherscan; without a key, `verified=null`.
+6. Return finding IDs, severity, evidence, coverage, and explicit unknowns.
+
+Principles:
+
+- Never output `safe`; no finding means “nothing found within current coverage”.
+- LLMs do not decide risk. Explanations are deterministic and may be paraphrased by the host agent.
+- Advisory only: no signing, broadcasting, or private keys.
+- Missing data stays `unknown`; no heuristic guessing.
+
+The Foundry + Anvil red-team corpus covers fake logs, hidden delegatecalls, proxy upgrades,
+unlimited approvals, permits, 7702, and 4337. Current results: **15/15 detect**, **2/2 controls with
+no findings**. Method and raw data: [red-team](docs/benchmarks/redteam-2026-11-11.md) and
+[security benchmark](docs/benchmarks/security-inspection-2026-11-11.md).
+
+Boundaries: this is not an audit or a safety guarantee; public BSC RPC has no trace; the real-world
+malicious corpus is still expanding.
+
 ## Repository layout
 
 ```text
@@ -158,13 +188,14 @@ ParaSwap and 79/90 within ±50 bps of 1inch. Methodology and raw data:
 
 ## Status
 
-Pre-1.0. Local wallet and simulation capabilities support BSC (default) and Ethereum; `swap.quote`
-remains Ethereum mainnet.
+Pre-1.0. Local wallet, transaction and signature capabilities support BSC (default) and Ethereum;
+`swap.quote` remains Ethereum mainnet.
 
 - Account, quote, and simulation capabilities are read-only; `wallet.sign` signs messages/EIP-712
   only; `wallet.send` sends native/ERC20/BEP-20 transfers only and cannot execute arbitrary calls or
   swaps.
 - All local wallet capabilities support Ethereum and BSC; local tools default to BSC.
+- `transaction.inspect` / `signature.inspect` are advisory and not a safety guarantee.
 - `wallet.connect` only establishes a WalletConnect session; keys stay in the phone wallet.
 - `wallet.agent-id` only resolves BSC identity; it is not Binance Agentic Wallet login and does not
   check launch eligibility.

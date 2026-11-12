@@ -53,11 +53,12 @@ FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100 --json
 
 ### Skills
 
-Skills 告诉 Agent 什么时候该用哪个工具，以及结果怎么读。仓库带了三个：
+Skills 告诉 Agent 什么时候该用哪个工具，以及结果怎么读。仓库带了四个：
 
 - [swap](skills/swap/SKILL.md)：报价、拆单和路由结果
 - [wallet](skills/wallet/SKILL.md)：余额、资产、授权、NFT 和 WalletConnect
-- [transaction](skills/transaction/SKILL.md)：calldata 模拟和 revert
+- [transaction](skills/transaction/SKILL.md)：calldata 检查、模拟和 revert
+- [signature](skills/signature/SKILL.md)：EIP-712、Permit2、7702 和 4337 授权检查
 
 以 opencode 为例，把仓库的 `skills/` 加入配置：
 
@@ -104,7 +105,7 @@ fluxion mcp
 | `wallet.agent-id` | 解析 BSC 上的 `.ai` Agent ID |
 | `wallet.sign` | 通过 WalletConnect 签名消息或 EIP-712 |
 | `wallet.send` | 通过 WalletConnect 发送原生或 ERC20/BEP-20 转账 |
-| `transaction.inspect` | 签名前解码 calldata，返回意图、风险、覆盖范围与未知项 |
+| `transaction.inspect` | 签名前解码 calldata，校验 effects / internal calls / 源码，返回证据、覆盖范围与未知项 |
 | `transaction.simulate` | 固定区块模拟 calldata，返回结果和 gas |
 | `signature.inspect` | 检查 EIP-712、Permit2、7702、4337 授权 |
 
@@ -131,6 +132,33 @@ Agent ──MCP──▶ fluxion mcp ──▶ capability router
                                  └── wallet.agent-id ────▶ SPACE ID API + BSC
 ```
 
+## 安全检测
+
+签名前检查不依赖“让模型看一眼”。`transaction.inspect` / `signature.inspect` 走确定性管线：
+
+1. 解码 calldata 或 typed data；未知 selector / 类型明确标 `unknown`。
+2. 固定区块模拟目标交易，解析 logs。
+3. 再模拟 `balanceOf` / `allowance` / `ownerOf`，用真实状态变化校验日志；日志造假会触发
+   `EFFECT-007/009/010`。
+4. RPC 支持时用 `debug_traceCall` 检查 internal delegatecall；不支持就明确
+   `coverage.trace=unavailable`。
+5. 可选 BscScan / Etherscan 源码验证；没有 key 时 `verified=null`，不猜测。
+6. 每个结果带 finding ID、severity、evidence、coverage 和 unknowns。
+
+原则：
+
+- 不输出 `safe`，没有 finding 也只代表“当前覆盖范围内未发现”。
+- LLM 不参与 risk 判定；解释是确定性的，宿主 Agent 可以转述。
+- advisory only：不签名、不广播、不保管私钥。
+- 缺数据就是 `unknown`，不用启发式硬猜。
+
+红队使用 Foundry + Anvil，覆盖 fake logs、hidden delegatecall、proxy upgrade、无限授权、
+permit、7702 和 4337。当前语料 **15/15 detect**，**2/2 controls 无误报**。方法和原始数据见
+[red-team](docs/benchmarks/redteam-2026-11-11.md) 与
+[security benchmark](docs/benchmarks/security-inspection-2026-11-11.md)。
+
+边界：这不是审计或安全保证；BSC public RPC 不提供 trace；真实恶意交易 corpus 仍在扩展。
+
 ## 仓库结构
 
 ```text
@@ -153,11 +181,12 @@ HTTP p50/p95 为 35/197 ms，snapshot lag 0/1/1 blocks。82/90 在 ParaSwap ±50
 
 ## 状态
 
-Pre-1.0。本地 wallet / simulate 支持 BSC（默认）和 Ethereum；`swap.quote` 仍是 Ethereum 主网。
+Pre-1.0。本地 wallet / transaction / signature 支持 BSC（默认）和 Ethereum；`swap.quote` 仍是 Ethereum 主网。
 
 - 账户、报价和模拟能力只读；`wallet.sign` 只签名消息/EIP-712；`wallet.send` 只发送
   原生/ERC20/BEP-20 transfer，不能任意合约调用、授权或执行 swap。
 - 所有本地 wallet 能力支持 Ethereum 和 BSC；本地工具默认 BSC。
+- `transaction.inspect` / `signature.inspect` 是 advisory，不构成安全保证。
 - `wallet.connect` 只建立 WalletConnect 会话，私钥留在手机钱包。
 - `wallet.agent-id` 只解析 BSC 身份，不是 Binance Agentic Wallet 登录，也不检查内盘资格。
 - `wallet.assets` / `wallet.collectibles` 的完整发现依赖可选 provider；回退时通过 coverage
