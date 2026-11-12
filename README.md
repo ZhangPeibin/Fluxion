@@ -70,6 +70,44 @@ Skills 告诉 Agent 何时调用哪个能力，以及如何解释结果。把仓
 
 所有能力都有固定执行位置。Agent 和用户不选择 remote/local；这是 Fluxion 的内部路由。
 
+### 能力总览
+
+#### 1. 报价
+
+| Capability | CLI | 说明 |
+|---|---|---|
+| `swap.quote` | `fluxion swap ldo-eth 100` | Ethereum 主网 exact-in 报价、多跳、拆单 |
+
+#### 2. 钱包
+
+| Capability | CLI | 说明 |
+|---|---|---|
+| `wallet.balance` | `fluxion wallet balance 0x... --tokens BNB,USDT` | 固定区块余额 |
+| `wallet.assets` | `fluxion wallet assets 0x...` | 资产发现 + 本地核对 |
+| `wallet.allowance` | `fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT` | 授权额度 |
+| `wallet.collectibles` | `fluxion wallet collectibles 0x...` | NFT 持仓 |
+| `wallet.connect` | `fluxion wallet connect` | WalletConnect 连接 |
+| `wallet.status` | `fluxion wallet status` | 查看本地会话 |
+| `wallet.disconnect` | `fluxion wallet disconnect` | 删除本地会话 |
+| `wallet.agent-id` | `fluxion wallet agent-id alice.ai` | BSC `.ai` Agent ID |
+| `wallet.sign` | `fluxion wallet sign --typed-data typed-data.json` | 消息 / EIP-712 签名 |
+| `wallet.send` | `fluxion wallet send --to 0x... --token BNB --amount 0.01` | 原生 / 代币转账 |
+
+#### 3. 交易安全
+
+| Capability | CLI | 说明 |
+|---|---|---|
+| `transaction.inspect` | `fluxion transaction inspect --to 0x... --data 0x...` | 签名前 calldata 检查、effects、trace、源码、policy |
+| `transaction.simulate` | `fluxion transaction simulate --to 0x... --data 0x...` | 固定区块 `eth_call` + gas |
+
+#### 4. 签名授权
+
+| Capability | CLI | 说明 |
+|---|---|---|
+| `signature.inspect` | `fluxion signature inspect --typed-data typed-data.json` | EIP-712、Permit2、7702、4337 |
+
+完整用法和“对 Agent 说”的示例见下面各能力小节。
+
 ### 报价
 
 #### `swap.quote`

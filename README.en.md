@@ -76,6 +76,44 @@ The “Ask the agent” examples under each capability are ready to use.
 Every capability has one fixed execution location. Agents and users do not choose remote/local;
 that is internal Fluxion routing.
 
+### Capability overview
+
+#### 1. Quotes
+
+| Capability | CLI | Description |
+|---|---|---|
+| `swap.quote` | `fluxion swap ldo-eth 100` | Ethereum mainnet exact-in quotes, multi-hop, split allocation |
+
+#### 2. Wallet
+
+| Capability | CLI | Description |
+|---|---|---|
+| `wallet.balance` | `fluxion wallet balance 0x... --tokens BNB,USDT` | Pinned-block balances |
+| `wallet.assets` | `fluxion wallet assets 0x...` | Asset discovery + local verification |
+| `wallet.allowance` | `fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT` | Allowances |
+| `wallet.collectibles` | `fluxion wallet collectibles 0x...` | NFT holdings |
+| `wallet.connect` | `fluxion wallet connect` | WalletConnect session |
+| `wallet.status` | `fluxion wallet status` | Inspect local session |
+| `wallet.disconnect` | `fluxion wallet disconnect` | Remove local session |
+| `wallet.agent-id` | `fluxion wallet agent-id alice.ai` | BSC `.ai` Agent ID |
+| `wallet.sign` | `fluxion wallet sign --typed-data typed-data.json` | Message / EIP-712 signing |
+| `wallet.send` | `fluxion wallet send --to 0x... --token BNB --amount 0.01` | Native / token transfer |
+
+#### 3. Transaction safety
+
+| Capability | CLI | Description |
+|---|---|---|
+| `transaction.inspect` | `fluxion transaction inspect --to 0x... --data 0x...` | Pre-sign calldata, effects, trace, source, policy |
+| `transaction.simulate` | `fluxion transaction simulate --to 0x... --data 0x...` | Pinned `eth_call` + gas |
+
+#### 4. Signature authorization
+
+| Capability | CLI | Description |
+|---|---|---|
+| `signature.inspect` | `fluxion signature inspect --typed-data typed-data.json` | EIP-712, Permit2, 7702, 4337 |
+
+Full usage and "ask the agent" examples are below in each capability section.
+
 ### Quotes
 
 #### `swap.quote`
