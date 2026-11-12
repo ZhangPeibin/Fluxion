@@ -1,0 +1,70 @@
+[
+  {
+    "id": "phishing-approval-2022-07-09",
+    "tx": "0x3bfc8e4c0fae8d0dc27af462b8fbe4369263dd4d0a4acb9cec76e1104bb2cf4f",
+    "label": "Unlimited BUSD approval to phishing contract",
+    "source": "https://bscscan.com/tx/0x3bfc8e4c0fae8d0dc27af462b8fbe4369263dd4d0a4acb9cec76e1104bb2cf4f",
+    "mode": "detect",
+    "expect": [
+      "AUTH-001"
+    ],
+    "expect_decode": "complete",
+    "to": "0xe9e7cea3dedca5984780bafc599bd69add087d56",
+    "selector": "0x095ea7b3",
+    "risk": "high",
+    "decode": "complete",
+    "findings": [
+      "AUTH-001"
+    ],
+    "passed": true
+  },
+  {
+    "id": "phishing-approval-2022-09-28",
+    "tx": "0xdbbb008e55a6493541020563f24e6462e2e49d2a7f71511b5bde819fae5b60f8",
+    "label": "Unlimited BUSD approval to phishing contract",
+    "source": "https://bscscan.com/tx/0xdbbb008e55a6493541020563f24e6462e2e49d2a7f71511b5bde819fae5b60f8",
+    "mode": "detect",
+    "expect": [
+      "AUTH-001"
+    ],
+    "expect_decode": "complete",
+    "to": "0xe9e7cea3dedca5984780bafc599bd69add087d56",
+    "selector": "0x095ea7b3",
+    "risk": "high",
+    "decode": "complete",
+    "findings": [
+      "AUTH-001"
+    ],
+    "passed": true
+  },
+  {
+    "id": "orion-exploit-2024-05-28",
+    "tx": "0x660837a1640dd9cc0561ab7ff6c85325edebfa17d8b11a3bb94457ba6dcae18c",
+    "label": "Orion exploit entrypoint (opaque flash-loan attack calldata)",
+    "source": "https://blog.verichains.io/p/tradeonorion-incident-analysis",
+    "mode": "coverage_gap",
+    "expect": [],
+    "expect_decode": "partial",
+    "to": "0xf8bfac82bdd7ac82d3aeec98b9e1e73579509db6",
+    "selector": "0xd79eee59",
+    "risk": "unknown",
+    "decode": "partial",
+    "findings": [],
+    "passed": true
+  },
+  {
+    "id": "nftg-exploit-2024-11",
+    "tx": "0xbd330fd17d0f825042474843a223547132a49abb0746a7e762a0b15cf4bd28f6",
+    "label": "NFTG exploit entrypoint (opaque flash-loan attack calldata)",
+    "source": "https://bscscan.com/tx/0xbd330fd17d0f825042474843a223547132a49abb0746a7e762a0b15cf4bd28f6",
+    "mode": "coverage_gap",
+    "expect": [],
+    "expect_decode": "partial",
+    "to": "0x6def9e4a6bb9c3bfe0648a11d3fff14447079e78",
+    "selector": "0x1a695230",
+    "risk": "unknown",
+    "decode": "partial",
+    "findings": [],
+    "passed": true
+  }
+]

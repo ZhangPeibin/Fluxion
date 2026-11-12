@@ -423,8 +423,11 @@ never treated as passing; `unknowns` is part of the result, not an appendix.
   policy, and signature.
 - The Foundry/Anvil red-team contracts cover fake logs, hidden delegatecalls, proxy upgrades,
   unlimited approvals, permits, 7702, and 4337.
-- Current corpus: **17/17 detect**, **3/3 controls with no findings**. Method and raw data:
-  [red-team](docs/benchmarks/redteam-2026-11-11.md) and
+- Current corpus: **17/17 detect**, **3/3 controls with no findings**.
+- Real historical BSC calldata: two real unlimited-approval phishing transactions hit `AUTH-001`;
+  two opaque exploit entrypoints remain explicitly `unknown`.
+- Method and raw data: [red-team](docs/benchmarks/redteam-2026-11-11.md),
+  [historical calldata](docs/benchmarks/historical-calddata-2026-11-11.md), and
   [security benchmark](docs/benchmarks/security-inspection-2026-11-11.md).
 
 ## Execution model
