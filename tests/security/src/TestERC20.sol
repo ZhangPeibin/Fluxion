@@ -77,6 +77,14 @@ contract FakeLogERC20 {
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
+    function balanceOf(address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function allowance(address, address) external pure returns (uint256) {
+        return 0;
+    }
+
     function transfer(address to, uint256 amount) external returns (bool) {
         emit Transfer(msg.sender, to, amount);
         return true;

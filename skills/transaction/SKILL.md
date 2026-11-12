@@ -29,8 +29,9 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
 - Returns `intent`, `target`, `effects`, `findings`, `risk`, `coverage` and `unknowns`.
 - `target.kind` is `eoa`, `contract` or `unknown`; EIP-1967 proxies report `proxy` and
   `implementation`. `verified: null` means source verification was not checked.
-- `effects` are derived from `eth_simulateV1` logs (native value plus token/NFT/approval events);
-  they are partial and can be forged by contracts, so cross-check before trusting them.
+- `effects` are derived from `eth_simulateV1` logs; token balances and allowances are re-simulated
+  and checked against those logs. Mismatches produce `EFFECT-007/009/010`. Effects remain partial
+  because gas and full internal state are not included.
 - Unknown selectors stay unknown; never reinterpret them as safe.
 - `risk` is the highest deterministic finding, otherwise `unknown`; never treat `low` as approval.
 - Approval findings: unlimited ERC20 approval (`AUTH-001`) and NFT operator approval (`AUTH-004`).

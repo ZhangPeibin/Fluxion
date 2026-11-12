@@ -306,11 +306,19 @@ def cases(deployments: dict[str, str]) -> list[dict]:
         },
         {
             "name": "fake transfer logs",
-            "mode": "known_gap",
+            "mode": "detect",
             "kind": "transaction",
             "to": fake,
             "data": transfer_data(RECIPIENT, 1000),
-            "expect": [],
+            "expect": ["EFFECT-007"],
+        },
+        {
+            "name": "fake approval logs",
+            "mode": "detect",
+            "kind": "transaction",
+            "to": fake,
+            "data": approve_data(ATTACKER, 1000),
+            "expect": ["EFFECT-009"],
         },
         {
             "name": "hidden delegatecall",
@@ -371,7 +379,7 @@ def run_case(binary: str, case: dict, temp: Path) -> dict:
     output = run(command)
     elapsed_ms = (time.perf_counter() - started) * 1000
     response = json.loads(output)
-    actual = [finding["id"] for finding in response["findings"]]
+    actual = sorted({finding["id"] for finding in response["findings"]})
     expected = case["expect"]
     if case["mode"] == "detect":
         passed = set(expected).issubset(set(actual))
@@ -453,6 +461,8 @@ def main() -> int:
                 raise RuntimeError("anvil did not start")
 
         deployments = deploy()
+        # Warm the local node/process path once before recording per-case latency.
+        run(inspect_command(args.bin, deployments["token"], transfer_data(RECIPIENT, 1)))
         results = []
         with tempfile_dir() as temp:
             for case in cases(deployments):

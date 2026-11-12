@@ -232,6 +232,64 @@ impl Rpc {
         })
     }
 
+    pub(crate) async fn call_hex(
+        &self,
+        to: Address,
+        data: &str,
+        tag: &str,
+    ) -> Result<String, CapabilityError> {
+        let value = self
+            .call("eth_call", json!([{"to": to, "data": data}, tag]))
+            .await
+            .map_err(rpc_failure)?;
+        value.as_str().map(str::to_string).ok_or_else(|| {
+            CapabilityError::new(
+                crate::capability::CapabilityErrorCode::RpcError,
+                "eth_call returned a non-string result",
+                true,
+            )
+        })
+    }
+
+    pub(crate) async fn simulate_v1_calls(
+        &self,
+        calls: Vec<Value>,
+        tag: &str,
+    ) -> Result<Vec<Value>, CapabilityError> {
+        let payload = json!({
+            "blockStateCalls": [{"calls": calls}]
+        });
+        let result = self
+            .call("eth_simulateV1", json!([payload, tag]))
+            .await
+            .map_err(rpc_failure)?;
+        let blocks = result.as_array().ok_or_else(|| {
+            CapabilityError::new(
+                crate::capability::CapabilityErrorCode::RpcError,
+                "eth_simulateV1 returned a non-array result",
+                true,
+            )
+        })?;
+        let block = blocks.first().ok_or_else(|| {
+            CapabilityError::new(
+                crate::capability::CapabilityErrorCode::RpcError,
+                "eth_simulateV1 returned no block result",
+                true,
+            )
+        })?;
+        block
+            .get("calls")
+            .and_then(Value::as_array)
+            .cloned()
+            .ok_or_else(|| {
+                CapabilityError::new(
+                    crate::capability::CapabilityErrorCode::RpcError,
+                    "eth_simulateV1 returned no calls",
+                    true,
+                )
+            })
+    }
+
     pub(crate) async fn block(
         &self,
         requested: Option<u64>,

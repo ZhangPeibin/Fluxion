@@ -3,7 +3,7 @@
 //! The first slice decodes calldata and pins a block. It deliberately does not
 //! claim safety: metadata, simulation and policy are reported as not run.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use alloy_primitives::{Address, B256, U256};
 use serde::Deserialize;
@@ -193,7 +193,8 @@ pub async fn inspect_with_policy(
     let mut warnings = decoded.warnings;
     warnings.extend(metadata.warnings);
     warnings.extend(simulation.warnings);
-    let mut findings = detect_approvals(&decoded.intent);
+    let mut findings = simulation.findings.clone();
+    findings.extend(detect_approvals(&decoded.intent));
     findings.extend(detect_nested_approvals(&decoded.intent));
     findings.extend(detect_contract(&decoded.intent, &metadata.target, &request));
     findings.extend(detect_address(&decoded.intent, &request));
@@ -1351,6 +1352,7 @@ fn aggregate_risk(findings: &[TransactionInspectFinding]) -> String {
 
 struct SimulationMetadata {
     effects: TransactionInspectEffects,
+    findings: Vec<TransactionInspectFinding>,
     coverage: &'static str,
     sources: Vec<TransactionInspectSource>,
     unknowns: Vec<String>,
@@ -1364,6 +1366,7 @@ async fn inspect_effects(
     tag: &str,
 ) -> SimulationMetadata {
     let mut effects = TransactionInspectEffects::default();
+    let mut findings = Vec::new();
     let mut unknowns = Vec::new();
     let mut warnings = Vec::new();
     let mut sources = Vec::new();
@@ -1402,12 +1405,13 @@ async fn inspect_effects(
         tx["value"] = json!(format!("0x{:x}", request.value));
     }
 
-    let block = match rpc.simulate_v1(tx, tag).await {
+    let block = match rpc.simulate_v1(tx.clone(), tag).await {
         Ok(block) => block,
         Err(error) => {
             unknowns.push(format!("asset effects unavailable: {}", error.message));
             return SimulationMetadata {
                 effects,
+                findings,
                 coverage: "unavailable",
                 sources,
                 unknowns,
@@ -1428,6 +1432,7 @@ async fn inspect_effects(
         unknowns.push("simulation returned no call result".to_string());
         return SimulationMetadata {
             effects,
+            findings,
             coverage: "partial",
             sources,
             unknowns,
@@ -1442,6 +1447,7 @@ async fn inspect_effects(
         unknowns.push(format!("transaction simulation failed: {detail}"));
         return SimulationMetadata {
             effects,
+            findings,
             coverage: "partial",
             sources,
             unknowns,
@@ -1469,12 +1475,350 @@ async fn inspect_effects(
             .to_string(),
     );
 
+    let verification = verify_effects(rpc, tag, &tx, &effects).await;
+    findings.extend(verification.findings);
+    unknowns.extend(verification.unknowns);
+    warnings.extend(verification.warnings);
+    sources.extend(verification.sources);
+
     SimulationMetadata {
         effects,
+        findings,
         coverage: "partial",
         sources,
         unknowns,
         warnings,
+    }
+}
+
+struct EffectVerification {
+    findings: Vec<TransactionInspectFinding>,
+    sources: Vec<TransactionInspectSource>,
+    unknowns: Vec<String>,
+    warnings: Vec<String>,
+}
+
+async fn verify_effects(
+    rpc: &Rpc,
+    tag: &str,
+    tx: &Value,
+    effects: &TransactionInspectEffects,
+) -> EffectVerification {
+    let mut token_pairs = BTreeSet::new();
+    for effect in &effects.tokens {
+        if effect.account != Address::ZERO && effect.delta != "0" && effect.delta != "-0" {
+            token_pairs.insert((effect.token, effect.account));
+        }
+    }
+    let mut approval_triples = BTreeSet::new();
+    for effect in &effects.approvals {
+        approval_triples.insert((effect.token, effect.owner, effect.spender));
+    }
+    let mut nft_tokens = BTreeSet::new();
+    for effect in &effects.nfts {
+        if let Ok(token_id) = effect.token_id.parse::<U256>() {
+            nft_tokens.insert((effect.collection, token_id));
+        }
+    }
+    if token_pairs.is_empty() && approval_triples.is_empty() && nft_tokens.is_empty() {
+        return EffectVerification {
+            findings: Vec::new(),
+            sources: Vec::new(),
+            unknowns: Vec::new(),
+            warnings: Vec::new(),
+        };
+    }
+
+    let mut calls = vec![tx.clone()];
+    for (token, account) in &token_pairs {
+        calls.push(json!({
+            "to": token,
+            "data": encode_balance_of(*account),
+        }));
+    }
+    for (token, owner, spender) in &approval_triples {
+        calls.push(json!({
+            "to": token,
+            "data": encode_allowance(*owner, *spender),
+        }));
+    }
+    for (collection, token_id) in &nft_tokens {
+        calls.push(json!({
+            "to": collection,
+            "data": encode_owner_of(*token_id),
+        }));
+    }
+
+    let mut unknowns = Vec::new();
+    let warnings = Vec::new();
+    let mut findings = Vec::new();
+
+    let balance_pre_offset = 1;
+    let approval_pre_offset = balance_pre_offset + token_pairs.len();
+    let nft_pre_offset = approval_pre_offset + approval_triples.len();
+
+    let mut pre_values = Vec::new();
+    for (index, (token, account)) in token_pairs.iter().enumerate() {
+        match rpc
+            .call_hex(*token, &encode_balance_of(*account), tag)
+            .await
+        {
+            Ok(value) => pre_values.push((balance_pre_offset + index, value)),
+            Err(error) => unknowns.push(format!(
+                "effect verification could not read balance for {token}/{account}: {}",
+                error.message
+            )),
+        }
+    }
+    for (index, (token, owner, spender)) in approval_triples.iter().enumerate() {
+        match rpc
+            .call_hex(*token, &encode_allowance(*owner, *spender), tag)
+            .await
+        {
+            Ok(value) => pre_values.push((approval_pre_offset + index, value)),
+            Err(error) => unknowns.push(format!(
+                "effect verification could not read allowance for {token}/{owner}/{spender}: {}",
+                error.message
+            )),
+        }
+    }
+    for (index, (collection, token_id)) in nft_tokens.iter().enumerate() {
+        match rpc
+            .call_hex(*collection, &encode_owner_of(*token_id), tag)
+            .await
+        {
+            Ok(value) => pre_values.push((nft_pre_offset + index, value)),
+            Err(error) => unknowns.push(format!(
+                "effect verification could not read owner for {collection}/{token_id}: {}",
+                error.message
+            )),
+        }
+    }
+
+    let post = match rpc.simulate_v1_calls(calls, tag).await {
+        Ok(calls) => calls,
+        Err(error) => {
+            unknowns.push(format!(
+                "effect verification simulation failed: {}",
+                error.message
+            ));
+            return EffectVerification {
+                findings,
+                sources: Vec::new(),
+                unknowns,
+                warnings,
+            };
+        }
+    };
+    if post.len() < 1 + token_pairs.len() + approval_triples.len() + nft_tokens.len() {
+        unknowns.push("effect verification returned an incomplete call result".to_string());
+        return EffectVerification {
+            findings,
+            sources: Vec::new(),
+            unknowns,
+            warnings,
+        };
+    }
+
+    for (index, (token, account)) in token_pairs.iter().enumerate() {
+        let Some(pre) = pre_values
+            .iter()
+            .find(|(pre_index, _)| *pre_index == balance_pre_offset + index)
+            .and_then(|(_, value)| parse_u256(value))
+        else {
+            continue;
+        };
+        let Some(post) = post
+            .get(balance_pre_offset + index)
+            .and_then(|call| call.get("returnData"))
+            .and_then(Value::as_str)
+            .and_then(parse_u256)
+        else {
+            unknowns.push(format!(
+                "effect verification could not read post balance for {token}/{account}"
+            ));
+            continue;
+        };
+        let expected = expected_token_delta(effects, *token, *account);
+        let actual = signed_delta(post, pre);
+        if actual != expected {
+            findings.push(effect_finding(
+                "EFFECT-007",
+                "Log amount does not match balance change",
+                "The simulated token balance change differs from the Transfer log amount.",
+                [
+                    ("token", token.to_string()),
+                    ("account", account.to_string()),
+                    ("expected", format_signed_delta(expected)),
+                    ("actual", format_signed_delta(actual)),
+                ],
+            ));
+        }
+    }
+
+    for (index, (token, owner, spender)) in approval_triples.iter().enumerate() {
+        let expected = effects
+            .approvals
+            .iter()
+            .find(|effect| {
+                effect.token == *token && effect.owner == *owner && effect.spender == *spender
+            })
+            .and_then(|effect| parse_decimal_u256(&effect.after));
+        let Some(expected) = expected else {
+            continue;
+        };
+        let Some(post) = post
+            .get(approval_pre_offset + index)
+            .and_then(|call| call.get("returnData"))
+            .and_then(Value::as_str)
+            .and_then(parse_u256)
+        else {
+            unknowns.push(format!(
+                "effect verification could not read post allowance for {token}/{owner}/{spender}"
+            ));
+            continue;
+        };
+        if post != expected {
+            findings.push(effect_finding(
+                "EFFECT-009",
+                "Approval log does not match allowance",
+                "The simulated allowance differs from the Approval log amount.",
+                [
+                    ("token", token.to_string()),
+                    ("owner", owner.to_string()),
+                    ("spender", spender.to_string()),
+                    ("expected", expected.to_string()),
+                    ("actual", post.to_string()),
+                ],
+            ));
+        }
+    }
+
+    for (index, (collection, token_id)) in nft_tokens.iter().enumerate() {
+        let expected = effects
+            .nfts
+            .iter()
+            .find(|effect| {
+                effect.collection == *collection
+                    && effect.token_id.parse::<U256>().ok() == Some(*token_id)
+            })
+            .map(|effect| effect.to);
+        let Some(expected) = expected else {
+            continue;
+        };
+        let Some(post) = post
+            .get(nft_pre_offset + index)
+            .and_then(|call| call.get("returnData"))
+            .and_then(Value::as_str)
+            .and_then(parse_topic_address)
+        else {
+            unknowns.push(format!(
+                "effect verification could not read post owner for {collection}/{token_id}"
+            ));
+            continue;
+        };
+        if post != expected {
+            findings.push(effect_finding(
+                "EFFECT-010",
+                "NFT log does not match owner",
+                "The simulated NFT owner differs from the Transfer log recipient.",
+                [
+                    ("collection", collection.to_string()),
+                    ("token_id", token_id.to_string()),
+                    ("expected", expected.to_string()),
+                    ("actual", post.to_string()),
+                ],
+            ));
+        }
+    }
+
+    if findings.is_empty() {
+        unknowns.push(
+            "effect verification is limited to simulated token balances and allowances".to_string(),
+        );
+    }
+    let sources = vec![TransactionInspectSource {
+        name: "effect-verifier".to_string(),
+        scope: "balance-and-allowance".to_string(),
+    }];
+    EffectVerification {
+        findings,
+        sources,
+        unknowns,
+        warnings,
+    }
+}
+
+fn encode_balance_of(account: Address) -> String {
+    format!("0x70a08231{}", address_word(account))
+}
+
+fn encode_allowance(owner: Address, spender: Address) -> String {
+    format!("0xdd62ed3e{}{}", address_word(owner), address_word(spender))
+}
+
+fn encode_owner_of(token_id: U256) -> String {
+    format!("0x6352211e{:064x}", token_id)
+}
+
+fn address_word(address: Address) -> String {
+    let mut word = [0u8; 32];
+    word[12..].copy_from_slice(address.as_slice());
+    data_encoding::HEXLOWER.encode(&word)
+}
+
+fn expected_token_delta(
+    effects: &TransactionInspectEffects,
+    token: Address,
+    account: Address,
+) -> (bool, U256) {
+    let (positive, negative) = token_delta(effects, token, account);
+    if positive >= negative {
+        (false, positive - negative)
+    } else {
+        (true, negative - positive)
+    }
+}
+
+fn signed_delta(after: U256, before: U256) -> (bool, U256) {
+    if after >= before {
+        (false, after - before)
+    } else {
+        (true, before - after)
+    }
+}
+
+fn format_signed_delta((negative, value): (bool, U256)) -> String {
+    if negative {
+        format!("-{value}")
+    } else {
+        value.to_string()
+    }
+}
+
+fn effect_finding<const N: usize>(
+    id: &str,
+    title: &str,
+    description: &str,
+    evidence: [(&str, String); N],
+) -> TransactionInspectFinding {
+    let mut evidence_map = BTreeMap::new();
+    for (key, value) in evidence {
+        evidence_map.insert(key.to_string(), value);
+    }
+    evidence_map.insert(
+        "source".to_string(),
+        "eth_simulateV1+balance-check".to_string(),
+    );
+    TransactionInspectFinding {
+        id: id.to_string(),
+        category: "effects".to_string(),
+        severity: "high".to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        evidence: evidence_map,
+        confidence: "high".to_string(),
+        deterministic: true,
     }
 }
 
@@ -3318,6 +3662,86 @@ mod tests {
                 .collect::<BTreeSet<_>>();
             assert_eq!(actual, expected, "{name}: findings");
         }
+    }
+
+    async fn verification_rpc(Json(body): Json<Value>) -> Json<Value> {
+        let method = body["method"].as_str().unwrap_or_default();
+        let result = match method {
+            "eth_blockNumber" => json!("0x64"),
+            "eth_getBlockByNumber" => json!({
+                "number": "0x64",
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000064"
+            }),
+            "eth_getCode" => json!("0x6000"),
+            "eth_getStorageAt" => {
+                json!("0x0000000000000000000000000000000000000000000000000000000000000000")
+            }
+            "eth_call" => {
+                let data = body["params"][0]["data"].as_str().unwrap_or_default();
+                let balance = if data.ends_with("0000000000000000000000000000000000000001") {
+                    1000
+                } else {
+                    0
+                };
+                json!(format!("0x{}", uint_word(balance)))
+            }
+            "eth_simulateV1" => {
+                let calls = body["params"][0]["blockStateCalls"][0]["calls"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default();
+                let log = json!({
+                    "address": "0x0000000000000000000000000000000000000010",
+                    "topics": [
+                        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                        format!("0x{}", address_word("0x0000000000000000000000000000000000000001")),
+                        format!("0x{}", address_word("0x0000000000000000000000000000000000000002"))
+                    ],
+                    "data": format!("0x{}", uint_word(100))
+                });
+                let mut results = vec![json!({
+                    "status": "0x1",
+                    "returnData": "0x",
+                    "logs": [log]
+                })];
+                for _ in calls.iter().skip(1) {
+                    results.push(json!({
+                        "status": "0x1",
+                        "returnData": format!("0x{}", uint_word(1000)),
+                        "logs": []
+                    }));
+                }
+                json!([{"calls": results}])
+            }
+            _ => json!("0x0"),
+        };
+        Json(json!({"jsonrpc": "2.0", "id": 1, "result": result}))
+    }
+
+    #[tokio::test]
+    async fn flags_log_balance_mismatch() {
+        let app = Router::new().route("/rpc", post(verification_rpc));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let base = format!("http://{address}");
+        let mut request = request("0x");
+        request.from = Some(
+            "0x0000000000000000000000000000000000000001"
+                .parse()
+                .unwrap(),
+        );
+        request.to = "0x0000000000000000000000000000000000000010"
+            .parse()
+            .unwrap();
+        let response = inspect(&config(&base), request).await.unwrap();
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "EFFECT-007")
+        );
+        assert_eq!(response.risk, "high");
     }
 
     #[tokio::test]

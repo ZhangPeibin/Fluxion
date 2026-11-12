@@ -8,6 +8,24 @@ Produce observable native, token, NFT and allowance deltas for the inspected tra
 
 `inspect.core`, `inspect.decode`.
 
+## Implemented Verification
+
+After decoding logs, `transaction.inspect` builds a second `eth_simulateV1` batch:
+
+1. target call;
+2. `balanceOf` reads for log-derived token/account pairs;
+3. `allowance` reads for approval pairs;
+4. `ownerOf` reads for ERC721 transfer pairs.
+
+It compares the post-state with pre-state reads at the same pinned block.
+
+- `EFFECT-007`: Transfer log amount differs from balance delta.
+- `EFFECT-009`: Approval log differs from allowance.
+- `EFFECT-010`: NFT Transfer log differs from owner.
+
+Address zero is skipped for balance checks because burn events conventionally do not credit the
+zero address. Unsupported/non-token targets degrade to explicit unknowns.
+
 ## Implemented Backend
 
 BSC public RPC supports `eth_simulateV1`. The current implementation uses its `calls[].logs` to
