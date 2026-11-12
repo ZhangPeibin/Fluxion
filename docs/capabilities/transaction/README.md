@@ -19,6 +19,8 @@ fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
   proxies, and EIP-1967 beacon proxies. `proxy_kind` reports the detected pattern.
 - Source verification uses `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`. Without a key it stays
   `verified: null`; explicit `false` produces `CONTRACT-001`.
+- `FLUXION_THREAT_INTEL_FILE` optionally loads a local address registry; matches produce `ADDR-007`
+  with label/source evidence. The registry is operator-provided and may be stale.
 - Effects come from `eth_simulateV1` logs plus balance/allowance verification. They are `partial`,
   not a full state diff. Internal calls are checked with `debug_traceCall` when available.
 - `risk` reflects known deterministic findings, otherwise `unknown`. It is never `safe`.
@@ -37,7 +39,7 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
 - `findings`: rule-ID findings with evidence. Current checks include unlimited ERC20 approval
   (`AUTH-001`), NFT operator approval (`AUTH-004`), asset-flow findings (`FLOW-001`–`FLOW-006`),
   contract findings (`CONTRACT-001`, `CONTRACT-003`, `CONTRACT-004`), address findings (`ADDR-001`, `ADDR-002`,
-  `ADDR-005`), swap findings (`SWAP-001`, `SWAP-004`, `SWAP-007`), EIP-2612 permit findings
+  `ADDR-005`, `ADDR-007`), swap findings (`SWAP-001`, `SWAP-004`, `SWAP-007`), EIP-2612 permit findings
   (`SIG-002`, `SIG-003`), and log/state mismatch findings (`EFFECT-007`, `EFFECT-009`,
   `EFFECT-010`). Nested approvals from decoded multicalls carry a `nested_call` evidence
   field.

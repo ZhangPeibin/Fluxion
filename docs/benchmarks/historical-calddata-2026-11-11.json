@@ -6,7 +6,8 @@
     "source": "https://bscscan.com/tx/0x3bfc8e4c0fae8d0dc27af462b8fbe4369263dd4d0a4acb9cec76e1104bb2cf4f",
     "mode": "detect",
     "expect": [
-      "AUTH-001"
+      "AUTH-001",
+      "ADDR-007"
     ],
     "expect_decode": "complete",
     "to": "0xe9e7cea3dedca5984780bafc599bd69add087d56",
@@ -14,6 +15,7 @@
     "risk": "high",
     "decode": "complete",
     "findings": [
+      "ADDR-007",
       "AUTH-001"
     ],
     "passed": true
@@ -25,7 +27,8 @@
     "source": "https://bscscan.com/tx/0xdbbb008e55a6493541020563f24e6462e2e49d2a7f71511b5bde819fae5b60f8",
     "mode": "detect",
     "expect": [
-      "AUTH-001"
+      "AUTH-001",
+      "ADDR-007"
     ],
     "expect_decode": "complete",
     "to": "0xe9e7cea3dedca5984780bafc599bd69add087d56",
@@ -33,6 +36,7 @@
     "risk": "high",
     "decode": "complete",
     "findings": [
+      "ADDR-007",
       "AUTH-001"
     ],
     "passed": true
