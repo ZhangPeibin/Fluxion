@@ -5,12 +5,12 @@ linking, transaction inspection, and signature authorization into stable MCP cap
 agent can read chains, quote, prepare transactions, and show an auditable risk report before the user
 signs.
 
-It solves two problems:
+It addresses two problems:
 
-- **Agents do not know how to use chains**: fragmented RPCs, DEXes, wallets, and data models become
-  fixed inputs and outputs.
-- **Agents must not blind-sign**: decode calldata before signing, simulate state changes, inspect
-  internal calls and source, and state clearly what was not covered.
+- **Fragmented onchain interfaces**: RPCs, DEXes, wallets, and data models become fixed inputs and
+  outputs.
+- **No verifiable pre-sign check**: decode calldata, simulate state changes, inspect internal calls
+  and source, and state clearly what was not covered.
 
 English · [中文](README.md)
 
@@ -319,50 +319,154 @@ Inspect this Permit2 typed data: check the amount, expiration, spender, and chai
 
 ## Security model
 
-Fluxion does not rely on “ask a model to look at it”. `transaction.inspect` /
-`signature.inspect` run a deterministic pipeline:
+`transaction.inspect` / `signature.inspect` are **pre-sign inspection** only. They do not hold
+private keys, sign, or broadcast, and they are not an audit or a safety guarantee. Their output helps
+the caller and the user decide whether to enter the wallet confirmation flow.
 
-1. Decode calldata or typed data; unknown selectors/types stay `unknown`.
-2. Simulate the target transaction at a pinned block and parse logs.
-3. Re-simulate `balanceOf` / `allowance` / `ownerOf` and verify logs against real state changes.
-   Forged logs produce `EFFECT-007/009/010`.
-4. When the RPC supports `debug_traceCall`, inspect internal calls and unexpected delegatecalls;
-   otherwise report `coverage.trace=unavailable`.
-5. Optionally verify source through BscScan / Etherscan; without a key, `verified=null`.
-6. Return finding IDs, severity, evidence, coverage, and explicit unknowns.
+### Trust boundaries
 
-Principles:
+| Component | Assumption | Failure / limit |
+|---|---|---|
+| Caller (agent or user) | Untrusted planner; can construct arbitrary calldata and bypass local MCP by calling the CLI or RPC directly | Not treated as a security boundary |
+| Phone wallet / WalletConnect | Private keys and final signature confirmation stay in the wallet | Rejection -> `USER_REJECTED`; timeout -> `TIMEOUT` |
+| Local runtime | No keys; read-only RPC; process and config are controlled by the local machine | Does not defend against a malicious local process or tampered binary |
+| RPC | Responses are used for block, code, simulation and trace; no light-client proof | Failure -> `RPC_ERROR` or explicit `unavailable` |
+| Remote quote service | Returns quotes over a published immutable snapshot | Failure -> `RPC_ERROR`; no local quote fallback |
+| Source verifier | Optional BscScan / Etherscan; returns `verified: true/false/null` | Missing key or request failure -> `null`, never inferred |
+| Trace backend | Optional `debug_traceCall`; public BSC RPC does not provide it | Unsupported -> `coverage.trace = unavailable` |
 
-- Never output `safe`; no finding means “nothing found within current coverage”.
-- LLMs do not decide risk. Explanations are deterministic and may be paraphrased by the host agent.
-- Advisory only: no signing, broadcasting, or private keys.
-- Missing data stays `unknown`; no heuristic guessing.
+### Threat model
 
-The Foundry + Anvil red-team corpus covers fake logs, hidden delegatecalls, proxy upgrades,
-unlimited approvals, permits, 7702, and 4337. Current results: **15/15 detect**, **2/2 controls with
-no findings**. Method and raw data: [red-team](docs/benchmarks/redteam-2026-11-11.md) and
-[security benchmark](docs/benchmarks/security-inspection-2026-11-11.md).
+Covered:
 
-Boundaries: this is not an audit or a safety guarantee; public BSC RPC has no trace; the real-world
-malicious corpus is still expanding.
+- Malicious or malformed calldata: unknown selectors, wrong argument layout, hidden multicall,
+  proxy upgrades.
+- Assets and approvals: unintended transfer, forged Transfer/Approval logs, unlimited approval,
+  NFT operator approval.
+- Contract execution: unexpected internal `DELEGATECALL`, unverified source, EIP-1967 proxy.
+- Addresses and policy: zero address, burn address, recipient mismatch, policy caps/allowlists.
+
+Not covered:
+
+- Private-key compromise, a malicious wallet app, or a controlled signing device.
+- Protocol-level economic attacks, oracle manipulation, MEV, liquidations, and bridge risk.
+- Off-chain signatures not supplied to the inspector, full semantics of non-standard tokens, or
+  every real-world attack pattern.
+- “No finding” does not mean safe; it means nothing was found within current coverage.
+
+### Inspection pipeline
+
+| Stage | Output | Failure / degradation |
+|---|---|---|
+| Canonicalize + pin block | `chain`, `block_number`, `block_hash` | RPC failure -> capability error |
+| Decode | selector, signature, arguments, unknowns | Unknown selector -> `decode=partial` + `unknown` |
+| Metadata | EOA/contract, EIP-1967 proxy/implementation | Code/storage failure -> error/unknown |
+| Simulation | call status, logs, effects | Unsupported RPC/trace -> `simulation=unavailable/partial` |
+| Effect verification | `balanceOf`, `allowance`, `ownerOf` before/after | Non-standard token -> verified=false/unknown |
+| Internal trace | internal calls, delegatecall | No `debug_traceCall` -> `trace=unavailable` |
+| Source verification | `verified`, provider source | Missing key/provider failure -> `verified=null` |
+| Detectors | finding ID, severity, evidence, confidence | Missing prerequisite -> no guess, write `unknown` |
+| Policy | cap/allowlist decision | Missing effects or policy -> `not_configured`/`partial` |
+
+### Findings and risk semantics
+
+Every finding contains:
+
+- `id`: stable rule ID, e.g. `AUTH-001`, `EFFECT-007`, `CONTRACT-004`.
+- `category`: approval, asset-flow, contract, address, swap, signature, policy, etc.
+- `severity`: `critical | high | medium | low`.
+- `evidence`: addresses, amounts, selector, logs, trace, or provider result.
+- `confidence`: `high | medium | low`.
+- `deterministic`: whether the rule itself is deterministic.
+
+Aggregation:
+
+1. With findings, `risk` is the highest severity.
+2. Without findings, `risk` is `unknown`, never `low` or `safe`.
+3. Missing critical coverage keeps `unknown`; it cannot be downgraded to low risk.
+4. `unknowns` must state what is missing; `warnings` are non-blocking notes.
+
+### Coverage
+
+`coverage` has five independent dimensions:
+
+- `decode`: selector, arguments, dynamic bytes, multicall.
+- `metadata`: EOA/contract, proxy, source verification.
+- `simulation`: state simulation and effects.
+- `trace`: internal calls / delegatecall.
+- `policy`: caller policy.
+
+Each value is `complete | partial | not_run | unavailable | not_configured`. Missing dimensions are
+never treated as passing; `unknowns` is part of the result, not an appendix.
+
+### Determinism and reproducibility
+
+- The same request, block, and code version should produce the same finding set.
+- Simulations and reads use a pinned block; no mixed-block state.
+- LLMs do not participate in detectors, risk, or coverage; `explanation` is a deterministic template.
+- External providers supply input only; they do not change rule semantics.
+
+### Verification
+
+- Rust unit tests and fixture corpora cover decode, effects, trace, approval, asset-flow, swap,
+  policy, and signature.
+- The Foundry/Anvil red-team contracts cover fake logs, hidden delegatecalls, proxy upgrades,
+  unlimited approvals, permits, 7702, and 4337.
+- Current corpus: **15/15 detect**, **2/2 controls with no findings**. Method and raw data:
+  [red-team](docs/benchmarks/redteam-2026-11-11.md) and
+  [security benchmark](docs/benchmarks/security-inspection-2026-11-11.md).
 
 ## Execution model
 
-Every capability has one fixed execution location. Agents and users do not choose remote/local:
+Every capability has a fixed execution location; the caller cannot choose remote/local. `fluxion`
+only routes.
 
-- `swap.quote` is remote and reads one published immutable snapshot.
-- `wallet.*`, `transaction.*`, and `signature.*` are local.
-- `wallet.agent-id` also uses the SPACE ID API and verifies against BSC.
-- Reads and simulations are pinned to a block; missing coverage is reported through
-  `coverage` / `unknowns`.
+| Capability | Location | Data path | Failure semantics |
+|---|---|---|---|
+| `swap.quote` | remote | remote snapshot -> local route computation | Remote unavailable -> `RPC_ERROR` |
+| `wallet.balance` / `assets` / `allowance` / `collectibles` | local | local RPC at a pinned block | RPC failure -> `RPC_ERROR` |
+| `wallet.connect` / `status` / `disconnect` | local | local session + WalletConnect relay | No session, pairing failure, or expiry -> explicit error |
+| `wallet.agent-id` | local | SPACE ID API + BSC RPC verification | API failure -> configured on-chain fallback or unknown |
+| `wallet.sign` / `wallet.send` | local | local session -> relay -> phone confirmation | Rejection -> `USER_REJECTED`; timeout -> `TIMEOUT` |
+| `transaction.inspect` | local | local RPC: block, code, simulate, trace, source | Missing dimensions -> `coverage` / `unknowns` |
+| `transaction.simulate` | local | local RPC: `eth_call` + `eth_estimateGas` | RPC/revert -> capability error or `success=false` |
+| `signature.inspect` | local | caller-provided typed data / authorization / userOp JSON | Undecodable -> `SIG-006` or invalid argument |
+
+### Request flows
 
 ```text
-Agent ──MCP──▶ fluxion mcp ──▶ capability router
-                                 ├── swap.quote ─────────▶ remote snapshot ──▶ Ethereum
-                                 ├── wallet.* / transaction.* / signature.*
-                                 │                       ▶ local runtime (RPC / WalletConnect)
-                                 └── wallet.agent-id ────▶ SPACE ID API + BSC
+Quote:
+CLI/MCP -> fluxion client -> FLUXION_REMOTE_URL -> snapshot -> quote response
+
+Local read:
+CLI/MCP -> fluxion client -> chain RPC -> pinned block -> response
+
+Wallet:
+CLI/MCP -> local session file -> WalletConnect relay -> phone -> response
+
+Pre-sign inspection:
+CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 ```
+
+### Runtime and configuration
+
+- `FLUXION_REMOTE_URL`: remote quote service. Without it, `swap.quote` returns an explicit error.
+- `FLUXION_RPC_URL` / `RPC_URL`: Ethereum RPC.
+- `FLUXION_BSC_RPC_URL`: BSC RPC; default chain for local capabilities.
+- `WALLETCONNECT_PROJECT_ID`, `WALLETCONNECT_RELAY_URL`: wallet session.
+- `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`: optional source verification.
+- `FLUXION_BSCSCAN_API_URL` / `FLUXION_ETHERSCAN_API_URL`: replaceable verification endpoints.
+- Private keys never enter the runtime; the WalletConnect session is stored only at
+  `~/.fluxion/walletconnect/session.json`.
+
+### State and failure behavior
+
+- Quotes read a published immutable snapshot; the snapshot is never written back on-chain.
+- Local reads and simulations use one pinned block; cross-block consistency is not guaranteed by a
+  single response.
+- `effects`, `trace`, and `source` are optional enhancements in `transaction.inspect`. Missing data
+  is reported explicitly and does not block decode or deterministic findings.
+- All capabilities use stable error codes; callers should not infer error types from HTTP/CLI text.
 
 ## Documentation
 

@@ -5,9 +5,9 @@ Fluxion 是面向 AI Agent 的 Web3 能力层。它把报价、账户读取、�
 
 它解决两类问题：
 
-- **Agent 不会用链**：把分散的 RPC、DEX、钱包和数据结构整理成固定输入输出。
-- **Agent 不能盲签**：在签名前解码 calldata、模拟状态变化、检查内部调用和源码，并明确哪些
-  结论没有覆盖。
+- **链上接口碎片化**：把分散的 RPC、DEX、钱包和数据结构整理成固定输入输出。
+- **签名前缺少可验证的检查**：在签名前解码 calldata、模拟状态变化、检查内部调用和源码，并
+  明确哪些结论没有覆盖。
 
 [English](README.en.md) · 中文
 
@@ -308,48 +308,147 @@ fluxion signature inspect --user-operation userop.json
 
 ## 安全模型
 
-Fluxion 的安全检查不依赖“让模型看一眼”。`transaction.inspect` / `signature.inspect` 走确定性
-管线：
+`transaction.inspect` / `signature.inspect` 只做**签名前检查**。它们不持有私钥、不签名、
+不广播，也不构成审计或安全保证。检查结果用于辅助调用方和用户决定是否进入钱包确认流程。
 
-1. 解码 calldata 或 typed data；未知 selector / 类型明确标 `unknown`。
-2. 固定区块模拟目标交易，解析 logs。
-3. 再模拟 `balanceOf` / `allowance` / `ownerOf`，用真实状态变化校验日志；日志造假会触发
-   `EFFECT-007/009/010`。
-4. RPC 支持时用 `debug_traceCall` 检查 internal delegatecall；不支持就明确
-   `coverage.trace=unavailable`。
-5. 可选 BscScan / Etherscan 源码验证；没有 key 时 `verified=null`，不猜测。
-6. 每个结果带 finding ID、severity、evidence、coverage 和 unknowns。
+### 信任边界
 
-原则：
+| 组件 | 信任假设 | 失败/限制 |
+|---|---|---|
+| 调用方（Agent 或用户） | 不可信规划器；可以构造任意 calldata，也可以绕过本地 MCP 直接调用 CLI 或 RPC | 不作为安全边界 |
+| 手机钱包 / WalletConnect | 私钥和最终签名确认只在钱包内 | 拒绝返回 `USER_REJECTED`；超时返回 `TIMEOUT` |
+| Local runtime | 无密钥，只读 RPC；进程和配置由本机控制 | 不承诺防御本机恶意进程或已被篡改的二进制 |
+| RPC | RPC 返回用于区块、代码、模拟和 trace；没有轻客户端证明 | 不可用时返回 `RPC_ERROR` 或明确 `unavailable` |
+| Remote quote service | 只返回已发布 snapshot 的报价 | 不可用时返回 `RPC_ERROR`，不回落本地报价 |
+| Source verifier | 可选 BscScan / Etherscan；返回 `verified: true/false/null` | 无 key 或请求失败时为 `null`，不推断 |
+| Trace backend | 可选 `debug_traceCall`；公共 BSC RPC 不提供 | 不支持时 `coverage.trace = unavailable` |
 
-- 不输出 `safe`；没有 finding 只代表“当前覆盖范围内未发现”。
-- LLM 不参与 risk 判定；解释是确定性的，宿主 Agent 可以转述。
-- advisory only：不签名、不广播、不保管私钥。
-- 缺数据就是 `unknown`，不用启发式硬猜。
+### 威胁模型
 
-红队使用 Foundry + Anvil，覆盖 fake logs、hidden delegatecall、proxy upgrade、无限授权、
-permit、7702 和 4337。当前语料 **15/15 detect**，**2/2 controls 无误报**。方法和原始数据见
-[red-team](docs/benchmarks/redteam-2026-11-11.md) 与
-[security benchmark](docs/benchmarks/security-inspection-2026-11-11.md)。
+覆盖范围：
 
-边界：这不是审计或安全保证；BSC public RPC 不提供 trace；真实恶意交易 corpus 仍在扩展。
+- 恶意或错误的 calldata：未知 selector、参数错位、隐藏 multicall、代理升级。
+- 资产和授权：超出意图的转账、伪造 Transfer/Approval 日志、无限授权、NFT operator 授权。
+- 合约执行：非预期 internal `DELEGATECALL`、未验证源码、EIP-1967 proxy。
+- 地址和策略：零地址、burn 地址、recipient mismatch、policy cap/allowlist。
+
+不覆盖：
+
+- 私钥泄露、恶意钱包 App、已被控制的签名设备。
+- 协议级经济攻击、预言机操纵、MEV、清算和跨链桥风险。
+- 未提供的链下签名、非标准 token 的完整语义、真实世界的全部攻击模式。
+- “没有 finding”不等于安全；它只表示当前覆盖范围内没有发现。
+
+### 检查管线
+
+| 阶段 | 输出 | 失败/降级 |
+|---|---|---|
+| 规范化与区块固定 | `chain`、`block_number`、`block_hash` | RPC 失败 -> capability error |
+| Decode | selector、signature、参数、未知项 | 未知 selector -> `decode=partial` + `unknown` |
+| Metadata | EOA/contract、EIP-1967 proxy/implementation | 代码或 storage 读取失败 -> error/unknown |
+| Simulation | call status、logs、effects | trace/RPC 不支持 -> `simulation=unavailable/partial` |
+| Effect verification | `balanceOf`、`allowance`、`ownerOf` 前后状态 | 非标准 token -> verified=false/unknown |
+| Internal trace | internal calls、delegatecall | 无 `debug_traceCall` -> `trace=unavailable` |
+| Source verification | `verified`、provider source | 无 key/provider 失败 -> `verified=null` |
+| Detectors | finding ID、severity、evidence、confidence | 缺前置数据 -> 不猜，写 `unknown` |
+| Policy | cap/allowlist 判断 | 缺 effects 或 policy -> `not_configured`/`partial` |
+
+### Finding 和风险语义
+
+每个 finding 固定包含：
+
+- `id`：稳定规则 ID，例如 `AUTH-001`、`EFFECT-007`、`CONTRACT-004`。
+- `category`：approval、asset-flow、contract、address、swap、signature、policy 等。
+- `severity`：`critical | high | medium | low`。
+- `evidence`：地址、金额、selector、日志、trace 或 provider 结果。
+- `confidence`：`high | medium | low`。
+- `deterministic`：规则本身是否确定性执行。
+
+聚合规则：
+
+1. 有 finding 时，`risk` 取最高 severity。
+2. 没有 finding 时为 `unknown`，而不是 `low` 或 `safe`。
+3. 关键覆盖缺失时，保留 `unknown`，不能降级成低风险。
+4. `unknowns` 必须说明缺少什么；`warnings` 只做非阻塞提示。
+
+### Coverage
+
+`coverage` 有五个独立维度：
+
+- `decode`：selector、参数、动态 bytes、multicall。
+- `metadata`：EOA/contract、proxy、源码验证。
+- `simulation`：状态模拟和 effects。
+- `trace`：internal call / delegatecall。
+- `policy`：调用方策略。
+
+每个维度取值为 `complete | partial | not_run | unavailable | not_configured`。报告不会把
+缺失维度当成通过；`unknowns` 是结果的一部分，不是附注。
+
+### 确定性和可复现性
+
+- 同一请求、同一区块、同一代码版本应产生相同 finding 集合。
+- 模拟和读取使用 pinned block；不会混用不同区块的状态。
+- LLM 不参与 detector、risk 或 coverage 计算；`explanation` 是确定性模板。
+- 外部 provider 只提供输入，不改变规则语义。
+
+### 验证方式
+
+- Rust 单元测试和 fixture corpus 覆盖 decode、effects、trace、approval、asset-flow、swap、
+  policy 和 signature。
+- Foundry/Anvil 红队合约覆盖伪造日志、hidden delegatecall、proxy upgrade、无限授权、permit、
+  7702 和 4337。
+- 当前红队语料 **15/15 detect**，**2/2 controls 无误报**。方法和原始数据见
+  [red-team](docs/benchmarks/redteam-2026-11-11.md) 与
+  [security benchmark](docs/benchmarks/security-inspection-2026-11-11.md)。
 
 ## 执行模型
 
-每个 capability 的执行位置固定，Agent 和用户都不选择 remote/local：
+每个 capability 的执行位置固定，调用方不能选择 remote/local。`fluxion` 只做路由。
 
-- `swap.quote` 走 remote，只读一个已发布的不可变 snapshot。
-- `wallet.*`、`transaction.*`、`signature.*` 固定在 local。
-- `wallet.agent-id` 额外使用 SPACE ID API，并以 BSC 校验。
-- 读取和模拟固定在指定区块；缺失的覆盖范围写入 `coverage` / `unknowns`。
+| Capability | 执行位置 | 数据路径 | 失败语义 |
+|---|---|---|---|
+| `swap.quote` | remote | remote snapshot -> 本地路由计算 | remote 不可用 -> `RPC_ERROR` |
+| `wallet.balance` / `assets` / `allowance` / `collectibles` | local | 本地 RPC，固定区块 | RPC 失败 -> `RPC_ERROR` |
+| `wallet.connect` / `status` / `disconnect` | local | 本地 session + WalletConnect relay | 无 session、配对失败或过期 -> 明确错误 |
+| `wallet.agent-id` | local | SPACE ID API + BSC RPC 校验 | API 失败时按配置回退链上或返回 unknown |
+| `wallet.sign` / `wallet.send` | local | 本地 session -> relay -> 手机钱包确认 | 拒绝 -> `USER_REJECTED`；超时 -> `TIMEOUT` |
+| `transaction.inspect` | local | 本地 RPC：block、code、simulate、trace、source | 缺失维度写入 `coverage` / `unknowns` |
+| `transaction.simulate` | local | 本地 RPC：`eth_call` + `eth_estimateGas` | RPC/revert 按 capability error 或 `success=false` 返回 |
+| `signature.inspect` | local | 调用方提供的 typed data / authorization / userOp JSON | 无法解码 -> `SIG-006` 或 invalid argument |
+
+### 请求流
 
 ```text
-Agent ──MCP──▶ fluxion mcp ──▶ capability router
-                                 ├── swap.quote ─────────▶ remote snapshot ──▶ Ethereum
-                                 ├── wallet.* / transaction.* / signature.*
-                                 │                       ▶ local runtime (RPC / WalletConnect)
-                                 └── wallet.agent-id ────▶ SPACE ID API + BSC
+Quote:
+CLI/MCP -> fluxion client -> FLUXION_REMOTE_URL -> snapshot -> quote response
+
+Local read:
+CLI/MCP -> fluxion client -> chain RPC -> pinned block -> response
+
+Wallet:
+CLI/MCP -> local session file -> WalletConnect relay -> phone -> response
+
+Pre-sign inspection:
+CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 ```
+
+### 运行时和配置
+
+- `FLUXION_REMOTE_URL`：remote quote 服务地址；没有配置时 `swap.quote` 返回明确错误。
+- `FLUXION_RPC_URL` / `RPC_URL`：Ethereum RPC。
+- `FLUXION_BSC_RPC_URL`：BSC RPC，本地能力默认链。
+- `WALLETCONNECT_PROJECT_ID`、`WALLETCONNECT_RELAY_URL`：钱包会话。
+- `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`：可选源码验证。
+- `FLUXION_BSCSCAN_API_URL` / `FLUXION_ETHERSCAN_API_URL`：可替换验证端点。
+- 私钥不进入 runtime；WalletConnect session 只保存在本地 `~/.fluxion/walletconnect/session.json`。
+
+### 状态和失败
+
+- Quote 只读已发布 snapshot；不会把 snapshot 写回链。
+- 本地读取和模拟固定在同一区块；跨区块一致性不在单个响应内保证。
+- `transaction.inspect` 的 `effects`、`trace`、`source` 是可选增强：缺失时报告明确降级，不阻塞
+  decode 和确定性 findings。
+- 所有 capability 使用稳定错误码；调用方不应从 HTTP/CLI 文本猜测错误类型。
 
 ## 文档
 
