@@ -58,7 +58,10 @@ mismatch and zero delegation address are also high.
 
 - `SIG-005`: paymaster or account-factory deployment is present; verify the policy and trust.
 - `SIG-006`: missing/invalid sender.
-- `userOp.callData` and the signature are explicitly reported as not inspected.
+- SimpleAccount `execute(address,uint256,bytes)` callData is decoded into `calls[]`; nested
+  approval/address/swap/permit checks reuse the transaction decoders.
+- Unsupported userOp callData selectors remain explicit unknowns.
+- The userOp signature is explicitly reported as not inspected.
 
 ## Output
 
@@ -66,6 +69,7 @@ See [`schemas/signature_inspect.v1.json`](../../../schemas/signature_inspect.v1.
 
 - `kind`: `typed_data`, `authorization_list`, or `user_operation`
 - `domain`: normalized EIP-712 domain when present
+- `calls`: decoded nested calls for supported SimpleAccount `execute` userOps
 - `findings`: rule ID, severity, evidence and confidence
 - `risk`: highest deterministic finding, otherwise `unknown`; never `safe`
 - `coverage`: `complete`, `partial`, `unavailable` or `not_configured`

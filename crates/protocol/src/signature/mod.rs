@@ -5,8 +5,8 @@ use serde::Serialize;
 
 use crate::capability::{CapabilityDescriptor, SCHEMA_VERSION};
 use crate::transaction::{
-    TransactionInspectExplanation, TransactionInspectFinding, TransactionInspectPolicyResult,
-    TransactionInspectSource,
+    TransactionInspectArg, TransactionInspectExplanation, TransactionInspectFinding,
+    TransactionInspectPolicyResult, TransactionInspectSource,
 };
 
 pub const INSPECT_CAPABILITY: &str = "signature.inspect";
@@ -21,6 +21,18 @@ pub struct SignatureInspectDomain {
     pub chain_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub verifying_contract: Option<Address>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SignatureCall {
+    pub to: Address,
+    pub value: String,
+    pub selector: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub args: Vec<TransactionInspectArg>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -42,6 +54,7 @@ pub struct SignatureInspectResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<SignatureInspectDomain>,
     pub findings: Vec<TransactionInspectFinding>,
+    pub calls: Vec<SignatureCall>,
     pub risk: String,
     pub coverage: String,
     pub unknowns: Vec<String>,
