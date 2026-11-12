@@ -194,23 +194,18 @@ fn evaluate_policy(
         }
     }
 
-    if findings
+    let high_findings = findings
         .iter()
-        .any(|finding| finding.severity == "high" || finding.severity == "critical")
-    {
-        policy_findings.extend(
-            findings
-                .iter()
-                .filter(|finding| finding.severity == "high" || finding.severity == "critical")
-                .map(|finding| {
-                    signature_policy_finding(
-                        "POLICY-007",
-                        "High-risk signature finding",
-                        "A high-risk signature finding is present.",
-                        [("finding", finding.id.clone())],
-                    )
-                }),
-        );
+        .filter(|finding| finding.severity == "high" || finding.severity == "critical")
+        .map(|finding| finding.id.clone())
+        .collect::<Vec<_>>();
+    if !high_findings.is_empty() {
+        policy_findings.push(signature_policy_finding(
+            "POLICY-007",
+            "High-risk signature finding",
+            "One or more high-risk signature findings are present.",
+            [("findings", high_findings.join(","))],
+        ));
     }
 
     let reasons = policy_findings
