@@ -24,7 +24,8 @@ fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
 
 ## Output
 
-See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect.v1.json).
+See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect.v1.json) and the
+[rule catalog](ASSURANCE.md).
 
 - `intent`: selector, signature, name and decoded arguments.
 - `target`: address, `kind`, `verified`, `proxy`, `implementation`. `verified: null` means not
@@ -66,6 +67,7 @@ known tokens use their registry decimals. Unknown tokens require an explicit `de
 - No policy means `coverage.policy = not_configured`.
 - Policy findings use `POLICY-001`–`POLICY-006`. There is no hidden default policy.
 - `unknowns`: what was not inspected and could change the conclusion.
+- `assurance`: ruleset version, stable report ID, RPC cross-check status, and limitations.
 - `explanation`: deterministic `summary`, `key_changes` and `unknowns` for host agents. It never says
   `safe` and is not an LLM decision.
 

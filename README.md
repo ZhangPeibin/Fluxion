@@ -397,7 +397,7 @@ fluxion signature inspect --user-operation userop.json
   policy 和 signature。
 - Foundry/Anvil 红队合约覆盖伪造日志、hidden delegatecall、proxy upgrade、无限授权、permit、
   7702 和 4337。
-- 当前红队语料 **15/15 detect**，**2/2 controls 无误报**。方法和原始数据见
+- 当前红队语料 **17/17 detect**，**3/3 controls 无误报**。方法和原始数据见
   [red-team](docs/benchmarks/redteam-2026-11-11.md) 与
   [security benchmark](docs/benchmarks/security-inspection-2026-11-11.md)。
 
@@ -439,6 +439,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - `FLUXION_BSC_RPC_URL`：BSC RPC，本地能力默认链。
 - `WALLETCONNECT_PROJECT_ID`、`WALLETCONNECT_RELAY_URL`：钱包会话。
 - `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`：可选源码验证。
+- `FLUXION_VERIFY_RPC_URL`：可选第二 RPC，用于 block hash 和 target code 交叉校验。
 - `FLUXION_BSCSCAN_API_URL` / `FLUXION_ETHERSCAN_API_URL`：可替换验证端点。
 - 私钥不进入 runtime；WalletConnect session 只保存在本地 `~/.fluxion/walletconnect/session.json`。
 
@@ -456,6 +457,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - 能力：[swap.quote](docs/capabilities/swap/README.md) · [wallet](docs/capabilities/wallet/README.md) · [transaction](docs/capabilities/transaction/README.md) · [signature](docs/capabilities/signature/README.md)
 - 架构：[产品架构](docs/PRODUCT-ARCHITECTURE.md) · [引擎架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
 - 运维：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
+- 安全：[规则目录](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
 - 研究：[benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills：[swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md)
 

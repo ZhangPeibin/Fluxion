@@ -127,6 +127,16 @@ pub struct TransactionInspectSource {
     pub scope: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct TransactionInspectAssurance {
+    pub ruleset_version: String,
+    pub report_id: String,
+    pub deterministic: bool,
+    /// `not_configured`, `match`, `mismatch`, or `unavailable`.
+    pub cross_check: String,
+    pub limitations: Vec<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct TransactionInspectExplanation {
     pub summary: String,
@@ -151,6 +161,7 @@ pub struct TransactionInspectResponse {
     pub risk: String,
     pub coverage: TransactionInspectCoverage,
     pub unknowns: Vec<String>,
+    pub assurance: TransactionInspectAssurance,
     pub explanation: TransactionInspectExplanation,
     pub sources: Vec<TransactionInspectSource>,
     pub warnings: Vec<String>,

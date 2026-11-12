@@ -46,6 +46,10 @@ def transfer_data(to: str, amount: int) -> str:
     return "0xa9059cbb" + address_word(to) + word(amount)
 
 
+def safe_transfer_data(from_address: str, to: str, token_id: int) -> str:
+    return "0x42842e0e" + address_word(from_address) + address_word(to) + word(token_id)
+
+
 def set_approval_for_all(operator: str, approved: bool) -> str:
     return "0xa22cb465" + address_word(operator) + word(1 if approved else 0)
 
@@ -148,6 +152,7 @@ def deploy() -> dict[str, str]:
     fee = forge_create("TestERC20:FeeOnTransferERC20")
     fake = forge_create("TestERC20:FakeLogERC20")
     nft = forge_create("TestERC721:TestERC721")
+    fake_nft = forge_create("FakeLogERC721:FakeLogERC721")
     multicall = forge_create("MulticallHelper:MulticallHelper")
     implementation = forge_create("EIP1967Proxy:ImplementationV1")
     proxy = forge_create("EIP1967Proxy:EIP1967Proxy", [implementation])
@@ -165,6 +170,7 @@ def deploy() -> dict[str, str]:
         "fee": fee,
         "fake": fake,
         "nft": nft,
+        "fake_nft": fake_nft,
         "multicall": multicall,
         "implementation": implementation,
         "proxy": proxy,
@@ -176,8 +182,15 @@ def deploy() -> dict[str, str]:
     return deployments
 
 
-def inspect_command(binary: str, to: str, data: str) -> list[str]:
-    return [
+def inspect_command(
+    binary: str,
+    to: str,
+    data: str,
+    *,
+    value: str | None = None,
+    policy: str | None = None,
+) -> list[str]:
+    command = [
         binary,
         "transaction",
         "inspect",
@@ -191,8 +204,13 @@ def inspect_command(binary: str, to: str, data: str) -> list[str]:
         to,
         "--data",
         data,
-        "--json",
     ]
+    if value:
+        command.extend(["--value", value])
+    if policy:
+        command.extend(["--policy", policy])
+    command.append("--json")
+    return command
 
 
 PERMIT2 = {
@@ -333,6 +351,22 @@ def cases(deployments: dict[str, str]) -> list[dict]:
             "expect": ["EFFECT-009"],
         },
         {
+            "name": "benign NFT transfer",
+            "mode": "control",
+            "kind": "transaction",
+            "to": nft,
+            "data": safe_transfer_data(ACCOUNT, RECIPIENT, 1),
+            "expect": [],
+        },
+        {
+            "name": "fake NFT transfer logs",
+            "mode": "detect",
+            "kind": "transaction",
+            "to": deployments["fake_nft"],
+            "data": safe_transfer_data(ACCOUNT, RECIPIENT, 1),
+            "expect": ["EFFECT-010"],
+        },
+        {
             "name": "hidden delegatecall",
             "mode": "detect",
             "kind": "transaction",
@@ -347,6 +381,16 @@ def cases(deployments: dict[str, str]) -> list[dict]:
             "to": benign,
             "data": "0x5c36b186",
             "expect": ["CONTRACT-001"],
+        },
+        {
+            "name": "policy native cap",
+            "mode": "detect",
+            "kind": "transaction",
+            "to": token,
+            "data": "0x",
+            "value": "1",
+            "policy": {"max_native_spend": "0.5"},
+            "expect": ["POLICY-002"],
         },
         {
             "name": "permit2 unlimited + no expiration",
@@ -376,7 +420,17 @@ def cases(deployments: dict[str, str]) -> list[dict]:
 
 def run_case(binary: str, case: dict, temp: Path) -> dict:
     if case["kind"] == "transaction":
-        command = inspect_command(binary, case["to"], case["data"])
+        policy_path = None
+        if case.get("policy"):
+            policy_path = temp / f"{case['name'].replace(' ', '-')}-policy.json"
+            policy_path.write_text(json.dumps(case["policy"]))
+        command = inspect_command(
+            binary,
+            case["to"],
+            case["data"],
+            value=case.get("value"),
+            policy=str(policy_path) if policy_path else None,
+        )
     else:
         path = temp / f"{case['name'].replace(' ', '-')}.json"
         path.write_text(json.dumps(case["input"]))

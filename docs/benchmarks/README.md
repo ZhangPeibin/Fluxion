@@ -7,7 +7,7 @@
 (~1.1–1.4 s p50 on a public BSC node); signature inspection is local (~4 ms p50).
 
 [Local red-team corpus](redteam-2026-11-11.md) adds Foundry/Anvil adversarial contracts:
-15/15 detect cases matched, 2/2 controls had no findings, and the remaining case is covered by a mock verification provider.
+17/17 detect cases matched, 3/3 controls had no findings, and the remaining case is covered by a mock verification provider.
 
 ## Quote benchmarks
 
