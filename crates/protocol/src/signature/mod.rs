@@ -5,7 +5,8 @@ use serde::Serialize;
 
 use crate::capability::{CapabilityDescriptor, SCHEMA_VERSION};
 use crate::transaction::{
-    TransactionInspectExplanation, TransactionInspectFinding, TransactionInspectSource,
+    TransactionInspectExplanation, TransactionInspectFinding, TransactionInspectPolicyResult,
+    TransactionInspectSource,
 };
 
 pub const INSPECT_CAPABILITY: &str = "signature.inspect";
@@ -23,6 +24,14 @@ pub struct SignatureInspectDomain {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct SignatureInspectAssurance {
+    pub ruleset_version: String,
+    pub report_id: String,
+    pub deterministic: bool,
+    pub limitations: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct SignatureInspectResponse {
     pub chain: String,
     pub chain_id: u64,
@@ -36,6 +45,8 @@ pub struct SignatureInspectResponse {
     pub risk: String,
     pub coverage: String,
     pub unknowns: Vec<String>,
+    pub policy: TransactionInspectPolicyResult,
+    pub assurance: SignatureInspectAssurance,
     pub explanation: TransactionInspectExplanation,
     pub sources: Vec<TransactionInspectSource>,
     pub warnings: Vec<String>,

@@ -34,6 +34,8 @@ use url::Url;
 use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::capability::{CapabilityError, CapabilityErrorCode};
+use crate::signature_inspect::{self, SignatureInspectRequest};
+use crate::transaction_inspect::InspectPolicy;
 use fluxion_protocol::wallet::{
     WalletConnectResponse, WalletDisconnectResponse, WalletPeer, WalletSignResponse,
     WalletStatusResponse,
@@ -94,6 +96,7 @@ pub struct SignRequest {
     pub address: Option<Address>,
     pub payload: SignPayload,
     pub timeout: Duration,
+    pub policy: Option<InspectPolicy>,
 }
 
 impl Session {
@@ -364,6 +367,36 @@ pub async fn sign(request: SignRequest) -> Result<WalletSignResponse, Capability
             false,
         )
     })?;
+    if let Some(policy) = request.policy.as_ref() {
+        match &request.payload {
+            SignPayload::TypedData(typed_data) => {
+                let chain = crate::chain::Chain::from_id(session.chain_id)?;
+                let inspection = signature_inspect::inspect(SignatureInspectRequest {
+                    chain,
+                    from: request.address,
+                    typed_data: Some(typed_data.clone()),
+                    authorization_list: None,
+                    user_operation: None,
+                    policy: Some(policy.clone()),
+                })?;
+                if inspection.policy.blocked {
+                    return Err(CapabilityError::new(
+                        CapabilityErrorCode::PolicyBlocked,
+                        format!(
+                            "wallet.sign blocked by policy: {}",
+                            inspection.policy.reasons.join("; ")
+                        ),
+                        false,
+                    ));
+                }
+            }
+            SignPayload::Message(_) => {
+                return Err(CapabilityError::invalid_argument(
+                    "wallet.sign policy applies to typed data only",
+                ));
+            }
+        }
+    }
     session.sign(request).await
 }
 

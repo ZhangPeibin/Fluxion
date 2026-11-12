@@ -3,15 +3,21 @@
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use sha2::{Digest, Sha256};
+
 use alloy_primitives::{Address, U256};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::capability::CapabilityError;
 use crate::chain::Chain;
+use crate::transaction_inspect::InspectPolicy;
 
-pub use fluxion_protocol::signature::{SignatureInspectDomain, SignatureInspectResponse};
+pub use fluxion_protocol::signature::{
+    SignatureInspectAssurance, SignatureInspectDomain, SignatureInspectResponse,
+};
 use fluxion_protocol::transaction::{
-    TransactionInspectExplanation, TransactionInspectFinding, TransactionInspectSource,
+    TransactionInspectExplanation, TransactionInspectFinding, TransactionInspectPolicyResult,
+    TransactionInspectSource,
 };
 
 #[derive(Debug, Clone)]
@@ -21,7 +27,10 @@ pub struct SignatureInspectRequest {
     pub typed_data: Option<Value>,
     pub authorization_list: Option<Value>,
     pub user_operation: Option<Value>,
+    pub policy: Option<InspectPolicy>,
 }
+
+const RULESET_VERSION: &str = "2026-11-11.1";
 
 #[derive(Default)]
 struct Inspection {
@@ -63,17 +72,32 @@ pub fn inspect(
         )?
     };
 
-    let findings = std::mem::take(&mut inspection.findings);
+    let mut findings = std::mem::take(&mut inspection.findings);
+    let policy_eval = evaluate_policy(&request, &inspection, &findings)?;
+    let policy_mode = request
+        .policy
+        .as_ref()
+        .map(|policy| {
+            if policy.mode.is_empty() {
+                "advisory".to_string()
+            } else {
+                policy.mode.to_ascii_lowercase()
+            }
+        })
+        .unwrap_or_else(|| "not_configured".to_string());
+    let policy = TransactionInspectPolicyResult {
+        mode: policy_mode,
+        decision: policy_eval.decision.to_string(),
+        blocked: policy_eval.blocked,
+        reasons: policy_eval.reasons,
+    };
+    findings.extend(policy_eval.findings);
+    let mut unknowns = inspection.unknowns;
+    unknowns.extend(policy_eval.unknowns);
     let risk = aggregate_risk(&findings);
-    let explanation = explain(
-        inspection.kind,
-        request.chain,
-        &findings,
-        &risk,
-        &inspection.unknowns,
-    );
+    let explanation = explain(inspection.kind, request.chain, &findings, &risk, &unknowns);
 
-    Ok(SignatureInspectResponse {
+    let mut response = SignatureInspectResponse {
         chain: request.chain.as_str().to_string(),
         chain_id: request.chain.chain_id(),
         kind: inspection.kind.to_string(),
@@ -82,14 +106,226 @@ pub fn inspect(
         findings,
         risk,
         coverage: inspection.coverage.to_string(),
-        unknowns: inspection.unknowns,
+        unknowns,
+        policy,
+        assurance: SignatureInspectAssurance {
+            ruleset_version: RULESET_VERSION.to_string(),
+            report_id: String::new(),
+            deterministic: true,
+            limitations: Vec::new(),
+        },
         explanation,
         sources: vec![TransactionInspectSource {
             name: "signature-decoder".to_string(),
             scope: inspection.kind.to_string(),
         }],
         warnings: inspection.warnings,
+    };
+    response.assurance.limitations = limitations(&response);
+    response.assurance.report_id = report_id(&request, &response);
+    Ok(response)
+}
+
+struct PolicyEvaluation {
+    decision: &'static str,
+    blocked: bool,
+    reasons: Vec<String>,
+    unknowns: Vec<String>,
+    findings: Vec<TransactionInspectFinding>,
+}
+
+fn evaluate_policy(
+    request: &SignatureInspectRequest,
+    inspection: &Inspection,
+    findings: &[TransactionInspectFinding],
+) -> Result<PolicyEvaluation, CapabilityError> {
+    let Some(policy) = request.policy.as_ref() else {
+        return Ok(PolicyEvaluation {
+            decision: "not_configured",
+            blocked: false,
+            reasons: Vec::new(),
+            unknowns: Vec::new(),
+            findings: Vec::new(),
+        });
+    };
+    let enforce = policy.mode.eq_ignore_ascii_case("enforce");
+    let mut policy_findings = Vec::new();
+    let mut unknowns = Vec::new();
+
+    if !policy.chains.is_empty()
+        && !policy
+            .chains
+            .iter()
+            .any(|chain| chain.eq_ignore_ascii_case(request.chain.as_str()))
+    {
+        policy_findings.push(signature_policy_finding(
+            "POLICY-001",
+            "Chain not allowed by policy",
+            "The signature chain is outside the configured policy.",
+            [("chain", request.chain.as_str().to_string())],
+        ));
+    }
+
+    if let Some(domain) = inspection.domain.as_ref()
+        && !policy.target_allowlist.is_empty()
+        && let Some(target) = domain.verifying_contract
+        && !policy.target_allowlist.contains(&target)
+    {
+        policy_findings.push(signature_policy_finding(
+            "POLICY-004",
+            "Verifying contract outside policy allowlist",
+            "The typed-data verifying contract is not allowed by policy.",
+            [("target", target.to_string())],
+        ));
+    }
+
+    if !policy.spender_allowlist.is_empty()
+        && let Some(typed_data) = request.typed_data.as_ref()
+    {
+        for spender in typed_data_spenders(typed_data) {
+            if !policy.spender_allowlist.contains(&spender) {
+                policy_findings.push(signature_policy_finding(
+                    "POLICY-004",
+                    "Spender outside policy allowlist",
+                    "A typed-data spender is not allowed by policy.",
+                    [("spender", spender.to_string())],
+                ));
+            }
+        }
+    }
+
+    if findings
+        .iter()
+        .any(|finding| finding.severity == "high" || finding.severity == "critical")
+    {
+        policy_findings.extend(
+            findings
+                .iter()
+                .filter(|finding| finding.severity == "high" || finding.severity == "critical")
+                .map(|finding| {
+                    signature_policy_finding(
+                        "POLICY-007",
+                        "High-risk signature finding",
+                        "A high-risk signature finding is present.",
+                        [("finding", finding.id.clone())],
+                    )
+                }),
+        );
+    }
+
+    let reasons = policy_findings
+        .iter()
+        .map(|finding| format!("{}: {}", finding.id, finding.title))
+        .collect::<Vec<_>>();
+    let decision = if policy_findings.is_empty() {
+        "allow"
+    } else if enforce {
+        "block"
+    } else {
+        "warn"
+    };
+    if enforce && inspection.coverage != "complete" && policy_findings.is_empty() {
+        unknowns.push(
+            "signature coverage is partial; policy allowed within known coverage".to_string(),
+        );
+    }
+    Ok(PolicyEvaluation {
+        decision,
+        blocked: enforce && !reasons.is_empty(),
+        reasons,
+        unknowns,
+        findings: policy_findings,
     })
+}
+
+fn typed_data_spenders(value: &Value) -> Vec<Address> {
+    let Some(message) = value.get("message") else {
+        return Vec::new();
+    };
+    let mut spenders = Vec::new();
+    if let Some(spender) = message.get("spender").and_then(value_address) {
+        spenders.push(spender);
+    }
+    if let Some(details) = message.get("details") {
+        if let Some(spender) = details.get("spender").and_then(value_address) {
+            spenders.push(spender);
+        }
+        if let Some(items) = details.as_array() {
+            for item in items {
+                if let Some(spender) = item.get("spender").and_then(value_address) {
+                    spenders.push(spender);
+                }
+            }
+        }
+    }
+    spenders
+}
+
+fn signature_policy_finding<const N: usize>(
+    id: &str,
+    title: &str,
+    description: &str,
+    evidence: [(&str, String); N],
+) -> TransactionInspectFinding {
+    let mut evidence_map = BTreeMap::new();
+    for (key, value) in evidence {
+        evidence_map.insert(key.to_string(), value);
+    }
+    evidence_map.insert("source".to_string(), "policy".to_string());
+    TransactionInspectFinding {
+        id: id.to_string(),
+        category: "policy".to_string(),
+        severity: "high".to_string(),
+        title: title.to_string(),
+        description: description.to_string(),
+        evidence: evidence_map,
+        confidence: "high".to_string(),
+        deterministic: true,
+    }
+}
+
+fn limitations(response: &SignatureInspectResponse) -> Vec<String> {
+    let mut items = Vec::new();
+    if response.coverage != "complete" {
+        items.push(
+            "signature coverage is partial; unsupported typed-data types remain unknown"
+                .to_string(),
+        );
+    }
+    if response.policy.mode == "not_configured" {
+        items.push("no caller policy was configured".to_string());
+    }
+    items.push(
+        "signature inspection does not sign, broadcast, or decode every userOp field".to_string(),
+    );
+    items.push(
+        "pre-sign inspection is advisory and is not an audit or safety guarantee".to_string(),
+    );
+    items
+}
+
+fn report_id(request: &SignatureInspectRequest, response: &SignatureInspectResponse) -> String {
+    let input = request
+        .typed_data
+        .as_ref()
+        .or(request.authorization_list.as_ref())
+        .or(request.user_operation.as_ref());
+    let payload = json!({
+        "ruleset_version": RULESET_VERSION,
+        "chain": response.chain,
+        "chain_id": response.chain_id,
+        "kind": response.kind,
+        "from": request.from,
+        "input": input,
+        "domain": response.domain,
+        "findings": response.findings,
+        "risk": response.risk,
+        "coverage": response.coverage,
+        "unknowns": response.unknowns,
+        "policy": response.policy,
+    });
+    let digest = Sha256::digest(serde_json::to_vec(&payload).unwrap_or_default());
+    format!("0x{}", data_encoding::HEXLOWER.encode(&digest))
 }
 
 fn inspect_typed_data(typed_data: &Value, chain: Chain) -> Result<Inspection, CapabilityError> {
@@ -508,6 +744,7 @@ mod tests {
             typed_data: Some(typed_data),
             authorization_list: None,
             user_operation: None,
+            policy: None,
         }
     }
 
@@ -589,6 +826,7 @@ mod tests {
                 "address": "0x0000000000000000000000000000000000000002"
             }])),
             user_operation: None,
+            policy: None,
         })
         .unwrap();
         assert!(
@@ -612,6 +850,7 @@ mod tests {
                 "paymaster": "0x0000000000000000000000000000000000000003",
                 "callData": "0x"
             })),
+            policy: None,
         })
         .unwrap();
         assert!(
@@ -642,6 +881,7 @@ mod tests {
                 typed_data,
                 authorization_list,
                 user_operation,
+                policy: None,
             })
             .unwrap_or_else(|error| panic!("{name}: {error:?}"));
             assert_eq!(
@@ -667,6 +907,87 @@ mod tests {
                 .collect::<BTreeSet<_>>();
             assert_eq!(actual, expected, "{name}: findings");
         }
+    }
+
+    #[test]
+    fn enforce_policy_blocks_high_signature_findings() {
+        let mut request = request(json!({
+            "domain": {"chainId": 56},
+            "primaryType": "PermitSingle",
+            "message": {
+                "spender": "0x0000000000000000000000000000000000000002",
+                "sigDeadline": "9999999999",
+                "details": {
+                    "token": "0x0000000000000000000000000000000000000010",
+                    "amount": "1461501637330902918203684832716283019655932542975",
+                    "expiration": "9999999999",
+                    "nonce": 0
+                }
+            }
+        }));
+        request.policy = Some(InspectPolicy {
+            mode: "enforce".to_string(),
+            ..Default::default()
+        });
+        let response = inspect(request).unwrap();
+        assert_eq!(response.policy.decision, "block");
+        assert!(response.policy.blocked);
+        assert!(!response.policy.reasons.is_empty());
+    }
+
+    #[test]
+    fn policy_spender_allowlist_blocks_unknown_spender() {
+        let mut request = request(json!({
+            "domain": {"chainId": 56},
+            "primaryType": "PermitSingle",
+            "message": {
+                "spender": "0x0000000000000000000000000000000000000002",
+                "sigDeadline": "9999999999",
+                "details": {
+                    "token": "0x0000000000000000000000000000000000000010",
+                    "amount": "1",
+                    "expiration": "9999999999",
+                    "nonce": 0
+                }
+            }
+        }));
+        request.policy = Some(InspectPolicy {
+            mode: "enforce".to_string(),
+            spender_allowlist: vec![
+                "0x0000000000000000000000000000000000000003"
+                    .parse()
+                    .unwrap(),
+            ],
+            ..Default::default()
+        });
+        let response = inspect(request).unwrap();
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "POLICY-004")
+        );
+        assert_eq!(response.policy.decision, "block");
+    }
+
+    #[test]
+    fn signature_report_id_and_assurance_are_stable() {
+        let first = inspect(request(json!({
+            "domain": {"chainId": 56},
+            "primaryType": "Mail",
+            "message": {}
+        })))
+        .unwrap();
+        let second = inspect(request(json!({
+            "domain": {"chainId": 56},
+            "primaryType": "Mail",
+            "message": {}
+        })))
+        .unwrap();
+        assert_eq!(first.assurance.report_id, second.assurance.report_id);
+        assert_eq!(first.assurance.ruleset_version, "2026-11-11.1");
+        assert!(first.assurance.deterministic);
+        assert_eq!(first.assurance.report_id.len(), 66);
     }
 
     #[test]

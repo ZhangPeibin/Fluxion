@@ -16,6 +16,7 @@ Exactly one of:
 fluxion signature inspect --typed-data permit.json --json
 fluxion signature inspect --authorization-list auth.json --chain ethereum --json
 fluxion signature inspect --user-operation userop.json --json
+fluxion signature inspect --typed-data permit.json --policy policy.json --json
 ```
 
 ## Typed Data
@@ -69,7 +70,18 @@ See [`schemas/signature_inspect.v1.json`](../../../schemas/signature_inspect.v1.
 - `risk`: highest deterministic finding, otherwise `unknown`; never `safe`
 - `coverage`: `complete`, `partial`, `unavailable` or `not_configured`
 - `unknowns`: authorization that was not inspected
+- `policy`: policy `mode`, `decision` (`allow`/`warn`/`block`), `blocked`, and reasons
+- `assurance`: ruleset version, stable report ID, deterministic flag, limitations
 - `explanation`: deterministic summary for the host agent
+
+## Policy
+
+Optional `--policy` / MCP `policy` reuses the same policy shape as `transaction.inspect`. Supported
+signature checks are chain, verifying-contract allowlist, and spender allowlist. `mode=enforce`
+blocks high-risk signature findings; `advisory` returns `decision: warn`.
+
+`wallet.sign --policy FILE` applies the same gate before the phone request. Policy on a plain message
+signature is rejected because there is no structured authorization to evaluate.
 
 ## Boundaries
 

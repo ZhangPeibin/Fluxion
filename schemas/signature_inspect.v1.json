@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": [
     "chain", "chain_id", "kind", "findings", "risk", "coverage",
-    "unknowns", "explanation", "sources", "warnings"
+    "unknowns", "policy", "assurance", "explanation", "sources", "warnings"
   ],
   "properties": {
     "chain": { "type": "string", "enum": ["ethereum", "bsc"] },
@@ -47,6 +47,28 @@
     "risk": { "type": "string", "enum": ["critical", "high", "medium", "low", "unknown"] },
     "coverage": { "type": "string", "enum": ["complete", "partial", "unavailable", "not_configured"] },
     "unknowns": { "type": "array", "items": { "type": "string" } },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "decision", "blocked", "reasons"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["not_configured", "advisory", "enforce"] },
+        "decision": { "type": "string", "enum": ["not_configured", "allow", "warn", "block"] },
+        "blocked": { "type": "boolean" },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "assurance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ruleset_version", "report_id", "deterministic", "limitations"],
+      "properties": {
+        "ruleset_version": { "type": "string" },
+        "report_id": { "type": "string", "pattern": "^0x[0-9a-f]{64}$" },
+        "deterministic": { "type": "boolean" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "explanation": {
       "type": "object",
       "additionalProperties": false,

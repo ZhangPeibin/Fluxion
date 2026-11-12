@@ -406,6 +406,17 @@ never treated as passing; `unknowns` is part of the result, not an appendix.
 - LLMs do not participate in detectors, risk, or coverage; `explanation` is a deterministic template.
 - External providers supply input only; they do not change rule semantics.
 
+### Enforcement
+
+- `transaction.inspect` / `signature.inspect` are advisory; they do not sign, broadcast, or hold
+  private keys.
+- `wallet.send --policy` and `wallet.sign --policy` enforce policy on Fluxion's own send and
+  typed-data signing paths. A high-risk policy decision returns `POLICY_BLOCKED` before the phone
+  request.
+- This is not a general signer boundary. Arbitrary calldata, calls that bypass Fluxion, or a tampered
+  local process are not constrained; general enforcement still requires a smart account, session
+  key, or signer policy.
+
 ### Verification
 
 - Rust unit tests and fixture corpora cover decode, effects, trace, approval, asset-flow, swap,

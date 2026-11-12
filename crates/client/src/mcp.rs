@@ -251,7 +251,11 @@ fn tools_list() -> Value {
                         "message": {"type": "string", "description": "UTF-8 message for personal_sign"},
                         "typed_data": {"type": "object", "description": "EIP-712 typed data object for eth_signTypedData_v4"},
                         "address": {"type": "string", "description": "Optional session account address"},
-                        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 110, "default": 90}
+                        "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 110, "default": 90},
+                        "policy": {
+                            "type": "object",
+                            "description": "Optional typed-data policy; mode=enforce blocks high-risk findings"
+                        }
                     }
                 }
             },
@@ -670,10 +674,21 @@ async fn wallet_sign_tool(arguments: &Value) -> Result<Value, CapabilityError> {
             "timeout_seconds must be between 1 and 110",
         ));
     }
+    let policy = arguments
+        .get("policy")
+        .filter(|value| !value.is_null())
+        .cloned()
+        .map(|value| {
+            serde_json::from_value::<InspectPolicy>(value).map_err(|error| {
+                CapabilityError::invalid_argument(format!("invalid policy: {error}"))
+            })
+        })
+        .transpose()?;
     let response = walletconnect::sign(SignRequest {
         address,
         payload,
         timeout: std::time::Duration::from_secs(timeout),
+        policy,
     })
     .await?;
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
@@ -825,6 +840,7 @@ async fn signature_inspect_tool(arguments: &Value) -> Result<Value, CapabilityEr
         typed_data,
         authorization_list,
         user_operation,
+        policy: None,
     })?;
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
