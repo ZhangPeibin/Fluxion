@@ -9,6 +9,7 @@ use std::time::Duration;
 use alloy_primitives::{Address, B256, U256};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::capability::{Amount, CapabilityError};
 use crate::chain::Chain;
@@ -17,11 +18,11 @@ use crate::transaction::{Rpc, normalize_data};
 use crate::wallet::WalletConfig;
 
 pub use fluxion_protocol::transaction::{
-    TransactionInspectApprovalEffect, TransactionInspectArg, TransactionInspectCoverage,
-    TransactionInspectEffects, TransactionInspectExplanation, TransactionInspectFinding,
-    TransactionInspectIntent, TransactionInspectNativeEffect, TransactionInspectNftEffect,
-    TransactionInspectResponse, TransactionInspectSource, TransactionInspectTarget,
-    TransactionInspectTokenEffect,
+    TransactionInspectApprovalEffect, TransactionInspectArg, TransactionInspectAssurance,
+    TransactionInspectCoverage, TransactionInspectEffects, TransactionInspectExplanation,
+    TransactionInspectFinding, TransactionInspectIntent, TransactionInspectNativeEffect,
+    TransactionInspectNftEffect, TransactionInspectResponse, TransactionInspectSource,
+    TransactionInspectTarget, TransactionInspectTokenEffect,
 };
 
 #[derive(Debug, Clone)]
@@ -165,6 +166,13 @@ struct SourceVerification {
     warnings: Vec<String>,
     unknowns: Vec<String>,
 }
+
+const RULESET_VERSION: &str = "2026-11-11.1";
+const MAX_DATA_BYTES: usize = 256 * 1024;
+const MAX_LOG_COUNT: usize = 512;
+const MAX_EFFECT_PAIRS: usize = 128;
+const MAX_TRACE_CALLS: usize = 4096;
+const MAX_TRACE_DEPTH: usize = 32;
 
 const BUILTIN_SELECTORS: &[&str] = &[
     "0xa9059cbb",
@@ -332,21 +340,40 @@ async fn inspect_with_options(
         ));
     }
     let data = normalize_data(&request.data)?;
+    if data.len().saturating_sub(2) / 2 > MAX_DATA_BYTES {
+        return Err(CapabilityError::invalid_argument(format!(
+            "calldata exceeds {MAX_DATA_BYTES} bytes"
+        )));
+    }
     let rpc = Rpc::new(&config.rpc_url_for(request.chain));
     let (block_number, block_hash, tag) = rpc.block(request.block).await?;
     let decoded = decode_intent(&data)?;
     let metadata = inspect_target(&rpc, request.to, &tag, verifier.as_ref()).await?;
     let simulation = inspect_effects(&rpc, &request, &data, &tag).await;
     let trace = inspect_trace(&rpc, &request, &data, &tag, &metadata.target).await;
+    let verify_rpc_url = std::env::var("FLUXION_VERIFY_RPC_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let cross_check = cross_check(
+        &rpc,
+        verify_rpc_url.as_deref(),
+        request.to,
+        &tag,
+        block_number,
+        block_hash,
+    )
+    .await;
     let mut unknowns = decoded.unknowns;
     unknowns.extend(metadata.unknowns);
     unknowns.extend(simulation.unknowns);
     unknowns.extend(trace.unknowns);
+    unknowns.extend(cross_check.unknowns);
     unknowns.push("no policy was configured".to_string());
     let mut warnings = decoded.warnings;
     warnings.extend(metadata.warnings);
     warnings.extend(simulation.warnings);
     warnings.extend(trace.warnings);
+    warnings.extend(cross_check.warnings);
     let mut findings = simulation.findings.clone();
     findings.extend(trace.findings);
     findings.extend(detect_approvals(&decoded.intent));
@@ -388,6 +415,7 @@ async fn inspect_with_options(
     sources.extend(metadata.sources);
     sources.extend(simulation.sources);
     sources.extend(trace.sources);
+    sources.extend(cross_check.sources);
 
     let mut response = TransactionInspectResponse {
         chain: request.chain.as_str().to_string(),
@@ -410,12 +438,159 @@ async fn inspect_with_options(
             policy: policy_eval.coverage.to_string(),
         },
         unknowns,
+        assurance: TransactionInspectAssurance {
+            ruleset_version: RULESET_VERSION.to_string(),
+            report_id: String::new(),
+            deterministic: true,
+            cross_check: cross_check.status.to_string(),
+            limitations: Vec::new(),
+        },
         explanation: TransactionInspectExplanation::default(),
         sources,
         warnings,
     };
+    response.assurance.limitations = limitations(&response);
+    response.assurance.report_id = report_id(&response, &request, &data);
     response.explanation = explain(&response);
     Ok(response)
+}
+
+struct CrossCheck {
+    status: &'static str,
+    sources: Vec<TransactionInspectSource>,
+    unknowns: Vec<String>,
+    warnings: Vec<String>,
+}
+
+async fn cross_check(
+    primary: &Rpc,
+    secondary_url: Option<&str>,
+    target: Address,
+    tag: &str,
+    block_number: u64,
+    primary_block_hash: B256,
+) -> CrossCheck {
+    let Some(url) = secondary_url else {
+        return CrossCheck {
+            status: "not_configured",
+            sources: Vec::new(),
+            unknowns: Vec::new(),
+            warnings: Vec::new(),
+        };
+    };
+    let secondary = Rpc::new(url);
+    let secondary_block = match secondary.block(Some(block_number)).await {
+        Ok((_, hash, _)) => hash,
+        Err(error) => {
+            return CrossCheck {
+                status: "unavailable",
+                sources: vec![TransactionInspectSource {
+                    name: "secondary-rpc".to_string(),
+                    scope: "cross-check".to_string(),
+                }],
+                unknowns: vec![format!(
+                    "secondary RPC block check failed: {}",
+                    error.message
+                )],
+                warnings: Vec::new(),
+            };
+        }
+    };
+    let primary_code = primary.code(target, tag).await;
+    let secondary_code = secondary.code(target, tag).await;
+    let mut warnings = Vec::new();
+    let mut unknowns = Vec::new();
+    let mut status = "match";
+    if secondary_block != primary_block_hash {
+        status = "mismatch";
+        warnings.push("secondary RPC reports a different block hash".to_string());
+        unknowns.push("block hash mismatch between primary and secondary RPC".to_string());
+    }
+    match (primary_code, secondary_code) {
+        (Ok(primary_code), Ok(secondary_code)) if primary_code != secondary_code => {
+            status = "mismatch";
+            warnings.push("secondary RPC reports different target bytecode".to_string());
+            unknowns.push("target code mismatch between primary and secondary RPC".to_string());
+        }
+        (Err(error), _) | (_, Err(error)) => {
+            if status == "match" {
+                status = "unavailable";
+            }
+            unknowns.push(format!(
+                "target code cross-check unavailable: {}",
+                error.message
+            ));
+        }
+        _ => {}
+    }
+    CrossCheck {
+        status,
+        sources: vec![TransactionInspectSource {
+            name: "secondary-rpc".to_string(),
+            scope: "cross-check".to_string(),
+        }],
+        unknowns,
+        warnings,
+    }
+}
+
+fn report_id(
+    response: &TransactionInspectResponse,
+    request: &InspectRequest,
+    data: &str,
+) -> String {
+    let payload = json!({
+        "ruleset_version": RULESET_VERSION,
+        "chain": response.chain,
+        "chain_id": response.chain_id,
+        "block_number": response.block_number,
+        "block_hash": response.block_hash,
+        "from": request.from,
+        "to": request.to,
+        "value": request.value.to_string(),
+        "data": data,
+        "findings": response.findings,
+        "coverage": response.coverage,
+        "unknowns": response.unknowns,
+        "cross_check": response.assurance.cross_check,
+    });
+    let bytes = serde_json::to_vec(&payload).unwrap_or_default();
+    let digest = Sha256::digest(bytes);
+    format!("0x{}", data_encoding::HEXLOWER.encode(&digest))
+}
+
+fn limitations(response: &TransactionInspectResponse) -> Vec<String> {
+    let mut items = Vec::new();
+    if response.coverage.decode != "complete" {
+        items.push(
+            "calldata coverage is partial; unknown selectors or arguments remain".to_string(),
+        );
+    }
+    if response.coverage.metadata != "complete" {
+        items.push("target metadata or source verification is incomplete".to_string());
+    }
+    if response.coverage.simulation != "complete" {
+        items.push("asset effects are log-derived and partially verified".to_string());
+    }
+    if response.coverage.trace != "complete" {
+        items.push("internal calls were not fully traced".to_string());
+    }
+    if response.coverage.policy == "not_configured" {
+        items.push("no caller policy was configured".to_string());
+    }
+    match response.assurance.cross_check.as_str() {
+        "not_configured" => items.push("secondary RPC cross-check was not configured".to_string()),
+        "mismatch" => items.push("secondary RPC disagreed with primary RPC".to_string()),
+        "unavailable" => items.push("secondary RPC cross-check was unavailable".to_string()),
+        _ => {}
+    }
+    items.push(
+        "RPC responses are trusted for state reads; no light-client proof is used".to_string(),
+    );
+    items.push(
+        "pre-sign inspection is advisory and is not an audit or safety guarantee".to_string(),
+    );
+    items
 }
 
 fn decode_swap_v2(
@@ -1614,8 +1789,14 @@ async fn inspect_effects(
     }
 
     if let Some(logs) = call.get("logs").and_then(Value::as_array) {
-        for log in logs {
+        for log in logs.iter().take(MAX_LOG_COUNT) {
             decode_log(log, &mut effects, &mut warnings);
+        }
+        if logs.len() > MAX_LOG_COUNT {
+            warnings.push(format!(
+                "simulation produced {} logs; only the first {MAX_LOG_COUNT} were decoded",
+                logs.len()
+            ));
         }
         if logs.is_empty() {
             warnings
@@ -1701,17 +1882,34 @@ async fn inspect_trace(
     }
 
     let mut findings = Vec::new();
-    collect_delegatecalls(&trace, target, 0, &mut findings);
+    let mut budget = TraceBudget::default();
+    collect_delegatecalls(&trace, target, 0, &mut findings, &mut budget);
+    let mut unknowns = Vec::new();
+    if budget.truncated {
+        unknowns.push(format!(
+            "internal-call trace truncated at {MAX_TRACE_CALLS} calls or depth {MAX_TRACE_DEPTH}"
+        ));
+    }
     TraceInspection {
         findings,
-        coverage: "complete",
+        coverage: if budget.truncated {
+            "partial"
+        } else {
+            "complete"
+        },
         sources: vec![TransactionInspectSource {
             name: "debug_traceCall".to_string(),
             scope: "internal-calls".to_string(),
         }],
-        unknowns: Vec::new(),
+        unknowns,
         warnings: Vec::new(),
     }
+}
+
+#[derive(Default)]
+struct TraceBudget {
+    calls: usize,
+    truncated: bool,
 }
 
 fn collect_delegatecalls(
@@ -1719,7 +1917,13 @@ fn collect_delegatecalls(
     target: &TransactionInspectTarget,
     depth: usize,
     findings: &mut Vec<TransactionInspectFinding>,
+    budget: &mut TraceBudget,
 ) {
+    if depth > MAX_TRACE_DEPTH || budget.calls >= MAX_TRACE_CALLS {
+        budget.truncated = true;
+        return;
+    }
+    budget.calls += 1;
     if call.get("type").and_then(Value::as_str) == Some("DELEGATECALL") {
         let to = call
             .get("to")
@@ -1760,7 +1964,7 @@ fn collect_delegatecalls(
     }
     if let Some(calls) = call.get("calls").and_then(Value::as_array) {
         for nested in calls {
-            collect_delegatecalls(nested, target, depth + 1, findings);
+            collect_delegatecalls(nested, target, depth + 1, findings, budget);
         }
     }
 }
@@ -1802,6 +2006,18 @@ async fn verify_effects(
             warnings: Vec::new(),
         };
     }
+    let token_pairs = token_pairs
+        .into_iter()
+        .take(MAX_EFFECT_PAIRS)
+        .collect::<BTreeSet<_>>();
+    let approval_triples = approval_triples
+        .into_iter()
+        .take(MAX_EFFECT_PAIRS)
+        .collect::<BTreeSet<_>>();
+    let nft_tokens = nft_tokens
+        .into_iter()
+        .take(MAX_EFFECT_PAIRS)
+        .collect::<BTreeSet<_>>();
 
     let mut calls = vec![tx.clone()];
     for (token, account) in &token_pairs {
@@ -4172,6 +4388,62 @@ mod tests {
                 .iter()
                 .any(|finding| finding.id == "CONTRACT-001")
         );
+    }
+
+    #[tokio::test]
+    async fn report_id_is_stable_and_assurance_is_explicit() {
+        let base = base_url().await;
+        let first = inspect(&config(&base), request("0x")).await.unwrap();
+        let second = inspect(&config(&base), request("0x")).await.unwrap();
+        assert_eq!(first.assurance.report_id, second.assurance.report_id);
+        assert_eq!(first.assurance.ruleset_version, "2026-11-11.1");
+        assert_eq!(first.assurance.cross_check, "not_configured");
+        assert!(first.assurance.deterministic);
+        assert!(!first.assurance.limitations.is_empty());
+        assert_eq!(first.assurance.report_id.len(), 66);
+    }
+
+    #[tokio::test]
+    async fn secondary_rpc_cross_check_matches() {
+        let primary_base = base_url().await;
+        let secondary_base = base_url().await;
+        let primary = Rpc::new(&format!("{primary_base}/rpc"));
+        let secondary_url = format!("{secondary_base}/rpc");
+        let (number, hash, tag) = primary.block(None).await.unwrap();
+        let result = cross_check(
+            &primary,
+            Some(&secondary_url),
+            request("0x").to,
+            &tag,
+            number,
+            hash,
+        )
+        .await;
+        assert_eq!(result.status, "match");
+    }
+
+    #[tokio::test]
+    async fn rejects_oversized_calldata() {
+        let data = format!("0x{}", "00".repeat(MAX_DATA_BYTES + 1));
+        let error = inspect(&config("http://unused"), request(&data))
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.code,
+            crate::capability::CapabilityErrorCode::InvalidArgument
+        );
+        assert!(error.message.contains("262144"));
+    }
+
+    #[test]
+    fn arbitrary_short_calldata_does_not_panic() {
+        for length in 0..64 {
+            let bytes = (0..length)
+                .map(|index| ((index * 37 + 11) % 256) as u8)
+                .collect::<Vec<_>>();
+            let data = format!("0x{}", data_encoding::HEXLOWER.encode(&bytes));
+            let _ = decode_intent(&data);
+        }
     }
 
     #[tokio::test]

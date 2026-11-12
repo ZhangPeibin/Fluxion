@@ -412,7 +412,7 @@ never treated as passing; `unknowns` is part of the result, not an appendix.
   policy, and signature.
 - The Foundry/Anvil red-team contracts cover fake logs, hidden delegatecalls, proxy upgrades,
   unlimited approvals, permits, 7702, and 4337.
-- Current corpus: **15/15 detect**, **2/2 controls with no findings**. Method and raw data:
+- Current corpus: **17/17 detect**, **3/3 controls with no findings**. Method and raw data:
   [red-team](docs/benchmarks/redteam-2026-11-11.md) and
   [security benchmark](docs/benchmarks/security-inspection-2026-11-11.md).
 
@@ -455,6 +455,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - `FLUXION_BSC_RPC_URL`: BSC RPC; default chain for local capabilities.
 - `WALLETCONNECT_PROJECT_ID`, `WALLETCONNECT_RELAY_URL`: wallet session.
 - `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`: optional source verification.
+- `FLUXION_VERIFY_RPC_URL`: optional secondary RPC for block-hash and target-code cross-check.
 - `FLUXION_BSCSCAN_API_URL` / `FLUXION_ETHERSCAN_API_URL`: replaceable verification endpoints.
 - Private keys never enter the runtime; the WalletConnect session is stored only at
   `~/.fluxion/walletconnect/session.json`.
@@ -474,6 +475,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - Capabilities: [swap.quote](docs/capabilities/swap/README.md) · [wallet](docs/capabilities/wallet/README.md) · [transaction](docs/capabilities/transaction/README.md) · [signature](docs/capabilities/signature/README.md)
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
+- Security: [rule catalog](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
 - Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills: [swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md)
 
