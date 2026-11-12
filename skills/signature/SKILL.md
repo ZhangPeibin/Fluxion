@@ -45,7 +45,9 @@ fluxion signature inspect --typed-data permit.json --policy policy.json --json
 - `SIG-005`: ERC-4337 paymaster or account factory present.
 - `SIG-006`: authorization cannot be decoded or sender is invalid.
 - `risk`: highest deterministic finding, otherwise `unknown`; never treat `low` as approval.
-- `unknowns`: callData/signature or unsupported typed-data semantics that were not inspected.
+- `calls`: decoded SimpleAccount `execute(address,uint256,bytes)` nested calls; nested approval and
+  address findings are included.
+- `unknowns`: unsupported callData, signature, or typed-data semantics that were not inspected.
 - `policy`: mode, `decision` (`allow`/`warn`/`block`), `blocked`, and reasons.
 - `assurance`: ruleset version, stable report ID, deterministic flag, limitations.
 - `explanation`: deterministic summary; the host agent may paraphrase it.

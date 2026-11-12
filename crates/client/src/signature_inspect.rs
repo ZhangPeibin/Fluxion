@@ -10,10 +10,10 @@ use serde_json::{Value, json};
 
 use crate::capability::CapabilityError;
 use crate::chain::Chain;
-use crate::transaction_inspect::InspectPolicy;
+use crate::transaction_inspect::{self, InspectPolicy};
 
 pub use fluxion_protocol::signature::{
-    SignatureInspectAssurance, SignatureInspectDomain, SignatureInspectResponse,
+    SignatureCall, SignatureInspectAssurance, SignatureInspectDomain, SignatureInspectResponse,
 };
 use fluxion_protocol::transaction::{
     TransactionInspectExplanation, TransactionInspectFinding, TransactionInspectPolicyResult,
@@ -40,6 +40,7 @@ struct Inspection {
     warnings: Vec<String>,
     coverage: &'static str,
     kind: &'static str,
+    calls: Vec<SignatureCall>,
 }
 
 pub fn inspect(
@@ -69,6 +70,7 @@ pub fn inspect(
                 .user_operation
                 .as_ref()
                 .expect("exactly one input was selected"),
+            request.chain,
         )?
     };
 
@@ -104,6 +106,7 @@ pub fn inspect(
         from: request.from,
         domain: inspection.domain,
         findings,
+        calls: inspection.calls,
         risk,
         coverage: inspection.coverage.to_string(),
         unknowns,
@@ -540,7 +543,7 @@ fn inspect_authorizations(value: &Value, chain: Chain) -> Result<Inspection, Cap
     Ok(inspection)
 }
 
-fn inspect_user_operation(value: &Value) -> Result<Inspection, CapabilityError> {
+fn inspect_user_operation(value: &Value, chain: Chain) -> Result<Inspection, CapabilityError> {
     if !value.is_object() {
         return Err(CapabilityError::invalid_argument(
             "user_operation must be a JSON object",
@@ -579,17 +582,125 @@ fn inspect_user_operation(value: &Value) -> Result<Inspection, CapabilityError> 
             [],
         ));
     }
-    if value.get("callData").is_some() {
-        inspection
-            .unknowns
-            .push("user operation callData was not decoded".to_string());
-    }
     if value.get("signature").is_some() {
         inspection
             .unknowns
             .push("user operation signature was not inspected".to_string());
     }
+    let sender = value.get("sender").and_then(value_address);
+    if let Some(call_data) = value.get("callData").and_then(Value::as_str)
+        && call_data != "0x"
+    {
+        match decode_user_operation_call(call_data, chain, sender) {
+            Ok((call, mut nested_findings)) => {
+                for finding in &mut nested_findings {
+                    finding
+                        .evidence
+                        .insert("nested_call".to_string(), "userOp.callData".to_string());
+                }
+                inspection.findings.extend(nested_findings);
+                inspection.calls.push(call);
+            }
+            Err(message) => {
+                inspection.unknowns.push(format!(
+                    "user operation callData was not decoded: {message}"
+                ));
+            }
+        }
+    }
     Ok(inspection)
+}
+
+fn decode_user_operation_call(
+    call_data: &str,
+    chain: Chain,
+    sender: Option<Address>,
+) -> Result<
+    (
+        SignatureCall,
+        Vec<fluxion_protocol::transaction::TransactionInspectFinding>,
+    ),
+    String,
+> {
+    let bytes = decode_hex(call_data)?;
+    if bytes.len() < 4 {
+        return Err("callData is shorter than a selector".to_string());
+    }
+    let selector = format!("0x{}", data_encoding::HEXLOWER.encode(&bytes[..4]));
+    if selector != "0xb61d27f6" {
+        return Err(format!(
+            "unsupported userOp callData selector {selector}; supported: execute(address,uint256,bytes)"
+        ));
+    }
+    let payload = &bytes[4..];
+    if payload.len() < 96 {
+        return Err("execute arguments are incomplete".to_string());
+    }
+    let to = decode_address_word(&payload[..32])?;
+    let value = U256::from_be_slice(&payload[32..64]);
+    let offset = usize::try_from(U256::from_be_slice(&payload[64..96]))
+        .map_err(|_| "execute bytes offset is out of range".to_string())?;
+    if offset < 96 || offset + 32 > payload.len() {
+        return Err("execute bytes offset points outside callData".to_string());
+    }
+    let length = usize::try_from(U256::from_be_slice(&payload[offset..offset + 32]))
+        .map_err(|_| "execute bytes length is out of range".to_string())?;
+    let start = offset + 32;
+    let end = start
+        .checked_add(length)
+        .ok_or_else(|| "execute bytes length overflow".to_string())?;
+    if end > payload.len() {
+        return Err("execute bytes length exceeds callData".to_string());
+    }
+    let nested_hex = format!("0x{}", data_encoding::HEXLOWER.encode(&payload[start..end]));
+    let (intent, findings) =
+        transaction_inspect::inspect_nested_calldata(chain, sender, to, &nested_hex, value)
+            .map_err(|error| error.message)?;
+    Ok((
+        SignatureCall {
+            to,
+            value: value.to_string(),
+            selector: intent.selector,
+            signature: intent.signature,
+            name: intent.name,
+            args: intent.args,
+        },
+        findings,
+    ))
+}
+
+fn decode_hex(value: &str) -> Result<Vec<u8>, String> {
+    let hex = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+        .ok_or_else(|| "callData must be 0x-prefixed".to_string())?;
+    if !hex.len().is_multiple_of(2) {
+        return Err("callData must have even length".to_string());
+    }
+    let mut bytes = Vec::with_capacity(hex.len() / 2);
+    let chars = hex.as_bytes();
+    for pair in chars.as_chunks::<2>().0 {
+        let high = hex_nibble(pair[0]).ok_or_else(|| "invalid callData hex".to_string())?;
+        let low = hex_nibble(pair[1]).ok_or_else(|| "invalid callData hex".to_string())?;
+        bytes.push((high << 4) | low);
+    }
+    Ok(bytes)
+}
+
+fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn decode_address_word(word: &[u8]) -> Result<Address, String> {
+    if word.len() != 32 || word[..12].iter().any(|byte| *byte != 0) {
+        return Err("address argument is invalid".to_string());
+    }
+    Ok(Address::from_slice(&word[12..]))
 }
 
 fn parse_domain(value: Option<&Value>) -> (Option<SignatureInspectDomain>, Option<u64>) {
@@ -963,6 +1074,84 @@ mod tests {
                 .any(|finding| finding.id == "POLICY-004")
         );
         assert_eq!(response.policy.decision, "block");
+    }
+
+    fn word_u64(value: u64) -> String {
+        format!("{value:064x}")
+    }
+
+    fn word_address(address: &str) -> String {
+        format!("{:0>64}", address.trim_start_matches("0x"))
+    }
+
+    fn execute_call(dest: &str, value: u64, nested: &str) -> String {
+        let nested = nested.trim_start_matches("0x");
+        let padded = format!("{nested}{}", "0".repeat((64 - nested.len() % 64) % 64));
+        format!(
+            "0xb61d27f6{}{}{}{}{}",
+            word_address(dest),
+            word_u64(value),
+            word_u64(96),
+            word_u64((nested.len() / 2) as u64),
+            padded
+        )
+    }
+
+    #[test]
+    fn decodes_user_operation_execute_and_nested_approval() {
+        let approve = format!(
+            "0x095ea7b3{}{:064x}",
+            word_address("0x0000000000000000000000000000000000000002"),
+            U256::MAX
+        );
+        let call_data = execute_call("0x0000000000000000000000000000000000000010", 0, &approve);
+        let response = inspect(SignatureInspectRequest {
+            chain: Chain::Bsc,
+            from: None,
+            typed_data: None,
+            authorization_list: None,
+            user_operation: Some(json!({
+                "sender": "0x0000000000000000000000000000000000000001",
+                "callData": call_data,
+                "signature": "0x"
+            })),
+            policy: None,
+        })
+        .unwrap();
+        assert_eq!(response.calls.len(), 1);
+        assert_eq!(
+            response.calls[0].signature.as_deref(),
+            Some("approve(address,uint256)")
+        );
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "AUTH-001")
+        );
+    }
+
+    #[test]
+    fn unsupported_user_operation_call_data_stays_unknown() {
+        let response = inspect(SignatureInspectRequest {
+            chain: Chain::Bsc,
+            from: None,
+            typed_data: None,
+            authorization_list: None,
+            user_operation: Some(json!({
+                "sender": "0x0000000000000000000000000000000000000001",
+                "callData": "0xdeadbeef"
+            })),
+            policy: None,
+        })
+        .unwrap();
+        assert!(response.calls.is_empty());
+        assert!(
+            response
+                .unknowns
+                .iter()
+                .any(|item| item.contains("callData"))
+        );
     }
 
     #[test]

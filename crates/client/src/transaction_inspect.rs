@@ -610,6 +610,30 @@ fn limitations(response: &TransactionInspectResponse) -> Vec<String> {
     items
 }
 
+pub(crate) fn inspect_nested_calldata(
+    chain: Chain,
+    from: Option<Address>,
+    to: Address,
+    data: &str,
+    value: U256,
+) -> Result<(TransactionInspectIntent, Vec<TransactionInspectFinding>), CapabilityError> {
+    let data = normalize_data(data)?;
+    let decoded = decode_intent(&data)?;
+    let request = InspectRequest {
+        chain,
+        from,
+        to,
+        data,
+        value,
+        block: None,
+    };
+    let mut findings = detect_approvals(&decoded.intent);
+    findings.extend(detect_address(&decoded.intent, &request));
+    findings.extend(detect_swap(&decoded.intent, &request));
+    findings.extend(detect_signature(&decoded.intent));
+    Ok((decoded.intent, findings))
+}
+
 fn decode_swap_v2(
     selector: &str,
     signature: &str,

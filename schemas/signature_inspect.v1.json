@@ -5,7 +5,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "chain", "chain_id", "kind", "findings", "risk", "coverage",
+    "chain", "chain_id", "kind", "findings", "calls", "risk", "coverage",
     "unknowns", "policy", "assurance", "explanation", "sources", "warnings"
   ],
   "properties": {
@@ -41,6 +41,34 @@
           "evidence": { "type": "object", "additionalProperties": { "type": "string" } },
           "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
           "deterministic": { "type": "boolean" }
+        }
+      }
+    },
+    "calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["to", "value", "selector", "args"],
+        "properties": {
+          "to": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+          "value": { "type": "string", "pattern": "^[0-9]+$" },
+          "selector": { "type": "string", "pattern": "^0x[0-9a-fA-F]*$" },
+          "signature": { "type": "string" },
+          "name": { "type": "string" },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "type", "value"],
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string" },
+                "value": { "type": "string" }
+              }
+            }
+          }
         }
       }
     },
