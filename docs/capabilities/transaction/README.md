@@ -16,7 +16,8 @@ fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
 - Unknown selectors return `signature: null`, `name: null` and an unknown entry.
 - The block is pinned and returned as `block_number` / `block_hash`.
 - `target` distinguishes EOA/contract and detects the EIP-1967 implementation slot.
-- Source verification is `null` unless a verification provider is configured.
+- Source verification uses `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`. Without a key it stays
+  `verified: null`; explicit `false` produces `CONTRACT-001`.
 - Effects come from `eth_simulateV1` logs plus balance/allowance verification. They are `partial`,
   not a full state diff. Internal calls are checked with `debug_traceCall` when available.
 - `risk` reflects known deterministic findings, otherwise `unknown`. It is never `safe`.
@@ -27,7 +28,7 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
 
 - `intent`: selector, signature, name and decoded arguments.
 - `target`: address, `kind`, `verified`, `proxy`, `implementation`. `verified: null` means not
-  checked, not safe.
+  checked, not safe; `verified: false` means the provider returned an unverified contract.
 - `effects`: native value plus token/NFT/approval effects derived from simulated logs. Token
   balances and allowances are re-simulated and checked; mismatches produce `EFFECT-007`,
   `EFFECT-009` or `EFFECT-010`. Native gas fees are not included.

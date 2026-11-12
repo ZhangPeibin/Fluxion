@@ -4,6 +4,7 @@
 //! claim safety: metadata, simulation and policy are reported as not run.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::Duration;
 
 use alloy_primitives::{Address, B256, U256};
 use serde::Deserialize;
@@ -31,6 +32,138 @@ pub struct InspectRequest {
     pub data: String,
     pub value: U256,
     pub block: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SourceVerifier {
+    pub url: String,
+    pub api_key: String,
+    pub label: String,
+}
+
+impl SourceVerifier {
+    pub fn from_env(chain: Chain) -> Option<Self> {
+        let (key_var, url_var, default_url, label) = match chain {
+            Chain::Bsc => (
+                "BSCSCAN_API_KEY",
+                "FLUXION_BSCSCAN_API_URL",
+                "https://api.bscscan.com/api",
+                "bscscan",
+            ),
+            Chain::Ethereum => (
+                "ETHERSCAN_API_KEY",
+                "FLUXION_ETHERSCAN_API_URL",
+                "https://api.etherscan.io/api",
+                "etherscan",
+            ),
+        };
+        let api_key = std::env::var(key_var).ok()?.trim().to_string();
+        if api_key.is_empty() {
+            return None;
+        }
+        let url = std::env::var(url_var).unwrap_or_else(|_| default_url.to_string());
+        Some(Self {
+            url,
+            api_key,
+            label: label.to_string(),
+        })
+    }
+
+    async fn verify(&self, address: Address) -> SourceVerification {
+        let client = reqwest::Client::new();
+        let response = client
+            .get(&self.url)
+            .query(&[
+                ("module", "contract"),
+                ("action", "getsourcecode"),
+                ("address", &address.to_string()),
+                ("apikey", &self.api_key),
+            ])
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await;
+        let response = match response {
+            Ok(response) => response,
+            Err(error) => {
+                return SourceVerification {
+                    unknowns: vec![format!("source verification request failed: {error}")],
+                    ..Default::default()
+                };
+            }
+        };
+        let value: Value = match response.json().await {
+            Ok(value) => value,
+            Err(error) => {
+                return SourceVerification {
+                    unknowns: vec![format!(
+                        "source verification returned invalid JSON: {error}"
+                    )],
+                    ..Default::default()
+                };
+            }
+        };
+        let result = value
+            .get("result")
+            .and_then(Value::as_array)
+            .and_then(|items| items.first());
+        let Some(result) = result else {
+            let message = value
+                .get("result")
+                .and_then(Value::as_str)
+                .or_else(|| value.get("message").and_then(Value::as_str))
+                .unwrap_or("unknown response");
+            if message.to_ascii_lowercase().contains("not verified") {
+                return SourceVerification {
+                    verified: Some(false),
+                    warnings: vec!["contract source is not verified".to_string()],
+                    ..Default::default()
+                };
+            }
+            return SourceVerification {
+                unknowns: vec![format!("source verification unavailable: {message}")],
+                ..Default::default()
+            };
+        };
+        let source = result
+            .get("SourceCode")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let verified = if source.is_empty() || source.to_ascii_lowercase().contains("not verified")
+        {
+            Some(false)
+        } else {
+            Some(true)
+        };
+        let proxy = result
+            .get("Proxy")
+            .and_then(Value::as_str)
+            .map(|value| value == "1");
+        let implementation = result
+            .get("Implementation")
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+            .and_then(|value| value.parse::<Address>().ok());
+        SourceVerification {
+            verified,
+            proxy,
+            implementation,
+            warnings: if verified == Some(false) {
+                vec!["contract source is not verified".to_string()]
+            } else {
+                Vec::new()
+            },
+            unknowns: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct SourceVerification {
+    verified: Option<bool>,
+    proxy: Option<bool>,
+    implementation: Option<Address>,
+    warnings: Vec<String>,
+    unknowns: Vec<String>,
 }
 
 const BUILTIN_SELECTORS: &[&str] = &[
@@ -140,6 +273,14 @@ pub async fn inspect(
     inspect_with_policy(config, request, None).await
 }
 
+pub async fn inspect_with_verifier(
+    config: &WalletConfig,
+    request: InspectRequest,
+    verifier: Option<SourceVerifier>,
+) -> Result<TransactionInspectResponse, CapabilityError> {
+    inspect_with_options(config, request, None, verifier).await
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct InspectPolicy {
     #[serde(default)]
@@ -171,6 +312,16 @@ pub async fn inspect_with_policy(
     request: InspectRequest,
     policy: Option<InspectPolicy>,
 ) -> Result<TransactionInspectResponse, CapabilityError> {
+    let verifier = SourceVerifier::from_env(request.chain);
+    inspect_with_options(config, request, policy, verifier).await
+}
+
+async fn inspect_with_options(
+    config: &WalletConfig,
+    request: InspectRequest,
+    policy: Option<InspectPolicy>,
+    verifier: Option<SourceVerifier>,
+) -> Result<TransactionInspectResponse, CapabilityError> {
     if let Some(policy) = policy.as_ref()
         && !policy.mode.is_empty()
         && !policy.mode.eq_ignore_ascii_case("advisory")
@@ -184,7 +335,7 @@ pub async fn inspect_with_policy(
     let rpc = Rpc::new(&config.rpc_url_for(request.chain));
     let (block_number, block_hash, tag) = rpc.block(request.block).await?;
     let decoded = decode_intent(&data)?;
-    let metadata = inspect_target(&rpc, request.to, &tag).await?;
+    let metadata = inspect_target(&rpc, request.to, &tag, verifier.as_ref()).await?;
     let simulation = inspect_effects(&rpc, &request, &data, &tag).await;
     let trace = inspect_trace(&rpc, &request, &data, &tag, &metadata.target).await;
     let mut unknowns = decoded.unknowns;
@@ -234,6 +385,7 @@ pub async fn inspect_with_policy(
             scope: "target-metadata".to_string(),
         },
     ];
+    sources.extend(metadata.sources);
     sources.extend(simulation.sources);
     sources.extend(trace.sources);
 
@@ -2079,6 +2231,7 @@ fn parse_u256(value: &str) -> Option<U256> {
 struct TargetMetadata {
     target: TransactionInspectTarget,
     coverage: &'static str,
+    sources: Vec<TransactionInspectSource>,
     unknowns: Vec<String>,
     warnings: Vec<String>,
 }
@@ -2087,6 +2240,7 @@ async fn inspect_target(
     rpc: &Rpc,
     address: Address,
     tag: &str,
+    verifier: Option<&SourceVerifier>,
 ) -> Result<TargetMetadata, CapabilityError> {
     let code = rpc.code(address, tag).await?;
     if code == "0x" {
@@ -2099,6 +2253,7 @@ async fn inspect_target(
                 implementation: None,
             },
             coverage: "complete",
+            sources: Vec::new(),
             unknowns: Vec::new(),
             warnings: Vec::new(),
         });
@@ -2127,21 +2282,48 @@ async fn inspect_target(
             ),
         };
 
-    unknowns.push("contract source verification was not configured".to_string());
-    warnings.push(
-        "verified=null means source verification was not checked, not that the contract is safe"
-            .to_string(),
-    );
+    let (verified, source_proxy, source_implementation, sources) = match verifier {
+        Some(verifier) => {
+            let source = verifier.verify(address).await;
+            unknowns.extend(source.unknowns);
+            warnings.extend(source.warnings);
+            (
+                source.verified,
+                source.proxy,
+                source.implementation,
+                vec![TransactionInspectSource {
+                    name: verifier.label.clone(),
+                    scope: "source-verification".to_string(),
+                }],
+            )
+        }
+        None => {
+            unknowns.push("contract source verification was not configured".to_string());
+            warnings.push(
+                "verified=null means source verification was not checked, not that the contract is safe"
+                    .to_string(),
+            );
+            (None, None, None, Vec::new())
+        }
+    };
+    let proxy = proxy.or(source_proxy);
+    let implementation = implementation.or(source_implementation);
+    let coverage = if verified.is_some() && proxy.is_some() {
+        "complete"
+    } else {
+        "partial"
+    };
 
     Ok(TargetMetadata {
         target: TransactionInspectTarget {
             address,
             kind: "contract".to_string(),
-            verified: None,
+            verified,
             proxy,
             implementation,
         },
-        coverage: "partial",
+        coverage,
+        sources,
         unknowns,
         warnings,
     })
@@ -3912,6 +4094,84 @@ mod tests {
                 .any(|finding| finding.id == "CONTRACT-004")
         );
         assert_eq!(response.coverage.trace, "complete");
+    }
+
+    async fn source_verified() -> Json<Value> {
+        Json(json!({
+            "status": "1",
+            "message": "OK",
+            "result": [{
+                "SourceCode": "contract Test {}",
+                "ABI": "[]",
+                "Proxy": "0",
+                "Implementation": ""
+            }]
+        }))
+    }
+
+    async fn source_unverified() -> Json<Value> {
+        Json(json!({
+            "status": "1",
+            "message": "OK",
+            "result": [{
+                "SourceCode": "",
+                "ABI": "Contract source code not verified",
+                "Proxy": "0",
+                "Implementation": ""
+            }]
+        }))
+    }
+
+    async fn source_base_url(verified: bool) -> String {
+        let app = if verified {
+            Router::new().route("/api", axum::routing::get(source_verified))
+        } else {
+            Router::new().route("/api", axum::routing::get(source_unverified))
+        }
+        .route("/rpc", post(rpc));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        format!("http://{address}")
+    }
+
+    fn verifier(base: &str) -> SourceVerifier {
+        SourceVerifier {
+            url: format!("{base}/api"),
+            api_key: "test".to_string(),
+            label: "testscan".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn configures_source_verifier_as_verified() {
+        let base = source_base_url(true).await;
+        let response = inspect_with_verifier(&config(&base), request("0x"), Some(verifier(&base)))
+            .await
+            .unwrap();
+        assert_eq!(response.target.verified, Some(true));
+        assert_eq!(response.coverage.metadata, "complete");
+        assert!(
+            response
+                .sources
+                .iter()
+                .any(|source| source.name == "testscan")
+        );
+    }
+
+    #[tokio::test]
+    async fn unverified_source_produces_contract_finding() {
+        let base = source_base_url(false).await;
+        let response = inspect_with_verifier(&config(&base), request("0x"), Some(verifier(&base)))
+            .await
+            .unwrap();
+        assert_eq!(response.target.verified, Some(false));
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "CONTRACT-001")
+        );
     }
 
     #[tokio::test]

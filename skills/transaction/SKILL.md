@@ -38,8 +38,9 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
 - Asset-flow findings compare decoded transfer intent with simulated logs (`FLOW-001`–`FLOW-006`);
   treat them as medium-confidence evidence, not proof.
 - Contract findings report unverified targets (`CONTRACT-001`), EIP-1967 proxy targets
-  (`CONTRACT-003`), and unexpected internal delegatecalls (`CONTRACT-004`). Trace is unavailable on
-  public BSC RPCs and is reported as `coverage.trace=unavailable`.
+  (`CONTRACT-003`), and unexpected internal delegatecalls (`CONTRACT-004`). Set
+  `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY` for source verification; without it `verified=null`.
+  Trace is unavailable on public BSC RPCs and is reported as `coverage.trace=unavailable`.
 - `multicall(bytes[])` is expanded into `call[i]` arguments, and nested approvals are checked with
   `nested_call` evidence. Malformed nested calls reduce decode coverage to `partial`.
 - Address findings cover zero/burn recipients (`ADDR-001`, `ADDR-002`) and self-targets
