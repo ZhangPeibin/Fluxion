@@ -80,7 +80,7 @@ especially p95. `signature.inspect` is local and sub-10 ms at p95 in this run.
 
 - The corpus is synthetic and intentionally small. It is not a labeled mainnet exploit corpus.
 - Effects come from `eth_simulateV1` logs plus balance/allowance verification; unusual tokens can still degrade to unknown.
-- There is no full trace/state-diff backend, so native gas and all state changes are not covered.
+- Trace coverage depends on `debug_traceCall`; public BSC RPC does not expose it.
 - User-operation `callData` and signatures are explicitly not decoded.
 - Unknown typed-data primary types and unknown selectors remain `unknown`; they are not risk scores.
 - No LLM explanation was benchmarked; explanation is deterministic and local.
@@ -89,9 +89,9 @@ especially p95. `signature.inspect` is local and sub-10 ms at p95 in this run.
 ## Red-team follow-up
 
 The local Foundry/Anvil adversarial corpus is in
-[redteam-2026-11-11.md](redteam-2026-11-11.md). It adds 13 detect cases, 2 controls and 2 explicit
-known gaps. Remediation added balance/allowance verification (`EFFECT-007/009/010`), which adds RPC
-reads per candidate token; use the red-team report for post-verification local timings.
+[redteam-2026-11-11.md](redteam-2026-11-11.md). It adds 14 detect cases, 2 controls and one
+explicit known gap. Remediation added balance/allowance verification (`EFFECT-007/009/010`) and
+internal-call tracing (`CONTRACT-004`); use the red-team report for post-verification local timings.
 
 ## Decision
 

@@ -290,6 +290,15 @@ impl Rpc {
             })
     }
 
+    pub(crate) async fn trace_call(&self, tx: Value, tag: &str) -> Result<Value, CapabilityError> {
+        self.call(
+            "debug_traceCall",
+            json!([tx, tag, {"tracer": "callTracer"}]),
+        )
+        .await
+        .map_err(rpc_failure)
+    }
+
     pub(crate) async fn block(
         &self,
         requested: Option<u64>,

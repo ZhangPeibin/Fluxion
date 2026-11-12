@@ -186,14 +186,18 @@ pub async fn inspect_with_policy(
     let decoded = decode_intent(&data)?;
     let metadata = inspect_target(&rpc, request.to, &tag).await?;
     let simulation = inspect_effects(&rpc, &request, &data, &tag).await;
+    let trace = inspect_trace(&rpc, &request, &data, &tag, &metadata.target).await;
     let mut unknowns = decoded.unknowns;
     unknowns.extend(metadata.unknowns);
     unknowns.extend(simulation.unknowns);
+    unknowns.extend(trace.unknowns);
     unknowns.push("no policy was configured".to_string());
     let mut warnings = decoded.warnings;
     warnings.extend(metadata.warnings);
     warnings.extend(simulation.warnings);
+    warnings.extend(trace.warnings);
     let mut findings = simulation.findings.clone();
+    findings.extend(trace.findings);
     findings.extend(detect_approvals(&decoded.intent));
     findings.extend(detect_nested_approvals(&decoded.intent));
     findings.extend(detect_contract(&decoded.intent, &metadata.target, &request));
@@ -231,6 +235,7 @@ pub async fn inspect_with_policy(
         },
     ];
     sources.extend(simulation.sources);
+    sources.extend(trace.sources);
 
     let mut response = TransactionInspectResponse {
         chain: request.chain.as_str().to_string(),
@@ -249,6 +254,7 @@ pub async fn inspect_with_policy(
             decode: decoded.decode_coverage.to_string(),
             metadata: metadata.coverage.to_string(),
             simulation: simulation.coverage.to_string(),
+            trace: trace.coverage.to_string(),
             policy: policy_eval.coverage.to_string(),
         },
         unknowns,
@@ -1488,6 +1494,122 @@ async fn inspect_effects(
         sources,
         unknowns,
         warnings,
+    }
+}
+
+struct TraceInspection {
+    findings: Vec<TransactionInspectFinding>,
+    coverage: &'static str,
+    sources: Vec<TransactionInspectSource>,
+    unknowns: Vec<String>,
+    warnings: Vec<String>,
+}
+
+async fn inspect_trace(
+    rpc: &Rpc,
+    request: &InspectRequest,
+    data: &str,
+    tag: &str,
+    target: &TransactionInspectTarget,
+) -> TraceInspection {
+    let mut tx = json!({
+        "to": request.to,
+        "data": data,
+    });
+    if let Some(from) = request.from {
+        tx["from"] = json!(from);
+    }
+    if !request.value.is_zero() {
+        tx["value"] = json!(format!("0x{:x}", request.value));
+    }
+
+    let trace = match rpc.trace_call(tx, tag).await {
+        Ok(trace) => trace,
+        Err(error) => {
+            return TraceInspection {
+                findings: Vec::new(),
+                coverage: "unavailable",
+                sources: Vec::new(),
+                unknowns: vec![format!(
+                    "internal-call trace unavailable: {}",
+                    error.message
+                )],
+                warnings: Vec::new(),
+            };
+        }
+    };
+    if !trace.is_object() {
+        return TraceInspection {
+            findings: Vec::new(),
+            coverage: "unavailable",
+            sources: Vec::new(),
+            unknowns: vec!["internal-call trace returned an invalid result".to_string()],
+            warnings: Vec::new(),
+        };
+    }
+
+    let mut findings = Vec::new();
+    collect_delegatecalls(&trace, target, 0, &mut findings);
+    TraceInspection {
+        findings,
+        coverage: "complete",
+        sources: vec![TransactionInspectSource {
+            name: "debug_traceCall".to_string(),
+            scope: "internal-calls".to_string(),
+        }],
+        unknowns: Vec::new(),
+        warnings: Vec::new(),
+    }
+}
+
+fn collect_delegatecalls(
+    call: &Value,
+    target: &TransactionInspectTarget,
+    depth: usize,
+    findings: &mut Vec<TransactionInspectFinding>,
+) {
+    if call.get("type").and_then(Value::as_str) == Some("DELEGATECALL") {
+        let to = call
+            .get("to")
+            .and_then(Value::as_str)
+            .and_then(parse_address);
+        let from = call
+            .get("from")
+            .and_then(Value::as_str)
+            .and_then(parse_address);
+        let input = call.get("input").and_then(Value::as_str).unwrap_or("0x");
+        let normal_proxy =
+            target.proxy == Some(true) && to.is_some() && target.implementation == to;
+        if !normal_proxy {
+            let mut evidence = BTreeMap::new();
+            evidence.insert("type".to_string(), "DELEGATECALL".to_string());
+            evidence.insert(
+                "from".to_string(),
+                from.map(|value| value.to_string()).unwrap_or_default(),
+            );
+            evidence.insert(
+                "to".to_string(),
+                to.map(|value| value.to_string()).unwrap_or_default(),
+            );
+            evidence.insert("input".to_string(), input.to_string());
+            evidence.insert("depth".to_string(), depth.to_string());
+            evidence.insert("source".to_string(), "debug_traceCall".to_string());
+            findings.push(TransactionInspectFinding {
+                id: "CONTRACT-004".to_string(),
+                category: "contract".to_string(),
+                severity: "high".to_string(),
+                title: "Internal delegatecall".to_string(),
+                description: "The transaction performs a delegatecall that is not a recognized proxy implementation call.".to_string(),
+                evidence,
+                confidence: "high".to_string(),
+                deterministic: true,
+            });
+        }
+    }
+    if let Some(calls) = call.get("calls").and_then(Value::as_array) {
+        for nested in calls {
+            collect_delegatecalls(nested, target, depth + 1, findings);
+        }
     }
 }
 
@@ -3742,6 +3864,54 @@ mod tests {
                 .any(|finding| finding.id == "EFFECT-007")
         );
         assert_eq!(response.risk, "high");
+    }
+
+    async fn trace_rpc(Json(body): Json<Value>) -> Json<Value> {
+        let result = match body["method"].as_str().unwrap_or_default() {
+            "eth_blockNumber" => json!("0x64"),
+            "eth_getBlockByNumber" => json!({
+                "number": "0x64",
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000064"
+            }),
+            "eth_getCode" => json!("0x6000"),
+            "eth_getStorageAt" => {
+                json!("0x0000000000000000000000000000000000000000000000000000000000000000")
+            }
+            "eth_simulateV1" => {
+                json!([{"calls": [{"status": "0x1", "logs": [], "returnData": "0x"}]}])
+            }
+            "debug_traceCall" => json!({
+                "type": "CALL",
+                "from": "0x0000000000000000000000000000000000000001",
+                "to": "0x0000000000000000000000000000000000000010",
+                "input": "0x",
+                "calls": [{
+                    "type": "DELEGATECALL",
+                    "from": "0x0000000000000000000000000000000000000010",
+                    "to": "0x0000000000000000000000000000000000000099",
+                    "input": "0x12345678"
+                }]
+            }),
+            _ => json!("0x0"),
+        };
+        Json(json!({"jsonrpc": "2.0", "id": 1, "result": result}))
+    }
+
+    #[tokio::test]
+    async fn flags_internal_delegatecall_from_trace() {
+        let app = Router::new().route("/rpc", post(trace_rpc));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let base = format!("http://{address}");
+        let response = inspect(&config(&base), request("0x")).await.unwrap();
+        assert!(
+            response
+                .findings
+                .iter()
+                .any(|finding| finding.id == "CONTRACT-004")
+        );
+        assert_eq!(response.coverage.trace, "complete");
     }
 
     #[tokio::test]
