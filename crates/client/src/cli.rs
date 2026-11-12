@@ -99,11 +99,11 @@ fluxion wallet status [--wait N]          Show the linked wallet session\n  \
 fluxion wallet disconnect                 Remove the linked wallet session\n  \
 fluxion wallet agent-id HANDLE|ADDRESS    Resolve a BSC .ai Agent ID\n  \
 fluxion wallet sign --message TEXT        Sign a message with WalletConnect\n  \
-fluxion wallet sign --typed-data FILE     Sign EIP-712 typed data\n  \
-fluxion wallet send --to ADDR --token T --amount A  Send ETH/ERC20\n  \
+fluxion wallet sign --typed-data FILE [--policy FILE]  Sign EIP-712 typed data\n  \
+fluxion wallet send --to ADDR --token T --amount A [--policy FILE]  Send ETH/ERC20\n  \
 fluxion transaction inspect --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
-fluxion signature inspect --typed-data FILE | --authorization-list FILE | --user-operation FILE\n  \
+fluxion signature inspect --typed-data FILE | --authorization-list FILE | --user-operation FILE [--policy FILE]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
@@ -365,7 +365,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
         Ok(args) => args,
         Err(error) if error.message == "help requested" => {
             println!(
-                "Usage:\n  fluxion wallet balance ADDRESS [--tokens BNB,USDT] [--no-native] [--chain bsc|ethereum]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native] [--chain bsc|ethereum]\n  fluxion wallet connect [--chain bsc|ethereum]\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE\n  fluxion wallet send --to ADDR --token T --amount A\n\nOptions:\n  --rpc-url URL   override the selected chain RPC\n  --block N       pin a block\n  --json          print the structured response"
+                "Usage:\n  fluxion wallet balance ADDRESS [--tokens BNB,USDT] [--no-native] [--chain bsc|ethereum]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native] [--chain bsc|ethereum]\n  fluxion wallet connect [--chain bsc|ethereum]\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE [--policy FILE]\n  fluxion wallet send --to ADDR --token T --amount A [--policy FILE]\n\nOptions:\n  --rpc-url URL   override the selected chain RPC\n  --block N       pin a block\n  --json          print the structured response"
             );
             return 0;
         }
@@ -769,10 +769,36 @@ async fn run_wallet_sign(raw: &[String]) -> i32 {
             return exit_code(error.code);
         }
     };
+    let policy = match args.policy.as_deref() {
+        Some(path) => {
+            let text = match std::fs::read_to_string(path) {
+                Ok(text) => text,
+                Err(error) => {
+                    let error = CapabilityError::invalid_argument(format!(
+                        "cannot read policy file {path}: {error}"
+                    ));
+                    report_error_as("wallet.sign", &error, args.json);
+                    return exit_code(error.code);
+                }
+            };
+            match serde_json::from_str::<InspectPolicy>(&text) {
+                Ok(policy) => Some(policy),
+                Err(error) => {
+                    let error = CapabilityError::invalid_argument(format!(
+                        "invalid policy file {path}: {error}"
+                    ));
+                    report_error_as("wallet.sign", &error, args.json);
+                    return exit_code(error.code);
+                }
+            }
+        }
+        None => None,
+    };
     match walletconnect::sign(SignRequest {
         address: args.address,
         payload,
         timeout: std::time::Duration::from_secs(args.timeout_seconds),
+        policy,
     })
     .await
     {
@@ -797,6 +823,7 @@ struct WalletSignArgs {
     message: Option<String>,
     typed_data: Option<serde_json::Value>,
     address: Option<alloy_primitives::Address>,
+    policy: Option<String>,
     json: bool,
     timeout_seconds: u64,
 }
@@ -805,6 +832,7 @@ fn parse_wallet_sign_args(raw: &[String]) -> Result<WalletSignArgs, CapabilityEr
     let mut message = None;
     let mut typed_data = None;
     let mut address = None;
+    let mut policy = None;
     let mut json = false;
     let mut timeout_seconds = 90;
     let mut index = 0;
@@ -855,6 +883,16 @@ fn parse_wallet_sign_args(raw: &[String]) -> Result<WalletSignArgs, CapabilityEr
                         .map_err(|_| CapabilityError::invalid_argument("invalid --address"))?,
                 );
             }
+            "--policy" => {
+                index += 1;
+                policy = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--policy needs a file path")
+                        })?
+                        .clone(),
+                );
+            }
             "--timeout" => {
                 index += 1;
                 let value = raw
@@ -886,6 +924,7 @@ fn parse_wallet_sign_args(raw: &[String]) -> Result<WalletSignArgs, CapabilityEr
         message,
         typed_data,
         address,
+        policy,
         json,
         timeout_seconds,
     })
@@ -1549,6 +1588,7 @@ struct SignatureArgs {
     typed_data: Option<String>,
     authorization_list: Option<String>,
     user_operation: Option<String>,
+    policy: Option<String>,
     json: bool,
 }
 
@@ -1558,7 +1598,7 @@ async fn run_signature(raw: &[String]) -> i32 {
         || raw.is_empty()
     {
         println!(
-            "Usage:\n  fluxion signature inspect --typed-data FILE [--chain bsc|ethereum] [--json]\n  fluxion signature inspect --authorization-list FILE [--chain bsc|ethereum] [--json]\n  fluxion signature inspect --user-operation FILE [--chain bsc|ethereum] [--json]"
+            "Usage:\n  fluxion signature inspect --typed-data FILE [--chain bsc|ethereum] [--policy FILE] [--json]\n  fluxion signature inspect --authorization-list FILE [--chain bsc|ethereum] [--policy FILE] [--json]\n  fluxion signature inspect --user-operation FILE [--chain bsc|ethereum] [--policy FILE] [--json]"
         );
         return 0;
     }
@@ -1632,12 +1672,38 @@ async fn run_signature(raw: &[String]) -> i32 {
             return exit_code(error.code);
         }
     };
+    let policy = match args.policy.as_deref() {
+        Some(path) => {
+            let text = match std::fs::read_to_string(path) {
+                Ok(text) => text,
+                Err(error) => {
+                    let error = CapabilityError::invalid_argument(format!(
+                        "cannot read policy file {path}: {error}"
+                    ));
+                    report_error(&error, args.json);
+                    return exit_code(error.code);
+                }
+            };
+            match serde_json::from_str::<InspectPolicy>(&text) {
+                Ok(policy) => Some(policy),
+                Err(error) => {
+                    let error = CapabilityError::invalid_argument(format!(
+                        "invalid policy file {path}: {error}"
+                    ));
+                    report_error(&error, args.json);
+                    return exit_code(error.code);
+                }
+            }
+        }
+        None => None,
+    };
     match signature_inspect::inspect(SignatureInspectRequest {
         chain: args.chain,
         from,
         typed_data,
         authorization_list,
         user_operation,
+        policy,
     }) {
         Ok(response) => {
             if args.json {
@@ -1660,6 +1726,7 @@ fn parse_signature_args(raw: &[String]) -> Result<SignatureArgs, CapabilityError
     let mut typed_data = None;
     let mut authorization_list = None;
     let mut user_operation = None;
+    let mut policy = None;
     let mut json = false;
     let mut index = 0;
     while index < raw.len() {
@@ -1711,6 +1778,16 @@ fn parse_signature_args(raw: &[String]) -> Result<SignatureArgs, CapabilityError
                         .clone(),
                 );
             }
+            "--policy" => {
+                index += 1;
+                policy = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--policy needs a file path")
+                        })?
+                        .clone(),
+                );
+            }
             "--json" => json = true,
             value if value.starts_with('-') => {
                 return Err(CapabilityError::invalid_argument(format!(
@@ -1731,6 +1808,7 @@ fn parse_signature_args(raw: &[String]) -> Result<SignatureArgs, CapabilityError
         typed_data,
         authorization_list,
         user_operation,
+        policy,
         json,
     })
 }
@@ -2234,10 +2312,13 @@ mod tests {
             "hello".to_string(),
             "--timeout".to_string(),
             "42".to_string(),
+            "--policy".to_string(),
+            "policy.json".to_string(),
             "--json".to_string(),
         ])
         .unwrap();
         assert_eq!(args.message.as_deref(), Some("hello"));
+        assert_eq!(args.policy.as_deref(), Some("policy.json"));
         assert!(args.typed_data.is_none());
         assert!(args.json);
         assert_eq!(args.timeout_seconds, 42);
@@ -2350,11 +2431,14 @@ mod tests {
             "permit.json".to_string(),
             "--chain".to_string(),
             "ethereum".to_string(),
+            "--policy".to_string(),
+            "policy.json".to_string(),
             "--json".to_string(),
         ])
         .unwrap();
         assert_eq!(parsed.chain, Chain::Ethereum);
         assert_eq!(parsed.typed_data.as_deref(), Some("permit.json"));
+        assert_eq!(parsed.policy.as_deref(), Some("policy.json"));
         assert!(parsed.json);
         assert!(
             parse_signature_args(&[

@@ -279,6 +279,7 @@ fluxion wallet collectibles 0xowner --json
 fluxion wallet collectibles 0xowner --collections 0xcollection --json
 fluxion wallet agent-id alice.ai --json
 fluxion wallet sign --message "hello" --json
+fluxion wallet sign --typed-data typed-data.json --policy policy.json --json
 fluxion wallet send --to 0x... --token BNB --amount 0.01 --json
 fluxion wallet send --to 0x... --token USDT --amount 10 --policy policy.json
 fluxion wallet connect --chain bsc
@@ -335,8 +336,8 @@ Allowances:
 - `wallet.sign` signs messages and EIP-712 typed data only; no transaction signing or execution.
 - `wallet.send` sends native/ERC20/BEP-20 transfers only; no arbitrary contract calls, approvals,
   NFT transfers, or swap execution.
-- `wallet.send --policy` enforces the same policy engine; a blocked transfer returns
-  `POLICY_BLOCKED` before reaching the phone.
+- `wallet.send --policy` / `wallet.sign --policy` enforce the same policy engine; a blocked request
+  returns `POLICY_BLOCKED` before reaching the phone. Sign policy applies to typed data only.
 - Local wallet tools default to BSC; use `chain: "ethereum"` for Ethereum.
 - Read-only account data: no private keys.
 - Re-check the pinned block, balances and allowances before building a transaction.

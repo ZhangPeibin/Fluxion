@@ -33,6 +33,7 @@ Exactly one input:
 fluxion signature inspect --typed-data permit.json --json
 fluxion signature inspect --authorization-list auth.json --json
 fluxion signature inspect --user-operation userop.json --json
+fluxion signature inspect --typed-data permit.json --policy policy.json --json
 ```
 
 ## Reading the result
@@ -45,7 +46,11 @@ fluxion signature inspect --user-operation userop.json --json
 - `SIG-006`: authorization cannot be decoded or sender is invalid.
 - `risk`: highest deterministic finding, otherwise `unknown`; never treat `low` as approval.
 - `unknowns`: callData/signature or unsupported typed-data semantics that were not inspected.
+- `policy`: mode, `decision` (`allow`/`warn`/`block`), `blocked`, and reasons.
+- `assurance`: ruleset version, stable report ID, deterministic flag, limitations.
 - `explanation`: deterministic summary; the host agent may paraphrase it.
+- `wallet.sign --policy FILE` applies the same policy before the phone request; message signing with
+  a policy is rejected.
 
 ## Boundaries
 

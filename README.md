@@ -391,6 +391,14 @@ fluxion signature inspect --user-operation userop.json
 - LLM 不参与 detector、risk 或 coverage 计算；`explanation` 是确定性模板。
 - 外部 provider 只提供输入，不改变规则语义。
 
+### 强制执行
+
+- `transaction.inspect` / `signature.inspect` 本身是 advisory，不签名、不广播、不保管私钥。
+- `wallet.send --policy` 和 `wallet.sign --policy` 在 Fluxion 自己的发送和 typed-data 签名路径上
+  执行 enforce gate；命中高风险策略时返回 `POLICY_BLOCKED`，不会进入手机确认。
+- 这不是通用 signer 边界。任意 calldata、绕过 Fluxion 的调用、或已被篡改的本地进程不受约束；
+  通用强制仍需 smart account、session key 或 signer policy。
+
 ### 验证方式
 
 - Rust 单元测试和 fixture corpus 覆盖 decode、effects、trace、approval、asset-flow、swap、

@@ -105,6 +105,7 @@ confirm on their phone.
 ```bash
 fluxion wallet sign --message "hello"
 fluxion wallet sign --typed-data typed-data.json --json
+fluxion wallet sign --typed-data typed-data.json --policy policy.json --json
 ```
 
 - Requires an active `wallet.connect` session.
@@ -113,6 +114,8 @@ fluxion wallet sign --typed-data typed-data.json --json
 - The phone rejection is returned as `USER_REJECTED`.
 - Message and typed data are limited to 64 KB.
 - Typed data `domain.chainId` must match the session chain when present.
+- With `--policy`, typed data is inspected before signing; enforce-mode high-risk findings return
+  `POLICY_BLOCKED`. Message signing with a policy is rejected.
 - Sessions created before the relay identity was persisted must be recreated with
   `wallet.disconnect` + `wallet.connect`.
 
