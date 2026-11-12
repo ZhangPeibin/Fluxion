@@ -1,6 +1,6 @@
 ---
 name: transaction
-description: Use when the user wants to inspect or simulate BSC or Ethereum calldata before signing, or uses the Fluxion transaction_inspect or transaction_simulate MCP tool. Read-only; never signs, approves, or broadcasts.
+description: Use when the user wants to inspect, simulate or send BSC or Ethereum calldata, or uses the Fluxion transaction_inspect, transaction_simulate or transaction_send MCP tools. Inspect/simulate are read-only; send requires the connected wallet and explicit phone confirmation.
 ---
 
 # transaction capabilities
@@ -58,6 +58,20 @@ description: Use when the user wants to inspect or simulate BSC or Ethereum call
   user-facing explanation, never as a safety guarantee.
 - Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
+
+# transaction.send
+
+Send already-built calldata through the connected WalletConnect session:
+
+```bash
+fluxion transaction send --to 0x... --data 0x... --policy policy.json --json
+```
+
+- Mandatory local simulation; revert -> `SIMULATION_FAILED`.
+- Mandatory `transaction.inspect`; enforce policy can return `POLICY_BLOCKED`.
+- The user confirms on the phone; rejection -> `USER_REJECTED`.
+- Returns `tx_hash`, `simulation`, and the full inspection report.
+- This is generic calldata execution; `wallet.send` remains the simpler native/token transfer path.
 
 # transaction.simulate
 

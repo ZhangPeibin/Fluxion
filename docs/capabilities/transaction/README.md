@@ -78,6 +78,26 @@ known tokens use their registry decimals. Unknown tokens require an explicit `de
 - `explanation`: deterministic `summary`, `key_changes` and `unknowns` for host agents. It never says
   `safe` and is not an LLM decision.
 
+## `transaction.send`
+
+Simulate and inspect arbitrary calldata, then send it through the connected WalletConnect session.
+
+```bash
+fluxion transaction send --to 0x... --data 0x... --value 0 --json
+fluxion transaction send --to 0x... --data 0x... --policy policy.json --json
+```
+
+Flow:
+
+1. Load the local WalletConnect session and select its chain.
+2. Simulate with `eth_call`; revert -> `SIMULATION_FAILED`, no phone request.
+3. Run `transaction.inspect`; enforce policy can return `POLICY_BLOCKED`.
+4. Send `eth_sendTransaction` through WalletConnect.
+5. Return `tx_hash`, `simulation`, and the full `inspection` report.
+
+The wallet remains the signing boundary. `transaction.send` does not hold keys and does not bypass
+phone confirmation.
+
 ## Boundaries
 
 - Advisory only; no signing, approval or broadcast.
@@ -95,6 +115,7 @@ fluxion transaction simulate \
   --from 0x... --value 0.1 --block 26356654 --json
 
 fluxion transaction simulate --to 0x... --data 0x... --chain ethereum --json
+fluxion transaction send --to 0x... --data 0x... --policy policy.json --json
 ```
 
 - Default chain is BSC; use `--chain ethereum` for Ethereum.

@@ -12,6 +12,7 @@ pub mod swap_build;
 pub mod token;
 pub mod transaction;
 pub mod transaction_inspect;
+pub mod transaction_send;
 pub mod wallet;
 pub mod wallet_send;
 pub mod walletconnect;

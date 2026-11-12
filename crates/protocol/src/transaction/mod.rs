@@ -10,6 +10,7 @@ use crate::capability::{Amount, CapabilityDescriptor, SCHEMA_VERSION};
 
 pub const SIMULATE_CAPABILITY: &str = "transaction.simulate";
 pub const INSPECT_CAPABILITY: &str = "transaction.inspect";
+pub const SEND_CAPABILITY: &str = "transaction.send";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TransactionSimulateResponse {
@@ -179,6 +180,19 @@ pub struct TransactionInspectResponse {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct TransactionSendResponse {
+    pub chain: String,
+    pub chain_id: u64,
+    pub from: Address,
+    pub to: Address,
+    pub value: Amount,
+    pub data: String,
+    pub tx_hash: String,
+    pub simulation: TransactionSimulateResponse,
+    pub inspection: TransactionInspectResponse,
+}
+
 pub fn describe() -> CapabilityDescriptor {
     CapabilityDescriptor {
         name: SIMULATE_CAPABILITY,
@@ -191,6 +205,15 @@ pub fn describe() -> CapabilityDescriptor {
 pub fn describe_inspect() -> CapabilityDescriptor {
     CapabilityDescriptor {
         name: INSPECT_CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "local",
+        transports: vec!["cli", "mcp-stdio"],
+    }
+}
+
+pub fn describe_send() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: SEND_CAPABILITY,
         schema_version: SCHEMA_VERSION,
         execution: "local",
         transports: vec!["cli", "mcp-stdio"],
@@ -212,6 +235,13 @@ mod tests {
     fn describes_local_inspection() {
         let descriptor = describe_inspect();
         assert_eq!(descriptor.name, "transaction.inspect");
+        assert_eq!(descriptor.execution, "local");
+    }
+
+    #[test]
+    fn describes_local_send() {
+        let descriptor = describe_send();
+        assert_eq!(descriptor.name, "transaction.send");
         assert_eq!(descriptor.execution, "local");
     }
 }

@@ -10,6 +10,7 @@ use crate::swap_build::{self, BuildRequest};
 use crate::token;
 use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
 use crate::transaction_inspect::{self, InspectPolicy, InspectRequest, TransactionInspectResponse};
+use crate::transaction_send::{self, SendRequest as TransactionSendRequest};
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest,
     WalletAllowancesResponse, WalletBalancesResponse, WalletCollectiblesResponse, WalletConfig,
@@ -107,6 +108,7 @@ fluxion wallet sign --typed-data FILE [--policy FILE]  Sign EIP-712 typed data\n
 fluxion wallet send --to ADDR --token T --amount A [--policy FILE]  Send ETH/ERC20\n  \
 fluxion transaction inspect --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
+fluxion transaction send --to ADDRESS --data HEX [--value BNB] [--policy FILE]\n  \
 fluxion signature inspect --typed-data FILE | --authorization-list FILE | --user-operation FILE [--policy FILE]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
@@ -1616,6 +1618,7 @@ struct TransactionArgs {
     block: Option<u64>,
     rpc_url: Option<String>,
     policy: Option<String>,
+    timeout_seconds: u64,
     json: bool,
 }
 
@@ -1624,23 +1627,35 @@ async fn run_transaction(raw: &[String]) -> i32 {
         || raw.first().map(String::as_str) == Some("-h")
     {
         println!(
-            "Usage:\n  fluxion transaction inspect --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--policy FILE] [--json]\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]"
+            "Usage:\n  fluxion transaction inspect --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--policy FILE] [--json]\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]\n  fluxion transaction send --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--policy FILE] [--timeout N] [--json]"
         );
         return 0;
     }
-    let inspect_mode = match raw.first().map(String::as_str) {
-        Some("inspect") => true,
-        Some("simulate") => false,
+    let command = match raw.first().map(String::as_str) {
+        Some("inspect") => "inspect",
+        Some("simulate") => "simulate",
+        Some("send") => "send",
         _ => {
-            let error = CapabilityError::invalid_argument("expected: transaction inspect|simulate");
-            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            let error =
+                CapabilityError::invalid_argument("expected: transaction inspect|simulate|send");
+            report_error_as(
+                "transaction.inspect",
+                &error,
+                raw.iter().any(|arg| arg == "--json"),
+            );
             return exit_code(error.code);
         }
+    };
+    let capability = match command {
+        "send" => "transaction.send",
+        "inspect" => "transaction.inspect",
+        "simulate" => "transaction.simulate",
+        _ => "transaction.inspect",
     };
     let args = match parse_transaction_args(&raw[1..]) {
         Ok(args) => args,
         Err(error) => {
-            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            report_error_as(capability, &error, raw.iter().any(|arg| arg == "--json"));
             return exit_code(error.code);
         }
     };
@@ -1648,7 +1663,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
         Ok(address) => address,
         Err(_) => {
             let error = CapabilityError::invalid_argument("invalid --to address");
-            report_error(&error, args.json);
+            report_error_as(capability, &error, args.json);
             return exit_code(error.code);
         }
     };
@@ -1657,7 +1672,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
             Ok(address) => Some(address),
             Err(_) => {
                 let error = CapabilityError::invalid_argument("invalid --from address");
-                report_error(&error, args.json);
+                report_error_as(capability, &error, args.json);
                 return exit_code(error.code);
             }
         },
@@ -1666,7 +1681,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
     let value = match token::parse_amount(&args.value, 18) {
         Ok(value) => value,
         Err(error) => {
-            report_error(&error, args.json);
+            report_error_as(capability, &error, args.json);
             return exit_code(error.code);
         }
     };
@@ -1675,7 +1690,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
         config.set_rpc_url(rpc_url);
     }
 
-    if inspect_mode {
+    if command == "inspect" {
         let policy = match args.policy.as_deref() {
             Some(path) => {
                 let text = match std::fs::read_to_string(path) {
@@ -1684,7 +1699,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
                         let error = CapabilityError::invalid_argument(format!(
                             "cannot read policy file {path}: {error}"
                         ));
-                        report_error(&error, args.json);
+                        report_error_as(capability, &error, args.json);
                         return exit_code(error.code);
                     }
                 };
@@ -1694,7 +1709,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
                         let error = CapabilityError::invalid_argument(format!(
                             "invalid policy file {path}: {error}"
                         ));
-                        report_error(&error, args.json);
+                        report_error_as(capability, &error, args.json);
                         return exit_code(error.code);
                     }
                 }
@@ -1724,7 +1739,68 @@ async fn run_transaction(raw: &[String]) -> i32 {
                 0
             }
             Err(error) => {
-                report_error(&error, args.json);
+                report_error_as(capability, &error, args.json);
+                exit_code(error.code)
+            }
+        };
+    }
+
+    if command == "send" {
+        let policy = match args.policy.as_deref() {
+            Some(path) => {
+                let text = match std::fs::read_to_string(path) {
+                    Ok(text) => text,
+                    Err(error) => {
+                        let error = CapabilityError::invalid_argument(format!(
+                            "cannot read policy file {path}: {error}"
+                        ));
+                        report_error_as(capability, &error, args.json);
+                        return exit_code(error.code);
+                    }
+                };
+                match serde_json::from_str::<InspectPolicy>(&text) {
+                    Ok(policy) => Some(policy),
+                    Err(error) => {
+                        let error = CapabilityError::invalid_argument(format!(
+                            "invalid policy file {path}: {error}"
+                        ));
+                        report_error_as(capability, &error, args.json);
+                        return exit_code(error.code);
+                    }
+                }
+            }
+            None => None,
+        };
+        return match transaction_send::send(
+            &config,
+            TransactionSendRequest {
+                from,
+                to,
+                data: args.data,
+                value,
+                block: args.block,
+                timeout: std::time::Duration::from_secs(args.timeout_seconds),
+                policy,
+            },
+        )
+        .await
+        {
+            Ok(response) => {
+                if args.json {
+                    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                } else {
+                    println!("From: {}", response.from);
+                    println!("To: {}", response.to);
+                    println!("Tx: {}", response.tx_hash);
+                    println!(
+                        "Risk: {} · {}",
+                        response.inspection.risk, response.inspection.coverage.simulation
+                    );
+                }
+                0
+            }
+            Err(error) => {
+                report_error_as(capability, &error, args.json);
                 exit_code(error.code)
             }
         };
@@ -1752,7 +1828,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
             0
         }
         Err(error) => {
-            report_error(&error, args.json);
+            report_error_as(capability, &error, args.json);
             exit_code(error.code)
         }
     }
@@ -2023,6 +2099,7 @@ fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityE
     let mut block = None;
     let mut rpc_url = None;
     let mut policy = None;
+    let mut timeout_seconds = 90;
     let mut json = false;
     let mut index = 0;
     while index < raw.len() {
@@ -2094,6 +2171,20 @@ fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityE
                         .clone(),
                 );
             }
+            "--timeout" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--timeout needs a value"))?;
+                timeout_seconds = value.parse().map_err(|_| {
+                    CapabilityError::invalid_argument(format!("invalid --timeout: {value}"))
+                })?;
+                if timeout_seconds == 0 || timeout_seconds > 300 {
+                    return Err(CapabilityError::invalid_argument(
+                        "--timeout must be between 1 and 300 seconds",
+                    ));
+                }
+            }
             "--json" => json = true,
             value if value.starts_with('-') => {
                 return Err(CapabilityError::invalid_argument(format!(
@@ -2120,6 +2211,7 @@ fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityE
         block,
         rpc_url,
         policy,
+        timeout_seconds,
         json,
     })
 }
@@ -2346,6 +2438,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "wallet.sign" => fluxion_protocol::wallet::describe_sign(),
                 "wallet.send" => fluxion_protocol::wallet::describe_send(),
                 "transaction.simulate" => fluxion_protocol::transaction::describe(),
+                "transaction.send" => fluxion_protocol::transaction::describe_send(),
                 "transaction.inspect" => fluxion_protocol::transaction::describe_inspect(),
                 "signature.inspect" => fluxion_protocol::signature::describe(),
                 other => {

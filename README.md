@@ -100,6 +100,7 @@ Skills 告诉 Agent 何时调用哪个能力，以及如何解释结果。把仓
 |---|---|---|
 | `transaction.inspect` | `fluxion transaction inspect --to 0x... --data 0x...` | 签名前 calldata 检查、effects、trace、源码、policy |
 | `transaction.simulate` | `fluxion transaction simulate --to 0x... --data 0x...` | 固定区块 `eth_call` + gas |
+| `transaction.send` | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | 模拟 + inspect + policy + 手机确认 + 广播 |
 
 #### 4. 签名授权
 
@@ -465,6 +466,7 @@ fluxion signature inspect --user-operation userop.json
 | `wallet.sign` / `wallet.send` | local | 本地 session -> relay -> 手机钱包确认 | 拒绝 -> `USER_REJECTED`；超时 -> `TIMEOUT`；policy block -> `POLICY_BLOCKED` |
 | `transaction.inspect` | local | 本地 RPC：block、code、simulate、trace、source | 缺失维度写入 `coverage` / `unknowns` |
 | `transaction.simulate` | local | 本地 RPC：`eth_call` + `eth_estimateGas` | RPC/revert 按 capability error 或 `success=false` 返回 |
+| `transaction.send` | local | RPC simulate/inspect -> WalletConnect -> 手机确认 | 模拟失败、policy block、拒绝或超时均不广播 |
 | `signature.inspect` | local | 调用方提供的 typed data / authorization / userOp JSON | 无法解码 -> `SIG-006` 或 invalid argument |
 
 ### 请求流
@@ -511,7 +513,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - 架构：[产品架构](docs/PRODUCT-ARCHITECTURE.md) · [引擎架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
 - 运维：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
 - 安全：[规则目录](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- 契约：[swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json)
+- 契约：[swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
 - 研究：[benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills：[swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md)
 
@@ -530,7 +532,7 @@ Ethereum 主网。
 - 不提供 USD 估值。
 - `swap.quote` 需要单独部署 remote 服务。
 
-下一步：`transaction.send`、`swap.execute`。
+下一步：`swap.execute`。
 
 ## 开发
 
