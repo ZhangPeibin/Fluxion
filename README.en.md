@@ -470,8 +470,9 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - `WALLETCONNECT_PROJECT_ID`, `WALLETCONNECT_RELAY_URL`: wallet session.
 - `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`: optional source verification.
 - `FLUXION_VERIFY_RPC_URL`: optional secondary RPC for block-hash and target-code cross-check.
-- `FLUXION_THREAT_INTEL_FILE`: optional local threat-intel JSON; matches emit `ADDR-007`. The
-  registry is operator-provided and may be incomplete or stale.
+- `FLUXION_THREAT_INTEL_FILE`: optional local threat-intel JSON; matches emit `ADDR-007`.
+  `FLUXION_THREAT_INTEL_PUBKEY` enables Ed25519 signature verification. The registry is
+  operator-provided and may be incomplete or stale.
 - `FLUXION_BSCSCAN_API_URL` / `FLUXION_ETHERSCAN_API_URL`: replaceable verification endpoints.
 - Private keys never enter the runtime; the WalletConnect session is stored only at
   `~/.fluxion/walletconnect/session.json`.

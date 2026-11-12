@@ -20,7 +20,8 @@ fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
 - Source verification uses `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`. Without a key it stays
   `verified: null`; explicit `false` produces `CONTRACT-001`.
 - `FLUXION_THREAT_INTEL_FILE` optionally loads a local address registry; matches produce `ADDR-007`
-  with label/source evidence. The registry is operator-provided and may be stale.
+  with label/source evidence. See [threat-intel feed](THREAT-INTEL.md) for signing and expiry.
+  The registry is operator-provided and may be stale.
 - Effects come from `eth_simulateV1` logs plus balance/allowance verification. They are `partial`,
   not a full state diff. Internal calls are checked with `debug_traceCall` when available.
 - `risk` reflects known deterministic findings, otherwise `unknown`. It is never `safe`.

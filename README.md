@@ -451,8 +451,8 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - `WALLETCONNECT_PROJECT_ID`、`WALLETCONNECT_RELAY_URL`：钱包会话。
 - `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`：可选源码验证。
 - `FLUXION_VERIFY_RPC_URL`：可选第二 RPC，用于 block hash 和 target code 交叉校验。
-- `FLUXION_THREAT_INTEL_FILE`：可选本地 threat-intel JSON，命中地址输出 `ADDR-007`；registry 由
-  运营方提供，可能不完整或过期。
+- `FLUXION_THREAT_INTEL_FILE`：可选本地 threat-intel JSON，命中地址输出 `ADDR-007`；
+  `FLUXION_THREAT_INTEL_PUBKEY` 可启用 Ed25519 签名校验。registry 由运营方提供，可能不完整或过期。
 - `FLUXION_BSCSCAN_API_URL` / `FLUXION_ETHERSCAN_API_URL`：可替换验证端点。
 - 私钥不进入 runtime；WalletConnect session 只保存在本地 `~/.fluxion/walletconnect/session.json`。
 
