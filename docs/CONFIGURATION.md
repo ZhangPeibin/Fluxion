@@ -68,6 +68,7 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 | `FLUXION_AGENT_ID_API_URL` | `https://agentid.prd.space.id` | `wallet.agent-id` 的 SPACE ID API |
 | `FLUXION_BSC_RPC_URL` | `https://bsc-dataseed.bnbchain.org` | 默认链 BSC 的本地 RPC：wallet reads、simulate、sign/send、Agent ID |
 | `FLUXION_VERIFY_RPC_URL` | 空 | 可选第二 RPC；`transaction.inspect` 用它交叉校验 block hash 和 target code |
+| `FLUXION_THREAT_INTEL_FILE` | 空 | 可选本地 threat-intel JSON；命中地址输出 `ADDR-007` |
 | `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
 CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回

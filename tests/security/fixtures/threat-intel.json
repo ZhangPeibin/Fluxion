@@ -1,0 +1,12 @@
+{
+  "addresses": {
+    "0x75117c9158f53998ce8689b64509eff4fa10ad80": {
+      "label": "phishing spender from BscScan tx 0x3bfc8e4c",
+      "source": "https://bscscan.com/tx/0x3bfc8e4c0fae8d0dc27af462b8fbe4369263dd4d0a4acb9cec76e1104bb2cf4f"
+    },
+    "0xb6af46be91b1ba4043c99f968c18871d3a763059": {
+      "label": "phishing spender from BscScan tx 0xdbbb008e",
+      "source": "https://bscscan.com/tx/0xdbbb008e55a6493541020563f24e6462e2e49d2a7f71511b5bde819fae5b60f8"
+    }
+  }
+}

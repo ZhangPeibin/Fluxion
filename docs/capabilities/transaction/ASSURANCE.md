@@ -65,6 +65,7 @@ Every `transaction.inspect` response includes:
 | `ADDR-001` | high | Zero address target/recipient | role, address |
 | `ADDR-002` | high | Burn address target/recipient | role, address |
 | `ADDR-005` | low | Target equals sender | address |
+| `ADDR-007` | high | Address matches operator threat-intel | role, address, label, source |
 
 ### Swap and policy
 
@@ -110,6 +111,7 @@ corresponding coverage value.
 
 - RPC data is trusted for block, code, simulation, and trace. No light-client proof is used.
 - `FLUXION_VERIFY_RPC_URL` can cross-check block hash and target code, but not every state read.
+- `FLUXION_THREAT_INTEL_FILE` is operator-provided and may be incomplete or stale.
 - `debug_traceCall` is optional; public BSC RPC does not provide it.
 - Source verification is optional; missing key or provider failure is `verified=null`.
 - Balance/allowance verification depends on standard getters; non-standard tokens degrade to

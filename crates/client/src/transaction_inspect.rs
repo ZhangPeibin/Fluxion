@@ -340,6 +340,7 @@ async fn inspect_with_options(
         ));
     }
     let data = normalize_data(&request.data)?;
+    let (threat_intel, threat_intel_warning) = ThreatIntel::from_env();
     if data.len().saturating_sub(2) / 2 > MAX_DATA_BYTES {
         return Err(CapabilityError::invalid_argument(format!(
             "calldata exceeds {MAX_DATA_BYTES} bytes"
@@ -374,12 +375,22 @@ async fn inspect_with_options(
     warnings.extend(simulation.warnings);
     warnings.extend(trace.warnings);
     warnings.extend(cross_check.warnings);
+    if let Some(warning) = threat_intel_warning {
+        warnings.push(warning.clone());
+        unknowns.push(format!("threat intel unavailable: {warning}"));
+    }
     let mut findings = simulation.findings.clone();
     findings.extend(trace.findings);
     findings.extend(detect_approvals(&decoded.intent));
     findings.extend(detect_nested_approvals(&decoded.intent));
     findings.extend(detect_contract(&decoded.intent, &metadata.target, &request));
     findings.extend(detect_address(&decoded.intent, &request));
+    findings.extend(detect_threat_intel(
+        &decoded.intent,
+        &request,
+        &simulation.effects,
+        threat_intel.as_ref(),
+    ));
     findings.extend(detect_swap(&decoded.intent, &request));
     findings.extend(detect_signature(&decoded.intent));
     findings.extend(detect_asset_flow(
@@ -428,6 +439,13 @@ async fn inspect_with_options(
             scope: "target-metadata".to_string(),
         },
     ];
+    if let Some(intel) = threat_intel.as_ref() {
+        let _ = intel;
+        sources.push(TransactionInspectSource {
+            name: "threat-intel".to_string(),
+            scope: "address-registry".to_string(),
+        });
+    }
     sources.extend(metadata.sources);
     sources.extend(simulation.sources);
     sources.extend(trace.sources);
@@ -604,6 +622,7 @@ fn limitations(response: &TransactionInspectResponse) -> Vec<String> {
     items.push(
         "RPC responses are trusted for state reads; no light-client proof is used".to_string(),
     );
+    items.push("threat intel is operator-provided and may be incomplete or stale".to_string());
     items.push(
         "pre-sign inspection is advisory and is not an audit or safety guarantee".to_string(),
     );
@@ -1124,6 +1143,84 @@ fn signature_finding(
         confidence: "high".to_string(),
         deterministic: true,
     }
+}
+
+fn detect_threat_intel(
+    intent: &TransactionInspectIntent,
+    request: &InspectRequest,
+    effects: &TransactionInspectEffects,
+    intel: Option<&ThreatIntel>,
+) -> Vec<TransactionInspectFinding> {
+    let Some(intel) = intel else {
+        return Vec::new();
+    };
+    let mut checked = BTreeSet::new();
+    let mut findings = Vec::new();
+
+    check_threat_address(intel, request.to, "target", &mut checked, &mut findings);
+    if let Some(from) = request.from {
+        check_threat_address(intel, from, "sender", &mut checked, &mut findings);
+    }
+    for arg in &intent.args {
+        if matches!(arg.name.as_str(), "to" | "spender" | "operator" | "from")
+            && let Some(address) = parse_address(&arg.value)
+        {
+            check_threat_address(intel, address, &arg.name, &mut checked, &mut findings);
+        }
+    }
+    for approval in &effects.approvals {
+        check_threat_address(
+            intel,
+            approval.spender,
+            "approval spender",
+            &mut checked,
+            &mut findings,
+        );
+    }
+    for effect in &effects.tokens {
+        check_threat_address(
+            intel,
+            effect.account,
+            "token account",
+            &mut checked,
+            &mut findings,
+        );
+    }
+    findings
+}
+
+fn check_threat_address(
+    intel: &ThreatIntel,
+    address: Address,
+    role: &str,
+    checked: &mut BTreeSet<(Address, String)>,
+    findings: &mut Vec<TransactionInspectFinding>,
+) {
+    if !checked.insert((address, role.to_string())) {
+        return;
+    }
+    let Some(entry) = intel.lookup(address) else {
+        return;
+    };
+    let mut evidence = BTreeMap::new();
+    evidence.insert("address".to_string(), address.to_string());
+    evidence.insert("role".to_string(), role.to_string());
+    evidence.insert("label".to_string(), entry.label.clone());
+    if let Some(source) = entry.source.as_ref() {
+        evidence.insert("source".to_string(), source.clone());
+    }
+    evidence.insert("source_type".to_string(), "threat-intel".to_string());
+    findings.push(TransactionInspectFinding {
+        id: "ADDR-007".to_string(),
+        category: "address".to_string(),
+        severity: "high".to_string(),
+        title: "Known malicious address".to_string(),
+        description: "An address in this transaction matches the configured threat-intel registry."
+            .to_string(),
+        evidence,
+        confidence: "high".to_string(),
+        deterministic: true,
+    });
 }
 
 fn detect_swap(
@@ -2503,6 +2600,65 @@ fn parse_u256(value: &str) -> Option<U256> {
         .strip_prefix("0x")
         .or_else(|| value.strip_prefix("0X"))?;
     U256::from_str_radix(hex, 16).ok()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ThreatIntelEntry {
+    label: String,
+    #[serde(default)]
+    source: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct ThreatIntel {
+    entries: BTreeMap<Address, ThreatIntelEntry>,
+}
+
+impl ThreatIntel {
+    fn from_env() -> (Option<Self>, Option<String>) {
+        let Some(path) = std::env::var("FLUXION_THREAT_INTEL_FILE")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+        else {
+            return (None, None);
+        };
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) => {
+                return (
+                    None,
+                    Some(format!(
+                        "threat intel file {path} could not be read: {error}"
+                    )),
+                );
+            }
+        };
+        let file: ThreatIntelFile = match serde_json::from_str(&text) {
+            Ok(file) => file,
+            Err(error) => {
+                return (
+                    None,
+                    Some(format!("threat intel file {path} is invalid: {error}")),
+                );
+            }
+        };
+        (
+            Some(Self {
+                entries: file.addresses,
+            }),
+            None,
+        )
+    }
+
+    fn lookup(&self, address: Address) -> Option<&ThreatIntelEntry> {
+        self.entries.get(&address)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ThreatIntelFile {
+    #[serde(default)]
+    addresses: BTreeMap<Address, ThreatIntelEntry>,
 }
 
 struct TargetMetadata {
@@ -4799,6 +4955,36 @@ mod tests {
                     .unwrap()
             )
         );
+    }
+
+    #[test]
+    fn flags_known_threat_intel_address() {
+        let attacker: Address = "0x0000000000000000000000000000000000000002"
+            .parse()
+            .unwrap();
+        let data = format!(
+            "0x095ea7b3{}{}",
+            address_word("0x0000000000000000000000000000000000000002"),
+            uint_word(100)
+        );
+        let intent = decode_intent(&data).unwrap().intent;
+        let request = flow_request();
+        let intel = ThreatIntel {
+            entries: BTreeMap::from([(
+                attacker,
+                ThreatIntelEntry {
+                    label: "test phishing spender".to_string(),
+                    source: Some("fixture".to_string()),
+                },
+            )]),
+        };
+        let findings = detect_threat_intel(
+            &intent,
+            &request,
+            &TransactionInspectEffects::default(),
+            Some(&intel),
+        );
+        assert!(findings.iter().any(|finding| finding.id == "ADDR-007"));
     }
 
     #[test]

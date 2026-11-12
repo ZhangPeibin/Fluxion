@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import urllib.request
 from pathlib import Path
 
 BSC_RPC = "https://bsc-dataseed.bnbchain.org"
-CORPUS = Path(__file__).resolve().parents[2] / "tests" / "security" / "fixtures" / "historical.json"
+ROOT = Path(__file__).resolve().parents[2]
+CORPUS = ROOT / "tests" / "security" / "fixtures" / "historical.json"
+THREAT_INTEL = ROOT / "tests" / "security" / "fixtures" / "threat-intel.json"
 
 
 def rpc(method: str, params: list) -> dict:
@@ -38,7 +41,7 @@ def fetch_tx(tx_hash: str) -> dict:
     return result
 
 
-def inspect(binary: str, tx: dict) -> dict:
+def inspect(binary: str, tx: dict, threat_intel: Path | None) -> dict:
     command = [
         binary,
         "transaction",
@@ -55,7 +58,16 @@ def inspect(binary: str, tx: dict) -> dict:
         tx["input"],
         "--json",
     ]
-    completed = subprocess.run(command, capture_output=True, text=True, timeout=60)
+    env = None
+    if threat_intel is not None:
+        env = {**os.environ, "FLUXION_THREAT_INTEL_FILE": str(threat_intel)}
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
     if completed.returncode != 0:
         raise RuntimeError(
             f"inspect failed for {tx['hash']}:\n{completed.stderr}"
@@ -63,9 +75,9 @@ def inspect(binary: str, tx: dict) -> dict:
     return json.loads(completed.stdout)
 
 
-def run_case(binary: str, case: dict) -> dict:
+def run_case(binary: str, case: dict, threat_intel: Path | None) -> dict:
     tx = fetch_tx(case["tx"])
-    response = inspect(binary, tx)
+    response = inspect(binary, tx, threat_intel)
     findings = sorted({finding["id"] for finding in response["findings"]})
     decode = response["coverage"]["decode"]
     if case["mode"] == "detect":
@@ -105,12 +117,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bin", default="fluxion")
     parser.add_argument("--corpus", type=Path, default=CORPUS)
+    parser.add_argument("--threat-intel", type=Path, default=THREAT_INTEL)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--json-out", type=Path)
     args = parser.parse_args()
 
     cases = json.loads(args.corpus.read_text())
-    results = [run_case(args.bin, case) for case in cases]
+    threat_intel = args.threat_intel if args.threat_intel.exists() else None
+    results = [run_case(args.bin, case, threat_intel) for case in cases]
     output = markdown(results)
     print(output)
     if args.out:
