@@ -38,6 +38,8 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub enum CapabilityId {
     #[serde(rename = "swap.quote")]
     SwapQuote,
+    #[serde(rename = "swap.build")]
+    SwapBuild,
     #[serde(rename = "wallet.balance")]
     WalletBalance,
     #[serde(rename = "wallet.assets")]
@@ -70,6 +72,7 @@ impl CapabilityId {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::SwapQuote => "swap.quote",
+            Self::SwapBuild => "swap.build",
             Self::WalletBalance => "wallet.balance",
             Self::WalletAssets => "wallet.assets",
             Self::WalletAllowance => "wallet.allowance",
@@ -89,6 +92,7 @@ impl CapabilityId {
     pub const fn all() -> &'static [Self] {
         &[
             Self::SwapQuote,
+            Self::SwapBuild,
             Self::WalletBalance,
             Self::WalletAssets,
             Self::WalletAllowance,
@@ -131,6 +135,7 @@ mod tests {
             names().collect::<Vec<_>>(),
             vec![
                 "swap.quote",
+                "swap.build",
                 "wallet.balance",
                 "wallet.assets",
                 "wallet.allowance",
@@ -147,6 +152,7 @@ mod tests {
             ]
         );
         assert_eq!(CapabilityId::SwapQuote.as_str(), "swap.quote");
+        assert_eq!(CapabilityId::SwapBuild.as_str(), "swap.build");
         assert_eq!(CapabilityId::WalletBalance.as_str(), "wallet.balance");
         assert_eq!(CapabilityId::WalletAssets.as_str(), "wallet.assets");
         assert_eq!(CapabilityId::WalletAllowance.as_str(), "wallet.allowance");

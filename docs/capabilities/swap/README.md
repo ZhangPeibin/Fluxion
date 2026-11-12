@@ -3,13 +3,33 @@
 English · [中文](README.zh.md)
 
 `swap.quote` is Fluxion's first capability: an exact-in swap quote on Ethereum mainnet. It returns
-amounts, split allocations, hop paths and state provenance. It is read-only and never signs,
-approves, or broadcasts.
+amounts, split allocations, hop paths and state provenance. `swap.build` turns a single V2
+allocation into router calldata. Both are read-only and never sign, approve, or broadcast.
+
+## `swap.build`
+
+Local calldata construction from a saved `swap.quote` response.
+
+```bash
+fluxion swap quote --in USDC --out WETH --amount 100 --json > /tmp/quote.json
+fluxion swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 --json
+```
+
+- Ethereum only in the first slice.
+- Requires exactly one allocation with no nested `sources` / `children`.
+- Supports `uniswap-v2` hops only.
+- Builds `swapExactTokensForTokens(uint256,uint256,address[],address,uint256)` against
+  `0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D`.
+- `amount_out_min` is computed from quote `amount_out` and `slippage_bps`.
+- Rejects split routes, V3, Curve, aggregators and disconnected hops.
+- Does not sign, broadcast or verify quote freshness beyond returning `quote_block`.
+
+Schema: [`schemas/swap_build.v1.json`](../../../schemas/swap_build.v1.json).
 
 ## Execution model
 
-`swap.quote` always uses the remote Fluxion service; `wallet` / `execute` capabilities use the
-local runtime. Agents and users do not choose local/remote.
+`swap.quote` always uses the remote Fluxion service; `swap.build` and `wallet` / `execute`
+capabilities use the local runtime. Agents and users do not choose local/remote.
 
 The remote endpoint is configured with `FLUXION_REMOTE_URL` (or `--url`); authentication and
 registration live in [docs/MCP.md](../../MCP.md). This is endpoint configuration, not an execution
@@ -233,7 +253,7 @@ CLI exit codes: `2` invalid argument, `3` no path/liquidity, `4` RPC/unsupported
 ## Boundaries
 
 - Read-only: this capability does not construct, simulate, sign, or execute transactions.
-- `swap.build`, `swap.simulate`, and `swap.execute` are future local-only capabilities.
+- `swap.simulate`, `swap.execute` and generic `transaction.send` remain future local-only capabilities; `swap.build` is available.
 - A successful quote is not a guarantee of execution; re-check freshness, slippage, gas, MEV and
   user authorization before acting.
 - Skills are documentation, not a security boundary.

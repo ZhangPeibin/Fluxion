@@ -1,6 +1,7 @@
 //! `swap` capability family. The current implementation exposes `swap.quote`;
 //! `swap.build` and execution belong to later phases.
 
+pub mod build;
 pub mod quote;
 
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ pub fn describe() -> CapabilityDescriptor {
     }
 }
 
+pub use build::{SwapBuildHop, SwapBuildResponse};
 pub use quote::{AllocationResponse, HopResponse, QuoteErrorResponse, QuoteRequest, QuoteResponse};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
