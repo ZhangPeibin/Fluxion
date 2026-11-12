@@ -9,6 +9,10 @@
 [Local red-team corpus](redteam-2026-11-11.md) adds Foundry/Anvil adversarial contracts:
 17/17 detect cases matched, 3/3 controls had no findings, and the remaining case is covered by a mock verification provider.
 
+[Historical BSC calldata replay](historical-calddata-2026-11-11.md) checks real transaction calldata:
+two real unlimited-approval phishing transactions are detected; two opaque exploit entrypoints stay
+explicitly unknown.
+
 ## Quote benchmarks
 
 ## Latest: 310-pool runtime profile (6 Nov 2026)

@@ -405,8 +405,11 @@ fluxion signature inspect --user-operation userop.json
   policy 和 signature。
 - Foundry/Anvil 红队合约覆盖伪造日志、hidden delegatecall、proxy upgrade、无限授权、permit、
   7702 和 4337。
-- 当前红队语料 **17/17 detect**，**3/3 controls 无误报**。方法和原始数据见
-  [red-team](docs/benchmarks/redteam-2026-11-11.md) 与
+- 当前红队语料 **17/17 detect**，**3/3 controls 无误报**。
+- 真实历史 BSC calldata：两笔真实 unlimited approval phishing 交易命中 `AUTH-001`；两个 opaque
+  exploit entrypoint 明确保持 `unknown`。
+- 方法和原始数据见 [red-team](docs/benchmarks/redteam-2026-11-11.md)、
+  [historical calldata](docs/benchmarks/historical-calddata-2026-11-11.md) 与
   [security benchmark](docs/benchmarks/security-inspection-2026-11-11.md)。
 
 ## 执行模型
