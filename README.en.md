@@ -119,6 +119,7 @@ that is internal Fluxion routing.
 | Capability | CLI | Description |
 |---|---|---|
 | `fourmeme.agent-tokens` | `fluxion fourmeme agent-tokens --wallet 0x...` | Discover Binance Agent ID Exclusive tokens and wallet eligibility |
+| `fourmeme.token` | `fluxion fourmeme token 0x... --wallet 0x...` | Single-token detail, phase, market data and eligibility |
 
 Full usage and "ask the agent" examples are below in each capability section.
 
@@ -375,7 +376,17 @@ Discover recent Four.meme tokens using the `Binance Agent ID Exclusive` template
 fluxion fourmeme agent-tokens --json
 fluxion fourmeme agent-tokens --wallet 0x... --limit 20 --json
 fluxion fourmeme agent-tokens --lookback-blocks 100000 --json
+fluxion fourmeme token 0x... --wallet 0x... --json
+fluxion fourmeme ui --open
 ```
+
+`fourmeme.token` returns one token's image, description, phase, template, raised, market cap,
+price, supply, creator and optional wallet eligibility. If the detail API is unavailable it falls
+back to OpenFour Core `tokens`, vault phase and BSC ERC20 fields; only when Core is also unavailable
+does it report `phase: unknown`.
+
+`fourmeme.ui` starts a local read-only page on `127.0.0.1:8787` by default. List cards link to
+`#/token/<address>` detail pages. It never connects a wallet, signs, buys or sells.
 
 During the bonding phase only a Binance Agentic Wallet with an Agent ID can trade, each address
 is capped at 1% of creation-time `maxSupply`, and inner-market transfers are locked. Trading opens
@@ -511,7 +522,8 @@ only routes.
 | `transaction.simulate` | local | local RPC: `eth_call` + `eth_estimateGas` | RPC/revert -> capability error or `success=false` |
 | `transaction.send` | local | RPC simulate/inspect -> WalletConnect -> phone | Simulation failure, policy block, rejection or timeout never broadcast |
 | `signature.inspect` | local | caller-provided typed data / authorization / userOp JSON | Undecodable -> `SIG-006` or invalid argument |
-| `fourmeme.agent-tokens` | local | Four.meme API + BSC `AgentIdentifier` | API/RPC failure -> explicit warning/coverage |
+| `fourmeme.agent-tokens` | local | BSC `TokenCreated` logs + Four.meme API + BSC `AgentIdentifier` | API/RPC failure -> explicit warning/coverage |
+| `fourmeme.token` | local | Four.meme API + BSC ERC20 fallback + `AgentIdentifier` | API unavailable -> on-chain basics + warning |
 
 ### Request flows
 
@@ -535,7 +547,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - `FLUXION_RPC_URL` / `RPC_URL`: Ethereum RPC.
 - `FLUXION_BSC_RPC_URL`: BSC RPC; default chain for local capabilities.
 - `FOURMEME_API_URL`: Four.meme REST API; defaults to `https://four.meme/meme-api/v1`.
-- `FOURMEME_BSC_RPC_URL`: BSC RPC with `eth_getLogs`; defaults to `https://bsc-rpc.publicnode.com`.
+- `FOURMEME_BSC_RPC_URL`: BSC RPC with `eth_getLogs`, also used for ERC20 fallback; defaults to `https://bsc-rpc.publicnode.com`.
 - `WALLETCONNECT_PROJECT_ID`, `WALLETCONNECT_RELAY_URL`: wallet session.
 - `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`: optional source verification.
 - `FLUXION_VERIFY_RPC_URL`: optional secondary RPC for block-hash and target-code cross-check.
@@ -562,7 +574,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - Security: [rule catalog](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- Contracts: [fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
+- Contracts: [fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
 - Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills: [swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
 

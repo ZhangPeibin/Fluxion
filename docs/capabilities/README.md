@@ -22,6 +22,7 @@ its execution location is an internal Fluxion decision.
 | `transaction.send` | available | [transaction/README.md](transaction/README.md) |
 | `signature.inspect` | available | [signature/README.md](signature/README.md) |
 | `fourmeme.agent-tokens` | available | [fourmeme/README.md](fourmeme/README.md) |
+| `fourmeme.token` | available | [fourmeme/README.md](fourmeme/README.md) |
 
 ## Contract vs execution
 
