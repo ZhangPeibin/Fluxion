@@ -11,6 +11,7 @@ use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
 use crate::capability::{CapabilityError, CapabilityErrorResponse};
 use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
+use crate::fourmeme::{self, FourMemeConfig, ListRequest as FourMemeListRequest};
 use crate::signature_inspect::{self, SignatureInspectRequest};
 use crate::swap::quote::QuoteRequest;
 use crate::swap_build::{self, BuildRequest};
@@ -365,6 +366,18 @@ fn tools_list() -> Value {
                         "user_operation": {"type": "object", "description": "ERC-4337 user operation"}
                     }
                 }
+            },
+            {
+                "name": "fourmeme_agent_tokens",
+                "description": "List recent Four.meme tokens in Binance Agent ID Exclusive mode. Read-only; filters by template 1778027615735 and can check AgentIdentifier eligibility for a wallet.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "wallet": {"type": "string", "description": "Optional wallet for AgentIdentifier eligibility"},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
+                        "lookback_blocks": {"type": "integer", "minimum": 1, "maximum": 5000000, "default": 100000}
+                    }
+                }
             }
         ]
     })
@@ -406,6 +419,7 @@ async fn call_tool(
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         "transaction_inspect" => transaction_inspect_tool(&arguments).await,
         "transaction_send" => transaction_send_tool(&arguments).await,
+        "fourmeme_agent_tokens" => fourmeme_agent_tokens_tool(&arguments).await,
         "signature_inspect" => signature_inspect_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
@@ -433,6 +447,7 @@ fn capability_for_tool(name: &str) -> &'static str {
         "transaction_simulate" => "transaction.simulate",
         "transaction_inspect" => "transaction.inspect",
         "transaction_send" => "transaction.send",
+        "fourmeme_agent_tokens" => "fourmeme.agent-tokens",
         "signature_inspect" => "signature.inspect",
         _ => "unknown",
     }
@@ -888,6 +903,48 @@ async fn transaction_inspect_tool(arguments: &Value) -> Result<Value, Capability
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+async fn fourmeme_agent_tokens_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let wallet = arguments
+        .get("wallet")
+        .and_then(Value::as_str)
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument("invalid wallet address"))
+        })
+        .transpose()?;
+    let limit = arguments
+        .get("limit")
+        .and_then(Value::as_u64)
+        .unwrap_or(20)
+        .try_into()
+        .map_err(|_| CapabilityError::invalid_argument("invalid limit"))?;
+    if !(1..=50).contains(&limit) {
+        return Err(CapabilityError::invalid_argument(
+            "limit must be between 1 and 50",
+        ));
+    }
+    let lookback_blocks = arguments
+        .get("lookback_blocks")
+        .and_then(Value::as_u64)
+        .unwrap_or(100_000);
+    if lookback_blocks == 0 || lookback_blocks > 5_000_000 {
+        return Err(CapabilityError::invalid_argument(
+            "lookback_blocks must be between 1 and 5000000",
+        ));
+    }
+    let response = fourmeme::agent_tokens(
+        &FourMemeConfig::from_env(),
+        FourMemeListRequest {
+            wallet,
+            limit,
+            lookback_blocks,
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn transaction_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
     let to = string_arg(arguments, "to")?
         .parse::<alloy_primitives::Address>()
@@ -1123,7 +1180,8 @@ mod tests {
                 "transaction_simulate",
                 "transaction_inspect",
                 "transaction_send",
-                "signature_inspect"
+                "signature_inspect",
+                "fourmeme_agent_tokens"
             ]
         );
     }

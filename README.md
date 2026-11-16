@@ -108,6 +108,12 @@ Skills 告诉 Agent 何时调用哪个能力，以及如何解释结果。把仓
 |---|---|---|
 | `signature.inspect` | `fluxion signature inspect --typed-data typed-data.json` | EIP-712、Permit2、7702、4337 |
 
+#### 5. Four.meme
+
+| Capability | CLI | 说明 |
+|---|---|---|
+| `fourmeme.agent-tokens` | `fluxion fourmeme agent-tokens --wallet 0x...` | 发现 Binance Agent ID Exclusive token，查询钱包资格 |
+
 完整用法和“对 Agent 说”的示例见下面各能力小节。
 
 ### 报价
@@ -346,6 +352,22 @@ fluxion signature inspect --user-operation userop.json
 检查这个 Permit2 typed data：金额、过期时间、spender 和链 ID 有没有问题。
 ```
 
+### Four.meme Agent ID Exclusive
+
+Skill：[fourmeme](skills/fourmeme/SKILL.md) · 文档：[fourmeme](docs/capabilities/fourmeme/README.md)
+
+发现 Four.meme 上使用 `Binance Agent ID Exclusive` 模板（`presetId=1778027615735`）的近期
+token，并可检查钱包是否持有 Agent ID。`aiCreator` 或 `.ai` 标签不等于该模板。
+
+```bash
+fluxion fourmeme agent-tokens --json
+fluxion fourmeme agent-tokens --wallet 0x... --limit 20 --json
+fluxion fourmeme agent-tokens --lookback-blocks 100000 --json
+```
+
+内盘阶段只有 Binance Agentic Wallet + Agent ID 可交易，单地址最多持有创建时 `maxSupply`
+的 1%，且内盘转账被锁定；毕业后开放交易。该能力只发现和检查，不买、不卖、不签名。
+
 ## 安全模型
 
 `transaction.inspect` / `signature.inspect` 只做**签名前检查**。它们不持有私钥、不签名、
@@ -468,6 +490,7 @@ fluxion signature inspect --user-operation userop.json
 | `transaction.simulate` | local | 本地 RPC：`eth_call` + `eth_estimateGas` | RPC/revert 按 capability error 或 `success=false` 返回 |
 | `transaction.send` | local | RPC simulate/inspect -> WalletConnect -> 手机确认 | 模拟失败、policy block、拒绝或超时均不广播 |
 | `signature.inspect` | local | 调用方提供的 typed data / authorization / userOp JSON | 无法解码 -> `SIG-006` 或 invalid argument |
+| `fourmeme.agent-tokens` | local | Four.meme API + BSC `AgentIdentifier` | API/RPC 失败 -> 明确 warning/coverage |
 
 ### 请求流
 
@@ -491,6 +514,8 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - `FLUXION_RPC_URL` / `RPC_URL`：Ethereum RPC。
 - `FLUXION_BSC_RPC_URL`：BSC RPC，本地能力默认链。
 - `WALLETCONNECT_PROJECT_ID`、`WALLETCONNECT_RELAY_URL`：钱包会话。
+- `FOURMEME_API_URL`：Four.meme REST API，默认 `https://four.meme/meme-api/v1`。
+- `FOURMEME_BSC_RPC_URL`：支持 `eth_getLogs` 的 BSC RPC，默认 `https://bsc-rpc.publicnode.com`。
 - `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`：可选源码验证。
 - `FLUXION_VERIFY_RPC_URL`：可选第二 RPC，用于 block hash 和 target code 交叉校验。
 - `FLUXION_THREAT_INTEL_FILE`：可选本地 threat-intel JSON，命中地址输出 `ADDR-007`；
@@ -513,9 +538,9 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - 架构：[产品架构](docs/PRODUCT-ARCHITECTURE.md) · [引擎架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
 - 运维：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
 - 安全：[规则目录](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- 契约：[swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
+- 契约：[fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
 - 研究：[benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
-- Skills：[swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md)
+- Skills：[swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
 
 ## 状态与边界
 

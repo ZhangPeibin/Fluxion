@@ -5,6 +5,7 @@ pub mod auth;
 pub mod chain;
 pub mod cli;
 pub mod client;
+pub mod fourmeme;
 pub mod mcp;
 pub mod routing;
 pub mod signature_inspect;

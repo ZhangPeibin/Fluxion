@@ -1,8 +1,7 @@
 # Capabilities
 
 Fluxion exposes Web3 actions as capabilities. A capability defines the request/response contract;
-its execution location is an internal Fluxion decision. The first delivered capability is
-`swap.quote`.
+its execution location is an internal Fluxion decision.
 
 | Capability | Status | Docs |
 |---|---|---|
@@ -22,11 +21,12 @@ its execution location is an internal Fluxion decision. The first delivered capa
 | `transaction.simulate` | available | [transaction/README.md](transaction/README.md) |
 | `transaction.send` | available | [transaction/README.md](transaction/README.md) |
 | `signature.inspect` | available | [signature/README.md](signature/README.md) |
+| `fourmeme.agent-tokens` | available | [fourmeme/README.md](fourmeme/README.md) |
 
 ## Contract vs execution
 
 - Capability: what the agent wants to do (`swap.quote`)
-- Execution location: fixed per capability (`swap.quote` → remote service, `wallet`/`execute` → local runtime)
+- Execution location: fixed per capability (`swap.quote` → remote service, wallet and execution capabilities → local runtime)
 - Data source: RPC, subgraphs, protocol APIs used internally
 - Transport: CLI or [MCP stdio](../MCP.md)
 

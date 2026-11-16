@@ -1,6 +1,6 @@
 # Four.meme Agent ID Exclusive tokens - Spec
 
-**Status:** draft
+**Status:** implemented
 **Release:** v2
 **Capability:** `fourmeme.agent-tokens`
 
@@ -28,21 +28,23 @@ The mode is not the same as `aiCreator` or the `.ai` tag. Users need a read-only
   - token must use template `1778027615735`;
   - phase must be `bonding` or `graduated`;
   - verdict is `true | false | unknown`, never inferred.
-- API + on-chain verification, with `coverage` / `sources` / `warnings`.
+- On-chain log discovery plus optional API detail, with `coverage` / `sources` / `warnings`.
 
 ### Out of scope
 
 - Buying or selling tokens.
 - Binance Agentic Wallet login, AI Pro, or Developer Mode automation.
-- Complete historical indexing; discovery is recent-token sampling.
+- Complete historical indexing; discovery is bounded by `lookback-blocks`.
 - Price, PnL, or token quality claims.
 
 ## Data sources
 
-- Four.meme REST: `POST /public/token/search`, `GET /private/token/get/v2?address=...`.
+- BSC `eth_getLogs` on OpenFour Core `0xebe7b6C1089D9F72aD07f34E36d898e44E5e27f3`;
+  `TokenCreated` topic filtered by `presetId=1778027615735`.
+- Optional Four.meme REST detail: `GET /private/token/get/v2?address=...`.
 - BSC: `AgentIdentifier 0x09B44A633de9F9EBF6FB9Bdd5b5629d3DD2cef13`, `isAgent(address)`.
-- Optional env `FOURMEME_API_URL`; default `https://four.meme/meme-api/v1`.
-- Token template id: `1778027615735` (`Binance Agent ID Exclusive`).
+- Env: `FOURMEME_BSC_RPC_URL` (must support `eth_getLogs`), `FOURMEME_API_URL`.
+- Token template id / preset: `1778027615735` (`Binance Agent ID Exclusive`).
 
 ## Output
 
@@ -50,7 +52,10 @@ The mode is not the same as `aiCreator` or the `.ai` tag. Users need a read-only
 {
   "chain": "bsc",
   "mode": "binance_agent_id_exclusive",
-  "scanned": 100,
+  "scanned": 1,
+  "lookback_blocks": 100000,
+  "from_block": 133750000,
+  "to_block": 133850000,
   "tokens": [
     {
       "address": "0x...",
@@ -65,7 +70,7 @@ The mode is not the same as `aiCreator` or the `.ai` tag. Users need a read-only
       "eligibility_reason": "agent_wallet"
     }
   ],
-  "coverage": "api+onchain",
+  "coverage": "onchain+api",
   "sources": [],
   "warnings": []
 }
@@ -75,17 +80,19 @@ The mode is not the same as `aiCreator` or the `.ai` tag. Users need a read-only
 
 - `FOURMEME-001`: template id must equal `1778027615735`; `.ai` tag or `aiCreator` alone is not
   sufficient.
-- `FOURMEME-002`: `status=PUBLISH` is treated as bonding; `status=TRADE` as graduated.
+- `FOURMEME-002`: discovery uses `TokenCreated.presetId`; `status=PUBLISH` is bonding and
+  `status=TRADE` is graduated.
 - `FOURMEME-003`: if `AgentIdentifier` is unavailable, `wallet_eligible=null` + warning.
-- `FOURMEME-004`: if the API or token detail is unavailable, omit the token and report coverage.
-- `FOURMEME-005`: discovery is a recent-token sample, not a complete historical index.
+- `FOURMEME-004`: if API detail is unavailable, keep the log-derived token with `phase=unknown`
+  and report the failure; partial log ranges are warnings, never silent zeros.
+- `FOURMEME-005`: discovery is bounded by `lookback-blocks`, not a complete historical index.
 - `FOURMEME-006`: no buy/sell calldata is built.
 
 ## Acceptance
 
-- CLI/MCP can list recent exclusive tokens.
+- CLI/MCP can list exclusive tokens created in the lookback window.
 - Optional `--wallet` reports `true/false/null` eligibility.
 - No false claim based on `aiCreator` or `.ai` tag.
 - Templates, API/RPC failures and out-of-scope phases are explicit.
-- Tests use mock API/RPC; one live read-only smoke check.
+- Tests cover event decoding, template matching and phase mapping; one live read-only smoke check.
 - fmt/clippy/workspace tests and docs/schema/skill updates.
