@@ -232,20 +232,6 @@ impl Rpc {
         })
     }
 
-    pub(crate) async fn get_logs(&self, filter: Value) -> Result<Vec<Value>, CapabilityError> {
-        let value = self
-            .call("eth_getLogs", json!([filter]))
-            .await
-            .map_err(rpc_failure)?;
-        value.as_array().cloned().ok_or_else(|| {
-            CapabilityError::new(
-                crate::capability::CapabilityErrorCode::RpcError,
-                "eth_getLogs returned a non-array result",
-                true,
-            )
-        })
-    }
-
     pub(crate) async fn call_hex(
         &self,
         to: Address,

@@ -69,6 +69,7 @@ struct CreatedToken {
     address: Address,
     name: String,
     symbol: String,
+    vault: Option<Address>,
     block: u64,
 }
 
@@ -83,21 +84,23 @@ pub async fn agent_tokens(
     let mut warnings = Vec::new();
     let mut created = Vec::new();
     let mut seen = BTreeSet::new();
-    let mut chunks = 0usize;
-    let mut failed_chunks = 0usize;
+    let mut ranges = Vec::new();
     let mut end = latest;
 
     loop {
         let start = end.saturating_sub(LOG_CHUNK_BLOCKS - 1).max(from_block);
-        chunks += 1;
-        let filter = json!({
-            "fromBlock": format!("0x{start:x}"),
-            "toBlock": format!("0x{end:x}"),
-            "address": OPENFOUR_CORE,
-            "topics": [TOKEN_CREATED_TOPIC, AGENT_PRESET_TOPIC]
-        });
-        match rpc.get_logs(filter).await {
-            Ok(logs) => {
+        ranges.push((start, end));
+        if start == from_block {
+            break;
+        }
+        end = start.saturating_sub(1);
+    }
+
+    let pages = log_pages(config, &ranges).await?;
+    let mut failed_chunks = 0usize;
+    for ((start, end), page) in ranges.iter().zip(pages) {
+        match page {
+            Some(logs) => {
                 for log in logs {
                     let Some(token) = decode_created(&log) else {
                         warnings.push("ignored an unreadable TokenCreated log".to_string());
@@ -108,21 +111,14 @@ pub async fn agent_tokens(
                     }
                 }
             }
-            Err(error) => {
+            None => {
                 failed_chunks += 1;
-                warnings.push(format!(
-                    "BSC log range {start}-{end} unavailable: {}",
-                    error.message
-                ));
+                warnings.push(format!("BSC log range {start}-{end} unavailable"));
             }
         }
-        if start == from_block {
-            break;
-        }
-        end = start.saturating_sub(1);
     }
 
-    if failed_chunks == chunks {
+    if failed_chunks == ranges.len() {
         return Err(api_error(format!(
             "BSC log discovery failed; set FOURMEME_BSC_RPC_URL to an RPC that supports eth_getLogs: {}",
             warnings.join("; ")
@@ -138,12 +134,9 @@ pub async fn agent_tokens(
     let scanned = created.len();
     created.truncate(request.limit);
 
-    let mut tokens = Vec::with_capacity(created.len());
+    let mut enriched = Vec::with_capacity(created.len());
     let mut details_used = false;
     let mut details_disabled = false;
-    let mut onchain_state_used = false;
-    let mut onchain_used = false;
-    let mut wallet_agent: Option<Option<bool>> = None;
 
     for created in created {
         let detail = if details_disabled {
@@ -163,7 +156,7 @@ pub async fn agent_tokens(
                 Err(error) if detail_api_unavailable(&error.message) => {
                     details_disabled = true;
                     warnings.push(format!(
-                        "Four.meme detail API unavailable; remaining tokens use log metadata: {}",
+                        "Four.meme detail API unavailable; remaining tokens use on-chain state: {}",
                         error.message
                     ));
                     None
@@ -177,16 +170,39 @@ pub async fn agent_tokens(
                 }
             }
         };
-        let onchain = if detail.is_none() {
-            onchain_state(config, created.address).await.ok().flatten()
-        } else {
-            None
-        };
-        onchain_state_used |= onchain.is_some();
+        enriched.push((created, detail));
+    }
+
+    let needs_onchain = enriched.iter().any(|(_, detail)| detail.is_none());
+    let mut onchain_phases: Vec<Option<&'static str>> = Vec::with_capacity(enriched.len());
+    if needs_onchain {
+        for chunk in enriched.chunks(25) {
+            let vaults = chunk
+                .iter()
+                .map(|(created, _)| created.vault)
+                .collect::<Vec<_>>();
+            match vault_phases(config, &vaults).await {
+                Ok(phases) => onchain_phases.extend(phases),
+                Err(error) => {
+                    warnings.push(format!("vault phase batch failed: {}", error.message));
+                    onchain_phases.resize(onchain_phases.len() + chunk.len(), None);
+                }
+            }
+        }
+    } else {
+        onchain_phases.resize(enriched.len(), None);
+    }
+    let vault_phase_used = onchain_phases.iter().any(Option::is_some);
+
+    let mut tokens = Vec::with_capacity(enriched.len());
+    let mut onchain_used = false;
+    let mut wallet_agent: Option<Option<bool>> = None;
+
+    for ((created, detail), onchain_phase) in enriched.into_iter().zip(onchain_phases) {
         let phase = detail
             .as_ref()
             .map(token_phase)
-            .or_else(|| onchain.as_ref().map(|state| state.phase))
+            .or(onchain_phase)
             .unwrap_or("unknown")
             .to_string();
         let (wallet_eligible, eligibility_reason) = if let Some(wallet) = wallet {
@@ -220,7 +236,6 @@ pub async fn agent_tokens(
             .and_then(|value| value.get("name"))
             .and_then(Value::as_str)
             .filter(|value| !value.is_empty())
-            .or_else(|| onchain.as_ref().and_then(|state| state.name.as_deref()))
             .unwrap_or(&created.name)
             .to_string();
         let symbol = detail
@@ -228,7 +243,6 @@ pub async fn agent_tokens(
             .and_then(|value| value.get("shortName"))
             .and_then(Value::as_str)
             .filter(|value| !value.is_empty())
-            .or_else(|| onchain.as_ref().and_then(|state| state.symbol.as_deref()))
             .unwrap_or(&created.symbol)
             .to_string();
         tokens.push(FourMemeToken {
@@ -275,10 +289,10 @@ pub async fn agent_tokens(
             block: None,
         });
     }
-    if onchain_state_used {
+    if vault_phase_used {
         sources.push(AssetSource {
             name: "bsc-rpc".to_string(),
-            scope: "core-tokens".to_string(),
+            scope: "vault-phase".to_string(),
             block: Some(latest),
         });
     }
@@ -565,6 +579,133 @@ async fn onchain_fallback(
     }))
 }
 
+async fn log_pages(
+    config: &FourMemeConfig,
+    ranges: &[(u64, u64)],
+) -> Result<Vec<Option<Vec<Value>>>, CapabilityError> {
+    let requests = ranges
+        .iter()
+        .enumerate()
+        .map(|(index, (start, end))| {
+            json!({
+                "jsonrpc": "2.0",
+                "id": index + 1,
+                "method": "eth_getLogs",
+                "params": [{
+                    "fromBlock": format!("0x{start:x}"),
+                    "toBlock": format!("0x{end:x}"),
+                    "address": OPENFOUR_CORE,
+                    "topics": [TOKEN_CREATED_TOPIC, AGENT_PRESET_TOPIC]
+                }]
+            })
+        })
+        .collect::<Vec<_>>();
+    let response = reqwest::Client::new()
+        .post(&config.bsc_rpc_url)
+        .json(&Value::Array(requests))
+        .timeout(Duration::from_secs(20))
+        .send()
+        .await
+        .map_err(|error| api_error(format!("BSC log batch failed: {error}")))?
+        .json::<Value>()
+        .await
+        .map_err(|error| api_error(format!("BSC log batch returned invalid JSON: {error}")))?;
+    if let Some(error) = response.get("error") {
+        return Err(api_error(format!(
+            "BSC log batch error: {}",
+            error
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown")
+        )));
+    }
+    let items = response
+        .as_array()
+        .ok_or_else(|| api_error("BSC log batch returned a non-array result"))?;
+    let mut pages = vec![None; ranges.len()];
+    for item in items {
+        let Some(index) = item
+            .get("id")
+            .and_then(Value::as_u64)
+            .and_then(|id| usize::try_from(id).ok())
+            .and_then(|id| id.checked_sub(1))
+        else {
+            continue;
+        };
+        let page = item.get("result").and_then(Value::as_array).cloned();
+        if let Some(slot) = pages.get_mut(index) {
+            *slot = page;
+        }
+    }
+    Ok(pages)
+}
+
+async fn vault_phases(
+    config: &FourMemeConfig,
+    vaults: &[Option<Address>],
+) -> Result<Vec<Option<&'static str>>, CapabilityError> {
+    let requests = vaults
+        .iter()
+        .enumerate()
+        .filter_map(|(index, vault)| {
+            vault.map(|vault| {
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": index + 1,
+                    "method": "eth_call",
+                    "params": [{"to": vault, "data": "0xb1c9fe6e"}, "latest"]
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    if requests.is_empty() {
+        return Ok(vaults.iter().map(|_| None).collect());
+    }
+    let response = reqwest::Client::new()
+        .post(&config.bsc_rpc_url)
+        .json(&Value::Array(requests))
+        .timeout(Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|error| api_error(format!("vault phase batch failed: {error}")))?
+        .json::<Value>()
+        .await
+        .map_err(|error| api_error(format!("vault phase batch invalid JSON: {error}")))?;
+    let items = response
+        .as_array()
+        .ok_or_else(|| api_error("vault phase batch returned a non-array result"))?;
+    let mut phases = vec![None; vaults.len()];
+    for item in items {
+        let Some(index) = item
+            .get("id")
+            .and_then(Value::as_u64)
+            .and_then(|id| usize::try_from(id).ok())
+            .and_then(|id| id.checked_sub(1))
+        else {
+            continue;
+        };
+        let phase = item
+            .get("result")
+            .and_then(Value::as_str)
+            .and_then(decode_hex)
+            .and_then(|bytes| word(&bytes, 0).map(U256::from_be_slice))
+            .and_then(|value| u8::try_from(value).ok())
+            .map(phase_from_raw);
+        if let Some(slot) = phases.get_mut(index) {
+            *slot = phase;
+        }
+    }
+    Ok(phases)
+}
+
+fn phase_from_raw(phase: u8) -> &'static str {
+    match phase {
+        0 | 1 | 5 => "bonding",
+        2 | 3 => "graduated",
+        _ => "unknown",
+    }
+}
+
 struct OnchainTokenState {
     name: Option<String>,
     symbol: Option<String>,
@@ -593,21 +734,12 @@ async fn onchain_state(
     let name = word_usize(&bytes, 4).and_then(|offset| string_at(&bytes, offset));
     let symbol = word_usize(&bytes, 5).and_then(|offset| string_at(&bytes, offset));
     let vault = word_address(&bytes, 10);
-    let decimals = rpc
-        .call_hex(address, "0x313ce567", "latest")
-        .await
-        .ok()
-        .and_then(|value| decode_hex(&value))
-        .and_then(|bytes| word(&bytes, 0).map(U256::from_be_slice))
-        .and_then(|value| u8::try_from(value).ok())
-        .unwrap_or(18);
-    let total_supply = word_u256(&bytes, 6).map(|value| format_units(value, decimals));
-    let sale_amount = word_u256(&bytes, 7).map(|value| format_units(value, decimals));
+    let total_supply = word_u256(&bytes, 6).map(|value| format_units(value, 18));
+    let sale_amount = word_u256(&bytes, 7).map(|value| format_units(value, 18));
     let phase = match vault {
         Some(vault) => match read_u8(&rpc, vault, "0xb1c9fe6e").await {
-            Some(0 | 1 | 5) => "bonding",
-            Some(2 | 3) => "graduated",
-            _ => "unknown",
+            Some(value) => phase_from_raw(value),
+            None => "unknown",
         },
         None => "unknown",
     };
@@ -719,6 +851,7 @@ fn decode_created(log: &Value) -> Option<CreatedToken> {
     let symbol = word_usize(&data, 2)
         .and_then(|offset| string_at(&data, offset))
         .unwrap_or_default();
+    let vault = word_address(&data, 8);
     let block = log
         .get("blockNumber")
         .and_then(Value::as_str)
@@ -728,6 +861,7 @@ fn decode_created(log: &Value) -> Option<CreatedToken> {
         address,
         name,
         symbol,
+        vault,
         block,
     })
 }
@@ -764,7 +898,7 @@ async fn get_detail(config: &FourMemeConfig, address: Address) -> Result<Value, 
         ))
         .query(&[("address", address.to_string())])
         .header("accept", "application/json")
-        .timeout(Duration::from_secs(20))
+        .timeout(Duration::from_secs(8))
         .send()
         .await
         .map_err(|error| api_error(format!("Four.meme token detail failed: {error}")))?;
