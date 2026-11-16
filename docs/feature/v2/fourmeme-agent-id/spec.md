@@ -80,7 +80,7 @@ The mode is not the same as `aiCreator` or the `.ai` tag. Users need a read-only
 
 - `FOURMEME-001`: template id must equal `1778027615735`; `.ai` tag or `aiCreator` alone is not
   sufficient.
-- `FOURMEME-002`: discovery uses `TokenCreated.presetId`; `status=PUBLISH` is bonding and
+- `FOURMEME-002`: discovery uses `TokenCreated.presetId`; `status=PUBLISH` / `PUBLISHED` is bonding and
   `status=TRADE` is graduated.
 - `FOURMEME-003`: if `AgentIdentifier` is unavailable, `wallet_eligible=null` + warning.
 - `FOURMEME-004`: if API detail is unavailable, keep the log-derived token with `phase=unknown`

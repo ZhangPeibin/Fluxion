@@ -388,7 +388,7 @@ fn template_id(detail: &Value) -> Option<String> {
 
 fn token_phase(detail: &Value) -> &'static str {
     match detail.get("status").and_then(Value::as_str) {
-        Some("PUBLISH") => "bonding",
+        Some("PUBLISH" | "PUBLISHED") => "bonding",
         Some("TRADE") => "graduated",
         _ => "unknown",
     }
@@ -461,6 +461,7 @@ mod tests {
         );
         assert!(template_id(&json!({"tokenTemplateVo": {}})).is_none());
         assert_eq!(token_phase(&json!({"status": "PUBLISH"})), "bonding");
+        assert_eq!(token_phase(&json!({"status": "PUBLISHED"})), "bonding");
         assert_eq!(token_phase(&json!({"status": "TRADE"})), "graduated");
         assert_eq!(token_phase(&json!({"status": "OTHER"})), "unknown");
     }

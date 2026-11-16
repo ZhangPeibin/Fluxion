@@ -34,7 +34,7 @@ Output includes:
 
 - Discovery scans OpenFour Core `TokenCreated` logs and filters on `presetId=1778027615735`.
   Template id / preset is the source of truth; `aiCreator` and `.ai` tag are **not** sufficient.
-- `PUBLISH` is treated as bonding; `TRADE` as graduated.
+- `PUBLISH` / `PUBLISHED` is treated as bonding; `TRADE` as graduated.
 - `wallet_eligible` is `true`, `false`, or omitted when on-chain verification is unavailable.
 - A graduated token is open to any wallet; a bonding token requires the AgentIdentifier gate.
 - The scan is bounded by `lookback-blocks`; it is not complete history.
