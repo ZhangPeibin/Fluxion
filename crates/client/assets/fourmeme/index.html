@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Four.meme Agent ID Exclusive</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#/">
+        <span class="brand-mark">F</span>
+        <span>
+          <strong>Four.meme</strong>
+          <small>Agent ID Exclusive</small>
+        </span>
+      </a>
+      <div class="controls">
+        <label>
+          <span>回看区块</span>
+          <input id="lookback" type="number" min="1" max="5000000" step="1000" value="100000" />
+        </label>
+        <label>
+          <span>钱包（可选）</span>
+          <input id="wallet" type="text" spellcheck="false" placeholder="0x..." />
+        </label>
+        <button id="refresh" class="primary" type="button">刷新</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="list-view">
+        <div class="hero">
+          <div>
+            <p class="eyebrow">BSC · READ ONLY</p>
+            <h1>内盘 Agent ID 专属币</h1>
+            <p class="lede">
+              扫描 OpenFour <code>TokenCreated</code> 日志，按
+              <code>presetId=1778027615735</code> 过滤。点击卡片查看详情。
+            </p>
+          </div>
+          <div id="meta" class="meta">准备加载…</div>
+        </div>
+
+        <div class="toolbar">
+          <div id="tabs" class="tabs" role="tablist">
+            <button class="tab active" type="button" data-filter="all">全部</button>
+            <button class="tab" type="button" data-filter="bonding">Bonding</button>
+            <button class="tab" type="button" data-filter="graduated">Graduated</button>
+          </div>
+          <input id="search" class="search" type="search" placeholder="搜索名称、符号或地址" />
+        </div>
+
+        <div id="status" class="status" hidden></div>
+        <div id="warnings" class="warnings" hidden></div>
+        <div id="list" class="grid" aria-live="polite"></div>
+      </section>
+
+      <section id="detail-view" hidden>
+        <div id="detail" class="detail"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      只读本地页面 · 不连接钱包 · 不签名 · 不买入 · 不卖出
+    </footer>
+  </body>
+</html>

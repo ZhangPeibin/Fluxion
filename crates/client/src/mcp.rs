@@ -378,6 +378,18 @@ fn tools_list() -> Value {
                         "lookback_blocks": {"type": "integer", "minimum": 1, "maximum": 5000000, "default": 100000}
                     }
                 }
+            },
+            {
+                "name": "fourmeme_token",
+                "description": "Read Four.meme token detail, including phase, template, market data and optional AgentIdentifier eligibility. Read-only; never buys, sells or signs.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "address": {"type": "string", "description": "Token contract address"},
+                        "wallet": {"type": "string", "description": "Optional wallet for AgentIdentifier eligibility"}
+                    },
+                    "required": ["address"]
+                }
             }
         ]
     })
@@ -420,6 +432,7 @@ async fn call_tool(
         "transaction_inspect" => transaction_inspect_tool(&arguments).await,
         "transaction_send" => transaction_send_tool(&arguments).await,
         "fourmeme_agent_tokens" => fourmeme_agent_tokens_tool(&arguments).await,
+        "fourmeme_token" => fourmeme_token_tool(&arguments).await,
         "signature_inspect" => signature_inspect_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
@@ -448,6 +461,7 @@ fn capability_for_tool(name: &str) -> &'static str {
         "transaction_inspect" => "transaction.inspect",
         "transaction_send" => "transaction.send",
         "fourmeme_agent_tokens" => "fourmeme.agent-tokens",
+        "fourmeme_token" => "fourmeme.token",
         "signature_inspect" => "signature.inspect",
         _ => "unknown",
     }
@@ -945,6 +959,26 @@ async fn fourmeme_agent_tokens_tool(arguments: &Value) -> Result<Value, Capabili
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+async fn fourmeme_token_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let address = arguments
+        .get("address")
+        .and_then(Value::as_str)
+        .ok_or_else(|| CapabilityError::invalid_argument("address is required"))?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid token address"))?;
+    let wallet = arguments
+        .get("wallet")
+        .and_then(Value::as_str)
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument("invalid wallet address"))
+        })
+        .transpose()?;
+    let detail = fourmeme::token(&FourMemeConfig::from_env(), address, wallet).await?;
+    serde_json::to_value(detail).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn transaction_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
     let to = string_arg(arguments, "to")?
         .parse::<alloy_primitives::Address>()
@@ -1181,7 +1215,8 @@ mod tests {
                 "transaction_inspect",
                 "transaction_send",
                 "signature_inspect",
-                "fourmeme_agent_tokens"
+                "fourmeme_agent_tokens",
+                "fourmeme_token"
             ]
         );
     }

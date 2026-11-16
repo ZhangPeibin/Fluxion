@@ -160,6 +160,7 @@ Available tools depend on the installed capabilities:
 | `transaction.send` | `transaction_send` | [capabilities/transaction](capabilities/transaction/README.md) |
 | `signature.inspect` | `signature_inspect` | [capabilities/signature](capabilities/signature/README.md) |
 | `fourmeme.agent-tokens` | `fourmeme_agent_tokens` | [capabilities/fourmeme](capabilities/fourmeme/README.md) |
+| `fourmeme.token` | `fourmeme_token` | [capabilities/fourmeme](capabilities/fourmeme/README.md) |
 
 ## Troubleshooting
 

@@ -5,6 +5,7 @@ use crate::capability::{CapabilityError, CapabilityErrorCode, CapabilityErrorRes
 use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
 use crate::fourmeme::{self, FourMemeConfig, ListRequest};
+use crate::fourmeme_ui;
 use crate::signature_inspect::{self, SignatureInspectRequest, SignatureInspectResponse};
 use crate::swap::quote::QuoteRequest;
 use crate::swap_build::{self, BuildRequest};
@@ -116,6 +117,8 @@ fluxion transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion transaction send --to ADDRESS --data HEX [--value BNB] [--policy FILE]\n  \
 fluxion signature inspect --typed-data FILE | --authorization-list FILE | --user-operation FILE [--policy FILE]\n  \
 fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N]\n  \
+fluxion fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  \
+fluxion fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
@@ -1848,29 +1851,35 @@ struct FourMemeArgs {
     json: bool,
 }
 
+const FOURMEME_USAGE: &str = "Usage:\n  fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N] [--json]\n  fluxion fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  fluxion fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]";
+
 async fn run_fourmeme(raw: &[String]) -> i32 {
-    if raw.first().map(String::as_str) == Some("--help")
-        || raw.first().map(String::as_str) == Some("-h")
-        || raw.first().map(String::as_str) != Some("agent-tokens")
-    {
-        println!(
-            "Usage:\n  fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N] [--json]"
-        );
-        return if raw.first().map(String::as_str) == Some("--help")
-            || raw.first().map(String::as_str) == Some("-h")
-        {
-            0
-        } else {
-            2
-        };
-    }
-    if raw[1..].iter().any(|arg| arg == "--help" || arg == "-h") {
-        println!(
-            "Usage:\n  fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N] [--json]"
-        );
+    let Some(command) = raw.first().map(String::as_str) else {
+        println!("{FOURMEME_USAGE}");
+        return 2;
+    };
+    if command == "--help" || command == "-h" {
+        println!("{FOURMEME_USAGE}");
         return 0;
     }
-    let args = match parse_fourmeme_args(&raw[1..]) {
+    if raw[1..].iter().any(|arg| arg == "--help" || arg == "-h") {
+        println!("{FOURMEME_USAGE}");
+        return 0;
+    }
+    match command {
+        "agent-tokens" => run_fourmeme_agent_tokens(&raw[1..]).await,
+        "token" => run_fourmeme_token(&raw[1..]).await,
+        "ui" => run_fourmeme_ui(&raw[1..]).await,
+        other => {
+            eprintln!("unknown fourmeme command: {other}");
+            println!("{FOURMEME_USAGE}");
+            2
+        }
+    }
+}
+
+async fn run_fourmeme_agent_tokens(raw: &[String]) -> i32 {
+    let args = match parse_fourmeme_args(raw) {
         Ok(args) => args,
         Err(error) => {
             report_error_as(
@@ -1881,16 +1890,12 @@ async fn run_fourmeme(raw: &[String]) -> i32 {
             return exit_code(error.code);
         }
     };
-    let wallet = match args.wallet.as_deref() {
-        Some(value) => match value.parse::<alloy_primitives::Address>() {
-            Ok(address) => Some(address),
-            Err(_) => {
-                let error = CapabilityError::invalid_argument("invalid --wallet address");
-                report_error_as("fourmeme.agent-tokens", &error, args.json);
-                return exit_code(error.code);
-            }
-        },
-        None => None,
+    let wallet = match parse_optional_address(args.wallet.as_deref(), "--wallet") {
+        Ok(wallet) => wallet,
+        Err(error) => {
+            report_error_as("fourmeme.agent-tokens", &error, args.json);
+            return exit_code(error.code);
+        }
     };
     match fourmeme::agent_tokens(
         &FourMemeConfig::from_env(),
@@ -1934,6 +1939,124 @@ async fn run_fourmeme(raw: &[String]) -> i32 {
             exit_code(error.code)
         }
     }
+}
+
+async fn run_fourmeme_token(raw: &[String]) -> i32 {
+    let args = match parse_fourmeme_token_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as(
+                "fourmeme.token",
+                &error,
+                raw.iter().any(|arg| arg == "--json"),
+            );
+            return exit_code(error.code);
+        }
+    };
+    let address = match args.address.parse::<alloy_primitives::Address>() {
+        Ok(address) => address,
+        Err(_) => {
+            let error = CapabilityError::invalid_argument("invalid token address");
+            report_error_as("fourmeme.token", &error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let wallet = match parse_optional_address(args.wallet.as_deref(), "--wallet") {
+        Ok(wallet) => wallet,
+        Err(error) => {
+            report_error_as("fourmeme.token", &error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    match fourmeme::token(&FourMemeConfig::from_env(), address, wallet).await {
+        Ok(detail) => {
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&detail).unwrap());
+            } else {
+                println!("{} ({}) · {}", detail.name, detail.symbol, detail.phase);
+                println!("address: {}", detail.address);
+                if let Some(name) = detail.template_name.as_deref() {
+                    println!("template: {name}");
+                }
+                if let Some(raised) = detail.raised.as_deref() {
+                    println!("raised: {raised} BNB");
+                }
+                if let Some(cap) = detail.market_cap.as_deref() {
+                    println!("market cap: {cap}");
+                }
+                if let Some(price) = detail.price.as_deref() {
+                    println!("price: {price}");
+                }
+                if let Some(creator) = detail.creator {
+                    println!("creator: {creator}");
+                }
+                if let Some(eligible) = detail.wallet_eligible {
+                    println!(
+                        "wallet eligible: {eligible}{}",
+                        detail
+                            .eligibility_reason
+                            .as_deref()
+                            .map(|reason| format!(" ({reason})"))
+                            .unwrap_or_default()
+                    );
+                }
+                println!("four.meme: https://four.meme/token/{}", detail.address);
+                println!("bscscan: https://bscscan.com/address/{}", detail.address);
+                for warning in &detail.warnings {
+                    eprintln!("warning: {warning}");
+                }
+            }
+            0
+        }
+        Err(error) => {
+            report_error_as("fourmeme.token", &error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+async fn run_fourmeme_ui(raw: &[String]) -> i32 {
+    let args = match parse_fourmeme_ui_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as("fourmeme.ui", &error, false);
+            return exit_code(error.code);
+        }
+    };
+    let wallet = match parse_optional_address(args.wallet.as_deref(), "--wallet") {
+        Ok(wallet) => wallet,
+        Err(error) => {
+            report_error_as("fourmeme.ui", &error, false);
+            return exit_code(error.code);
+        }
+    };
+    match fourmeme_ui::serve(fourmeme_ui::UiOptions {
+        port: args.port,
+        lookback_blocks: args.lookback_blocks,
+        wallet,
+        open: args.open,
+    })
+    .await
+    {
+        Ok(()) => 0,
+        Err(error) => {
+            report_error_as("fourmeme.ui", &error, false);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_optional_address(
+    value: Option<&str>,
+    flag: &str,
+) -> Result<Option<alloy_primitives::Address>, CapabilityError> {
+    value
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument(format!("invalid {flag} address")))
+        })
+        .transpose()
 }
 
 fn parse_fourmeme_args(raw: &[String]) -> Result<FourMemeArgs, CapabilityError> {
@@ -1994,6 +2117,115 @@ fn parse_fourmeme_args(raw: &[String]) -> Result<FourMemeArgs, CapabilityError> 
         limit,
         lookback_blocks,
         json,
+    })
+}
+
+struct FourMemeTokenArgs {
+    address: String,
+    wallet: Option<String>,
+    json: bool,
+}
+
+fn parse_fourmeme_token_args(raw: &[String]) -> Result<FourMemeTokenArgs, CapabilityError> {
+    let mut address = None;
+    let mut wallet = None;
+    let mut json = false;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--wallet" => {
+                index += 1;
+                wallet = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--wallet needs a value"))?
+                        .clone(),
+                );
+            }
+            "--json" => json = true,
+            value if !value.starts_with('-') && address.is_none() => {
+                address = Some(value.to_string());
+            }
+            value => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown fourmeme token option: {value}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok(FourMemeTokenArgs {
+        address: address
+            .ok_or_else(|| CapabilityError::invalid_argument("token address is required"))?,
+        wallet,
+        json,
+    })
+}
+
+struct FourMemeUiArgs {
+    port: u16,
+    lookback_blocks: u64,
+    wallet: Option<String>,
+    open: bool,
+}
+
+fn parse_fourmeme_ui_args(raw: &[String]) -> Result<FourMemeUiArgs, CapabilityError> {
+    let mut port = 8787u16;
+    let mut lookback_blocks = 100_000u64;
+    let mut wallet = None;
+    let mut open = false;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--port" => {
+                index += 1;
+                port = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--port needs a value"))?
+                    .parse()
+                    .map_err(|_| CapabilityError::invalid_argument("invalid --port"))?;
+                if port == 0 {
+                    return Err(CapabilityError::invalid_argument(
+                        "--port must be between 1 and 65535",
+                    ));
+                }
+            }
+            "--lookback-blocks" => {
+                index += 1;
+                lookback_blocks = raw
+                    .get(index)
+                    .ok_or_else(|| {
+                        CapabilityError::invalid_argument("--lookback-blocks needs a value")
+                    })?
+                    .parse()
+                    .map_err(|_| CapabilityError::invalid_argument("invalid --lookback-blocks"))?;
+                if lookback_blocks == 0 || lookback_blocks > 5_000_000 {
+                    return Err(CapabilityError::invalid_argument(
+                        "--lookback-blocks must be between 1 and 5000000",
+                    ));
+                }
+            }
+            "--wallet" => {
+                index += 1;
+                wallet = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--wallet needs a value"))?
+                        .clone(),
+                );
+            }
+            "--open" => open = true,
+            value => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown fourmeme ui option: {value}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok(FourMemeUiArgs {
+        port,
+        lookback_blocks,
+        wallet,
+        open,
     })
 }
 
@@ -2605,6 +2837,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "transaction.inspect" => fluxion_protocol::transaction::describe_inspect(),
                 "signature.inspect" => fluxion_protocol::signature::describe(),
                 "fourmeme.agent-tokens" => fluxion_protocol::fourmeme::describe(),
+                "fourmeme.token" => fluxion_protocol::fourmeme::describe_token(),
                 other => {
                     let error = CapabilityError::new(
                         CapabilityErrorCode::Unsupported,
