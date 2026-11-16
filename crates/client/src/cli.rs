@@ -4,6 +4,7 @@ use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
 use crate::capability::{CapabilityError, CapabilityErrorCode, CapabilityErrorResponse};
 use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
+use crate::fourmeme::{self, FourMemeConfig, ListRequest};
 use crate::signature_inspect::{self, SignatureInspectRequest, SignatureInspectResponse};
 use crate::swap::quote::QuoteRequest;
 use crate::swap_build::{self, BuildRequest};
@@ -50,6 +51,10 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
         }
         "signature" => {
             let code = run_signature(&args[1..]).await;
+            (args, Some(code))
+        }
+        "fourmeme" => {
+            let code = run_fourmeme(&args[1..]).await;
             (args, Some(code))
         }
         "tokens" => {
@@ -110,6 +115,7 @@ fluxion transaction inspect --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion transaction send --to ADDRESS --data HEX [--value BNB] [--policy FILE]\n  \
 fluxion signature inspect --typed-data FILE | --authorization-list FILE | --user-operation FILE [--policy FILE]\n  \
+fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
@@ -1834,6 +1840,157 @@ async fn run_transaction(raw: &[String]) -> i32 {
     }
 }
 
+#[derive(Debug)]
+struct FourMemeArgs {
+    wallet: Option<String>,
+    limit: usize,
+    lookback_blocks: u64,
+    json: bool,
+}
+
+async fn run_fourmeme(raw: &[String]) -> i32 {
+    if raw.first().map(String::as_str) == Some("--help")
+        || raw.first().map(String::as_str) == Some("-h")
+        || raw.first().map(String::as_str) != Some("agent-tokens")
+    {
+        println!(
+            "Usage:\n  fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N] [--json]"
+        );
+        return if raw.first().map(String::as_str) == Some("--help")
+            || raw.first().map(String::as_str) == Some("-h")
+        {
+            0
+        } else {
+            2
+        };
+    }
+    let args = match parse_fourmeme_args(&raw[1..]) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as(
+                "fourmeme.agent-tokens",
+                &error,
+                raw.iter().any(|arg| arg == "--json"),
+            );
+            return exit_code(error.code);
+        }
+    };
+    let wallet = match args.wallet.as_deref() {
+        Some(value) => match value.parse::<alloy_primitives::Address>() {
+            Ok(address) => Some(address),
+            Err(_) => {
+                let error = CapabilityError::invalid_argument("invalid --wallet address");
+                report_error_as("fourmeme.agent-tokens", &error, args.json);
+                return exit_code(error.code);
+            }
+        },
+        None => None,
+    };
+    match fourmeme::agent_tokens(
+        &FourMemeConfig::from_env(),
+        ListRequest {
+            wallet,
+            limit: args.limit,
+            lookback_blocks: args.lookback_blocks,
+        },
+    )
+    .await
+    {
+        Ok(response) => {
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                println!(
+                    "Four.meme · Binance Agent ID Exclusive · {} events · blocks {}-{}",
+                    response.scanned, response.from_block, response.to_block
+                );
+                for token in &response.tokens {
+                    println!(
+                        "{}  {}  {}  {}{}",
+                        token.address,
+                        token.symbol,
+                        token.phase,
+                        token.progress.as_deref().unwrap_or("-"),
+                        token
+                            .wallet_eligible
+                            .map(|value| format!("  eligible={value}"))
+                            .unwrap_or_default()
+                    );
+                }
+                for warning in &response.warnings {
+                    eprintln!("warning: {warning}");
+                }
+            }
+            0
+        }
+        Err(error) => {
+            report_error_as("fourmeme.agent-tokens", &error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_fourmeme_args(raw: &[String]) -> Result<FourMemeArgs, CapabilityError> {
+    let mut wallet = None;
+    let mut limit = 20usize;
+    let mut lookback_blocks = 100_000u64;
+    let mut json = false;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--wallet" => {
+                index += 1;
+                wallet = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--wallet needs a value"))?
+                        .clone(),
+                );
+            }
+            "--limit" => {
+                index += 1;
+                limit = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--limit needs a value"))?
+                    .parse()
+                    .map_err(|_| CapabilityError::invalid_argument("invalid --limit"))?;
+                if limit == 0 || limit > 50 {
+                    return Err(CapabilityError::invalid_argument(
+                        "--limit must be between 1 and 50",
+                    ));
+                }
+            }
+            "--lookback-blocks" => {
+                index += 1;
+                lookback_blocks = raw
+                    .get(index)
+                    .ok_or_else(|| {
+                        CapabilityError::invalid_argument("--lookback-blocks needs a value")
+                    })?
+                    .parse()
+                    .map_err(|_| CapabilityError::invalid_argument("invalid --lookback-blocks"))?;
+                if lookback_blocks == 0 || lookback_blocks > 5_000_000 {
+                    return Err(CapabilityError::invalid_argument(
+                        "--lookback-blocks must be between 1 and 5000000",
+                    ));
+                }
+            }
+            "--json" => json = true,
+            value => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown fourmeme option: {value}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok(FourMemeArgs {
+        wallet,
+        limit,
+        lookback_blocks,
+        json,
+    })
+}
+
 struct SignatureArgs {
     chain: Chain,
     from: Option<String>,
@@ -2441,6 +2598,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "transaction.send" => fluxion_protocol::transaction::describe_send(),
                 "transaction.inspect" => fluxion_protocol::transaction::describe_inspect(),
                 "signature.inspect" => fluxion_protocol::signature::describe(),
+                "fourmeme.agent-tokens" => fluxion_protocol::fourmeme::describe(),
                 other => {
                     let error = CapabilityError::new(
                         CapabilityErrorCode::Unsupported,

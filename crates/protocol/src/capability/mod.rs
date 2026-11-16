@@ -68,6 +68,8 @@ pub enum CapabilityId {
     TransactionSend,
     #[serde(rename = "signature.inspect")]
     SignatureInspect,
+    #[serde(rename = "fourmeme.agent-tokens")]
+    FourMemeAgentTokens,
 }
 
 impl CapabilityId {
@@ -89,6 +91,7 @@ impl CapabilityId {
             Self::TransactionInspect => "transaction.inspect",
             Self::TransactionSend => "transaction.send",
             Self::SignatureInspect => "signature.inspect",
+            Self::FourMemeAgentTokens => "fourmeme.agent-tokens",
         }
     }
 
@@ -110,6 +113,7 @@ impl CapabilityId {
             Self::TransactionInspect,
             Self::TransactionSend,
             Self::SignatureInspect,
+            Self::FourMemeAgentTokens,
         ]
     }
 }
@@ -153,7 +157,8 @@ mod tests {
                 "transaction.simulate",
                 "transaction.inspect",
                 "transaction.send",
-                "signature.inspect"
+                "signature.inspect",
+                "fourmeme.agent-tokens"
             ]
         );
         assert_eq!(CapabilityId::SwapQuote.as_str(), "swap.quote");

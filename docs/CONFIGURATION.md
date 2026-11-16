@@ -43,7 +43,7 @@
 ## Execution routing
 
 `swap.quote` 固定使用 Fluxion remote 服务；`swap.build` 固定在 local runtime；`wallet.balance`、`wallet.allowance`、
-`transaction.inspect`、`transaction.simulate`、`transaction.send` 和 `signature.inspect` 固定在 local runtime；`wallet.assets` 和 `wallet.collectibles` 是 local verification +
+`transaction.inspect`、`transaction.simulate`、`transaction.send`、`signature.inspect` 和 `fourmeme.agent-tokens` 固定在 local runtime；`wallet.assets` 和 `wallet.collectibles` 是 local verification +
 remote candidate discovery 的 hybrid capability。`wallet.connect` / `wallet.status` /
 `wallet.disconnect` / `wallet.sign` / `wallet.send` 固定在 local，负责 WalletConnect session；`wallet.agent-id` 是
 SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 local/remote。
@@ -70,6 +70,8 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 | `FLUXION_VERIFY_RPC_URL` | 空 | 可选第二 RPC；`transaction.inspect` 用它交叉校验 block hash 和 target code |
 | `FLUXION_THREAT_INTEL_FILE` | 空 | 可选本地 threat-intel JSON；命中地址输出 `ADDR-007` |
 | `FLUXION_THREAT_INTEL_PUBKEY` | 空 | 可选 Ed25519 公钥（32-byte hex）；设置后 threat-intel 文件必须签名 |
+| `FOURMEME_API_URL` | `https://four.meme/meme-api/v1` | `fourmeme.agent-tokens` 的 Four.meme REST API |
+| `FOURMEME_BSC_RPC_URL` | `https://bsc-rpc.publicnode.com` | `fourmeme.agent-tokens` 的 BSC log RPC，必须支持 `eth_getLogs` |
 | `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
 CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回
