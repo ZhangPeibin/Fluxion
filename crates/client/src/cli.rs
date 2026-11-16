@@ -1864,6 +1864,12 @@ async fn run_fourmeme(raw: &[String]) -> i32 {
             2
         };
     }
+    if raw[1..].iter().any(|arg| arg == "--help" || arg == "-h") {
+        println!(
+            "Usage:\n  fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N] [--json]"
+        );
+        return 0;
+    }
     let args = match parse_fourmeme_args(&raw[1..]) {
         Ok(args) => args,
         Err(error) => {
