@@ -25,6 +25,7 @@ use crate::wallet::{
 use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
 use fluxion_protocol::swap::QuoteResponse;
+use fluxion_protocol::yield_capability::{RiskProfile, YieldDiscoverRequest};
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
     let wallet = Manager::new();
@@ -390,6 +391,24 @@ fn tools_list() -> Value {
                     },
                     "required": ["address"]
                 }
+            },
+            {
+                "name": "yield_discover",
+                "description": "Find safe, high-APY ETH staking and lending opportunities on Ethereum from a curated universe. Returns safety tiers, APY components, TVL, withdrawal conditions, evidence and one recommendation with tradeoffs. Read-only; never deposits, signs or broadcasts.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "asset": {"type": "string", "description": "Currently ETH", "default": "ETH"},
+                        "amount": {"type": "string", "description": "Optional human amount, e.g. 10"},
+                        "risk_profile": {"type": "string", "enum": ["conservative", "balanced", "aggressive"], "default": "conservative"},
+                        "min_tvl_usd": {"type": "integer", "minimum": 0},
+                        "max_lockup_days": {"type": "integer", "minimum": 0},
+                        "include_reward_apy": {"type": "boolean", "default": false},
+                        "protocols": {"type": "array", "items": {"type": "string"}, "description": "Optional DefiLlama protocol slugs"},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 20, "default": 10}
+                    },
+                    "required": ["asset"]
+                }
             }
         ]
     })
@@ -433,6 +452,7 @@ async fn call_tool(
         "transaction_send" => transaction_send_tool(&arguments).await,
         "fourmeme_agent_tokens" => fourmeme_agent_tokens_tool(&arguments).await,
         "fourmeme_token" => fourmeme_token_tool(&arguments).await,
+        "yield_discover" => yield_discover_tool(&arguments, backend).await,
         "signature_inspect" => signature_inspect_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
@@ -462,6 +482,7 @@ fn capability_for_tool(name: &str) -> &'static str {
         "transaction_send" => "transaction.send",
         "fourmeme_agent_tokens" => "fourmeme.agent-tokens",
         "fourmeme_token" => "fourmeme.token",
+        "yield_discover" => "yield.discover",
         "signature_inspect" => "signature.inspect",
         _ => "unknown",
     }
@@ -979,6 +1000,78 @@ async fn fourmeme_token_tool(arguments: &Value) -> Result<Value, CapabilityError
     serde_json::to_value(detail).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+async fn yield_discover_tool(
+    arguments: &Value,
+    backend: &Result<RuntimeClient, CapabilityError>,
+) -> Result<Value, CapabilityError> {
+    let backend = backend.as_ref().map_err(Clone::clone)?;
+    let asset = arguments
+        .get("asset")
+        .and_then(Value::as_str)
+        .unwrap_or("ETH")
+        .to_string();
+    let amount = arguments
+        .get("amount")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let risk = arguments
+        .get("risk_profile")
+        .and_then(Value::as_str)
+        .unwrap_or("conservative");
+    let risk_profile = match risk {
+        "conservative" => RiskProfile::Conservative,
+        "balanced" => RiskProfile::Balanced,
+        "aggressive" => RiskProfile::Aggressive,
+        other => {
+            return Err(CapabilityError::invalid_argument(format!(
+                "invalid risk_profile: {other}"
+            )));
+        }
+    };
+    let min_tvl_usd = arguments.get("min_tvl_usd").and_then(Value::as_u64);
+    let max_lockup_days = arguments
+        .get("max_lockup_days")
+        .and_then(Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok());
+    let include_reward_apy = arguments.get("include_reward_apy").and_then(Value::as_bool);
+    let protocols = arguments
+        .get("protocols")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let limit = arguments
+        .get("limit")
+        .and_then(Value::as_u64)
+        .unwrap_or(10)
+        .try_into()
+        .map_err(|_| CapabilityError::invalid_argument("invalid limit"))?;
+    if !(1..=20).contains(&limit) {
+        return Err(CapabilityError::invalid_argument(
+            "limit must be between 1 and 20",
+        ));
+    }
+    let response = backend
+        .yield_discover(&YieldDiscoverRequest {
+            chain: "ethereum".to_string(),
+            asset,
+            amount,
+            risk_profile,
+            min_tvl_usd,
+            max_lockup_days,
+            include_reward_apy,
+            protocols,
+            limit,
+        })
+        .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn transaction_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
     let to = string_arg(arguments, "to")?
         .parse::<alloy_primitives::Address>()
@@ -1216,7 +1309,8 @@ mod tests {
                 "transaction_send",
                 "signature_inspect",
                 "fourmeme_agent_tokens",
-                "fourmeme_token"
+                "fourmeme_token",
+                "yield_discover"
             ]
         );
     }

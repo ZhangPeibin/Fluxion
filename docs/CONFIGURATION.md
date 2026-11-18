@@ -39,10 +39,11 @@
 | `pricing_mode` / `local_state` | 精算模式 / 后台同步与新鲜度策略 | `rpc` / 见示例 |
 | `split` | 可选拆单的服务预算；请求仍需 `split=true` | 4 分支 / 4 候选池 / 20 段 / 1024 次 / 8000 ms |
 | `token_allowlist` | 覆盖内置主流币白名单 | 空（使用内置） |
+| `yield` | 远程收益发现：`enabled` / `refresh_secs` / `max_age_secs` / `hard_max_age_secs` / `registry_path` | 见 `configs/runtime.yaml` |
 
 ## Execution routing
 
-`swap.quote` 固定使用 Fluxion remote 服务；`swap.build` 固定在 local runtime；`wallet.balance`、`wallet.allowance`、
+`swap.quote` 和 `yield.discover` 固定使用 Fluxion remote 服务；`swap.build` 固定在 local runtime；`wallet.balance`、`wallet.allowance`、
 `transaction.inspect`、`transaction.simulate`、`transaction.send`、`signature.inspect`、`fourmeme.agent-tokens` 和 `fourmeme.token` 固定在 local runtime；`wallet.assets` 和 `wallet.collectibles` 是 local verification +
 remote candidate discovery 的 hybrid capability。`wallet.connect` / `wallet.status` /
 `wallet.disconnect` / `wallet.sign` / `wallet.send` 固定在 local，负责 WalletConnect session；`wallet.agent-id` 是
@@ -72,6 +73,9 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 | `FLUXION_THREAT_INTEL_PUBKEY` | 空 | 可选 Ed25519 公钥（32-byte hex）；设置后 threat-intel 文件必须签名 |
 | `FOURMEME_API_URL` | `https://four.meme/meme-api/v1` | Four.meme 列表/详情 REST API |
 | `FOURMEME_BSC_RPC_URL` | `https://bsc-rpc.publicnode.com` | Four.meme 的 BSC log/ERC20 RPC，必须支持 `eth_getLogs` |
+| `FLUXION_YIELD_POOLS_URL` | `https://yields.llama.fi/pools` | `yield.discover` 的池级 APY/TVL provider |
+| `FLUXION_YIELD_PROTOCOLS_URL` | `https://api.llama.fi/protocols` | `yield.discover` 的协议元数据 provider |
+| `FLUXION_YIELD_HACKS_URL` | `https://api.llama.fi/hacks` | `yield.discover` 的历史事故 provider |
 | `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
 CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回

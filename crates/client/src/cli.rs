@@ -21,6 +21,9 @@ use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
 use fluxion_protocol::swap::QuoteResponse;
 use fluxion_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
+use fluxion_protocol::yield_capability::{
+    RiskProfile, YieldDiscoverRequest, YieldDiscoverResponse,
+};
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
     let Some(first) = args.first().map(String::as_str) else {
@@ -56,6 +59,10 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
         }
         "fourmeme" => {
             let code = run_fourmeme(&args[1..]).await;
+            (args, Some(code))
+        }
+        "yield" => {
+            let code = run_yield(&args[1..]).await;
             (args, Some(code))
         }
         "tokens" => {
@@ -119,6 +126,7 @@ fluxion signature inspect --typed-data FILE | --authorization-list FILE | --user
 fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N]\n  \
 fluxion fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  \
 fluxion fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]\n  \
+fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
@@ -2796,6 +2804,223 @@ fn exit_code(code: CapabilityErrorCode) -> i32 {
     }
 }
 
+#[derive(Debug)]
+struct YieldArgs {
+    asset: String,
+    amount: Option<String>,
+    risk_profile: RiskProfile,
+    min_tvl_usd: Option<u64>,
+    max_lockup_days: Option<u32>,
+    include_reward_apy: bool,
+    protocols: Vec<String>,
+    limit: usize,
+    url: Option<String>,
+    json: bool,
+}
+
+const YIELD_USAGE: &str = "Usage:\n  fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n    [--min-tvl-usd N] [--max-lockup-days N] [--include-reward-apy]\n    [--protocols lido,aave-v3] [--limit N] [--url URL] [--json]";
+
+async fn run_yield(raw: &[String]) -> i32 {
+    let Some(command) = raw.first().map(String::as_str) else {
+        println!("{YIELD_USAGE}");
+        return 2;
+    };
+    if command == "--help" || command == "-h" {
+        println!("{YIELD_USAGE}");
+        return 0;
+    }
+    if raw[1..].iter().any(|arg| arg == "--help" || arg == "-h") {
+        println!("{YIELD_USAGE}");
+        return 0;
+    }
+    match command {
+        "discover" => run_yield_discover(&raw[1..]).await,
+        other => {
+            eprintln!("unknown yield command: {other}");
+            println!("{YIELD_USAGE}");
+            2
+        }
+    }
+}
+
+async fn run_yield_discover(raw: &[String]) -> i32 {
+    let json = raw.iter().any(|arg| arg == "--json");
+    let args = match parse_yield_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as("yield.discover", &error, json);
+            return exit_code(error.code);
+        }
+    };
+    let controller = match crate::routing::from_env(args.url.as_deref()) {
+        Ok(backend) => RuntimeClient::with_api_key(backend.base_url, backend.api_key),
+        Err(error) => {
+            report_error_as("yield.discover", &error, args.json);
+            return exit_code(error.code);
+        }
+    };
+    let request = YieldDiscoverRequest {
+        chain: "ethereum".to_string(),
+        asset: args.asset,
+        amount: args.amount,
+        risk_profile: args.risk_profile,
+        min_tvl_usd: args.min_tvl_usd,
+        max_lockup_days: args.max_lockup_days,
+        include_reward_apy: Some(args.include_reward_apy),
+        protocols: args.protocols,
+        limit: args.limit,
+    };
+    match controller.yield_discover(&request).await {
+        Ok(response) => {
+            if args.json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_yield_human(&response);
+            }
+            0
+        }
+        Err(error) => {
+            report_error_as("yield.discover", &error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_yield_args(raw: &[String]) -> Result<YieldArgs, CapabilityError> {
+    let mut asset = "ETH".to_string();
+    let mut amount = None;
+    let mut risk_profile = RiskProfile::Conservative;
+    let mut min_tvl_usd = None;
+    let mut max_lockup_days = None;
+    let mut include_reward_apy = false;
+    let mut protocols = Vec::new();
+    let mut limit = 10usize;
+    let mut url = None;
+    let mut json = false;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--asset" => asset = value(raw, &mut index, "--asset")?,
+            "--amount" => amount = Some(value(raw, &mut index, "--amount")?),
+            "--risk" | "--risk-profile" => {
+                let text = value(raw, &mut index, "--risk")?;
+                risk_profile = parse_risk_profile(&text)?;
+            }
+            "--min-tvl-usd" => {
+                min_tvl_usd = Some(
+                    value(raw, &mut index, "--min-tvl-usd")?
+                        .parse()
+                        .map_err(|_| CapabilityError::invalid_argument("invalid --min-tvl-usd"))?,
+                );
+            }
+            "--max-lockup-days" => {
+                max_lockup_days = Some(
+                    value(raw, &mut index, "--max-lockup-days")?
+                        .parse()
+                        .map_err(|_| {
+                            CapabilityError::invalid_argument("invalid --max-lockup-days")
+                        })?,
+                );
+            }
+            "--include-reward-apy" => include_reward_apy = true,
+            "--protocols" => {
+                protocols = value(raw, &mut index, "--protocols")?
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|item| !item.is_empty())
+                    .map(str::to_string)
+                    .collect();
+            }
+            "--limit" => {
+                limit = value(raw, &mut index, "--limit")?
+                    .parse()
+                    .map_err(|_| CapabilityError::invalid_argument("invalid --limit"))?;
+                if !(1..=20).contains(&limit) {
+                    return Err(CapabilityError::invalid_argument(
+                        "limit must be between 1 and 20",
+                    ));
+                }
+            }
+            "--url" => url = Some(value(raw, &mut index, "--url")?),
+            "--json" => json = true,
+            other => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown yield option: {other}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok(YieldArgs {
+        asset,
+        amount,
+        risk_profile,
+        min_tvl_usd,
+        max_lockup_days,
+        include_reward_apy,
+        protocols,
+        limit,
+        url,
+        json,
+    })
+}
+
+fn parse_risk_profile(value: &str) -> Result<RiskProfile, CapabilityError> {
+    match value {
+        "conservative" => Ok(RiskProfile::Conservative),
+        "balanced" => Ok(RiskProfile::Balanced),
+        "aggressive" => Ok(RiskProfile::Aggressive),
+        other => Err(CapabilityError::invalid_argument(format!(
+            "invalid risk profile: {other}; use conservative, balanced or aggressive"
+        ))),
+    }
+}
+
+fn print_yield_human(response: &YieldDiscoverResponse) {
+    println!(
+        "Yield discovery · {} · {:?}",
+        response.chain, response.risk_profile
+    );
+    println!(
+        "as of {} · age {}s{}{}",
+        response.as_of,
+        response.age_secs,
+        if response.stale { " · STALE" } else { "" },
+        response
+            .amount
+            .as_ref()
+            .map(|amount| format!(" · {} ETH", amount.decimal))
+            .unwrap_or_default()
+    );
+    if let Some(best) = &response.recommended {
+        println!("recommended: {}", best.opportunity_id);
+        println!("  {}", best.reason);
+        for tradeoff in &best.tradeoffs {
+            println!("  - {tradeoff}");
+        }
+    }
+    for item in &response.opportunities {
+        println!(
+            "[{}] {} · {:.2}% APY · TVL ${} · {}{}",
+            item.safety_tier.as_str(),
+            item.id,
+            item.yield_info.ranking_apy_percent,
+            item.market.tvl_usd,
+            item.market.receipt_asset.symbol,
+            item.estimated_annual_yield
+                .as_ref()
+                .map(|amount| format!(
+                    " · ~{} {}/yr",
+                    amount.decimal, item.market.receipt_asset.symbol
+                ))
+                .unwrap_or_default()
+        );
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
+    }
+}
+
 async fn run_capability(raw: &[String]) -> i32 {
     match raw.first().map(String::as_str) {
         Some("list") => {
@@ -2838,6 +3063,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "signature.inspect" => fluxion_protocol::signature::describe(),
                 "fourmeme.agent-tokens" => fluxion_protocol::fourmeme::describe(),
                 "fourmeme.token" => fluxion_protocol::fourmeme::describe_token(),
+                "yield.discover" => fluxion_protocol::yield_capability::describe(),
                 other => {
                     let error = CapabilityError::new(
                         CapabilityErrorCode::Unsupported,

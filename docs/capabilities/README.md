@@ -23,11 +23,12 @@ its execution location is an internal Fluxion decision.
 | `signature.inspect` | available | [signature/README.md](signature/README.md) |
 | `fourmeme.agent-tokens` | available | [fourmeme/README.md](fourmeme/README.md) |
 | `fourmeme.token` | available | [fourmeme/README.md](fourmeme/README.md) |
+| `yield.discover` | available | [yield/README.md](yield/README.md) |
 
 ## Contract vs execution
 
 - Capability: what the agent wants to do (`swap.quote`)
-- Execution location: fixed per capability (`swap.quote` → remote service, wallet and execution capabilities → local runtime)
+- Execution location: fixed per capability (`swap.quote` and `yield.discover` → remote service, wallet and execution capabilities → local runtime)
 - Data source: RPC, subgraphs, protocol APIs used internally
 - Transport: CLI or [MCP stdio](../MCP.md)
 

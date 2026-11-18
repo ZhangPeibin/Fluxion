@@ -53,6 +53,43 @@
 新选择的拆单/直连方案尚未计算聚合价格冲击，`price_impact_bps` 为 `null`。
 完整字段和预算语义见 [多池接口说明](MULTI-POOL.md)。
 
+## `POST /yield/discover`
+
+只读的 ETH 收益发现。数据来自 curated registry + DefiLlama + Ethereum RPC；请求路径只读后台快照。
+
+请求：
+
+```json
+{
+  "chain": "ethereum",
+  "asset": "ETH",
+  "amount": "10",
+  "risk_profile": "conservative",
+  "min_tvl_usd": 1000000000,
+  "max_lockup_days": 0,
+  "include_reward_apy": false,
+  "protocols": [],
+  "limit": 10
+}
+```
+
+- `chain` 目前只接受 `ethereum`，`asset` 目前只接受 `ETH`。
+- `risk_profile` 为 `conservative`（默认）/ `balanced` / `aggressive`。
+- `amount` 可选，只用于估算年化收益，不读取钱包。
+- `min_tvl_usd` / `max_lockup_days` / `include_reward_apy` 可选，覆盖 profile 默认值。
+- `protocols` 可选，按 DefiLlama slug 过滤。
+- `limit` 为 1–20，默认 10。
+
+响应包含 `recommended`（最高 ranking APY + `reason` + `tradeoffs`）、`opportunities`、
+`excluded`、`as_of` / `age_secs` / `stale`、`sources`、`coverage`、`disclaimer` 和
+`warnings`。每个 opportunity 含 `safety_tier`、protocol/market、`yield` 的 base/reward/30d
+组件、TVL、提现条件、风险因子、evidence 和 `data_confidence`。
+
+安全层级见 [yield capability](capabilities/yield/README.md)。排序默认使用 30 天 base APY
+均值；reward APY 只有在 `include_reward_apy=true` 时参与排名。
+
+错误：`InvalidRequest`(400)、限流(429)、`YieldUnavailable`(502)、`StaleState`(503)。
+
 ## `GET /graph`
 
 只读地导出当前路由多重图，供 Web viewer 等外部工具使用：

@@ -72,6 +72,8 @@ pub enum CapabilityId {
     FourMemeAgentTokens,
     #[serde(rename = "fourmeme.token")]
     FourMemeTokenDetail,
+    #[serde(rename = "yield.discover")]
+    YieldDiscover,
 }
 
 impl CapabilityId {
@@ -95,6 +97,7 @@ impl CapabilityId {
             Self::SignatureInspect => "signature.inspect",
             Self::FourMemeAgentTokens => "fourmeme.agent-tokens",
             Self::FourMemeTokenDetail => "fourmeme.token",
+            Self::YieldDiscover => "yield.discover",
         }
     }
 
@@ -118,6 +121,7 @@ impl CapabilityId {
             Self::SignatureInspect,
             Self::FourMemeAgentTokens,
             Self::FourMemeTokenDetail,
+            Self::YieldDiscover,
         ]
     }
 }
@@ -163,7 +167,8 @@ mod tests {
                 "transaction.send",
                 "signature.inspect",
                 "fourmeme.agent-tokens",
-                "fourmeme.token"
+                "fourmeme.token",
+                "yield.discover"
             ]
         );
         assert_eq!(CapabilityId::SwapQuote.as_str(), "swap.quote");
@@ -191,5 +196,6 @@ mod tests {
         );
         assert_eq!(CapabilityId::TransactionSend.as_str(), "transaction.send");
         assert_eq!(CapabilityId::SignatureInspect.as_str(), "signature.inspect");
+        assert_eq!(CapabilityId::YieldDiscover.as_str(), "yield.discover");
     }
 }

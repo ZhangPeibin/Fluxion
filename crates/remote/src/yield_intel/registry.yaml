@@ -1,0 +1,147 @@
+version: 1
+reviewed_at: "2026-11-18"
+reviewer: "fluxion-risk"
+entries:
+  - id: lido-steth
+    protocol_slug: lido
+    protocol_name: Lido
+    category: Liquid Staking
+    action: stake
+    safety_tier: core
+    contract: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84"
+    market_name: stETH
+    deposit_asset_symbol: ETH
+    deposit_asset_address: native
+    deposit_decimals: 18
+    receipt_asset_symbol: stETH
+    receipt_asset_address: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84"
+    receipt_decimals: 18
+    requires_wrap: false
+    defillama_project: lido
+    defillama_symbol: STETH
+    defillama_pool: 747c1d2a-c668-4682-b9f9-296708a3dd90
+    withdrawal:
+      mode: secondary_market_or_queue
+      lockup_days: 0
+      notes: stETH is transferable; direct ETH withdrawal uses the Lido queue.
+    risk_notes:
+      - code: SLASHING
+        level: low
+        evidence: Validator slashing is socialized across stETH holders.
+      - code: DEPEG
+        level: medium
+        evidence: stETH can trade below ETH in the secondary market.
+      - code: VALIDATOR_OPERATIONS
+        level: low
+        evidence: Yield and withdrawals depend on the curated validator set.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Core liquid staking market with direct ETH entry.
+
+  - id: rocket-pool-reth
+    protocol_slug: rocket-pool
+    protocol_name: Rocket Pool
+    category: Liquid Staking
+    action: stake
+    safety_tier: core
+    contract: "0xDD3f50F8A6CafbE9b31a427582963f465E745AF8"
+    market_name: rETH
+    deposit_asset_symbol: ETH
+    deposit_asset_address: native
+    deposit_decimals: 18
+    receipt_asset_symbol: rETH
+    receipt_asset_address: "0xae78736Cd615f374D3085123A210448E74Fc6393"
+    receipt_decimals: 18
+    requires_wrap: false
+    defillama_project: rocket-pool
+    defillama_symbol: RETH
+    defillama_pool: d4b3c522-6127-4b89-bedf-83641cdcd2eb
+    withdrawal:
+      mode: secondary_market_or_queue
+      lockup_days: 0
+      notes: rETH is transferable; direct ETH withdrawal depends on the deposit pool and queue.
+    risk_notes:
+      - code: SLASHING
+        level: low
+        evidence: Node operator losses can reduce the rETH exchange rate.
+      - code: DEPEG
+        level: medium
+        evidence: rETH can trade below its protocol exchange rate.
+      - code: WITHDRAWAL_QUEUE
+        level: low
+        evidence: Direct exits depend on deposit pool liquidity and the withdrawal queue.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Core decentralized liquid staking market.
+
+  - id: aave-v3-weth
+    protocol_slug: aave-v3
+    protocol_name: Aave V3
+    category: Lending
+    action: lend
+    safety_tier: core
+    contract: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
+    market_name: Aave V3 WETH
+    deposit_asset_symbol: WETH
+    deposit_asset_address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    deposit_decimals: 18
+    receipt_asset_symbol: aEthWETH
+    receipt_asset_address: "0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8"
+    receipt_decimals: 18
+    requires_wrap: true
+    defillama_project: aave-v3
+    defillama_symbol: WETH
+    defillama_pool: e880e828-ca59-4ec6-8d4f-27182a4dc23d
+    withdrawal:
+      mode: instant
+      lockup_days: 0
+      notes: Withdrawal is immediate while the reserve has available liquidity.
+    risk_notes:
+      - code: SMART_CONTRACT
+        level: low
+        evidence: Multiple independent audits and a long production history.
+      - code: ORACLE
+        level: low
+        evidence: Collateral pricing depends on the Aave oracle configuration.
+      - code: LIQUIDITY
+        level: low
+        evidence: Large utilization can temporarily limit withdrawals.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Core ETH lending market; ETH must be wrapped to WETH first.
+
+  - id: sparklend-weth
+    protocol_slug: sparklend
+    protocol_name: SparkLend
+    category: Lending
+    action: lend
+    safety_tier: established
+    contract: "0xC13e21B648A5Ee794902342038FF3aDAB66BE987"
+    market_name: SparkLend WETH
+    deposit_asset_symbol: WETH
+    deposit_asset_address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    deposit_decimals: 18
+    receipt_asset_symbol: spWETH
+    receipt_asset_address: "0x59cD1C87501baa753d0B5B5Ab5D8416a45cD71DB"
+    receipt_decimals: 18
+    requires_wrap: true
+    defillama_project: sparklend
+    defillama_symbol: WETH
+    defillama_pool: 24195b31-d749-445f-bf9e-b65aa025ebdd
+    withdrawal:
+      mode: instant
+      lockup_days: 0
+      notes: Aave V3 style withdrawal; available liquidity can constrain immediate exits.
+    risk_notes:
+      - code: SMART_CONTRACT
+        level: low
+        evidence: Aave V3 fork with public audits and Sky governance.
+      - code: ORACLE
+        level: medium
+        evidence: Uses a Spark-specific oracle stack.
+      - code: LIQUIDITY
+        level: low
+        evidence: Large utilization can temporarily limit withdrawals.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Established lending market; ETH must be wrapped to WETH first.

@@ -83,6 +83,28 @@ pub struct V3DeploymentConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
+pub struct YieldConfig {
+    pub enabled: bool,
+    pub refresh_secs: u64,
+    pub max_age_secs: u64,
+    pub hard_max_age_secs: u64,
+    pub registry_path: Option<String>,
+}
+
+impl Default for YieldConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            refresh_secs: 300,
+            max_age_secs: 900,
+            hard_max_age_secs: 3600,
+            registry_path: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub host: String,
     pub port: u16,
@@ -121,6 +143,8 @@ pub struct Config {
     pub split: SplitConfig,
     pub pricing_mode: PricingMode,
     pub local_state: LocalStateConfig,
+    #[serde(rename = "yield")]
+    pub yield_config: YieldConfig,
 }
 
 fn service_split_config<'de, D: serde::Deserializer<'de>>(
@@ -169,6 +193,7 @@ impl Default for Config {
             split: SplitConfig::multi_pool(),
             pricing_mode: PricingMode::default(),
             local_state: LocalStateConfig::default(),
+            yield_config: YieldConfig::default(),
             shibaswap_v2_factory: "0x115934131916C8b277DD010Ee02de363c09d037c"
                 .parse()
                 .unwrap(),
@@ -209,6 +234,19 @@ impl Config {
             {
                 return Err(ConfigError::Invalid("conversion must have a unique nonzero wrapper contract, distinct underlying, and an enabled direction".into()));
             }
+        }
+        if self.yield_config.refresh_secs == 0
+            || self.yield_config.max_age_secs < self.yield_config.refresh_secs
+            || self.yield_config.hard_max_age_secs < self.yield_config.max_age_secs
+            || self
+                .yield_config
+                .registry_path
+                .as_ref()
+                .is_some_and(|path| path.trim().is_empty())
+        {
+            return Err(ConfigError::Invalid(
+                "yield config requires positive intervals and a non-empty registry path".into(),
+            ));
         }
         let mut venues = std::collections::HashSet::new();
         for deployment in &self.v3_deployments {

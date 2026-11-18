@@ -18,6 +18,8 @@ use crate::router::Router;
 use crate::rpc::RpcClient;
 use crate::source::QuoteSource;
 use crate::split::{Allocation, PlanKind, SearchStats, SplitConfig, SplitOptimizer, SplitResult};
+use crate::yield_intel::{YieldError, YieldStore};
+use fluxion_protocol::yield_capability::{YieldDiscoverRequest, YieldDiscoverResponse};
 
 #[derive(Debug, Deserialize)]
 pub struct QuoteRequestDto {
@@ -201,6 +203,13 @@ pub enum ApiError {
     Timeout,
     State(StateError),
     ComputationFailed,
+    Yield(YieldError),
+}
+
+impl From<YieldError> for ApiError {
+    fn from(error: YieldError) -> Self {
+        Self::Yield(error)
+    }
 }
 
 impl From<StateError> for ApiError {
@@ -231,6 +240,20 @@ impl IntoResponse for ApiError {
             }
             ApiError::Timeout => (StatusCode::GATEWAY_TIMEOUT, "Timeout", None),
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "InvalidRequest", Some(msg)),
+            ApiError::Yield(YieldError::Invalid(message)) => {
+                (StatusCode::BAD_REQUEST, "InvalidRequest", Some(message))
+            }
+            ApiError::Yield(YieldError::Unavailable(message)) => {
+                (StatusCode::BAD_GATEWAY, "YieldUnavailable", Some(message))
+            }
+            ApiError::Yield(YieldError::Stale) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "StaleState",
+                Some("yield data is stale".to_string()),
+            ),
+            ApiError::Yield(YieldError::Internal(message)) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal", Some(message))
+            }
             ApiError::Quote(e) => match e {
                 QuoteError::IncompleteState => {
                     return ApiError::State(StateError::Incomplete).into_response();
@@ -550,6 +573,22 @@ async fn graph(
     Ok(Json(GraphResponseDto { tokens, edges }))
 }
 
+async fn yield_discover(
+    store: Option<Extension<Arc<YieldStore>>>,
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<YieldDiscoverRequest>,
+) -> Result<Json<YieldDiscoverResponse>, ApiError> {
+    if !state.limiter.allow() {
+        return Err(ApiError::RateLimited);
+    }
+    let Some(Extension(store)) = store else {
+        return Err(ApiError::Yield(YieldError::Unavailable(
+            "yield capability is disabled".to_string(),
+        )));
+    };
+    store.discover(&request).map(Json).map_err(Into::into)
+}
+
 async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok" }))
 }
@@ -628,6 +667,7 @@ fn build_app(
     ));
     AxumRouter::new()
         .route("/quote", post(quote))
+        .route("/yield/discover", post(yield_discover))
         .route("/graph", get(graph))
         .route("/health", get(health))
         .route("/ready", get(ready))
@@ -647,6 +687,10 @@ mod tests {
     use crate::model::{Pool, PoolKind};
     use crate::router::PriceSnapshot;
     use crate::source::MockV2;
+    use crate::yield_intel::YieldStore;
+    use crate::yield_intel::provider::{LlamaPool, OnChainCheck, ProtocolMeta, now};
+    use crate::yield_intel::registry::Registry;
+    use crate::yield_intel::score::build_snapshot;
     use alloy_primitives::Address;
     use axum::body::{Body, to_bytes};
     use axum::http::Request;
@@ -716,6 +760,103 @@ mod tests {
             Address::with_last_byte(10).to_string()
         );
         assert!(v["price_impact_bps"].is_i64());
+    }
+
+    fn yield_store() -> Arc<YieldStore> {
+        let registry = Registry::load_default().unwrap();
+        let entry = registry
+            .entries()
+            .iter()
+            .find(|entry| entry.id == "lido-steth")
+            .unwrap()
+            .clone();
+        let pools = vec![LlamaPool {
+            pool: entry.defillama_pool.clone().unwrap(),
+            project: entry.defillama_project.clone(),
+            chain: "Ethereum".to_string(),
+            symbol: entry.defillama_symbol.clone(),
+            pool_meta: None,
+            tvl_usd: Some(2_000_000_000.0),
+            apy: Some(2.5),
+            apy_base: Some(2.5),
+            apy_reward: None,
+            apy_mean_30d: Some(2.5),
+            apy_pct_30d: None,
+            outlier: false,
+            il_risk: None,
+            exposure: None,
+            stablecoin: None,
+            underlying_tokens: vec![],
+        }];
+        let mut meta = HashMap::new();
+        meta.insert(
+            entry.protocol_slug.clone(),
+            ProtocolMeta {
+                slug: entry.protocol_slug.clone(),
+                name: entry.protocol_name.clone(),
+                category: entry.category.clone(),
+                tvl_usd: Some(2_000_000_000),
+                audits: Some(2),
+                audit_links: vec![],
+                listed_at: Some(1),
+                incident_count: 0,
+            },
+        );
+        let mut checks = HashMap::new();
+        checks.insert(
+            entry.id.clone(),
+            OnChainCheck {
+                contract_has_code: true,
+                receipt_has_code: true,
+                receipt_symbol: Some(entry.receipt_asset_symbol.clone()),
+                receipt_decimals: Some(entry.receipt_decimals),
+                warnings: vec![],
+            },
+        );
+        let snapshot = build_snapshot(&[entry], &pools, &meta, &checks, now(), vec![], vec![]);
+        YieldStore::with_snapshot(snapshot)
+    }
+
+    #[tokio::test]
+    async fn yield_discover_reports_disabled_without_extension() {
+        let app = app(mock_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/yield/discover")
+                    .header("content-type", "application/json")
+                    .body(Body::from("{\"asset\":\"ETH\"}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[tokio::test]
+    async fn yield_discover_returns_recommendation() {
+        let app = app(mock_state()).layer(Extension(yield_store()));
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/yield/discover")
+                    .header("content-type", "application/json")
+                    .body(Body::from("{\"asset\":\"ETH\",\"amount\":\"10\"}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["capability"], "yield.discover");
+        assert_eq!(body["recommended"]["opportunity_id"], "lido-steth");
+        assert_eq!(
+            body["opportunities"][0]["estimated_annual_yield"]["decimal"],
+            "0.25"
+        );
     }
 
     #[tokio::test]

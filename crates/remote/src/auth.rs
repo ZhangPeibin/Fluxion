@@ -79,7 +79,7 @@ pub async fn require_auth(
     request: Request<axum::body::Body>,
     next: Next,
 ) -> Response {
-    if request.uri().path() == "/quote" {
+    if matches!(request.uri().path(), "/quote" | "/yield/discover") {
         let header = request
             .headers()
             .get("authorization")

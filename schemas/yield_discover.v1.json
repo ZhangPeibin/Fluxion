@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/yield_discover.v1.json",
+  "title": "Fluxion yield.discover v1",
+  "oneOf": [
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "amount": {
+      "type": "object",
+      "required": ["raw", "decimal"],
+      "additionalProperties": false,
+      "properties": {
+        "raw": { "type": "string", "pattern": "^[0-9]+$" },
+        "decimal": { "type": "string" }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "required": ["symbol", "address", "decimals"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "type": "string" },
+        "address": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 38 }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["name", "url", "fetched_at"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "url": { "type": "string" },
+        "fetched_at": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "withdrawal": {
+      "type": "object",
+      "required": ["mode", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["instant", "queue", "secondary_market", "secondary_market_or_queue"]
+        },
+        "lockup_days": { "type": "integer", "minimum": 0 },
+        "notes": { "type": "string" }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "required": ["slug", "name", "category"],
+      "additionalProperties": false,
+      "properties": {
+        "slug": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "tvl_usd": { "type": "integer", "minimum": 0 },
+        "audits": { "type": "integer", "minimum": 0 },
+        "audit_links": { "type": "array", "items": { "type": "string" } },
+        "listed_at": { "type": "integer", "minimum": 0 },
+        "incident_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "market": {
+      "type": "object",
+      "required": [
+        "name", "tvl_usd", "contract", "deposit_asset", "receipt_asset",
+        "requires_wrap", "withdrawal"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "tvl_usd": { "type": "integer", "minimum": 0 },
+        "contract": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "deposit_asset": { "$ref": "#/$defs/asset" },
+        "receipt_asset": { "$ref": "#/$defs/asset" },
+        "requires_wrap": { "type": "boolean" },
+        "withdrawal": { "$ref": "#/$defs/withdrawal" }
+      }
+    },
+    "yield": {
+      "type": "object",
+      "required": [
+        "apy_percent", "ranking_apy_percent", "yield_type", "methodology"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "apy_percent": { "type": "number" },
+        "base_apy_percent": { "type": "number" },
+        "reward_apy_percent": { "type": "number" },
+        "apy_mean_30d_percent": { "type": "number" },
+        "apy_pct_30d": { "type": "number" },
+        "ranking_apy_percent": { "type": "number" },
+        "yield_type": { "type": "string", "enum": ["staking_apr", "supply_apy"] },
+        "methodology": { "type": "string" }
+      }
+    },
+    "risk_factor": {
+      "type": "object",
+      "required": ["code", "level", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string" },
+        "level": { "type": "string", "enum": ["low", "medium", "high"] },
+        "evidence": { "type": "string" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["source", "fact", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string" },
+        "fact": { "type": "string" },
+        "value": { "type": "string" }
+      }
+    },
+    "opportunity": {
+      "type": "object",
+      "required": [
+        "id", "safety_tier", "protocol", "action", "market", "yield",
+        "risk_factors", "evidence", "data_confidence", "sources", "warnings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "safety_tier": {
+          "type": "string",
+          "enum": ["core", "established", "experimental"]
+        },
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "action": { "type": "string", "enum": ["stake", "lend"] },
+        "market": { "$ref": "#/$defs/market" },
+        "yield": { "$ref": "#/$defs/yield" },
+        "risk_factors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/risk_factor" }
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        },
+        "data_confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+        "estimated_annual_yield": { "$ref": "#/$defs/amount" },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "required": ["opportunity_id", "reason", "tradeoffs"],
+      "additionalProperties": false,
+      "properties": {
+        "opportunity_id": { "type": "string" },
+        "reason": { "type": "string" },
+        "tradeoffs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "exclusion": {
+      "type": "object",
+      "required": ["id", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "success": {
+      "type": "object",
+      "required": [
+        "schema_version", "capability", "request_id", "chain", "asset",
+        "risk_profile", "objective", "opportunities", "excluded",
+        "as_of", "age_secs", "stale", "coverage", "sources",
+        "disclaimer", "warnings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": 1 },
+        "capability": { "const": "yield.discover" },
+        "request_id": { "type": "string" },
+        "chain": { "const": "ethereum" },
+        "asset": { "$ref": "#/$defs/asset" },
+        "amount": { "$ref": "#/$defs/amount" },
+        "risk_profile": {
+          "type": "string",
+          "enum": ["conservative", "balanced", "aggressive"]
+        },
+        "objective": { "type": "string" },
+        "recommended": { "$ref": "#/$defs/recommendation" },
+        "opportunities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/opportunity" }
+        },
+        "excluded": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/exclusion" }
+        },
+        "as_of": { "type": "integer", "minimum": 0 },
+        "age_secs": { "type": "integer", "minimum": 0 },
+        "stale": { "type": "boolean" },
+        "coverage": { "type": "string" },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" } },
+        "disclaimer": { "type": "string" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["schema_version", "capability", "request_id", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": 1 },
+        "capability": { "const": "yield.discover" },
+        "request_id": { "type": "string" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message", "retryable"],
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "INVALID_ARGUMENT", "UNSUPPORTED", "RPC_ERROR", "STALE_STATE",
+                "STATE_INCOMPLETE", "TIMEOUT", "INTERNAL"
+              ]
+            },
+            "message": { "type": "string" },
+            "retryable": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

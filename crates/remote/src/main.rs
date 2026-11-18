@@ -19,6 +19,8 @@ use fluxion_remote::state::StateCache;
 use fluxion_remote::universe::{
     discover_pools, platform_enabled, pricing_source, warm_coarse_prices,
 };
+use fluxion_remote::yield_intel::provider::YieldProvider;
+use fluxion_remote::yield_intel::{Registry, YieldOptions, YieldStore};
 
 #[tokio::main]
 async fn main() {
@@ -208,7 +210,7 @@ async fn run_server(config_path: String) {
         source: cached,
         router,
         limiter: RateLimiter::new(1000, Duration::from_secs(1)),
-        rpc: Some(rpc),
+        rpc: Some(rpc.clone()),
         request_timeout: Duration::from_millis(config.request_timeout_ms.max(1)),
     });
 
@@ -228,9 +230,29 @@ async fn run_server(config_path: String) {
             async move { axum::Json(service_info(info_mode, &info_config, &graph)) }
         }),
     );
+    let app = if config.yield_config.enabled {
+        let registry = match &config.yield_config.registry_path {
+            Some(path) => Registry::from_path(std::path::Path::new(path)),
+            None => Registry::load_default(),
+        }
+        .unwrap_or_else(|error| panic!("{error}"));
+        let store = YieldStore::new(
+            registry,
+            YieldProvider::new(rpc.clone()),
+            YieldOptions {
+                refresh_secs: config.yield_config.refresh_secs,
+                max_age_secs: config.yield_config.max_age_secs,
+                hard_max_age_secs: config.yield_config.hard_max_age_secs,
+            },
+        );
+        store.start_background();
+        app.layer(axum::Extension(store))
+    } else {
+        app
+    };
     let app = if std::env::var("FLUXION_REQUIRE_AUTH").as_deref() == Ok("1") {
         let auth = Arc::new(AuthStore::new());
-        tracing::info!("installation-token auth enabled for /quote");
+        tracing::info!("installation-token auth enabled for /quote and /yield/discover");
         app.route("/register", axum::routing::post(register))
             .layer(axum::Extension(auth.clone()))
             .layer(axum::middleware::from_fn_with_state(auth, require_auth))
