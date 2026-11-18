@@ -25,7 +25,7 @@ call internally; the agent does not choose local or remote execution.
 
 ## Remote service
 
-`swap.quote` always calls the remote Fluxion service. Set `FLUXION_REMOTE_URL` to its endpoint;
+`swap.quote` and `yield.discover` always call the remote Fluxion service. Set `FLUXION_REMOTE_URL` to its endpoint;
 development and tests use the same variable:
 
 ```bash
@@ -37,7 +37,7 @@ FLUXION_REMOTE_URL=https://api.example.com FLUXION_API_KEY=... fluxion mcp
 
 ### Installation token
 
-With `FLUXION_REQUIRE_AUTH=1`, `/quote` requires a bearer token. The local client handles this
+With `FLUXION_REQUIRE_AUTH=1`, `/quote` and `/yield/discover` require a bearer token. The local client handles this
 automatically:
 
 1. first `/quote` returns `401`
@@ -108,7 +108,8 @@ MCP documentation if a snippet is rejected.
 ## Lifecycle
 
 - `fluxion mcp` keeps the MCP process alive and reuses one remote client.
-- `swap.quote` uses the remote service; the remote server owns discovery and snapshot warmup.
+- `swap.quote` and `yield.discover` use the remote service; the remote server owns discovery and
+  snapshot warmup.
 - Local wallet and transaction tools default to BSC; pass `chain: "ethereum"` for Ethereum.
 - `wallet_sign` uses the stored session and waits for explicit phone confirmation. A rejection
   returns `USER_REJECTED`; it does not retry automatically.
@@ -161,6 +162,7 @@ Available tools depend on the installed capabilities:
 | `signature.inspect` | `signature_inspect` | [capabilities/signature](capabilities/signature/README.md) |
 | `fourmeme.agent-tokens` | `fourmeme_agent_tokens` | [capabilities/fourmeme](capabilities/fourmeme/README.md) |
 | `fourmeme.token` | `fourmeme_token` | [capabilities/fourmeme](capabilities/fourmeme/README.md) |
+| `yield.discover` | `yield_discover` | [capabilities/yield](capabilities/yield/README.md) |
 
 ## Troubleshooting
 

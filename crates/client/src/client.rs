@@ -17,6 +17,7 @@ use crate::capability::{
 use crate::swap::PlanKind;
 use crate::swap::quote::{AllocationResponse, HopResponse, QuoteRequest, QuoteResponse};
 use crate::token;
+use fluxion_protocol::yield_capability::{YieldDiscoverRequest, YieldDiscoverResponse};
 
 pub struct RuntimeClient {
     base_url: String,
@@ -85,6 +86,31 @@ impl RuntimeClient {
             "split_max_branches": request.split_max_branches,
         });
         let started = Instant::now();
+        let text = self.post_remote("/quote", body).await?;
+        let dto: HttpQuoteResponse = serde_json::from_str(&text)
+            .map_err(|error| CapabilityError::internal(format!("invalid runtime JSON: {error}")))?;
+        let latency_ms = started.elapsed().as_millis() as u64;
+        build_response(
+            dto, request, token_in, token_out, chain, execution, latency_ms,
+        )
+    }
+
+    pub async fn yield_discover(
+        &self,
+        request: &YieldDiscoverRequest,
+    ) -> Result<YieldDiscoverResponse, CapabilityError> {
+        let body = serde_json::to_value(request)
+            .map_err(|error| CapabilityError::internal(error.to_string()))?;
+        let text = self.post_remote("/yield/discover", body).await?;
+        serde_json::from_str(&text)
+            .map_err(|error| CapabilityError::internal(format!("invalid runtime JSON: {error}")))
+    }
+
+    async fn post_remote(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+    ) -> Result<String, CapabilityError> {
         let mut token = self
             .api_key
             .clone()
@@ -92,7 +118,7 @@ impl RuntimeClient {
         for attempt in 0..2 {
             let mut http_request = self
                 .http
-                .post(format!("{}/quote", self.base_url))
+                .post(format!("{}{path}", self.base_url))
                 .json(&body);
             if let Some(token) = &token {
                 http_request = http_request.header("authorization", format!("Bearer {token}"));
@@ -122,16 +148,10 @@ impl RuntimeClient {
             if !status.is_success() {
                 return Err(http_error(status.as_u16(), &text));
             }
-            let dto: HttpQuoteResponse = serde_json::from_str(&text).map_err(|error| {
-                CapabilityError::internal(format!("invalid runtime JSON: {error}"))
-            })?;
-            let latency_ms = started.elapsed().as_millis() as u64;
-            return build_response(
-                dto, request, token_in, token_out, chain, execution, latency_ms,
-            );
+            return Ok(text);
         }
         Err(CapabilityError::internal(
-            "quote request failed after token refresh",
+            "remote request failed after token refresh",
         ))
     }
 }

@@ -45,3 +45,13 @@ local_state:
   full_reload_interval_secs: 900
   max_incremental_gap_blocks: 64
   v3_log_chunk_blocks: 5000
+
+# Remote yield discovery. Read-only; data is fetched from DefiLlama and
+# verified against Ethereum RPC. `registry_path` overrides the built-in
+# curated universe when set.
+yield:
+  enabled: true
+  refresh_secs: 300
+  max_age_secs: 900
+  hard_max_age_secs: 3600
+  registry_path: null

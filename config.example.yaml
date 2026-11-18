@@ -138,3 +138,13 @@ split:
   max_quote_calls: 256
   concurrency: 8
   timeout_ms: 8000 # additionally bounded by the HTTP request's remaining time
+
+# Remote yield discovery. Read-only; data is fetched from DefiLlama and
+# verified against Ethereum RPC. `registry_path` overrides the built-in
+# curated universe when set.
+yield:
+  enabled: true
+  refresh_secs: 300
+  max_age_secs: 900
+  hard_max_age_secs: 3600
+  registry_path: null

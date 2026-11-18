@@ -26,3 +26,4 @@ pub mod v3_local;
 mod v3_sync;
 pub mod wsteth_local;
 mod wsteth_sync;
+pub mod yield_intel;

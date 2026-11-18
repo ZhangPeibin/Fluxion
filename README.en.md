@@ -121,6 +121,12 @@ that is internal Fluxion routing.
 | `fourmeme.agent-tokens` | `fluxion fourmeme agent-tokens --wallet 0x...` | Discover Binance Agent ID Exclusive tokens and wallet eligibility |
 | `fourmeme.token` | `fluxion fourmeme token 0x... --wallet 0x...` | Single-token detail, phase, market data and eligibility |
 
+#### 6. Yield discovery
+
+| Capability | CLI | Description |
+|---|---|---|
+| `yield.discover` | `fluxion yield discover --asset ETH --amount 10` | Ethereum ETH staking/lending: safety tier, APY, TVL, withdrawal conditions, recommendation |
+
 Full usage and "ask the agent" examples are below in each capability section.
 
 ### Quotes
@@ -143,6 +149,28 @@ Quote 100 LDO to ETH and show the best route.
 ```
 
 Skill: [swap](skills/swap/SKILL.md) · Docs: [swap.quote](docs/capabilities/swap/README.md)
+
+### Yield discovery
+
+#### `yield.discover`
+
+Read-only discovery of ETH-denominated staking and lending opportunities on Ethereum. It returns
+a curated safety tier, APY components, TVL, withdrawal conditions, risk factors and evidence, plus
+one recommendation with explicit tradeoffs. It never builds, signs or executes a transaction.
+
+```bash
+fluxion yield discover --asset ETH --amount 10 --json
+fluxion yield discover --asset ETH --amount 10 --risk balanced --json
+```
+
+Ask the agent:
+
+```text
+I have 10 ETH. Find the safest opportunity with a reasonable APY, give me the conservative
+recommendation, and explain what I am giving up.
+```
+
+Skill: [yield](skills/yield/SKILL.md) · Docs: [yield.discover](docs/capabilities/yield/README.md)
 
 ### Account reads
 
@@ -514,6 +542,7 @@ only routes.
 |---|---|---|---|
 | `swap.quote` | remote | remote snapshot -> local route computation | Remote unavailable -> `RPC_ERROR` |
 | `swap.build` | local | quote JSON -> local ABI encoding | Non-V2/split/non-Ethereum -> `UNSUPPORTED` |
+| `yield.discover` | remote | curated registry + DefiLlama + Ethereum RPC snapshot | Provider/RPC failure -> `RPC_ERROR`; stale data -> `STALE_STATE` |
 | `wallet.balance` / `assets` / `allowance` / `collectibles` | local | local RPC at a pinned block | RPC failure -> `RPC_ERROR` |
 | `wallet.connect` / `status` / `disconnect` | local | local session + WalletConnect relay | No session, pairing failure, or expiry -> explicit error |
 | `wallet.agent-id` | local | SPACE ID API + BSC RPC verification | API failure -> configured on-chain fallback or unknown |
@@ -574,9 +603,9 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - Security: [rule catalog](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- Contracts: [fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
+- Contracts: [fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [yield.discover schema](schemas/yield_discover.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
 - Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
-- Skills: [swap](skills/swap/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
+- Skills: [swap](skills/swap/SKILL.md) · [yield](skills/yield/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
 
 ## Status and boundaries
 

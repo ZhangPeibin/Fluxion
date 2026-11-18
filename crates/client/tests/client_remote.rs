@@ -10,6 +10,7 @@ use axum::{Json, Router};
 use fluxion_client::capability::TokenRef;
 use fluxion_client::client::RuntimeClient;
 use fluxion_client::swap::quote::QuoteRequest;
+use fluxion_protocol::yield_capability::YieldDiscoverRequest;
 use serde_json::{Value, json};
 
 type CapturedRequest = Option<(Option<String>, Value)>;
@@ -86,6 +87,76 @@ async fn remote_client_sends_bearer_and_maps_response() {
     assert_eq!(auth.as_deref(), Some("Bearer test-key"));
     assert_eq!(body["split"], true);
     assert_eq!(body["amount_in"], "10");
+
+    server.abort();
+}
+
+async fn yield_discover(
+    State(capture): State<Capture>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let auth = headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    *capture.0.lock().unwrap() = Some((auth, body));
+    Json(json!({
+        "schema_version": 1,
+        "capability": "yield.discover",
+        "request_id": "test",
+        "chain": "ethereum",
+        "asset": {"symbol": "ETH", "address": "native", "decimals": 18},
+        "amount": {"raw": "10000000000000000000", "decimal": "10"},
+        "risk_profile": "conservative",
+        "objective": "highest_apy_within_eligible_safety_tiers",
+        "opportunities": [],
+        "excluded": [],
+        "as_of": 1,
+        "age_secs": 0,
+        "stale": false,
+        "coverage": "curated-universe+defillama+onchain",
+        "sources": [],
+        "disclaimer": "test",
+        "warnings": []
+    }))
+}
+
+#[tokio::test]
+async fn remote_client_calls_yield_discover() {
+    let capture = Capture(Arc::new(Mutex::new(None)));
+    let app = Router::new()
+        .route("/yield/discover", post(yield_discover))
+        .with_state(capture.clone());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let client =
+        RuntimeClient::with_api_key(format!("http://{address}"), Some("test-key".to_string()));
+    let response = client
+        .yield_discover(&YieldDiscoverRequest {
+            chain: "ethereum".to_string(),
+            asset: "ETH".to_string(),
+            amount: Some("10".to_string()),
+            risk_profile: fluxion_protocol::yield_capability::RiskProfile::Conservative,
+            min_tvl_usd: None,
+            max_lockup_days: None,
+            include_reward_apy: None,
+            protocols: vec![],
+            limit: 10,
+        })
+        .await
+        .unwrap();
+    assert_eq!(response.capability, "yield.discover");
+    assert!(response.opportunities.is_empty());
+
+    let (auth, body) = capture.0.lock().unwrap().clone().unwrap();
+    assert_eq!(auth.as_deref(), Some("Bearer test-key"));
+    assert_eq!(body["asset"], "ETH");
+    assert_eq!(body["amount"], "10");
 
     server.abort();
 }
