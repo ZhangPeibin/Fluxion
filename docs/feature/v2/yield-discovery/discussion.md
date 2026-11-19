@@ -31,7 +31,7 @@ evidence; the tier itself is not an on-chain or provider field.
 |---|---|
 | `core` | >=3 years in production, >=2 audits, no unresolved loss-of-funds incident in the last 2 years, protocol TVL >= $1B, direct ETH exposure, no reward-token dependency, withdrawal <=7 days, reviewed admin/upgrade path |
 | `established` | >=1 year, >=2 audits, TVL >= $250M, documented withdrawal path; may include LST/restaking or reward components |
-| `experimental` | Newer, smaller, reward-heavy, or restaking/LRT exposure |
+| `experimental` | Newer, smaller, reward-heavy, restaking/LRT, or custodial/off-chain entry |
 | excluded | No audits, unverified contract, unresolved incident, or conflicting provider data |
 
 ## Ranking and recommendation
@@ -89,3 +89,14 @@ an optional estimated annual yield for the requested amount.
 
 - Whether to add protocol-native APY providers in the second slice.
 - Whether to add `yield.history` and `yield.build` after the discovery contract stabilizes.
+
+## Expansion pass (2026-11-19)
+
+- Added cbETH, ether.fi weETH, Kelp rsETH, Renzo ezETH, Steakhouse ETH and Gauntlet WETH Prime.
+- cbETH is `experimental`: primary mint/redemption is custodial and DefiLlama lists no protocol audits.
+- weETH and rsETH are `established` because they meet the age/audit/TVL rules, with restaking and
+  withdrawal-queue risk factors attached.
+- Renzo and the two curated Morpho vaults are `experimental` because of withdrawal, curator or
+  small-vault liquidity risk.
+- The `aggressive` market-TVL floor was lowered to $10M so the curated Morpho vaults can appear;
+  `conservative` and `balanced` floors are unchanged.

@@ -145,3 +145,228 @@ entries:
     reviewed_at: "2026-11-18"
     reviewer: "fluxion-risk"
     notes: Established lending market; ETH must be wrapped to WETH first.
+
+  - id: cbeth
+    protocol_slug: coinbase-wrapped-staked-eth
+    protocol_name: Coinbase Wrapped Staked ETH
+    category: Liquid Staking
+    action: stake
+    safety_tier: experimental
+    contract: "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704"
+    market_name: cbETH
+    deposit_asset_symbol: ETH
+    deposit_asset_address: native
+    deposit_decimals: 18
+    receipt_asset_symbol: cbETH
+    receipt_asset_address: "0xBe9895146f7AF43049ca1c1AE358B0541Ea49704"
+    receipt_decimals: 18
+    requires_wrap: false
+    defillama_project: coinbase-wrapped-staked-eth
+    defillama_symbol: CBETH
+    defillama_pool: 0f45d730-b279-4629-8e11-ccb5cc3038b4
+    withdrawal:
+      mode: secondary_market
+      lockup_days: 0
+      notes: Primary mint and redemption are handled through Coinbase; cbETH is transferable on-chain.
+    risk_notes:
+      - code: CUSTODIAL
+        level: high
+        evidence: Primary issuance and redemption rely on Coinbase's staking operations.
+      - code: OFFCHAIN_ENTRY
+        level: medium
+        evidence: Retail mint and redemption are account-based rather than permissionless on-chain calls.
+      - code: AUDIT_UNKNOWN
+        level: medium
+        evidence: DefiLlama lists no protocol audits for this wrapper.
+      - code: DEPEG
+        level: medium
+        evidence: cbETH can trade below ETH in the secondary market.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Centralized liquid staking; included for coverage but kept experimental.
+
+  - id: etherfi-weeth
+    protocol_slug: ether.fi-stake
+    protocol_name: ether.fi Stake
+    category: Liquid Restaking
+    action: stake
+    safety_tier: established
+    contract: "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee"
+    market_name: weETH
+    deposit_asset_symbol: ETH
+    deposit_asset_address: native
+    deposit_decimals: 18
+    receipt_asset_symbol: weETH
+    receipt_asset_address: "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee"
+    receipt_decimals: 18
+    requires_wrap: true
+    defillama_project: ether.fi-stake
+    defillama_symbol: WEETH
+    defillama_pool: 46bd2bdf-6d92-4066-b482-e885ee172264
+    withdrawal:
+      mode: secondary_market_or_queue
+      lockup_days: 0
+      notes: weETH is transferable; direct redemption depends on ether.fi and EigenLayer withdrawal queues.
+    risk_notes:
+      - code: RESTAKING
+        level: medium
+        evidence: EigenLayer restaking adds operator and slashing risk beyond native staking.
+      - code: DEPEG
+        level: medium
+        evidence: weETH can trade below its protocol exchange rate.
+      - code: WITHDRAWAL_QUEUE
+        level: medium
+        evidence: Direct exits depend on protocol and restaking withdrawal queues.
+      - code: ENTRY_PATH
+        level: low
+        evidence: ETH is deposited for eETH and then wrapped into weETH.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Large liquid restaking market; higher risk than core liquid staking.
+
+  - id: kelp-rseth
+    protocol_slug: kelp
+    protocol_name: Kelp
+    category: Liquid Restaking
+    action: stake
+    safety_tier: established
+    contract: "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7"
+    market_name: rsETH
+    deposit_asset_symbol: ETH
+    deposit_asset_address: native
+    deposit_decimals: 18
+    receipt_asset_symbol: rsETH
+    receipt_asset_address: "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7"
+    receipt_decimals: 18
+    requires_wrap: false
+    defillama_project: kelp
+    defillama_symbol: RSETH
+    defillama_pool: 33c732f6-a78d-41da-af5b-ccd9fa5e52d5
+    withdrawal:
+      mode: secondary_market_or_queue
+      lockup_days: 0
+      notes: rsETH is transferable; direct redemption depends on Kelp and EigenLayer withdrawal queues.
+    risk_notes:
+      - code: RESTAKING
+        level: medium
+        evidence: Restaking adds operator, slashing and multi-asset deposit risk.
+      - code: MULTI_ASSET
+        level: medium
+        evidence: The protocol supports ETH and liquid staking token deposits.
+      - code: DEPEG
+        level: medium
+        evidence: rsETH can trade below its protocol exchange rate.
+      - code: WITHDRAWAL_QUEUE
+        level: medium
+        evidence: Direct exits depend on protocol and restaking withdrawal queues.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Established liquid restaking market; higher risk than core staking.
+
+  - id: renzo-ezeth
+    protocol_slug: renzo
+    protocol_name: Renzo
+    category: Liquid Restaking
+    action: stake
+    safety_tier: experimental
+    contract: "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110"
+    market_name: ezETH
+    deposit_asset_symbol: ETH
+    deposit_asset_address: native
+    deposit_decimals: 18
+    receipt_asset_symbol: ezETH
+    receipt_asset_address: "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110"
+    receipt_decimals: 18
+    requires_wrap: false
+    defillama_project: renzo
+    defillama_symbol: EZETH
+    defillama_pool: e28e32b5-e356-41d9-8dc7-a376ece56619
+    withdrawal:
+      mode: secondary_market_or_queue
+      lockup_days: 0
+      notes: ezETH is transferable; direct redemption depends on Renzo and EigenLayer withdrawal queues.
+    risk_notes:
+      - code: RESTAKING
+        level: high
+        evidence: Restaking strategy and operator selection add slashing and strategy risk.
+      - code: DEPEG
+        level: medium
+        evidence: ezETH can trade below its protocol exchange rate.
+      - code: WITHDRAWAL_QUEUE
+        level: high
+        evidence: Direct exits depend on protocol and restaking withdrawal queues.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Smaller liquid restaking market; kept experimental.
+
+  - id: morpho-steakhouse-eth
+    protocol_slug: morpho-blue
+    protocol_name: Morpho Blue
+    category: Lending
+    action: lend
+    safety_tier: experimental
+    contract: "0xBEEf050ecd6a16c4e7bfFbB52Ebba7846C4b8cD4"
+    market_name: Steakhouse ETH
+    deposit_asset_symbol: WETH
+    deposit_asset_address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    deposit_decimals: 18
+    receipt_asset_symbol: steakETH
+    receipt_asset_address: "0xBEEf050ecd6a16c4e7bfFbB52Ebba7846C4b8cD4"
+    receipt_decimals: 18
+    requires_wrap: true
+    defillama_project: morpho-blue
+    defillama_symbol: STEAKETH
+    defillama_pool: 1b2ca876-3a09-4261-a685-7818260bdc67
+    withdrawal:
+      mode: instant
+      lockup_days: 0
+      notes: Vault withdrawals depend on available liquidity in the underlying Morpho markets.
+    risk_notes:
+      - code: VAULT_CURATOR
+        level: medium
+        evidence: The vault curator selects Morpho markets and manages allocation policy.
+      - code: LIQUIDITY
+        level: medium
+        evidence: Withdrawals can be constrained by utilization in the underlying markets.
+      - code: SMART_CONTRACT
+        level: low
+        evidence: Morpho Blue has public audits and a long production history.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Small curated Morpho vault; experimental despite the underlying protocol's maturity.
+
+  - id: morpho-gauntlet-weth
+    protocol_slug: morpho-blue
+    protocol_name: Morpho Blue
+    category: Lending
+    action: lend
+    safety_tier: experimental
+    contract: "0x2371e134e3455e0593363cBF89d3b6cf53740618"
+    market_name: Gauntlet WETH Prime
+    deposit_asset_symbol: WETH
+    deposit_asset_address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    deposit_decimals: 18
+    receipt_asset_symbol: gtWETH
+    receipt_asset_address: "0x2371e134e3455e0593363cBF89d3b6cf53740618"
+    receipt_decimals: 18
+    requires_wrap: true
+    defillama_project: morpho-blue
+    defillama_symbol: GTWETHP
+    defillama_pool: 6880a5ff-dff4-4963-ac9a-ed265198f6bf
+    withdrawal:
+      mode: instant
+      lockup_days: 0
+      notes: Vault withdrawals depend on available liquidity in the underlying Morpho markets.
+    risk_notes:
+      - code: VAULT_CURATOR
+        level: medium
+        evidence: Gauntlet curates the vault's Morpho market allocation.
+      - code: LIQUIDITY
+        level: medium
+        evidence: Withdrawals can be constrained by utilization in the underlying markets.
+      - code: SMART_CONTRACT
+        level: low
+        evidence: Morpho Blue has public audits and a long production history.
+    reviewed_at: "2026-11-18"
+    reviewer: "fluxion-risk"
+    notes: Small curated Morpho vault; experimental despite the underlying protocol's maturity.

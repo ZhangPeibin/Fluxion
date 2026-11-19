@@ -31,7 +31,8 @@ fluxion yield discover --asset ETH --amount 10 --risk balanced --json
 - `recommended`: highest `ranking_apy_percent` among opportunities eligible for the profile.
   Always report its `tradeoffs`; do not present it as "safe".
 - `opportunities[].safety_tier`: `core`, `established`, or `experimental`. A non-core tier is a
-  real risk statement, not a formatting detail.
+  real risk statement, not a formatting detail. `experimental` may include restaking/LRT,
+  custodial/off-chain entry, or a curated vault with small liquidity.
 - `opportunities[].yield`: `apy_percent`, `base_apy_percent`, `reward_apy_percent`,
   `apy_mean_30d_percent`, and `ranking_apy_percent`. Ranking uses the 30-day mean of base APY;
   reward APY is excluded unless `include_reward_apy` is true.

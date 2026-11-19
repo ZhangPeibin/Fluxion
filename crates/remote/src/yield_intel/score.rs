@@ -297,7 +297,7 @@ fn confidence(
     if !check.contract_has_code || !check.receipt_has_code {
         return "low".to_string();
     }
-    if explicit && meta.audits.is_some() && warnings.is_empty() {
+    if explicit && meta.audits.is_some_and(|count| count > 0) && warnings.is_empty() {
         "high".to_string()
     } else {
         "medium".to_string()
@@ -326,7 +326,7 @@ pub fn discover(
     let default_min_tvl = match profile {
         RiskProfile::Conservative => 250_000_000,
         RiskProfile::Balanced => 100_000_000,
-        RiskProfile::Aggressive => 25_000_000,
+        RiskProfile::Aggressive => 10_000_000,
     };
     let default_lockup = match profile {
         RiskProfile::Conservative => 0,
@@ -730,15 +730,30 @@ mod tests {
         let mut opportunities = Vec::new();
         for entry in registry.entries() {
             let apy = match entry.id.as_str() {
-                "lido-steth" => 2.0,
-                "rocket-pool-reth" => 1.8,
-                "aave-v3-weth" => 1.4,
-                "sparklend-weth" => 3.0,
+                "lido-steth" => 2.69,
+                "rocket-pool-reth" => 1.96,
+                "aave-v3-weth" => 1.39,
+                "sparklend-weth" => 1.60,
+                "etherfi-weeth" => 2.57,
+                "kelp-rseth" => 2.76,
+                "cbeth" => 2.57,
+                "renzo-ezeth" => 1.94,
+                "morpho-steakhouse-eth" => 1.98,
+                "morpho-gauntlet-weth" => 2.10,
                 _ => 0.5,
             };
             let tvl = match entry.id.as_str() {
-                "sparklend-weth" => 500_000_000,
-                _ => 2_000_000_000,
+                "lido-steth" => 17_000_000_000,
+                "rocket-pool-reth" => 869_704_903,
+                "aave-v3-weth" => 559_214_208,
+                "sparklend-weth" => 110_014_192,
+                "etherfi-weeth" => 3_926_252_487,
+                "kelp-rseth" => 648_457_534,
+                "cbeth" => 360_421_380,
+                "renzo-ezeth" => 76_345_462,
+                "morpho-steakhouse-eth" => 21_333_321,
+                "morpho-gauntlet-weth" => 18_266_440,
+                _ => 1_000_000_000,
             };
             opportunities.push(base_from_entry(entry.clone(), apy, tvl));
         }
@@ -796,6 +811,35 @@ mod tests {
     }
 
     #[test]
+    fn aggressive_includes_experimental_markets() {
+        let response = discover(
+            &snapshot(),
+            &YieldDiscoverRequest {
+                asset: "ETH".into(),
+                risk_profile: RiskProfile::Aggressive,
+                limit: 20,
+                ..test_request()
+            },
+            1_010,
+            900,
+            3600,
+        )
+        .unwrap();
+        assert!(
+            response
+                .opportunities
+                .iter()
+                .any(|item| item.safety_tier == SafetyTier::Experimental)
+        );
+        assert!(
+            response
+                .opportunities
+                .iter()
+                .any(|item| item.id == "morpho-steakhouse-eth")
+        );
+    }
+
+    #[test]
     fn balanced_prefers_higher_yield_across_eligible_tiers() {
         let response = discover(
             &snapshot(),
@@ -816,7 +860,7 @@ mod tests {
                 .any(|item| item.safety_tier == SafetyTier::Established)
         );
         let recommended = response.recommended.unwrap();
-        assert_eq!(recommended.opportunity_id, "sparklend-weth");
+        assert_eq!(recommended.opportunity_id, "kelp-rseth");
         assert!(
             recommended
                 .tradeoffs
