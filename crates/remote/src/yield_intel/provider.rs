@@ -8,13 +8,14 @@ use fluxion_protocol::yield_capability::YieldSource;
 use serde::Deserialize;
 use serde_json::Value;
 
+use super::RegistryEntry;
 use super::YieldError;
-use super::registry::RegistryEntry;
 use crate::rpc::RpcClient;
 
 const DEFAULT_POOLS_URL: &str = "https://yields.llama.fi/pools";
 const DEFAULT_PROTOCOLS_URL: &str = "https://api.llama.fi/protocols";
 const DEFAULT_HACKS_URL: &str = "https://api.llama.fi/hacks";
+const DEFAULT_CHART_URL: &str = "https://yields.llama.fi/chart";
 
 #[derive(Clone)]
 pub struct YieldProvider {
@@ -22,6 +23,7 @@ pub struct YieldProvider {
     pools_url: String,
     protocols_url: String,
     hacks_url: String,
+    chart_url: String,
     pub rpc: RpcClient,
 }
 
@@ -97,6 +99,33 @@ pub struct ProtocolMeta {
     pub incident_count: u32,
 }
 
+#[derive(Debug, Clone)]
+pub struct HistoryPoint {
+    pub timestamp: u64,
+    pub apy: Option<f64>,
+    pub apy_base: Option<f64>,
+    pub apy_reward: Option<f64>,
+    pub tvl_usd: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChartResponse {
+    data: Vec<RawHistoryPoint>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawHistoryPoint {
+    timestamp: String,
+    #[serde(default, rename = "tvlUsd")]
+    tvl_usd: Option<f64>,
+    #[serde(default)]
+    apy: Option<f64>,
+    #[serde(default, rename = "apyBase")]
+    apy_base: Option<f64>,
+    #[serde(default, rename = "apyReward")]
+    apy_reward: Option<f64>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct OnChainCheck {
     pub contract_has_code: bool,
@@ -127,6 +156,8 @@ impl YieldProvider {
                 .unwrap_or_else(|_| DEFAULT_PROTOCOLS_URL.to_string()),
             hacks_url: std::env::var("FLUXION_YIELD_HACKS_URL")
                 .unwrap_or_else(|_| DEFAULT_HACKS_URL.to_string()),
+            chart_url: std::env::var("FLUXION_YIELD_CHART_URL")
+                .unwrap_or_else(|_| DEFAULT_CHART_URL.to_string()),
             rpc,
         }
     }
@@ -214,6 +245,32 @@ impl YieldProvider {
         check
     }
 
+    pub async fn fetch_history(&self, pool_id: &str) -> Result<Vec<HistoryPoint>, YieldError> {
+        let url = format!("{}/{}", self.chart_url.trim_end_matches('/'), pool_id);
+        let chart: ChartResponse = self.get(&url).await?;
+        let mut points = chart
+            .data
+            .into_iter()
+            .filter_map(|point| {
+                let timestamp = parse_iso8601(&point.timestamp)?;
+                Some(HistoryPoint {
+                    timestamp,
+                    apy: point.apy,
+                    apy_base: point.apy_base,
+                    apy_reward: point.apy_reward,
+                    tvl_usd: point.tvl_usd.map(tvl_to_u64),
+                })
+            })
+            .collect::<Vec<_>>();
+        points.sort_by_key(|point| point.timestamp);
+        if points.is_empty() {
+            return Err(YieldError::Unavailable(
+                "DefiLlama chart returned no readable points".to_string(),
+            ));
+        }
+        Ok(points)
+    }
+
     async fn get<T: for<'de> Deserialize<'de>>(&self, url: &str) -> Result<T, YieldError> {
         let response = self
             .http
@@ -297,6 +354,49 @@ pub fn tvl_to_u64(value: f64) -> u64 {
     }
 }
 
+pub fn parse_iso8601(value: &str) -> Option<u64> {
+    let bytes = value.as_bytes();
+    if bytes.len() < 19
+        || bytes.get(4) != Some(&b'-')
+        || bytes.get(7) != Some(&b'-')
+        || bytes.get(10) != Some(&b'T')
+        || bytes.get(13) != Some(&b':')
+        || bytes.get(16) != Some(&b':')
+    {
+        return None;
+    }
+    let year = value.get(0..4)?.parse::<i64>().ok()?;
+    let month = value.get(5..7)?.parse::<i64>().ok()?;
+    let day = value.get(8..10)?.parse::<i64>().ok()?;
+    let hour = value.get(11..13)?.parse::<i64>().ok()?;
+    let minute = value.get(14..16)?.parse::<i64>().ok()?;
+    let second = value.get(17..19)?.parse::<i64>().ok()?;
+    if !(1..=12).contains(&month)
+        || !(1..=31).contains(&day)
+        || !(0..=23).contains(&hour)
+        || !(0..=59).contains(&minute)
+        || !(0..=60).contains(&second)
+    {
+        return None;
+    }
+    let days = days_from_civil(year, month, day)?;
+    let seconds = days
+        .checked_mul(86_400)?
+        .checked_add(hour * 3_600 + minute * 60 + second)?;
+    u64::try_from(seconds).ok()
+}
+
+fn days_from_civil(year: i64, month: i64, day: i64) -> Option<i64> {
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = if year >= 0 { year } else { year - 399 } / 400;
+    let yoe = year - era * 400;
+    let month_index = (month + 9) % 12;
+    let doy = (153 * month_index + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    Some(days)
+}
+
 pub fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -376,6 +476,16 @@ mod tests {
         let mut bytes32 = b"WETH".to_vec();
         bytes32.resize(32, 0);
         assert_eq!(decode_abi_string(&bytes32).as_deref(), Some("WETH"));
+    }
+
+    #[test]
+    fn parses_iso8601_timestamps() {
+        assert_eq!(parse_iso8601("1970-01-01T00:00:00.000Z"), Some(0));
+        assert_eq!(
+            parse_iso8601("2026-11-19T02:01:44.223Z"),
+            Some(1_795_053_704)
+        );
+        assert_eq!(parse_iso8601("not-a-date"), None);
     }
 
     #[test]

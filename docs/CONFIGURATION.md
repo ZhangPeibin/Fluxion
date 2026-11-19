@@ -43,7 +43,7 @@
 
 ## Execution routing
 
-`swap.quote` 和 `yield.discover` 固定使用 Fluxion remote 服务；`swap.build` 固定在 local runtime；`wallet.balance`、`wallet.allowance`、
+`swap.quote`、`yield.discover` 和 `yield.history` 固定使用 Fluxion remote 服务；`swap.build` 和 `yield.build` 固定在 local runtime；`wallet.balance`、`wallet.allowance`、
 `transaction.inspect`、`transaction.simulate`、`transaction.send`、`signature.inspect`、`fourmeme.agent-tokens` 和 `fourmeme.token` 固定在 local runtime；`wallet.assets` 和 `wallet.collectibles` 是 local verification +
 remote candidate discovery 的 hybrid capability。`wallet.connect` / `wallet.status` /
 `wallet.disconnect` / `wallet.sign` / `wallet.send` 固定在 local，负责 WalletConnect session；`wallet.agent-id` 是
@@ -76,6 +76,7 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 | `FLUXION_YIELD_POOLS_URL` | `https://yields.llama.fi/pools` | `yield.discover` 的池级 APY/TVL provider |
 | `FLUXION_YIELD_PROTOCOLS_URL` | `https://api.llama.fi/protocols` | `yield.discover` 的协议元数据 provider |
 | `FLUXION_YIELD_HACKS_URL` | `https://api.llama.fi/hacks` | `yield.discover` 的历史事故 provider |
+| `FLUXION_YIELD_CHART_URL` | `https://yields.llama.fi/chart` | `yield.history` 的历史 APY provider |
 | `GRAPH_API_KEY` | 空 | 本地 runtime 的 discovery；服务端/开发需要 |
 
 CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回

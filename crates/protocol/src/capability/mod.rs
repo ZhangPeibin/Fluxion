@@ -74,6 +74,10 @@ pub enum CapabilityId {
     FourMemeTokenDetail,
     #[serde(rename = "yield.discover")]
     YieldDiscover,
+    #[serde(rename = "yield.build")]
+    YieldBuild,
+    #[serde(rename = "yield.history")]
+    YieldHistory,
 }
 
 impl CapabilityId {
@@ -98,6 +102,8 @@ impl CapabilityId {
             Self::FourMemeAgentTokens => "fourmeme.agent-tokens",
             Self::FourMemeTokenDetail => "fourmeme.token",
             Self::YieldDiscover => "yield.discover",
+            Self::YieldBuild => "yield.build",
+            Self::YieldHistory => "yield.history",
         }
     }
 
@@ -122,6 +128,8 @@ impl CapabilityId {
             Self::FourMemeAgentTokens,
             Self::FourMemeTokenDetail,
             Self::YieldDiscover,
+            Self::YieldBuild,
+            Self::YieldHistory,
         ]
     }
 }
@@ -168,7 +176,9 @@ mod tests {
                 "signature.inspect",
                 "fourmeme.agent-tokens",
                 "fourmeme.token",
-                "yield.discover"
+                "yield.discover",
+                "yield.build",
+                "yield.history"
             ]
         );
         assert_eq!(CapabilityId::SwapQuote.as_str(), "swap.quote");
@@ -197,5 +207,7 @@ mod tests {
         assert_eq!(CapabilityId::TransactionSend.as_str(), "transaction.send");
         assert_eq!(CapabilityId::SignatureInspect.as_str(), "signature.inspect");
         assert_eq!(CapabilityId::YieldDiscover.as_str(), "yield.discover");
+        assert_eq!(CapabilityId::YieldBuild.as_str(), "yield.build");
+        assert_eq!(CapabilityId::YieldHistory.as_str(), "yield.history");
     }
 }

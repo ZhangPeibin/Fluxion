@@ -7,8 +7,8 @@
 use std::collections::HashSet;
 use std::path::Path;
 
+use super::{SafetyTier, YieldAction};
 use alloy_primitives::Address;
-use fluxion_protocol::yield_capability::{SafetyTier, YieldAction};
 use serde::Deserialize;
 
 pub const DEFAULT_REGISTRY: &str = include_str!("registry.yaml");

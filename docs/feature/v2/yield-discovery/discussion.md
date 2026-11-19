@@ -100,3 +100,16 @@ an optional estimated annual yield for the requested amount.
   small-vault liquidity risk.
 - The `aggressive` market-TVL floor was lowered to $10M so the curated Morpho vaults can appear;
   `conservative` and `balanced` floors are unchanged.
+
+## Follow-up: build and history (2026-11-19)
+
+- `yield.build` is local and returns calldata only. It supports Lido, Rocket Pool, Aave V3,
+  SparkLend and the two curated Morpho vaults. LRT/cbETH entries remain discoverable but return
+  `UNSUPPORTED` until protocol-specific deposit contracts are implemented.
+- Aave/Spark/Morpho builds return `wrap -> approve -> supply/deposit` steps when funding with ETH;
+  `funding_asset=WETH` skips the wrap step.
+- `yield.history` is remote, reads the DefiLlama chart endpoint by registry pool id, caches the
+  series in-process, and returns a downsampled series plus summary. Historical APY is explicitly
+  not current APY or a guarantee.
+- The curated registry moved into `fluxion-protocol` so local build and remote intelligence share
+  one source of truth.

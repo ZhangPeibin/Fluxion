@@ -18,5 +18,6 @@ pub mod transaction_send;
 pub mod wallet;
 pub mod wallet_send;
 pub mod walletconnect;
+pub mod yield_build;
 
 pub use fluxion_protocol::{capability, swap};

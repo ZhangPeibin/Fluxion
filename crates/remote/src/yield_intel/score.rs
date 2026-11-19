@@ -10,9 +10,9 @@ use fluxion_protocol::yield_capability::{
     YieldRecommendation, YieldRiskFactor, YieldSource, YieldWithdrawal,
 };
 
+use super::RegistryEntry;
 use super::YieldError;
 use super::provider::{OnChainCheck, ProtocolMeta, tvl_to_u64};
-use super::registry::RegistryEntry;
 
 pub const DISCLAIMER: &str =
     "Safety tiers are Fluxion's curated confidence labels, not a guarantee. APY is variable.";
@@ -726,7 +726,7 @@ mod tests {
     }
 
     fn snapshot() -> YieldSnapshot {
-        let registry = super::super::registry::Registry::load_default().unwrap();
+        let registry = fluxion_protocol::yield_capability::Registry::load_default().unwrap();
         let mut opportunities = Vec::new();
         for entry in registry.entries() {
             let apy = match entry.id.as_str() {

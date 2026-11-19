@@ -90,6 +90,29 @@
 
 错误：`InvalidRequest`(400)、限流(429)、`YieldUnavailable`(502)、`StaleState`(503)。
 
+## `POST /yield/history`
+
+读取 curated opportunity 的历史 APY。数据来自 DefiLlama chart，按 opportunity 的 pool id 查询，
+并缓存在 remote 进程内。
+
+请求：
+
+```json
+{
+  "opportunity_id": "lido-steth",
+  "days": 30,
+  "max_points": 500
+}
+```
+
+- `days`：1–365，默认 30。
+- `max_points`：1–2000，默认 500；序列会降采样并保留最新点。
+- 返回 `series`（timestamp、apy/base/reward、tvl）和 `summary`（mean/min/max/latest、change bps、
+  base/reward mean、points）。
+- 历史 APY 不是当前 APY，也不构成收益保证。
+
+错误：`InvalidRequest`(400)、限流(429)、`YieldUnavailable`(502)、`StaleState`(503)。
+
 ## `GET /graph`
 
 只读地导出当前路由多重图，供 Web viewer 等外部工具使用：

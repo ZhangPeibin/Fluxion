@@ -1,6 +1,6 @@
 ---
 name: yield
-description: Use when the user asks where to earn yield on ETH safely, wants the safest or highest-APY ETH staking or lending opportunity, wants to compare Lido/Rocket Pool/Aave/SparkLend yields, or uses the Fluxion yield_discover tool. Read-only; never deposits, signs or broadcasts.
+description: Use when the user asks where to earn yield on ETH safely, wants the safest or highest-APY ETH staking or lending opportunity, wants to compare Lido/Rocket Pool/Aave/SparkLend yields, or uses the Fluxion yield_discover, yield_build or yield_history tools. Never deposits, signs or broadcasts.
 ---
 
 # yield.discover
@@ -58,3 +58,28 @@ fluxion yield discover --asset ETH --amount 10 --risk balanced --json
 - Do not use this capability for stablecoin yields, LP, leverage, or cross-chain opportunities;
   those are outside the first slice.
 - Not financial advice.
+
+## yield.build
+
+Build local calldata for a chosen opportunity:
+
+```json
+{"name": "yield_build", "arguments": {"opportunity_id": "lido-steth", "amount": "10", "recipient": "0x..."}}
+```
+
+- Returns `steps` (`wrap`, `approve`, `stake`, `supply`, `deposit`) and `approvals`.
+- `funding_asset` defaults to `ETH`; pass `WETH` only when the sender already holds WETH.
+- The recipient must be the transaction sender for Lido and Rocket Pool.
+- Supported: Lido, Rocket Pool, Aave V3, SparkLend and curated Morpho vaults.
+- LRT/cbETH markets return `UNSUPPORTED` from build until their deposit contracts are implemented.
+- Never sign or broadcast from this skill. Simulate and inspect each step, then let the user approve.
+
+## yield.history
+
+```json
+{"name": "yield_history", "arguments": {"opportunity_id": "lido-steth", "days": 30}}
+```
+
+- `series` is downsampled; `summary` contains mean/min/max/latest, change bps and base/reward means.
+- Historical APY is not current APY and does not predict future yield.
+- Use it to explain stability, not to claim safety or guaranteed returns.

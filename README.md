@@ -120,6 +120,8 @@ Skills 告诉 Agent 何时调用哪个能力，以及如何解释结果。把仓
 | Capability | CLI | 说明 |
 |---|---|---|
 | `yield.discover` | `fluxion yield discover --asset ETH --amount 10` | Ethereum ETH 质押/借贷机会：安全层级、APY、TVL、提现条件、推荐 |
+| `yield.build` | `fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x...` | 本地构造 stake/supply/deposit calldata 与授权步骤 |
+| `yield.history` | `fluxion yield history --opportunity lido-steth --days 30` | 历史 APY、base/reward 拆分、TVL 与稳定性摘要 |
 
 完整用法和“对 Agent 说”的示例见下面各能力小节。
 
@@ -153,7 +155,12 @@ Ethereum 主网 ETH 本位的质押和借贷机会发现。它返回 curated saf
 ```bash
 fluxion yield discover --asset ETH --amount 10 --json
 fluxion yield discover --asset ETH --amount 10 --risk balanced --json
+fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x... --json
+fluxion yield history --opportunity lido-steth --days 30 --json
 ```
+
+`yield.build` 只构造 calldata 和授权步骤，不签名、不广播；`yield.history` 读取历史 APY，历史值
+不是当前值，也不构成保证。
 
 对 Agent 说：
 
@@ -519,6 +526,8 @@ fluxion fourmeme ui --open
 | `swap.quote` | remote | remote snapshot -> 本地路由计算 | remote 不可用 -> `RPC_ERROR` |
 | `swap.build` | local | 读取 quote JSON -> 本地 ABI 编码 | 非 V2/拆单/非 Ethereum -> `UNSUPPORTED` |
 | `yield.discover` | remote | curated registry + DefiLlama + Ethereum RPC 后台快照 | provider/RPC 失败 -> `RPC_ERROR`；数据过期 -> `STALE_STATE` |
+| `yield.build` | local | curated registry -> ABI 编码 -> steps/approvals | 不支持的市场 -> `UNSUPPORTED` |
+| `yield.history` | remote | DefiLlama chart + 进程内缓存 | provider 失败 -> `RPC_ERROR`；数据过期 -> `STALE_STATE` |
 | `wallet.balance` / `assets` / `allowance` / `collectibles` | local | 本地 RPC，固定区块 | RPC 失败 -> `RPC_ERROR` |
 | `wallet.connect` / `status` / `disconnect` | local | 本地 session + WalletConnect relay | 无 session、配对失败或过期 -> 明确错误 |
 | `wallet.agent-id` | local | SPACE ID API + BSC RPC 校验 | API 失败时按配置回退链上或返回 unknown |
@@ -576,7 +585,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - 架构：[产品架构](docs/PRODUCT-ARCHITECTURE.md) · [引擎架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
 - 运维：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
 - 安全：[规则目录](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- 契约：[fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [yield.discover schema](schemas/yield_discover.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
+- 契约：[fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [yield.discover schema](schemas/yield_discover.v1.json) · [yield.build schema](schemas/yield_build.v1.json) · [yield.history schema](schemas/yield_history.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
 - 研究：[benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills：[swap](skills/swap/SKILL.md) · [yield](skills/yield/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
 

@@ -8,7 +8,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::capability::{Amount, CapabilityDescriptor, SCHEMA_VERSION};
 
+pub mod registry;
+
+pub use registry::{Registry, RegistryEntry};
+
 pub const CAPABILITY: &str = "yield.discover";
+pub const BUILD_CAPABILITY: &str = "yield.build";
+pub const HISTORY_CAPABILITY: &str = "yield.history";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -223,9 +229,144 @@ pub struct YieldDiscoverResponse {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldBuildRequest {
+    pub opportunity_id: String,
+    pub amount: String,
+    pub recipient: Address,
+    /// `ETH` (default) or `WETH`. WETH assumes the sender already holds WETH.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub funding_asset: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldBuildStep {
+    /// `wrap`, `approve`, `stake`, `supply`, or `deposit`.
+    pub kind: String,
+    pub to: Address,
+    pub data: String,
+    /// Raw native value in wei.
+    pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<Amount>,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldApproval {
+    pub token: YieldAsset,
+    pub spender: Address,
+    pub amount: Amount,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldBuildResponse {
+    pub schema_version: u32,
+    pub capability: String,
+    pub request_id: String,
+    pub chain: String,
+    pub opportunity_id: String,
+    pub action: YieldAction,
+    pub amount: Amount,
+    pub recipient: Address,
+    pub deposit_asset: YieldAsset,
+    pub receipt_asset: YieldAsset,
+    pub requires_wrap: bool,
+    pub steps: Vec<YieldBuildStep>,
+    pub approvals: Vec<YieldApproval>,
+    pub warnings: Vec<String>,
+    pub disclaimer: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldHistoryRequest {
+    pub opportunity_id: String,
+    #[serde(default = "default_history_days")]
+    pub days: u32,
+    #[serde(default = "default_history_points")]
+    pub max_points: usize,
+}
+
+fn default_history_days() -> u32 {
+    30
+}
+
+fn default_history_points() -> usize {
+    500
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldHistoryPoint {
+    pub timestamp: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apy_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_apy_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reward_apy_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tvl_usd: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldHistorySummary {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apy_mean_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apy_min_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apy_max_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apy_latest_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apy_change_bps: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_apy_mean_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reward_apy_mean_percent: Option<f64>,
+    pub points: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldHistoryResponse {
+    pub schema_version: u32,
+    pub capability: String,
+    pub request_id: String,
+    pub chain: String,
+    pub opportunity_id: String,
+    pub days: u32,
+    pub series: Vec<YieldHistoryPoint>,
+    pub summary: YieldHistorySummary,
+    pub as_of: u64,
+    pub coverage: String,
+    pub sources: Vec<YieldSource>,
+    pub disclaimer: String,
+    pub warnings: Vec<String>,
+}
+
 pub fn describe() -> CapabilityDescriptor {
     CapabilityDescriptor {
         name: CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "remote",
+        transports: vec!["cli", "mcp-stdio", "http"],
+    }
+}
+
+pub fn describe_build() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: BUILD_CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "local",
+        transports: vec!["cli", "mcp-stdio"],
+    }
+}
+
+pub fn describe_history() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: HISTORY_CAPABILITY,
         schema_version: SCHEMA_VERSION,
         execution: "remote",
         transports: vec!["cli", "mcp-stdio", "http"],
@@ -252,6 +393,22 @@ mod tests {
         assert_eq!(request.risk_profile, RiskProfile::Conservative);
         assert_eq!(request.limit, 10);
         assert!(request.amount.is_none());
+    }
+
+    #[test]
+    fn history_request_defaults_to_30_days() {
+        let request: YieldHistoryRequest =
+            serde_json::from_str(r#"{"opportunity_id":"lido-steth"}"#).expect("request");
+        assert_eq!(request.days, 30);
+        assert_eq!(request.max_points, 500);
+    }
+
+    #[test]
+    fn build_and_history_descriptors_have_fixed_execution() {
+        assert_eq!(describe_build().name, "yield.build");
+        assert_eq!(describe_build().execution, "local");
+        assert_eq!(describe_history().name, "yield.history");
+        assert_eq!(describe_history().execution, "remote");
     }
 
     #[test]
