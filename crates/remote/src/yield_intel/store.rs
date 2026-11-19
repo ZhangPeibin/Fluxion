@@ -1,13 +1,17 @@
 //! Warm snapshot store for yield discovery.
 
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use fluxion_protocol::yield_capability::{YieldDiscoverRequest, YieldDiscoverResponse};
+use fluxion_protocol::yield_capability::{
+    YieldDiscoverRequest, YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse,
+};
 
+use super::Registry;
 use super::YieldError;
-use super::provider::{YieldProvider, now};
-use super::registry::Registry;
+use super::history;
+use super::provider::{HistoryPoint, YieldProvider, now};
 use super::score::{YieldSnapshot, build_snapshot, discover};
 
 #[derive(Debug, Clone)]
@@ -32,6 +36,13 @@ pub struct YieldStore {
     provider: YieldProvider,
     options: YieldOptions,
     snapshot: RwLock<Option<Arc<YieldSnapshot>>>,
+    history: RwLock<HashMap<String, CachedHistory>>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedHistory {
+    fetched_at: u64,
+    points: Vec<HistoryPoint>,
 }
 
 impl YieldStore {
@@ -41,6 +52,7 @@ impl YieldStore {
             provider,
             options,
             snapshot: RwLock::new(None),
+            history: RwLock::new(HashMap::new()),
         })
     }
 
@@ -52,6 +64,7 @@ impl YieldStore {
             provider,
             options: YieldOptions::default(),
             snapshot: RwLock::new(Some(Arc::new(snapshot))),
+            history: RwLock::new(HashMap::new()),
         })
     }
 
@@ -116,6 +129,56 @@ impl YieldStore {
             self.options.max_age_secs,
             self.options.hard_max_age_secs,
         )
+    }
+
+    pub async fn history(
+        &self,
+        request: &YieldHistoryRequest,
+    ) -> Result<YieldHistoryResponse, YieldError> {
+        if request.days == 0 || request.days > 365 {
+            return Err(YieldError::Invalid(
+                "days must be between 1 and 365".to_string(),
+            ));
+        }
+        if request.max_points == 0 || request.max_points > 2000 {
+            return Err(YieldError::Invalid(
+                "max_points must be between 1 and 2000".to_string(),
+            ));
+        }
+        let entry = self
+            .registry
+            .entries()
+            .iter()
+            .find(|entry| entry.id == request.opportunity_id)
+            .ok_or_else(|| {
+                YieldError::Invalid(format!(
+                    "unknown opportunity_id: {}",
+                    request.opportunity_id
+                ))
+            })?
+            .clone();
+        let pool_id = entry.defillama_pool.clone().ok_or_else(|| {
+            YieldError::Unsupported(format!("{} has no DefiLlama pool id", entry.id))
+        })?;
+        let now = now();
+        let cached = self.history.read().unwrap().get(&entry.id).cloned();
+        let (fetched_at, points) = match cached {
+            Some(cached) if now.saturating_sub(cached.fetched_at) <= self.options.refresh_secs => {
+                (cached.fetched_at, cached.points)
+            }
+            _ => {
+                let points = self.provider.fetch_history(&pool_id).await?;
+                self.history.write().unwrap().insert(
+                    entry.id.clone(),
+                    CachedHistory {
+                        fetched_at: now,
+                        points: points.clone(),
+                    },
+                );
+                (now, points)
+            }
+        };
+        history::build_response(&entry, points, request, fetched_at, now)
     }
 
     pub fn registry(&self) -> &Registry {

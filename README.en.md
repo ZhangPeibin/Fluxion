@@ -126,6 +126,8 @@ that is internal Fluxion routing.
 | Capability | CLI | Description |
 |---|---|---|
 | `yield.discover` | `fluxion yield discover --asset ETH --amount 10` | Ethereum ETH staking/lending: safety tier, APY, TVL, withdrawal conditions, recommendation |
+| `yield.build` | `fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x...` | Local stake/supply/deposit calldata and approval steps |
+| `yield.history` | `fluxion yield history --opportunity lido-steth --days 30` | Historical APY, base/reward split, TVL and stability summary |
 
 Full usage and "ask the agent" examples are below in each capability section.
 
@@ -161,7 +163,12 @@ one recommendation with explicit tradeoffs. It never builds, signs or executes a
 ```bash
 fluxion yield discover --asset ETH --amount 10 --json
 fluxion yield discover --asset ETH --amount 10 --risk balanced --json
+fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x... --json
+fluxion yield history --opportunity lido-steth --days 30 --json
 ```
+
+`yield.build` only returns calldata and approval steps; it never signs or broadcasts.
+`yield.history` returns historical APY, which is not current APY and not a guarantee.
 
 Ask the agent:
 
@@ -543,6 +550,8 @@ only routes.
 | `swap.quote` | remote | remote snapshot -> local route computation | Remote unavailable -> `RPC_ERROR` |
 | `swap.build` | local | quote JSON -> local ABI encoding | Non-V2/split/non-Ethereum -> `UNSUPPORTED` |
 | `yield.discover` | remote | curated registry + DefiLlama + Ethereum RPC snapshot | Provider/RPC failure -> `RPC_ERROR`; stale data -> `STALE_STATE` |
+| `yield.build` | local | curated registry -> ABI encoding -> steps/approvals | Unsupported market -> `UNSUPPORTED` |
+| `yield.history` | remote | DefiLlama chart + in-process cache | Provider failure -> `RPC_ERROR`; stale data -> `STALE_STATE` |
 | `wallet.balance` / `assets` / `allowance` / `collectibles` | local | local RPC at a pinned block | RPC failure -> `RPC_ERROR` |
 | `wallet.connect` / `status` / `disconnect` | local | local session + WalletConnect relay | No session, pairing failure, or expiry -> explicit error |
 | `wallet.agent-id` | local | SPACE ID API + BSC RPC verification | API failure -> configured on-chain fallback or unknown |
@@ -603,7 +612,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - Security: [rule catalog](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- Contracts: [fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [yield.discover schema](schemas/yield_discover.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
+- Contracts: [fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [yield.discover schema](schemas/yield_discover.v1.json) · [yield.build schema](schemas/yield_build.v1.json) · [yield.history schema](schemas/yield_history.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
 - Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills: [swap](skills/swap/SKILL.md) · [yield](skills/yield/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
 

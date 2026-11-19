@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/yield_history.v1.json",
+  "title": "Fluxion yield.history v1",
+  "oneOf": [
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "point": {
+      "type": "object",
+      "required": ["timestamp"],
+      "additionalProperties": false,
+      "properties": {
+        "timestamp": { "type": "integer", "minimum": 0 },
+        "apy_percent": { "type": "number" },
+        "base_apy_percent": { "type": "number" },
+        "reward_apy_percent": { "type": "number" },
+        "tvl_usd": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["points"],
+      "additionalProperties": false,
+      "properties": {
+        "apy_mean_percent": { "type": "number" },
+        "apy_min_percent": { "type": "number" },
+        "apy_max_percent": { "type": "number" },
+        "apy_latest_percent": { "type": "number" },
+        "apy_change_bps": { "type": "number" },
+        "base_apy_mean_percent": { "type": "number" },
+        "reward_apy_mean_percent": { "type": "number" },
+        "points": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["name", "url", "fetched_at"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "url": { "type": "string" },
+        "fetched_at": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "success": {
+      "type": "object",
+      "required": [
+        "schema_version", "capability", "request_id", "chain", "opportunity_id",
+        "days", "series", "summary", "as_of", "coverage", "sources",
+        "disclaimer", "warnings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": 1 },
+        "capability": { "const": "yield.history" },
+        "request_id": { "type": "string" },
+        "chain": { "const": "ethereum" },
+        "opportunity_id": { "type": "string" },
+        "days": { "type": "integer", "minimum": 1, "maximum": 365 },
+        "series": { "type": "array", "items": { "$ref": "#/$defs/point" } },
+        "summary": { "$ref": "#/$defs/summary" },
+        "as_of": { "type": "integer", "minimum": 0 },
+        "coverage": { "type": "string" },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" } },
+        "disclaimer": { "type": "string" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["schema_version", "capability", "request_id", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": 1 },
+        "capability": { "const": "yield.history" },
+        "request_id": { "type": "string" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message", "retryable"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "retryable": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

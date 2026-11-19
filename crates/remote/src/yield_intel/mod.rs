@@ -1,14 +1,14 @@
 //! Remote yield intelligence: curated universe, provider normalization,
 //! scoring and a warm read-only snapshot.
 
+pub mod history;
 pub mod provider;
-pub mod registry;
 pub mod score;
 pub mod store;
 
 use thiserror::Error;
 
-pub use registry::{Registry, RegistryEntry};
+pub use fluxion_protocol::yield_capability::{Registry, RegistryEntry};
 pub use score::discover;
 pub use store::{YieldOptions, YieldStore};
 
@@ -16,6 +16,8 @@ pub use store::{YieldOptions, YieldStore};
 pub enum YieldError {
     #[error("{0}")]
     Invalid(String),
+    #[error("{0}")]
+    Unsupported(String),
     #[error("yield data unavailable: {0}")]
     Unavailable(String),
     #[error("yield data is stale")]

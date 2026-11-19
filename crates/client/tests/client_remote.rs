@@ -10,7 +10,7 @@ use axum::{Json, Router};
 use fluxion_client::capability::TokenRef;
 use fluxion_client::client::RuntimeClient;
 use fluxion_client::swap::quote::QuoteRequest;
-use fluxion_protocol::yield_capability::YieldDiscoverRequest;
+use fluxion_protocol::yield_capability::{YieldDiscoverRequest, YieldHistoryRequest};
 use serde_json::{Value, json};
 
 type CapturedRequest = Option<(Option<String>, Value)>;
@@ -157,6 +157,54 @@ async fn remote_client_calls_yield_discover() {
     assert_eq!(auth.as_deref(), Some("Bearer test-key"));
     assert_eq!(body["asset"], "ETH");
     assert_eq!(body["amount"], "10");
+
+    server.abort();
+}
+
+async fn yield_history(State(capture): State<Capture>, Json(body): Json<Value>) -> Json<Value> {
+    *capture.0.lock().unwrap() = Some((None, body));
+    Json(json!({
+        "schema_version": 1,
+        "capability": "yield.history",
+        "request_id": "test",
+        "chain": "ethereum",
+        "opportunity_id": "lido-steth",
+        "days": 30,
+        "series": [],
+        "summary": {"points": 0},
+        "as_of": 1,
+        "coverage": "defillama-chart",
+        "sources": [],
+        "disclaimer": "test",
+        "warnings": []
+    }))
+}
+
+#[tokio::test]
+async fn remote_client_calls_yield_history() {
+    let capture = Capture(Arc::new(Mutex::new(None)));
+    let app = Router::new()
+        .route("/yield/history", post(yield_history))
+        .with_state(capture.clone());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let client = RuntimeClient::new(format!("http://{address}"));
+    let response = client
+        .yield_history(&YieldHistoryRequest {
+            opportunity_id: "lido-steth".to_string(),
+            days: 30,
+            max_points: 500,
+        })
+        .await
+        .unwrap();
+    assert_eq!(response.capability, "yield.history");
+    let (_, body) = capture.0.lock().unwrap().clone().unwrap();
+    assert_eq!(body["opportunity_id"], "lido-steth");
+    assert_eq!(body["days"], 30);
 
     server.abort();
 }

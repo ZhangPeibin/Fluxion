@@ -1,12 +1,14 @@
-# yield.discover
+# Yield capabilities
 
-Read-only ETH yield discovery on Ethereum mainnet. It ranks curated staking and lending markets
-by a safety tier and a normalized APY, then returns one recommendation with explicit tradeoffs.
+ETH yield discovery, local calldata building and historical APY on Ethereum mainnet.
+`yield.discover` ranks curated staking and lending markets by a safety tier and a normalized APY;
+`yield.build` returns deposit calldata; `yield.history` returns a historical APY series.
 
-`yield.discover` runs on the remote Fluxion service; agents and users do not choose local or
-remote. It never deposits, approves, signs or broadcasts.
+`yield.discover` and `yield.history` run on the remote Fluxion service; `yield.build` runs locally.
+Agents and users do not choose local or remote. None of them deposits, approves, signs or
+broadcasts.
 
-Schema: [`schemas/yield_discover.v1.json`](../../../schemas/yield_discover.v1.json).
+Schemas: [`discover`](../../../schemas/yield_discover.v1.json) · [`build`](../../../schemas/yield_build.v1.json) · [`history`](../../../schemas/yield_history.v1.json).
 
 ## Usage
 
@@ -122,3 +124,43 @@ APY or a tier when data is missing.
 - The curated universe is intentionally small; a missing protocol is not a safety judgment.
 - `safety_tier` is a curated confidence label, not a guarantee. APY is variable.
 - Not financial advice.
+
+## `yield.build`
+
+Local calldata construction for a curated opportunity returned by `yield.discover`.
+
+```bash
+fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x... --json
+fluxion yield build --opportunity aave-v3-weth --amount 10 --recipient 0x... --funding-asset WETH --json
+```
+
+- Returns `steps`: `wrap`, `approve`, `stake`, `supply`, or `deposit`.
+- Returns `approvals` for ERC20 approvals; the caller must still sign each step.
+- `funding_asset` defaults to `ETH`; pass `WETH` only if the sender already holds WETH.
+- `recipient` is the receipt/position owner. For Lido and Rocket Pool the receipt is minted to
+  the transaction sender, so the recipient must be the sender.
+- Supported in this slice: Lido, Rocket Pool, Aave V3 WETH, SparkLend WETH and the two curated
+  Morpho vaults.
+- LRT and cbETH entries are discoverable but return `UNSUPPORTED` from `yield.build` until their
+  protocol-specific deposit contracts are implemented.
+- Never signs, approves or broadcasts. Simulate and inspect every step before signing.
+
+Schema: [`schemas/yield_build.v1.json`](../../../schemas/yield_build.v1.json).
+
+## `yield.history`
+
+Remote historical APY series for a curated opportunity.
+
+```bash
+fluxion yield history --opportunity lido-steth --days 30 --json
+fluxion yield history --opportunity aave-v3-weth --days 90 --max-points 200 --json
+```
+
+- `days`: 1–365, default 30.
+- `max_points`: 1–2000, default 500. The series is downsampled, always keeping the latest point.
+- Returns `series` with `apy_percent`, `base_apy_percent`, `reward_apy_percent` and `tvl_usd`.
+- Returns a `summary` with mean/min/max/latest, change in bps and base/reward means.
+- Historical APY is not current APY and is not a guarantee.
+- Data source: DefiLlama chart endpoint for the registry's pool id.
+
+Schema: [`schemas/yield_history.v1.json`](../../../schemas/yield_history.v1.json).

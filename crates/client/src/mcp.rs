@@ -25,7 +25,9 @@ use crate::wallet::{
 use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
 use fluxion_protocol::swap::QuoteResponse;
-use fluxion_protocol::yield_capability::{RiskProfile, YieldDiscoverRequest};
+use fluxion_protocol::yield_capability::{
+    RiskProfile, YieldBuildRequest, YieldDiscoverRequest, YieldHistoryRequest,
+};
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
     let wallet = Manager::new();
@@ -409,6 +411,33 @@ fn tools_list() -> Value {
                     },
                     "required": ["asset"]
                 }
+            },
+            {
+                "name": "yield_build",
+                "description": "Build local deposit calldata for a curated yield opportunity. Returns the exact transactions and any required WETH approval. Read-only; never signs or broadcasts. Supports Lido, Rocket Pool, Aave V3, SparkLend and curated Morpho vaults.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "opportunity_id": {"type": "string", "description": "ID from yield_discover, e.g. lido-steth"},
+                        "amount": {"type": "string", "description": "Human amount, e.g. 10"},
+                        "recipient": {"type": "string", "description": "Position/receipt owner; must be the sender for Lido/Rocket Pool"},
+                        "funding_asset": {"type": "string", "enum": ["ETH", "WETH"], "default": "ETH", "description": "Use WETH to skip the wrap step"}
+                    },
+                    "required": ["opportunity_id", "amount", "recipient"]
+                }
+            },
+            {
+                "name": "yield_history",
+                "description": "Read historical APY, base/reward components and TVL for a curated yield opportunity. Returns a downsampled series plus mean/min/max/change summary. Read-only; does not predict future yield.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "opportunity_id": {"type": "string", "description": "ID from yield_discover, e.g. lido-steth"},
+                        "days": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30},
+                        "max_points": {"type": "integer", "minimum": 1, "maximum": 2000, "default": 500}
+                    },
+                    "required": ["opportunity_id"]
+                }
             }
         ]
     })
@@ -453,6 +482,8 @@ async fn call_tool(
         "fourmeme_agent_tokens" => fourmeme_agent_tokens_tool(&arguments).await,
         "fourmeme_token" => fourmeme_token_tool(&arguments).await,
         "yield_discover" => yield_discover_tool(&arguments, backend).await,
+        "yield_build" => yield_build_tool(&arguments),
+        "yield_history" => yield_history_tool(&arguments, backend).await,
         "signature_inspect" => signature_inspect_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
@@ -483,6 +514,8 @@ fn capability_for_tool(name: &str) -> &'static str {
         "fourmeme_agent_tokens" => "fourmeme.agent-tokens",
         "fourmeme_token" => "fourmeme.token",
         "yield_discover" => "yield.discover",
+        "yield_build" => "yield.build",
+        "yield_history" => "yield.history",
         "signature_inspect" => "signature.inspect",
         _ => "unknown",
     }
@@ -1072,6 +1105,53 @@ async fn yield_discover_tool(
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+fn yield_build_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let opportunity_id = string_arg(arguments, "opportunity_id")?.to_string();
+    let amount = string_arg(arguments, "amount")?.to_string();
+    let recipient = string_arg(arguments, "recipient")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid recipient address"))?;
+    let funding_asset = arguments
+        .get("funding_asset")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let response = crate::yield_build::build(&YieldBuildRequest {
+        opportunity_id,
+        amount,
+        recipient,
+        funding_asset,
+    })?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
+async fn yield_history_tool(
+    arguments: &Value,
+    backend: &Result<RuntimeClient, CapabilityError>,
+) -> Result<Value, CapabilityError> {
+    let backend = backend.as_ref().map_err(Clone::clone)?;
+    let opportunity_id = string_arg(arguments, "opportunity_id")?.to_string();
+    let days = arguments
+        .get("days")
+        .and_then(Value::as_u64)
+        .unwrap_or(30)
+        .try_into()
+        .map_err(|_| CapabilityError::invalid_argument("invalid days"))?;
+    let max_points = arguments
+        .get("max_points")
+        .and_then(Value::as_u64)
+        .unwrap_or(500)
+        .try_into()
+        .map_err(|_| CapabilityError::invalid_argument("invalid max_points"))?;
+    let response = backend
+        .yield_history(&YieldHistoryRequest {
+            opportunity_id,
+            days,
+            max_points,
+        })
+        .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn transaction_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
     let to = string_arg(arguments, "to")?
         .parse::<alloy_primitives::Address>()
@@ -1310,7 +1390,9 @@ mod tests {
                 "signature_inspect",
                 "fourmeme_agent_tokens",
                 "fourmeme_token",
-                "yield_discover"
+                "yield_discover",
+                "yield_build",
+                "yield_history"
             ]
         );
     }

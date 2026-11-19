@@ -252,7 +252,9 @@ async fn run_server(config_path: String) {
     };
     let app = if std::env::var("FLUXION_REQUIRE_AUTH").as_deref() == Ok("1") {
         let auth = Arc::new(AuthStore::new());
-        tracing::info!("installation-token auth enabled for /quote and /yield/discover");
+        tracing::info!(
+            "installation-token auth enabled for /quote, /yield/discover and /yield/history"
+        );
         app.route("/register", axum::routing::post(register))
             .layer(axum::Extension(auth.clone()))
             .layer(axum::middleware::from_fn_with_state(auth, require_auth))

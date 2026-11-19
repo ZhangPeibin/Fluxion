@@ -17,7 +17,9 @@ use crate::capability::{
 use crate::swap::PlanKind;
 use crate::swap::quote::{AllocationResponse, HopResponse, QuoteRequest, QuoteResponse};
 use crate::token;
-use fluxion_protocol::yield_capability::{YieldDiscoverRequest, YieldDiscoverResponse};
+use fluxion_protocol::yield_capability::{
+    YieldDiscoverRequest, YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse,
+};
 
 pub struct RuntimeClient {
     base_url: String,
@@ -102,6 +104,17 @@ impl RuntimeClient {
         let body = serde_json::to_value(request)
             .map_err(|error| CapabilityError::internal(error.to_string()))?;
         let text = self.post_remote("/yield/discover", body).await?;
+        serde_json::from_str(&text)
+            .map_err(|error| CapabilityError::internal(format!("invalid runtime JSON: {error}")))
+    }
+
+    pub async fn yield_history(
+        &self,
+        request: &YieldHistoryRequest,
+    ) -> Result<YieldHistoryResponse, CapabilityError> {
+        let body = serde_json::to_value(request)
+            .map_err(|error| CapabilityError::internal(error.to_string()))?;
+        let text = self.post_remote("/yield/history", body).await?;
         serde_json::from_str(&text)
             .map_err(|error| CapabilityError::internal(format!("invalid runtime JSON: {error}")))
     }

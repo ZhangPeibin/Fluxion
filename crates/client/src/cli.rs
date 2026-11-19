@@ -22,7 +22,8 @@ use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
 use fluxion_protocol::swap::QuoteResponse;
 use fluxion_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
 use fluxion_protocol::yield_capability::{
-    RiskProfile, YieldDiscoverRequest, YieldDiscoverResponse,
+    RiskProfile, YieldBuildRequest, YieldBuildResponse, YieldDiscoverRequest,
+    YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse,
 };
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
@@ -2818,7 +2819,7 @@ struct YieldArgs {
     json: bool,
 }
 
-const YIELD_USAGE: &str = "Usage:\n  fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n    [--min-tvl-usd N] [--max-lockup-days N] [--include-reward-apy]\n    [--protocols lido,aave-v3] [--limit N] [--url URL] [--json]";
+const YIELD_USAGE: &str = "Usage:\n  fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n    [--min-tvl-usd N] [--max-lockup-days N] [--include-reward-apy]\n    [--protocols lido,aave-v3] [--limit N] [--url URL] [--json]\n  fluxion yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH] [--json]\n  fluxion yield history --opportunity ID [--days 30] [--max-points 500] [--url URL] [--json]";
 
 async fn run_yield(raw: &[String]) -> i32 {
     let Some(command) = raw.first().map(String::as_str) else {
@@ -2835,6 +2836,8 @@ async fn run_yield(raw: &[String]) -> i32 {
     }
     match command {
         "discover" => run_yield_discover(&raw[1..]).await,
+        "build" => run_yield_build(&raw[1..]),
+        "history" => run_yield_history(&raw[1..]).await,
         other => {
             eprintln!("unknown yield command: {other}");
             println!("{YIELD_USAGE}");
@@ -2883,6 +2886,218 @@ async fn run_yield_discover(raw: &[String]) -> i32 {
             report_error_as("yield.discover", &error, args.json);
             exit_code(error.code)
         }
+    }
+}
+
+fn run_yield_build(raw: &[String]) -> i32 {
+    let json = raw.iter().any(|arg| arg == "--json");
+    let (opportunity_id, amount, recipient, funding_asset) = match parse_yield_build_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as("yield.build", &error, json);
+            return exit_code(error.code);
+        }
+    };
+    let request = YieldBuildRequest {
+        opportunity_id,
+        amount,
+        recipient,
+        funding_asset,
+    };
+    match crate::yield_build::build(&request) {
+        Ok(response) => {
+            if json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_yield_build_human(&response);
+            }
+            0
+        }
+        Err(error) => {
+            report_error_as("yield.build", &error, json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_yield_build_args(
+    raw: &[String],
+) -> Result<(String, String, alloy_primitives::Address, Option<String>), CapabilityError> {
+    let mut opportunity_id = None;
+    let mut amount = None;
+    let mut recipient = None;
+    let mut funding_asset = None;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--opportunity" | "--opportunity-id" => {
+                opportunity_id = Some(value(raw, &mut index, "--opportunity")?)
+            }
+            "--amount" => amount = Some(value(raw, &mut index, "--amount")?),
+            "--recipient" => {
+                let text = value(raw, &mut index, "--recipient")?;
+                recipient = Some(text.parse::<alloy_primitives::Address>().map_err(|_| {
+                    CapabilityError::invalid_argument("invalid --recipient address")
+                })?);
+            }
+            "--funding-asset" => funding_asset = Some(value(raw, &mut index, "--funding-asset")?),
+            "--json" => {}
+            other => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown yield build option: {other}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    let Some(opportunity_id) = opportunity_id else {
+        return Err(CapabilityError::invalid_argument(
+            "--opportunity is required",
+        ));
+    };
+    let Some(amount) = amount else {
+        return Err(CapabilityError::invalid_argument("--amount is required"));
+    };
+    let Some(recipient) = recipient else {
+        return Err(CapabilityError::invalid_argument("--recipient is required"));
+    };
+    Ok((opportunity_id, amount, recipient, funding_asset))
+}
+
+async fn run_yield_history(raw: &[String]) -> i32 {
+    let json = raw.iter().any(|arg| arg == "--json");
+    let (opportunity_id, days, max_points, url) = match parse_yield_history_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as("yield.history", &error, json);
+            return exit_code(error.code);
+        }
+    };
+    let controller = match crate::routing::from_env(url.as_deref()) {
+        Ok(backend) => RuntimeClient::with_api_key(backend.base_url, backend.api_key),
+        Err(error) => {
+            report_error_as("yield.history", &error, json);
+            return exit_code(error.code);
+        }
+    };
+    match controller
+        .yield_history(&YieldHistoryRequest {
+            opportunity_id,
+            days,
+            max_points,
+        })
+        .await
+    {
+        Ok(response) => {
+            if json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_yield_history_human(&response);
+            }
+            0
+        }
+        Err(error) => {
+            report_error_as("yield.history", &error, json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_yield_history_args(
+    raw: &[String],
+) -> Result<(String, u32, usize, Option<String>), CapabilityError> {
+    let mut opportunity_id = None;
+    let mut days = 30u32;
+    let mut max_points = 500usize;
+    let mut url = None;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--opportunity" | "--opportunity-id" => {
+                opportunity_id = Some(value(raw, &mut index, "--opportunity")?)
+            }
+            "--days" => {
+                days = value(raw, &mut index, "--days")?
+                    .parse()
+                    .map_err(|_| CapabilityError::invalid_argument("invalid --days"))?;
+            }
+            "--max-points" => {
+                max_points = value(raw, &mut index, "--max-points")?
+                    .parse()
+                    .map_err(|_| CapabilityError::invalid_argument("invalid --max-points"))?;
+            }
+            "--url" => url = Some(value(raw, &mut index, "--url")?),
+            "--json" => {}
+            other => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown yield history option: {other}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    let Some(opportunity_id) = opportunity_id else {
+        return Err(CapabilityError::invalid_argument(
+            "--opportunity is required",
+        ));
+    };
+    Ok((opportunity_id, days, max_points, url))
+}
+
+fn print_yield_build_human(response: &YieldBuildResponse) {
+    println!(
+        "yield.build · {} · {} {}",
+        response.opportunity_id, response.amount.decimal, response.deposit_asset.symbol
+    );
+    println!("recipient: {:#x}", response.recipient);
+    for (index, step) in response.steps.iter().enumerate() {
+        println!(
+            "{}. {} -> {:#x} · value {} · {}",
+            index + 1,
+            step.kind,
+            step.to,
+            step.value,
+            step.description
+        );
+        println!("   data: {}", step.data);
+    }
+    for approval in &response.approvals {
+        println!(
+            "approval: {} {} -> {:#x}",
+            approval.amount.decimal, approval.token.symbol, approval.spender
+        );
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
+    }
+}
+
+fn print_yield_history_human(response: &YieldHistoryResponse) {
+    println!(
+        "yield.history · {} · last {} days",
+        response.opportunity_id, response.days
+    );
+    let summary = &response.summary;
+    println!(
+        "latest {:.2}% · mean {:.2}% · min {:.2}% · max {:.2}% · {} points",
+        summary.apy_latest_percent.unwrap_or_default(),
+        summary.apy_mean_percent.unwrap_or_default(),
+        summary.apy_min_percent.unwrap_or_default(),
+        summary.apy_max_percent.unwrap_or_default(),
+        summary.points
+    );
+    for point in response.series.iter().rev().take(5).rev() {
+        println!(
+            "{}  {:.2}%",
+            point.timestamp,
+            point
+                .apy_percent
+                .or(point.base_apy_percent)
+                .unwrap_or_default()
+        );
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
     }
 }
 
@@ -3064,6 +3279,8 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "fourmeme.agent-tokens" => fluxion_protocol::fourmeme::describe(),
                 "fourmeme.token" => fluxion_protocol::fourmeme::describe_token(),
                 "yield.discover" => fluxion_protocol::yield_capability::describe(),
+                "yield.build" => fluxion_protocol::yield_capability::describe_build(),
+                "yield.history" => fluxion_protocol::yield_capability::describe_history(),
                 other => {
                     let error = CapabilityError::new(
                         CapabilityErrorCode::Unsupported,

@@ -19,7 +19,9 @@ use crate::rpc::RpcClient;
 use crate::source::QuoteSource;
 use crate::split::{Allocation, PlanKind, SearchStats, SplitConfig, SplitOptimizer, SplitResult};
 use crate::yield_intel::{YieldError, YieldStore};
-use fluxion_protocol::yield_capability::{YieldDiscoverRequest, YieldDiscoverResponse};
+use fluxion_protocol::yield_capability::{
+    YieldDiscoverRequest, YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct QuoteRequestDto {
@@ -242,6 +244,9 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "InvalidRequest", Some(msg)),
             ApiError::Yield(YieldError::Invalid(message)) => {
                 (StatusCode::BAD_REQUEST, "InvalidRequest", Some(message))
+            }
+            ApiError::Yield(YieldError::Unsupported(message)) => {
+                (StatusCode::BAD_REQUEST, "Unsupported", Some(message))
             }
             ApiError::Yield(YieldError::Unavailable(message)) => {
                 (StatusCode::BAD_GATEWAY, "YieldUnavailable", Some(message))
@@ -589,6 +594,22 @@ async fn yield_discover(
     store.discover(&request).map(Json).map_err(Into::into)
 }
 
+async fn yield_history(
+    store: Option<Extension<Arc<YieldStore>>>,
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<YieldHistoryRequest>,
+) -> Result<Json<YieldHistoryResponse>, ApiError> {
+    if !state.limiter.allow() {
+        return Err(ApiError::RateLimited);
+    }
+    let Some(Extension(store)) = store else {
+        return Err(ApiError::Yield(YieldError::Unavailable(
+            "yield capability is disabled".to_string(),
+        )));
+    };
+    store.history(&request).await.map(Json).map_err(Into::into)
+}
+
 async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok" }))
 }
@@ -668,6 +689,7 @@ fn build_app(
     AxumRouter::new()
         .route("/quote", post(quote))
         .route("/yield/discover", post(yield_discover))
+        .route("/yield/history", post(yield_history))
         .route("/graph", get(graph))
         .route("/health", get(health))
         .route("/ready", get(ready))
@@ -687,9 +709,9 @@ mod tests {
     use crate::model::{Pool, PoolKind};
     use crate::router::PriceSnapshot;
     use crate::source::MockV2;
+    use crate::yield_intel::Registry;
     use crate::yield_intel::YieldStore;
     use crate::yield_intel::provider::{LlamaPool, OnChainCheck, ProtocolMeta, now};
-    use crate::yield_intel::registry::Registry;
     use crate::yield_intel::score::build_snapshot;
     use alloy_primitives::Address;
     use axum::body::{Body, to_bytes};
@@ -827,6 +849,23 @@ mod tests {
                     .uri("/yield/discover")
                     .header("content-type", "application/json")
                     .body(Body::from("{\"asset\":\"ETH\"}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[tokio::test]
+    async fn yield_history_reports_disabled_without_extension() {
+        let app = app(mock_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/yield/history")
+                    .header("content-type", "application/json")
+                    .body(Body::from("{\"opportunity_id\":\"lido-steth\"}"))
                     .unwrap(),
             )
             .await
