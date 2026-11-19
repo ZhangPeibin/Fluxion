@@ -159,7 +159,7 @@ mod tests {
     fn default_registry_loads() {
         let registry = Registry::load_default().expect("default registry");
         assert_eq!(registry.version, 1);
-        assert!(registry.entries().len() >= 4);
+        assert!(registry.entries().len() >= 10);
         assert!(
             registry
                 .entries()

@@ -42,7 +42,7 @@ Profile defaults:
 |---|---|---|---|
 | `conservative` | `core` | $250M | 0 days |
 | `balanced` | `core`, `established` | $100M | 7 days |
-| `aggressive` | all tiers | $25M | 30 days |
+| `aggressive` | all tiers | $10M | 30 days |
 
 ## Response
 
@@ -73,7 +73,7 @@ Tiers are curated, not inferred from APY or TVL alone.
 |---|---|
 | `core` | >=3 years in production, >=2 audits, no unresolved loss-of-funds incident in the last 2 years, protocol TVL >= $1B, direct ETH exposure, no reward-token dependency, withdrawal <=7 days, reviewed admin/upgrade path |
 | `established` | >=1 year, >=2 audits, TVL >= $250M, documented withdrawal path; may include LST/restaking or reward components |
-| `experimental` | Newer, smaller, reward-heavy, or restaking/LRT exposure |
+| `experimental` | Newer, smaller, reward-heavy, restaking/LRT, or custodial/off-chain entry |
 | excluded | No audits, unverified contract, unresolved incident, or conflicting provider data |
 
 The registry records `reviewed_at`, `reviewer` and risk notes. DefiLlama and on-chain facts are
