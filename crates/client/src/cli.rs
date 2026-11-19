@@ -135,6 +135,9 @@ fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks 
 fluxion fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  \
 fluxion fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]\n  \
 fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n  \
+fluxion yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH]\n  \
+fluxion yield history --opportunity ID [--days 30] [--max-points 500]\n  \
+fluxion position analyze --owner ADDRESS [--opportunities lido-steth,aave-v3-weth] [--include-zero]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
 fluxion --help\n\n\
