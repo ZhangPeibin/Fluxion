@@ -17,6 +17,7 @@ use crate::capability::{
 use crate::swap::PlanKind;
 use crate::swap::quote::{AllocationResponse, HopResponse, QuoteRequest, QuoteResponse};
 use crate::token;
+use fluxion_protocol::position::{PositionAnalyzeRequest, PositionAnalyzeResponse};
 use fluxion_protocol::yield_capability::{
     YieldDiscoverRequest, YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse,
 };
@@ -115,6 +116,17 @@ impl RuntimeClient {
         let body = serde_json::to_value(request)
             .map_err(|error| CapabilityError::internal(error.to_string()))?;
         let text = self.post_remote("/yield/history", body).await?;
+        serde_json::from_str(&text)
+            .map_err(|error| CapabilityError::internal(format!("invalid runtime JSON: {error}")))
+    }
+
+    pub async fn position_analyze(
+        &self,
+        request: &PositionAnalyzeRequest,
+    ) -> Result<PositionAnalyzeResponse, CapabilityError> {
+        let body = serde_json::to_value(request)
+            .map_err(|error| CapabilityError::internal(error.to_string()))?;
+        let text = self.post_remote("/position/analyze", body).await?;
         serde_json::from_str(&text)
             .map_err(|error| CapabilityError::internal(format!("invalid runtime JSON: {error}")))
     }

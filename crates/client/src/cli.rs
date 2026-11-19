@@ -19,6 +19,9 @@ use crate::wallet::{
 };
 use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
+use fluxion_protocol::position::{
+    PositionAnalyzeRequest, PositionAnalyzeResponse, PositionCostBasis,
+};
 use fluxion_protocol::swap::QuoteResponse;
 use fluxion_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
 use fluxion_protocol::yield_capability::{
@@ -64,6 +67,10 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
         }
         "yield" => {
             let code = run_yield(&args[1..]).await;
+            (args, Some(code))
+        }
+        "position" => {
+            let code = run_position(&args[1..]).await;
             (args, Some(code))
         }
         "tokens" => {
@@ -3236,6 +3243,182 @@ fn print_yield_human(response: &YieldDiscoverResponse) {
     }
 }
 
+const POSITION_USAGE: &str = "Usage:\n  fluxion position analyze --owner ADDRESS [--opportunities lido-steth,aave-v3-weth]\n    [--include-zero] [--cost-basis lido-steth=10,aave-v3-weth=5] [--url URL] [--json]";
+
+async fn run_position(raw: &[String]) -> i32 {
+    let Some(command) = raw.first().map(String::as_str) else {
+        println!("{POSITION_USAGE}");
+        return 2;
+    };
+    if command == "--help" || command == "-h" {
+        println!("{POSITION_USAGE}");
+        return 0;
+    }
+    if raw[1..].iter().any(|arg| arg == "--help" || arg == "-h") {
+        println!("{POSITION_USAGE}");
+        return 0;
+    }
+    match command {
+        "analyze" => run_position_analyze(&raw[1..]).await,
+        other => {
+            eprintln!("unknown position command: {other}");
+            println!("{POSITION_USAGE}");
+            2
+        }
+    }
+}
+
+async fn run_position_analyze(raw: &[String]) -> i32 {
+    let json = raw.iter().any(|arg| arg == "--json");
+    let args = match parse_position_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as("position.analyze", &error, json);
+            return exit_code(error.code);
+        }
+    };
+    let controller = match crate::routing::from_env(args.url.as_deref()) {
+        Ok(backend) => RuntimeClient::with_api_key(backend.base_url, backend.api_key),
+        Err(error) => {
+            report_error_as("position.analyze", &error, json);
+            return exit_code(error.code);
+        }
+    };
+    match controller
+        .position_analyze(&PositionAnalyzeRequest {
+            owner: args.owner,
+            chain: args.chain,
+            opportunity_ids: args.opportunities,
+            include_zero: args.include_zero,
+            cost_basis: args.cost_basis,
+        })
+        .await
+    {
+        Ok(response) => {
+            if json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_position_human(&response);
+            }
+            0
+        }
+        Err(error) => {
+            report_error_as("position.analyze", &error, json);
+            exit_code(error.code)
+        }
+    }
+}
+
+struct PositionArgs {
+    owner: alloy_primitives::Address,
+    chain: String,
+    opportunities: Vec<String>,
+    include_zero: bool,
+    cost_basis: Vec<PositionCostBasis>,
+    url: Option<String>,
+}
+
+fn parse_position_args(raw: &[String]) -> Result<PositionArgs, CapabilityError> {
+    let mut owner = None;
+    let mut chain = "ethereum".to_string();
+    let mut opportunities = Vec::new();
+    let mut include_zero = false;
+    let mut cost_basis = Vec::new();
+    let mut url = None;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--owner" => {
+                let text = value(raw, &mut index, "--owner")?;
+                owner =
+                    Some(text.parse::<alloy_primitives::Address>().map_err(|_| {
+                        CapabilityError::invalid_argument("invalid --owner address")
+                    })?);
+            }
+            "--chain" => chain = value(raw, &mut index, "--chain")?,
+            "--opportunities" | "--opportunity-ids" => {
+                opportunities = value(raw, &mut index, "--opportunities")?
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|item| !item.is_empty())
+                    .map(str::to_string)
+                    .collect();
+            }
+            "--include-zero" => include_zero = true,
+            "--cost-basis" => {
+                for item in value(raw, &mut index, "--cost-basis")?
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|item| !item.is_empty())
+                {
+                    let (id, amount) = item.split_once('=').ok_or_else(|| {
+                        CapabilityError::invalid_argument(
+                            "--cost-basis entries must look like id=amount",
+                        )
+                    })?;
+                    cost_basis.push(PositionCostBasis {
+                        opportunity_id: id.trim().to_string(),
+                        amount: amount.trim().to_string(),
+                    });
+                }
+            }
+            "--url" => url = Some(value(raw, &mut index, "--url")?),
+            "--json" => {}
+            other => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown position option: {other}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    let owner = owner.ok_or_else(|| CapabilityError::invalid_argument("--owner is required"))?;
+    Ok(PositionArgs {
+        owner,
+        chain,
+        opportunities,
+        include_zero,
+        cost_basis,
+        url,
+    })
+}
+
+fn print_position_human(response: &PositionAnalyzeResponse) {
+    println!(
+        "Positions · {:#x} · block {} · {} active",
+        response.owner, response.block_number, response.totals.active_count
+    );
+    for position in &response.positions {
+        println!(
+            "[{}] {} · {} {} · {} ETH · {:.2}% APY{}",
+            position.safety_tier.as_str(),
+            position.opportunity_id,
+            position.receipt_balance.decimal,
+            position.receipt_asset.symbol,
+            position
+                .value_eth
+                .as_ref()
+                .map(|value| value.decimal.clone())
+                .unwrap_or_else(|| "?".to_string()),
+            position.apy.ranking_apy_percent,
+            position
+                .estimated_annual_yield_eth
+                .as_ref()
+                .map(|value| format!(" · ~{} ETH/yr", value.decimal))
+                .unwrap_or_default()
+        );
+    }
+    if let Some(value) = &response.totals.value_eth {
+        println!("total value: {} ETH", value.decimal);
+    }
+    if let Some(pnl) = &response.totals.pnl_eth {
+        println!("total PnL: {} ETH", pnl.decimal);
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
+    }
+}
+
 async fn run_capability(raw: &[String]) -> i32 {
     match raw.first().map(String::as_str) {
         Some("list") => {
@@ -3281,6 +3464,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "yield.discover" => fluxion_protocol::yield_capability::describe(),
                 "yield.build" => fluxion_protocol::yield_capability::describe_build(),
                 "yield.history" => fluxion_protocol::yield_capability::describe_history(),
+                "position.analyze" => fluxion_protocol::position::describe(),
                 other => {
                     let error = CapabilityError::new(
                         CapabilityErrorCode::Unsupported,

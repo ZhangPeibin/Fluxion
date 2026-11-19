@@ -78,6 +78,8 @@ pub enum CapabilityId {
     YieldBuild,
     #[serde(rename = "yield.history")]
     YieldHistory,
+    #[serde(rename = "position.analyze")]
+    PositionAnalyze,
 }
 
 impl CapabilityId {
@@ -104,6 +106,7 @@ impl CapabilityId {
             Self::YieldDiscover => "yield.discover",
             Self::YieldBuild => "yield.build",
             Self::YieldHistory => "yield.history",
+            Self::PositionAnalyze => "position.analyze",
         }
     }
 
@@ -130,6 +133,7 @@ impl CapabilityId {
             Self::YieldDiscover,
             Self::YieldBuild,
             Self::YieldHistory,
+            Self::PositionAnalyze,
         ]
     }
 }
@@ -178,7 +182,8 @@ mod tests {
                 "fourmeme.token",
                 "yield.discover",
                 "yield.build",
-                "yield.history"
+                "yield.history",
+                "position.analyze"
             ]
         );
         assert_eq!(CapabilityId::SwapQuote.as_str(), "swap.quote");
@@ -209,5 +214,6 @@ mod tests {
         assert_eq!(CapabilityId::YieldDiscover.as_str(), "yield.discover");
         assert_eq!(CapabilityId::YieldBuild.as_str(), "yield.build");
         assert_eq!(CapabilityId::YieldHistory.as_str(), "yield.history");
+        assert_eq!(CapabilityId::PositionAnalyze.as_str(), "position.analyze");
     }
 }

@@ -81,7 +81,7 @@ pub async fn require_auth(
 ) -> Response {
     if matches!(
         request.uri().path(),
-        "/quote" | "/yield/discover" | "/yield/history"
+        "/quote" | "/yield/discover" | "/yield/history" | "/position/analyze"
     ) {
         let header = request
             .headers()

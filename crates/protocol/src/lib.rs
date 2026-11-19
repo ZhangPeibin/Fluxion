@@ -2,6 +2,7 @@
 
 pub mod capability;
 pub mod fourmeme;
+pub mod position;
 pub mod signature;
 pub mod swap;
 pub mod transaction;

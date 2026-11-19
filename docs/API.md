@@ -113,6 +113,38 @@
 
 错误：`InvalidRequest`(400)、限流(429)、`YieldUnavailable`(502)、`StaleState`(503)。
 
+## `POST /position/analyze`
+
+只读分析某个地址在 curated yield 市场中的仓位。所有余额固定在同一个 Ethereum 区块；APY 和风险
+上下文来自当前 `yield.discover` 快照。
+
+请求：
+
+```json
+{
+  "owner": "0x...",
+  "chain": "ethereum",
+  "opportunity_ids": ["lido-steth", "aave-v3-weth"],
+  "include_zero": false,
+  "cost_basis": [
+    {"opportunity_id": "lido-steth", "amount": "10"}
+  ]
+}
+```
+
+- `owner` 必填；`chain` 目前只接受 `ethereum`。
+- `opportunity_ids` 可选；不传时分析全部 curated 市场。
+- `include_zero` 可选；默认不返回余额为 0 的仓位。
+- `cost_basis` 可选；提供后返回 `cost_basis_eth`、signed `pnl_eth` 和 `pnl_percent`。
+
+响应包含 `block_number` / `block_hash` / `as_of`、`yield_data_as_of`、`positions`、`totals`、
+`coverage`、`sources`、`disclaimer` 和 `warnings`。每个 position 含 receipt balance、估算
+`value_eth`、APY、估算年化收益、提现条件、风险因子、data confidence 和 status。
+
+部分 LRT（rsETH/ezETH）暂不做 ETH 汇率换算：`value_eth` 会被省略并给出 warning，不会当作 0。
+
+错误：`InvalidRequest`(400)、限流(429)、`PositionUnavailable`(502)、`StaleState`(503)。
+
 ## `GET /graph`
 
 只读地导出当前路由多重图，供 Web viewer 等外部工具使用：
