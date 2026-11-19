@@ -25,7 +25,8 @@ call internally; the agent does not choose local or remote execution.
 
 ## Remote service
 
-`swap.quote`, `yield.discover` and `yield.history` always call the remote Fluxion service.
+`swap.quote`, `yield.discover`, `yield.history` and `position.analyze` always call the remote
+Fluxion service.
 `yield.build` runs locally and only returns calldata. Set `FLUXION_REMOTE_URL` to the remote service endpoint;
 development and tests use the same variable:
 
@@ -38,7 +39,8 @@ FLUXION_REMOTE_URL=https://api.example.com FLUXION_API_KEY=... fluxion mcp
 
 ### Installation token
 
-With `FLUXION_REQUIRE_AUTH=1`, `/quote`, `/yield/discover` and `/yield/history` require a bearer token. The local client handles this
+With `FLUXION_REQUIRE_AUTH=1`, `/quote`, `/yield/discover`, `/yield/history` and `/position/analyze`
+require a bearer token. The local client handles this
 automatically:
 
 1. first `/quote` returns `401`
@@ -109,8 +111,8 @@ MCP documentation if a snippet is rejected.
 ## Lifecycle
 
 - `fluxion mcp` keeps the MCP process alive and reuses one remote client.
-- `swap.quote`, `yield.discover` and `yield.history` use the remote service; the remote server owns
-  discovery and snapshot warmup. `yield.build` is local.
+- `swap.quote`, `yield.discover`, `yield.history` and `position.analyze` use the remote service; the
+  remote server owns discovery and snapshot warmup. `yield.build` is local.
 - Local wallet and transaction tools default to BSC; pass `chain: "ethereum"` for Ethereum.
 - `wallet_sign` uses the stored session and waits for explicit phone confirmation. A rejection
   returns `USER_REJECTED`; it does not retry automatically.
@@ -166,6 +168,7 @@ Available tools depend on the installed capabilities:
 | `yield.discover` | `yield_discover` | [capabilities/yield](capabilities/yield/README.md) |
 | `yield.build` | `yield_build` | [capabilities/yield](capabilities/yield/README.md) |
 | `yield.history` | `yield_history` | [capabilities/yield](capabilities/yield/README.md) |
+| `position.analyze` | `position_analyze` | [capabilities/position](capabilities/position/README.md) |
 
 ## Troubleshooting
 

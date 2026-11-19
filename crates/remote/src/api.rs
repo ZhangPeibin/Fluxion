@@ -14,11 +14,13 @@ use crate::error::QuoteError;
 use crate::graph::Graph;
 use crate::local_state::{QuoteState, SnapshotStore, StateError};
 use crate::model::{Hop, QuoteRequest, Route};
+use crate::position_intel::{PositionError, analyze as analyze_position};
 use crate::router::Router;
 use crate::rpc::RpcClient;
 use crate::source::QuoteSource;
 use crate::split::{Allocation, PlanKind, SearchStats, SplitConfig, SplitOptimizer, SplitResult};
 use crate::yield_intel::{YieldError, YieldStore};
+use fluxion_protocol::position::{PositionAnalyzeRequest, PositionAnalyzeResponse};
 use fluxion_protocol::yield_capability::{
     YieldDiscoverRequest, YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse,
 };
@@ -206,6 +208,13 @@ pub enum ApiError {
     State(StateError),
     ComputationFailed,
     Yield(YieldError),
+    Position(PositionError),
+}
+
+impl From<PositionError> for ApiError {
+    fn from(error: PositionError) -> Self {
+        Self::Position(error)
+    }
 }
 
 impl From<YieldError> for ApiError {
@@ -257,6 +266,25 @@ impl IntoResponse for ApiError {
                 Some("yield data is stale".to_string()),
             ),
             ApiError::Yield(YieldError::Internal(message)) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal", Some(message))
+            }
+            ApiError::Position(PositionError::Invalid(message)) => {
+                (StatusCode::BAD_REQUEST, "InvalidRequest", Some(message))
+            }
+            ApiError::Position(PositionError::Unsupported(message)) => {
+                (StatusCode::BAD_REQUEST, "Unsupported", Some(message))
+            }
+            ApiError::Position(PositionError::Unavailable(message)) => (
+                StatusCode::BAD_GATEWAY,
+                "PositionUnavailable",
+                Some(message),
+            ),
+            ApiError::Position(PositionError::Stale) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "StaleState",
+                Some("position data is stale".to_string()),
+            ),
+            ApiError::Position(PositionError::Internal(message)) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal", Some(message))
             }
             ApiError::Quote(e) => match e {
@@ -610,6 +638,31 @@ async fn yield_history(
     store.history(&request).await.map(Json).map_err(Into::into)
 }
 
+async fn position_analyze(
+    store: Option<Extension<Arc<YieldStore>>>,
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<PositionAnalyzeRequest>,
+) -> Result<Json<PositionAnalyzeResponse>, ApiError> {
+    if !state.limiter.allow() {
+        return Err(ApiError::RateLimited);
+    }
+    let Some(Extension(store)) = store else {
+        return Err(ApiError::Position(PositionError::Unavailable(
+            "yield capability is disabled".to_string(),
+        )));
+    };
+    let Some(rpc) = state.rpc.as_ref() else {
+        return Err(ApiError::Position(PositionError::Unavailable(
+            "Ethereum RPC is not configured".to_string(),
+        )));
+    };
+    let snapshot = store.snapshot().ok_or(PositionError::Stale)?;
+    analyze_position(store.registry(), &snapshot, rpc, &request)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
 async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok" }))
 }
@@ -690,6 +743,7 @@ fn build_app(
         .route("/quote", post(quote))
         .route("/yield/discover", post(yield_discover))
         .route("/yield/history", post(yield_history))
+        .route("/position/analyze", post(position_analyze))
         .route("/graph", get(graph))
         .route("/health", get(health))
         .route("/ready", get(ready))
@@ -849,6 +903,25 @@ mod tests {
                     .uri("/yield/discover")
                     .header("content-type", "application/json")
                     .body(Body::from("{\"asset\":\"ETH\"}"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[tokio::test]
+    async fn position_analyze_reports_disabled_without_extension() {
+        let app = app(mock_state());
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/position/analyze")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        "{\"owner\":\"0x0000000000000000000000000000000000000001\"}",
+                    ))
                     .unwrap(),
             )
             .await

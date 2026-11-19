@@ -1,6 +1,7 @@
 //! Live read-only yield provider check. Run with:
 //! `cargo test --test yield_mainnet -- --ignored`
 
+use fluxion_protocol::position::PositionAnalyzeRequest;
 use fluxion_protocol::yield_capability::YieldHistoryRequest;
 use fluxion_remote::rpc::RpcClient;
 use fluxion_remote::yield_intel::Registry;
@@ -80,4 +81,52 @@ async fn live_history_returns_a_series() {
     .expect("history response");
     assert!(!response.series.is_empty());
     assert!(response.summary.points > 0);
+}
+
+#[tokio::test]
+#[ignore]
+async fn live_position_analyze_reads_a_pinned_block() {
+    let registry = Registry::load_default().expect("registry");
+    let provider = YieldProvider::new(RpcClient::new(
+        "https://ethereum-rpc.publicnode.com".to_string(),
+    ));
+    let data = provider.fetch().await.expect("DefiLlama data");
+    let mut checks = std::collections::HashMap::new();
+    for entry in registry.entries() {
+        checks.insert(entry.id.clone(), provider.verify(entry).await);
+    }
+    let snapshot = build_snapshot(
+        registry.entries(),
+        &data.pools,
+        &data.protocol_meta,
+        &checks,
+        now(),
+        data.sources,
+        data.warnings,
+    );
+    let rpc = RpcClient::new("https://ethereum-rpc.publicnode.com".to_string());
+    let response = fluxion_remote::position_intel::analyze(
+        &registry,
+        &snapshot,
+        &rpc,
+        &PositionAnalyzeRequest {
+            owner: "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022"
+                .parse()
+                .unwrap(),
+            chain: "ethereum".to_string(),
+            opportunity_ids: vec!["lido-steth".to_string()],
+            include_zero: false,
+            cost_basis: vec![fluxion_protocol::position::PositionCostBasis {
+                opportunity_id: "lido-steth".to_string(),
+                amount: "10000".to_string(),
+            }],
+        },
+    )
+    .await
+    .expect("position analysis");
+    assert!(response.block_number > 0);
+    assert_eq!(response.positions.len(), 1);
+    let position = &response.positions[0];
+    assert!(position.value_eth.as_ref().unwrap().decimal != "0");
+    assert!(position.pnl_eth.is_some());
 }

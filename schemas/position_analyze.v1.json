@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/position_analyze.v1.json",
+  "title": "Fluxion position.analyze v1",
+  "oneOf": [
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "amount": {
+      "type": "object",
+      "required": ["raw", "decimal"],
+      "additionalProperties": false,
+      "properties": {
+        "raw": { "type": "string", "pattern": "^[0-9]+$" },
+        "decimal": { "type": "string" }
+      }
+    },
+    "signed_amount": {
+      "type": "object",
+      "required": ["raw", "decimal"],
+      "additionalProperties": false,
+      "properties": {
+        "raw": { "type": "string", "pattern": "^-?[0-9]+$" },
+        "decimal": { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?$" }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "required": ["symbol", "address", "decimals"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "type": "string" },
+        "address": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 38 }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "required": ["slug", "name", "category"],
+      "additionalProperties": false,
+      "properties": {
+        "slug": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "tvl_usd": { "type": "integer", "minimum": 0 },
+        "audits": { "type": "integer", "minimum": 0 },
+        "audit_links": { "type": "array", "items": { "type": "string" } },
+        "listed_at": { "type": "integer", "minimum": 0 },
+        "incident_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "yield": {
+      "type": "object",
+      "required": ["apy_percent", "ranking_apy_percent", "yield_type", "methodology"],
+      "additionalProperties": false,
+      "properties": {
+        "apy_percent": { "type": "number" },
+        "base_apy_percent": { "type": "number" },
+        "reward_apy_percent": { "type": "number" },
+        "apy_mean_30d_percent": { "type": "number" },
+        "apy_pct_30d": { "type": "number" },
+        "ranking_apy_percent": { "type": "number" },
+        "yield_type": { "type": "string", "enum": ["staking_apr", "supply_apy"] },
+        "methodology": { "type": "string" }
+      }
+    },
+    "risk_factor": {
+      "type": "object",
+      "required": ["code", "level", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string" },
+        "level": { "type": "string", "enum": ["low", "medium", "high"] },
+        "evidence": { "type": "string" }
+      }
+    },
+    "withdrawal": {
+      "type": "object",
+      "required": ["mode", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string" },
+        "lockup_days": { "type": "integer", "minimum": 0 },
+        "notes": { "type": "string" }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": [
+        "opportunity_id", "safety_tier", "protocol", "action",
+        "receipt_asset", "receipt_balance", "underlying_asset", "apy",
+        "withdrawal", "risk_factors", "data_confidence", "status", "warnings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "opportunity_id": { "type": "string" },
+        "safety_tier": { "type": "string", "enum": ["core", "established", "experimental"] },
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "action": { "type": "string", "enum": ["stake", "lend"] },
+        "receipt_asset": { "$ref": "#/$defs/asset" },
+        "receipt_balance": { "$ref": "#/$defs/amount" },
+        "underlying_asset": { "$ref": "#/$defs/asset" },
+        "value_eth": { "$ref": "#/$defs/amount" },
+        "cost_basis_eth": { "$ref": "#/$defs/amount" },
+        "pnl_eth": { "$ref": "#/$defs/signed_amount" },
+        "pnl_percent": { "type": "number" },
+        "apy": { "$ref": "#/$defs/yield" },
+        "estimated_annual_yield_eth": { "$ref": "#/$defs/amount" },
+        "withdrawal": { "$ref": "#/$defs/withdrawal" },
+        "risk_factors": { "type": "array", "items": { "$ref": "#/$defs/risk_factor" } },
+        "data_confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+        "status": { "type": "string", "enum": ["active", "empty"] },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "required": ["position_count", "active_count"],
+      "additionalProperties": false,
+      "properties": {
+        "position_count": { "type": "integer", "minimum": 0 },
+        "active_count": { "type": "integer", "minimum": 0 },
+        "value_eth": { "$ref": "#/$defs/amount" },
+        "estimated_annual_yield_eth": { "$ref": "#/$defs/amount" },
+        "cost_basis_eth": { "$ref": "#/$defs/amount" },
+        "pnl_eth": { "$ref": "#/$defs/signed_amount" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["name", "scope"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "scope": { "type": "string" },
+        "block": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "success": {
+      "type": "object",
+      "required": [
+        "schema_version", "capability", "request_id", "chain", "owner",
+        "block_number", "block_hash", "as_of", "yield_data_as_of",
+        "positions", "totals", "coverage", "sources", "disclaimer", "warnings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": 1 },
+        "capability": { "const": "position.analyze" },
+        "request_id": { "type": "string" },
+        "chain": { "const": "ethereum" },
+        "owner": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "block_number": { "type": "integer", "minimum": 0 },
+        "block_hash": { "type": "string" },
+        "as_of": { "type": "integer", "minimum": 0 },
+        "yield_data_as_of": { "type": "integer", "minimum": 0 },
+        "positions": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+        "totals": { "$ref": "#/$defs/totals" },
+        "coverage": { "type": "string" },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" } },
+        "disclaimer": { "type": "string" },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["schema_version", "capability", "request_id", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": { "const": 1 },
+        "capability": { "const": "position.analyze" },
+        "request_id": { "type": "string" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message", "retryable"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "retryable": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

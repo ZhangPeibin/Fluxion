@@ -1,7 +1,7 @@
 //! `wallet` capability family: read-only account balances and asset discovery.
 
 use alloy_primitives::{Address, B256};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::capability::{Amount, CapabilityDescriptor, SCHEMA_VERSION, TokenRef};
 use crate::transaction::TransactionSimulateResponse;
@@ -24,7 +24,7 @@ pub struct WalletTokenBalance {
     pub known: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssetSource {
     pub name: String,
     pub scope: String,

@@ -26,11 +26,12 @@ its execution location is an internal Fluxion decision.
 | `yield.discover` | available | [yield/README.md](yield/README.md) |
 | `yield.build` | available | [yield/README.md](yield/README.md) |
 | `yield.history` | available | [yield/README.md](yield/README.md) |
+| `position.analyze` | available | [position/README.md](position/README.md) |
 
 ## Contract vs execution
 
 - Capability: what the agent wants to do (`swap.quote`)
-- Execution location: fixed per capability (`swap.quote`, `yield.discover` and `yield.history` → remote service, `yield.build` and wallet/execution capabilities → local runtime)
+- Execution location: fixed per capability (`swap.quote`, `yield.discover`, `yield.history` and `position.analyze` → remote service, `yield.build` and wallet/execution capabilities → local runtime)
 - Data source: RPC, subgraphs, protocol APIs used internally
 - Transport: CLI or [MCP stdio](../MCP.md)
 

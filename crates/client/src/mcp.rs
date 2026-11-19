@@ -24,6 +24,7 @@ use crate::wallet::{
 };
 use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
+use fluxion_protocol::position::{PositionAnalyzeRequest, PositionCostBasis};
 use fluxion_protocol::swap::QuoteResponse;
 use fluxion_protocol::yield_capability::{
     RiskProfile, YieldBuildRequest, YieldDiscoverRequest, YieldHistoryRequest,
@@ -438,6 +439,31 @@ fn tools_list() -> Value {
                     },
                     "required": ["opportunity_id"]
                 }
+            },
+            {
+                "name": "position_analyze",
+                "description": "Read a wallet's curated ETH yield positions at a pinned Ethereum block, including receipt balances, estimated ETH value, APY, withdrawal conditions and risk factors. Optional cost basis enables PnL. Read-only; never signs or broadcasts.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "owner": {"type": "string", "description": "Wallet address to analyze"},
+                        "chain": {"type": "string", "enum": ["ethereum"], "default": "ethereum"},
+                        "opportunity_ids": {"type": "array", "items": {"type": "string"}, "description": "Optional subset of yield opportunity IDs"},
+                        "include_zero": {"type": "boolean", "default": false},
+                        "cost_basis": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "opportunity_id": {"type": "string"},
+                                    "amount": {"type": "string", "description": "Human ETH cost basis"}
+                                },
+                                "required": ["opportunity_id", "amount"]
+                            }
+                        }
+                    },
+                    "required": ["owner"]
+                }
             }
         ]
     })
@@ -484,6 +510,7 @@ async fn call_tool(
         "yield_discover" => yield_discover_tool(&arguments, backend).await,
         "yield_build" => yield_build_tool(&arguments),
         "yield_history" => yield_history_tool(&arguments, backend).await,
+        "position_analyze" => position_analyze_tool(&arguments, backend).await,
         "signature_inspect" => signature_inspect_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
             "unknown tool: {other}"
@@ -516,6 +543,7 @@ fn capability_for_tool(name: &str) -> &'static str {
         "yield_discover" => "yield.discover",
         "yield_build" => "yield.build",
         "yield_history" => "yield.history",
+        "position_analyze" => "position.analyze",
         "signature_inspect" => "signature.inspect",
         _ => "unknown",
     }
@@ -1152,6 +1180,71 @@ async fn yield_history_tool(
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+async fn position_analyze_tool(
+    arguments: &Value,
+    backend: &Result<RuntimeClient, CapabilityError>,
+) -> Result<Value, CapabilityError> {
+    let backend = backend.as_ref().map_err(Clone::clone)?;
+    let owner = string_arg(arguments, "owner")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid owner address"))?;
+    let chain = arguments
+        .get("chain")
+        .and_then(Value::as_str)
+        .unwrap_or("ethereum")
+        .to_string();
+    let opportunity_ids = arguments
+        .get("opportunity_ids")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    let include_zero = arguments
+        .get("include_zero")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let cost_basis = arguments
+        .get("cost_basis")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .map(|value| {
+                    let opportunity_id = value
+                        .get("opportunity_id")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("cost_basis needs opportunity_id")
+                        })?;
+                    let amount = value.get("amount").and_then(Value::as_str).ok_or_else(|| {
+                        CapabilityError::invalid_argument("cost_basis needs amount")
+                    })?;
+                    Ok(PositionCostBasis {
+                        opportunity_id: opportunity_id.to_string(),
+                        amount: amount.to_string(),
+                    })
+                })
+                .collect::<Result<Vec<_>, CapabilityError>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let response = backend
+        .position_analyze(&PositionAnalyzeRequest {
+            owner,
+            chain,
+            opportunity_ids,
+            include_zero,
+            cost_basis,
+        })
+        .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn transaction_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
     let to = string_arg(arguments, "to")?
         .parse::<alloy_primitives::Address>()
@@ -1392,7 +1485,8 @@ mod tests {
                 "fourmeme_token",
                 "yield_discover",
                 "yield_build",
-                "yield_history"
+                "yield_history",
+                "position_analyze"
             ]
         );
     }

@@ -13,6 +13,7 @@ pub mod error;
 pub mod graph;
 pub mod local_state;
 pub mod model;
+pub mod position_intel;
 pub mod reference;
 pub mod router;
 pub mod rpc;

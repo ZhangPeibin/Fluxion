@@ -10,6 +10,7 @@ use axum::{Json, Router};
 use fluxion_client::capability::TokenRef;
 use fluxion_client::client::RuntimeClient;
 use fluxion_client::swap::quote::QuoteRequest;
+use fluxion_protocol::position::PositionAnalyzeRequest;
 use fluxion_protocol::yield_capability::{YieldDiscoverRequest, YieldHistoryRequest};
 use serde_json::{Value, json};
 
@@ -205,6 +206,59 @@ async fn remote_client_calls_yield_history() {
     let (_, body) = capture.0.lock().unwrap().clone().unwrap();
     assert_eq!(body["opportunity_id"], "lido-steth");
     assert_eq!(body["days"], 30);
+
+    server.abort();
+}
+
+async fn position_analyze(State(capture): State<Capture>, Json(body): Json<Value>) -> Json<Value> {
+    *capture.0.lock().unwrap() = Some((None, body));
+    Json(json!({
+        "schema_version": 1,
+        "capability": "position.analyze",
+        "request_id": "test",
+        "chain": "ethereum",
+        "owner": "0x0000000000000000000000000000000000000001",
+        "block_number": 1,
+        "block_hash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "as_of": 1,
+        "yield_data_as_of": 1,
+        "positions": [],
+        "totals": {"position_count": 0, "active_count": 0},
+        "coverage": "test",
+        "sources": [],
+        "disclaimer": "test",
+        "warnings": []
+    }))
+}
+
+#[tokio::test]
+async fn remote_client_calls_position_analyze() {
+    let capture = Capture(Arc::new(Mutex::new(None)));
+    let app = Router::new()
+        .route("/position/analyze", post(position_analyze))
+        .with_state(capture.clone());
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let client = RuntimeClient::new(format!("http://{address}"));
+    let response = client
+        .position_analyze(&PositionAnalyzeRequest {
+            owner: "0x0000000000000000000000000000000000000001"
+                .parse()
+                .unwrap(),
+            chain: "ethereum".to_string(),
+            opportunity_ids: vec!["lido-steth".to_string()],
+            include_zero: false,
+            cost_basis: vec![],
+        })
+        .await
+        .unwrap();
+    assert_eq!(response.capability, "position.analyze");
+    let (_, body) = capture.0.lock().unwrap().clone().unwrap();
+    assert_eq!(body["opportunity_ids"][0], "lido-steth");
 
     server.abort();
 }
