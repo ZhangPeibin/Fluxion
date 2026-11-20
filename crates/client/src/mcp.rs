@@ -27,7 +27,7 @@ use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
 use fluxion_protocol::position::{PositionAnalyzeRequest, PositionCostBasis};
 use fluxion_protocol::swap::QuoteResponse;
 use fluxion_protocol::yield_capability::{
-    RiskProfile, YieldBuildRequest, YieldDiscoverRequest, YieldHistoryRequest,
+    RiskProfile, YieldBuildRequest, YieldDiscoverRequest, YieldHistoryRequest, YieldWithdrawRequest,
 };
 
 pub async fn run_stdio(backend: Result<RuntimeClient, CapabilityError>) -> i32 {
@@ -441,6 +441,20 @@ fn tools_list() -> Value {
                 }
             },
             {
+                "name": "yield_withdraw",
+                "description": "Build local exit calldata for a curated yield position. Supports Aave V3, SparkLend, curated Morpho vaults and Rocket Pool burn; Lido and LRT exits are not implemented yet. Read-only; never signs or broadcasts.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "opportunity_id": {"type": "string", "description": "ID from yield_discover or position_analyze"},
+                        "amount": {"type": "string", "description": "Human receipt amount, or max where supported"},
+                        "recipient": {"type": "string", "description": "Address that receives the withdrawn asset"},
+                        "owner": {"type": "string", "description": "Position owner/signer; defaults to recipient"}
+                    },
+                    "required": ["opportunity_id", "amount", "recipient"]
+                }
+            },
+            {
                 "name": "position_analyze",
                 "description": "Read a wallet's curated ETH yield positions at a pinned Ethereum block, including receipt balances, estimated ETH value, APY, withdrawal conditions and risk factors. Optional cost basis enables PnL. Read-only; never signs or broadcasts.",
                 "inputSchema": {
@@ -510,6 +524,7 @@ async fn call_tool(
         "yield_discover" => yield_discover_tool(&arguments, backend).await,
         "yield_build" => yield_build_tool(&arguments),
         "yield_history" => yield_history_tool(&arguments, backend).await,
+        "yield_withdraw" => yield_withdraw_tool(&arguments),
         "position_analyze" => position_analyze_tool(&arguments, backend).await,
         "signature_inspect" => signature_inspect_tool(&arguments).await,
         other => Err(CapabilityError::invalid_argument(format!(
@@ -543,6 +558,7 @@ fn capability_for_tool(name: &str) -> &'static str {
         "yield_discover" => "yield.discover",
         "yield_build" => "yield.build",
         "yield_history" => "yield.history",
+        "yield_withdraw" => "yield.withdraw",
         "position_analyze" => "position.analyze",
         "signature_inspect" => "signature.inspect",
         _ => "unknown",
@@ -1245,6 +1261,30 @@ async fn position_analyze_tool(
     serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
 }
 
+fn yield_withdraw_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let opportunity_id = string_arg(arguments, "opportunity_id")?.to_string();
+    let amount = string_arg(arguments, "amount")?.to_string();
+    let recipient = string_arg(arguments, "recipient")?
+        .parse::<alloy_primitives::Address>()
+        .map_err(|_| CapabilityError::invalid_argument("invalid recipient address"))?;
+    let owner = arguments
+        .get("owner")
+        .and_then(Value::as_str)
+        .map(|value| {
+            value
+                .parse::<alloy_primitives::Address>()
+                .map_err(|_| CapabilityError::invalid_argument("invalid owner address"))
+        })
+        .transpose()?;
+    let response = crate::yield_withdraw::withdraw(&YieldWithdrawRequest {
+        opportunity_id,
+        amount,
+        recipient,
+        owner,
+    })?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
 async fn transaction_send_tool(arguments: &Value) -> Result<Value, CapabilityError> {
     let to = string_arg(arguments, "to")?
         .parse::<alloy_primitives::Address>()
@@ -1486,6 +1526,7 @@ mod tests {
                 "yield_discover",
                 "yield_build",
                 "yield_history",
+                "yield_withdraw",
                 "position_analyze"
             ]
         );

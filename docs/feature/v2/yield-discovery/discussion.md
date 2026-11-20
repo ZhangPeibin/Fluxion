@@ -113,3 +113,11 @@ an optional estimated annual yield for the requested amount.
   not current APY or a guarantee.
 - The curated registry moved into `fluxion-protocol` so local build and remote intelligence share
   one source of truth.
+
+## Follow-up: withdraw (2026-11-19)
+
+- `yield.withdraw` is local and returns one exit step plus no approvals.
+- Supported: Aave V3, SparkLend, curated Morpho vaults and Rocket Pool burn.
+- Aave/Spark support `amount=max`; Morpho requires exact vault shares and Rocket Pool exact rETH.
+- Lido stETH and LRT/cbETH exits are explicitly `UNSUPPORTED` until queue/off-chain paths are
+  modeled.

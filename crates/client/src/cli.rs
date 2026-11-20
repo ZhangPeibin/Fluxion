@@ -26,7 +26,8 @@ use fluxion_protocol::swap::QuoteResponse;
 use fluxion_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
 use fluxion_protocol::yield_capability::{
     RiskProfile, YieldBuildRequest, YieldBuildResponse, YieldDiscoverRequest,
-    YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse,
+    YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse, YieldWithdrawRequest,
+    YieldWithdrawResponse,
 };
 
 pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
@@ -137,6 +138,7 @@ fluxion fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]
 fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n  \
 fluxion yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH]\n  \
 fluxion yield history --opportunity ID [--days 30] [--max-points 500]\n  \
+fluxion yield withdraw --opportunity ID --amount 10|max --recipient ADDRESS [--owner ADDRESS]\n  \
 fluxion position analyze --owner ADDRESS [--opportunities lido-steth,aave-v3-weth] [--include-zero]\n  \
 fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
 fluxion tokens                          List built-in token symbols\n  \
@@ -2829,7 +2831,7 @@ struct YieldArgs {
     json: bool,
 }
 
-const YIELD_USAGE: &str = "Usage:\n  fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n    [--min-tvl-usd N] [--max-lockup-days N] [--include-reward-apy]\n    [--protocols lido,aave-v3] [--limit N] [--url URL] [--json]\n  fluxion yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH] [--json]\n  fluxion yield history --opportunity ID [--days 30] [--max-points 500] [--url URL] [--json]";
+const YIELD_USAGE: &str = "Usage:\n  fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n    [--min-tvl-usd N] [--max-lockup-days N] [--include-reward-apy]\n    [--protocols lido,aave-v3] [--limit N] [--url URL] [--json]\n  fluxion yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH] [--json]\n  fluxion yield history --opportunity ID [--days 30] [--max-points 500] [--url URL] [--json]\n  fluxion yield withdraw --opportunity ID --amount 10|max --recipient ADDRESS [--owner ADDRESS] [--json]";
 
 async fn run_yield(raw: &[String]) -> i32 {
     let Some(command) = raw.first().map(String::as_str) else {
@@ -2848,6 +2850,7 @@ async fn run_yield(raw: &[String]) -> i32 {
         "discover" => run_yield_discover(&raw[1..]).await,
         "build" => run_yield_build(&raw[1..]),
         "history" => run_yield_history(&raw[1..]).await,
+        "withdraw" => run_yield_withdraw(&raw[1..]),
         other => {
             eprintln!("unknown yield command: {other}");
             println!("{YIELD_USAGE}");
@@ -3105,6 +3108,99 @@ fn print_yield_history_human(response: &YieldHistoryResponse) {
                 .or(point.base_apy_percent)
                 .unwrap_or_default()
         );
+    }
+    for warning in &response.warnings {
+        eprintln!("warning: {warning}");
+    }
+}
+
+fn run_yield_withdraw(raw: &[String]) -> i32 {
+    let json = raw.iter().any(|arg| arg == "--json");
+    let args = match parse_yield_withdraw_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as("yield.withdraw", &error, json);
+            return exit_code(error.code);
+        }
+    };
+    match crate::yield_withdraw::withdraw(&args) {
+        Ok(response) => {
+            if json {
+                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            } else {
+                print_yield_withdraw_human(&response);
+            }
+            0
+        }
+        Err(error) => {
+            report_error_as("yield.withdraw", &error, json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn parse_yield_withdraw_args(raw: &[String]) -> Result<YieldWithdrawRequest, CapabilityError> {
+    let mut opportunity_id = None;
+    let mut amount = None;
+    let mut recipient = None;
+    let mut owner = None;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--opportunity" | "--opportunity-id" => {
+                opportunity_id = Some(value(raw, &mut index, "--opportunity")?)
+            }
+            "--amount" => amount = Some(value(raw, &mut index, "--amount")?),
+            "--recipient" => {
+                let text = value(raw, &mut index, "--recipient")?;
+                recipient = Some(text.parse::<alloy_primitives::Address>().map_err(|_| {
+                    CapabilityError::invalid_argument("invalid --recipient address")
+                })?);
+            }
+            "--owner" => {
+                let text = value(raw, &mut index, "--owner")?;
+                owner =
+                    Some(text.parse::<alloy_primitives::Address>().map_err(|_| {
+                        CapabilityError::invalid_argument("invalid --owner address")
+                    })?);
+            }
+            "--json" => {}
+            other => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown yield withdraw option: {other}"
+                )));
+            }
+        }
+        index += 1;
+    }
+    Ok(YieldWithdrawRequest {
+        opportunity_id: opportunity_id
+            .ok_or_else(|| CapabilityError::invalid_argument("--opportunity is required"))?,
+        amount: amount.ok_or_else(|| CapabilityError::invalid_argument("--amount is required"))?,
+        recipient: recipient
+            .ok_or_else(|| CapabilityError::invalid_argument("--recipient is required"))?,
+        owner,
+    })
+}
+
+fn print_yield_withdraw_human(response: &YieldWithdrawResponse) {
+    println!(
+        "yield.withdraw · {} · {} {}",
+        response.opportunity_id, response.amount_kind, response.receipt_asset.symbol
+    );
+    println!(
+        "recipient: {:#x} · owner: {:#x}",
+        response.recipient, response.owner
+    );
+    for (index, step) in response.steps.iter().enumerate() {
+        println!(
+            "{}. {} -> {:#x} · {}",
+            index + 1,
+            step.kind,
+            step.to,
+            step.description
+        );
+        println!("   data: {}", step.data);
     }
     for warning in &response.warnings {
         eprintln!("warning: {warning}");
@@ -3467,6 +3563,7 @@ async fn run_capability(raw: &[String]) -> i32 {
                 "yield.discover" => fluxion_protocol::yield_capability::describe(),
                 "yield.build" => fluxion_protocol::yield_capability::describe_build(),
                 "yield.history" => fluxion_protocol::yield_capability::describe_history(),
+                "yield.withdraw" => fluxion_protocol::yield_capability::describe_withdraw(),
                 "position.analyze" => fluxion_protocol::position::describe(),
                 other => {
                     let error = CapabilityError::new(

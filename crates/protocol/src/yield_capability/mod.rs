@@ -15,6 +15,7 @@ pub use registry::{Registry, RegistryEntry};
 pub const CAPABILITY: &str = "yield.discover";
 pub const BUILD_CAPABILITY: &str = "yield.build";
 pub const HISTORY_CAPABILITY: &str = "yield.history";
+pub const WITHDRAW_CAPABILITY: &str = "yield.withdraw";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -355,9 +356,51 @@ pub fn describe() -> CapabilityDescriptor {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldWithdrawRequest {
+    pub opportunity_id: String,
+    /// Human amount in the receipt asset, or `max` where the protocol supports it.
+    pub amount: String,
+    pub recipient: Address,
+    /// Position owner/signer; defaults to `recipient`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<Address>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldWithdrawResponse {
+    pub schema_version: u32,
+    pub capability: String,
+    pub request_id: String,
+    pub chain: String,
+    pub opportunity_id: String,
+    pub action: YieldAction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<Amount>,
+    /// `exact` or `max`.
+    pub amount_kind: String,
+    pub recipient: Address,
+    pub owner: Address,
+    pub receipt_asset: YieldAsset,
+    pub underlying_asset: YieldAsset,
+    pub steps: Vec<YieldBuildStep>,
+    pub approvals: Vec<YieldApproval>,
+    pub warnings: Vec<String>,
+    pub disclaimer: String,
+}
+
 pub fn describe_build() -> CapabilityDescriptor {
     CapabilityDescriptor {
         name: BUILD_CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "local",
+        transports: vec!["cli", "mcp-stdio"],
+    }
+}
+
+pub fn describe_withdraw() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: WITHDRAW_CAPABILITY,
         schema_version: SCHEMA_VERSION,
         execution: "local",
         transports: vec!["cli", "mcp-stdio"],

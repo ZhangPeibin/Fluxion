@@ -27,7 +27,7 @@ call internally; the agent does not choose local or remote execution.
 
 `swap.quote`, `yield.discover`, `yield.history` and `position.analyze` always call the remote
 Fluxion service.
-`yield.build` runs locally and only returns calldata. Set `FLUXION_REMOTE_URL` to the remote service endpoint;
+`yield.build` and `yield.withdraw` run locally and only return calldata. Set `FLUXION_REMOTE_URL` to the remote service endpoint;
 development and tests use the same variable:
 
 ```bash
@@ -112,7 +112,7 @@ MCP documentation if a snippet is rejected.
 
 - `fluxion mcp` keeps the MCP process alive and reuses one remote client.
 - `swap.quote`, `yield.discover`, `yield.history` and `position.analyze` use the remote service; the
-  remote server owns discovery and snapshot warmup. `yield.build` is local.
+  remote server owns discovery and snapshot warmup. `yield.build` and `yield.withdraw` are local.
 - Local wallet and transaction tools default to BSC; pass `chain: "ethereum"` for Ethereum.
 - `wallet_sign` uses the stored session and waits for explicit phone confirmation. A rejection
   returns `USER_REJECTED`; it does not retry automatically.
@@ -168,6 +168,7 @@ Available tools depend on the installed capabilities:
 | `yield.discover` | `yield_discover` | [capabilities/yield](capabilities/yield/README.md) |
 | `yield.build` | `yield_build` | [capabilities/yield](capabilities/yield/README.md) |
 | `yield.history` | `yield_history` | [capabilities/yield](capabilities/yield/README.md) |
+| `yield.withdraw` | `yield_withdraw` | [capabilities/yield](capabilities/yield/README.md) |
 | `position.analyze` | `position_analyze` | [capabilities/position](capabilities/position/README.md) |
 
 ## Troubleshooting

@@ -128,6 +128,7 @@ that is internal Fluxion routing.
 | `yield.discover` | `fluxion yield discover --asset ETH --amount 10` | Ethereum ETH staking/lending: safety tier, APY, TVL, withdrawal conditions, recommendation |
 | `yield.build` | `fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x...` | Local stake/supply/deposit calldata and approval steps |
 | `yield.history` | `fluxion yield history --opportunity lido-steth --days 30` | Historical APY, base/reward split, TVL and stability summary |
+| `yield.withdraw` | `fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x...` | Local withdraw/redeem/burn exit calldata |
 
 #### 7. Position analysis
 
@@ -171,10 +172,11 @@ fluxion yield discover --asset ETH --amount 10 --json
 fluxion yield discover --asset ETH --amount 10 --risk balanced --json
 fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x... --json
 fluxion yield history --opportunity lido-steth --days 30 --json
+fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x... --json
 ```
 
-`yield.build` only returns calldata and approval steps; it never signs or broadcasts.
-`yield.history` returns historical APY, which is not current APY and not a guarantee.
+`yield.build` / `yield.withdraw` only return calldata and approval steps; they never sign or
+broadcast. `yield.history` returns historical APY, which is not current APY and not a guarantee.
 
 Ask the agent:
 
@@ -579,6 +581,7 @@ only routes.
 | `yield.discover` | remote | curated registry + DefiLlama + Ethereum RPC snapshot | Provider/RPC failure -> `RPC_ERROR`; stale data -> `STALE_STATE` |
 | `yield.build` | local | curated registry -> ABI encoding -> steps/approvals | Unsupported market -> `UNSUPPORTED` |
 | `yield.history` | remote | DefiLlama chart + in-process cache | Provider failure -> `RPC_ERROR`; stale data -> `STALE_STATE` |
+| `yield.withdraw` | local | curated registry -> withdraw/redeem/burn ABI encoding | Unsupported market/amount -> `UNSUPPORTED`/`INVALID_ARGUMENT` |
 | `position.analyze` | remote | Ethereum RPC pinned block + yield snapshot | RPC failure -> `RPC_ERROR` (`PositionUnavailable`); snapshot not ready -> `STALE_STATE` |
 | `wallet.balance` / `assets` / `allowance` / `collectibles` | local | local RPC at a pinned block | RPC failure -> `RPC_ERROR` |
 | `wallet.connect` / `status` / `disconnect` | local | local session + WalletConnect relay | No session, pairing failure, or expiry -> explicit error |
@@ -640,7 +643,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - Security: [rule catalog](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- Contracts: [fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [yield.discover schema](schemas/yield_discover.v1.json) · [yield.build schema](schemas/yield_build.v1.json) · [yield.history schema](schemas/yield_history.v1.json) · [position.analyze schema](schemas/position_analyze.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
+- Contracts: [fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [yield.discover schema](schemas/yield_discover.v1.json) · [yield.build schema](schemas/yield_build.v1.json) · [yield.history schema](schemas/yield_history.v1.json) · [yield.withdraw schema](schemas/yield_withdraw.v1.json) · [position.analyze schema](schemas/position_analyze.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
 - Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills: [swap](skills/swap/SKILL.md) · [yield](skills/yield/SKILL.md) · [position](skills/position/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
 
