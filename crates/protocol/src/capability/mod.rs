@@ -80,6 +80,8 @@ pub enum CapabilityId {
     YieldHistory,
     #[serde(rename = "position.analyze")]
     PositionAnalyze,
+    #[serde(rename = "yield.withdraw")]
+    YieldWithdraw,
 }
 
 impl CapabilityId {
@@ -107,6 +109,7 @@ impl CapabilityId {
             Self::YieldBuild => "yield.build",
             Self::YieldHistory => "yield.history",
             Self::PositionAnalyze => "position.analyze",
+            Self::YieldWithdraw => "yield.withdraw",
         }
     }
 
@@ -134,6 +137,7 @@ impl CapabilityId {
             Self::YieldBuild,
             Self::YieldHistory,
             Self::PositionAnalyze,
+            Self::YieldWithdraw,
         ]
     }
 }
@@ -183,7 +187,8 @@ mod tests {
                 "yield.discover",
                 "yield.build",
                 "yield.history",
-                "position.analyze"
+                "position.analyze",
+                "yield.withdraw"
             ]
         );
         assert_eq!(CapabilityId::SwapQuote.as_str(), "swap.quote");
@@ -215,5 +220,6 @@ mod tests {
         assert_eq!(CapabilityId::YieldBuild.as_str(), "yield.build");
         assert_eq!(CapabilityId::YieldHistory.as_str(), "yield.history");
         assert_eq!(CapabilityId::PositionAnalyze.as_str(), "position.analyze");
+        assert_eq!(CapabilityId::YieldWithdraw.as_str(), "yield.withdraw");
     }
 }

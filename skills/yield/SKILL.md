@@ -1,6 +1,6 @@
 ---
 name: yield
-description: Use when the user asks where to earn yield on ETH safely, wants the safest or highest-APY ETH staking or lending opportunity, wants to compare Lido/Rocket Pool/Aave/SparkLend yields, or uses the Fluxion yield_discover, yield_build or yield_history tools. Never deposits, signs or broadcasts.
+description: Use when the user asks where to earn yield on ETH safely, wants the safest or highest-APY ETH staking or lending opportunity, wants to compare Lido/Rocket Pool/Aave/SparkLend yields, or uses the Fluxion yield_discover, yield_build, yield_history or yield_withdraw tools. Never deposits, signs or broadcasts.
 ---
 
 # yield.discover
@@ -83,3 +83,17 @@ Build local calldata for a chosen opportunity:
 - `series` is downsampled; `summary` contains mean/min/max/latest, change bps and base/reward means.
 - Historical APY is not current APY and does not predict future yield.
 - Use it to explain stability, not to claim safety or guaranteed returns.
+
+## yield.withdraw
+
+Build local exit calldata:
+
+```json
+{"name": "yield_withdraw", "arguments": {"opportunity_id": "aave-v3-weth", "amount": "10", "recipient": "0x..."}}
+```
+
+- One `steps` entry: `withdraw` for Aave/Spark, `redeem` for Morpho, `burn` for Rocket Pool.
+- `amount=max` is supported for Aave/Spark only; Morpho needs an exact vault-share amount and Rocket Pool an exact rETH amount.
+- `owner` defaults to `recipient`; Rocket Pool burn uses the transaction sender and may require a delay.
+- Lido stETH and LRT/cbETH exits return `UNSUPPORTED` for now.
+- Never sign or broadcast from this skill. Simulate and inspect the step, then let the user approve.

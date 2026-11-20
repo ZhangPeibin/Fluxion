@@ -1,14 +1,16 @@
 # Yield capabilities
 
-ETH yield discovery, local calldata building and historical APY on Ethereum mainnet.
+ETH yield discovery, local entry/exit calldata and historical APY on Ethereum mainnet.
 `yield.discover` ranks curated staking and lending markets by a safety tier and a normalized APY;
-`yield.build` returns deposit calldata; `yield.history` returns a historical APY series.
+`yield.build` returns deposit calldata; `yield.withdraw` returns exit calldata; `yield.history`
+returns a historical APY series.
 
-`yield.discover` and `yield.history` run on the remote Fluxion service; `yield.build` runs locally.
+`yield.discover` and `yield.history` run on the remote Fluxion service; `yield.build` and
+`yield.withdraw` run locally.
 Agents and users do not choose local or remote. None of them deposits, approves, signs or
 broadcasts.
 
-Schemas: [`discover`](../../../schemas/yield_discover.v1.json) · [`build`](../../../schemas/yield_build.v1.json) · [`history`](../../../schemas/yield_history.v1.json).
+Schemas: [`discover`](../../../schemas/yield_discover.v1.json) · [`build`](../../../schemas/yield_build.v1.json) · [`withdraw`](../../../schemas/yield_withdraw.v1.json) · [`history`](../../../schemas/yield_history.v1.json).
 
 ## Usage
 
@@ -164,3 +166,24 @@ fluxion yield history --opportunity aave-v3-weth --days 90 --max-points 200 --js
 - Data source: DefiLlama chart endpoint for the registry's pool id.
 
 Schema: [`schemas/yield_history.v1.json`](../../../schemas/yield_history.v1.json).
+
+## `yield.withdraw`
+
+Local exit calldata for a curated position.
+
+```bash
+fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x... --json
+fluxion yield withdraw --opportunity aave-v3-weth --amount max --recipient 0x... --json
+fluxion yield withdraw --opportunity morpho-steakhouse-eth --amount 5 --recipient 0x... --owner 0x... --json
+```
+
+- One `steps` entry: `withdraw` for Aave/Spark, `redeem` for Morpho, `burn` for Rocket Pool.
+- Supported: Aave V3 WETH, SparkLend WETH, curated Morpho vaults, Rocket Pool rETH.
+- `amount=max` is supported for Aave/Spark only. Morpho requires an exact vault-share amount; Rocket Pool requires an exact rETH amount.
+- `owner` is the position owner/signer and defaults to `recipient`.
+- Rocket Pool burn uses the transaction sender and may require a withdrawal delay.
+- Lido stETH and LRT/cbETH exits return `UNSUPPORTED` until their queue/off-chain paths are implemented.
+- No approvals are returned; the position owner signs the exit directly.
+- Never signs or broadcasts. Simulate and inspect the step before signing.
+
+Schema: [`schemas/yield_withdraw.v1.json`](../../../schemas/yield_withdraw.v1.json).

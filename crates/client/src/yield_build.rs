@@ -226,7 +226,9 @@ fn lido_submit() -> String {
     hex_data(LIDO_SUBMIT, &[word_address(Address::ZERO)])
 }
 
-fn deposit_asset(entry: &fluxion_protocol::yield_capability::RegistryEntry) -> YieldAsset {
+pub(crate) fn deposit_asset(
+    entry: &fluxion_protocol::yield_capability::RegistryEntry,
+) -> YieldAsset {
     YieldAsset {
         symbol: entry.deposit_asset_symbol.clone(),
         address: entry.deposit_asset_address.clone(),
@@ -234,7 +236,9 @@ fn deposit_asset(entry: &fluxion_protocol::yield_capability::RegistryEntry) -> Y
     }
 }
 
-fn receipt_asset(entry: &fluxion_protocol::yield_capability::RegistryEntry) -> YieldAsset {
+pub(crate) fn receipt_asset(
+    entry: &fluxion_protocol::yield_capability::RegistryEntry,
+) -> YieldAsset {
     YieldAsset {
         symbol: entry.receipt_asset_symbol.clone(),
         address: format!("{:#x}", entry.receipt_asset_address),
@@ -250,7 +254,7 @@ fn weth_asset() -> YieldAsset {
     }
 }
 
-fn hex_data(selector: &str, words: &[[u8; 32]]) -> String {
+pub(crate) fn hex_data(selector: &str, words: &[[u8; 32]]) -> String {
     let mut bytes = HEXLOWER
         .decode(selector.as_bytes())
         .expect("selector is hex");
@@ -260,13 +264,13 @@ fn hex_data(selector: &str, words: &[[u8; 32]]) -> String {
     format!("0x{}", HEXLOWER.encode(&bytes))
 }
 
-fn word_address(address: Address) -> [u8; 32] {
+pub(crate) fn word_address(address: Address) -> [u8; 32] {
     let mut word = [0u8; 32];
     word[12..].copy_from_slice(address.as_slice());
     word
 }
 
-fn word_u256(value: U256) -> [u8; 32] {
+pub(crate) fn word_u256(value: U256) -> [u8; 32] {
     value.to_be_bytes()
 }
 
