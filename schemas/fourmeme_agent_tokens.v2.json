@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/fourmeme_agent_tokens.v2.json",
+  "title": "Fluxion fourmeme.agent-tokens v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta", "chain", "as_of", "provenance", "coverage",
+    "warnings", "unknowns", "data"
+  ],
+  "properties": {
+    "meta": { "$ref": "#/$defs/meta" },
+    "chain": { "$ref": "#/$defs/chain" },
+    "as_of": { "type": "string" },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "coverage": { "$ref": "#/$defs/coverage" },
+    "warnings": { "type": "array", "items": { "$ref": "#/$defs/notice" } },
+    "unknowns": { "type": "array", "items": { "$ref": "#/$defs/notice" } },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "scanned", "lookback_blocks", "from_block", "to_block", "tokens"],
+      "properties": {
+        "mode": { "const": "binance_agent_id_exclusive" },
+        "scanned": { "type": "integer", "minimum": 0 },
+        "lookback_blocks": { "type": "integer", "minimum": 1 },
+        "from_block": { "type": "integer", "minimum": 0 },
+        "to_block": { "type": "integer", "minimum": 0 },
+        "tokens": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["address", "name", "symbol", "template_id", "phase", "agent_id_exclusive"],
+            "properties": {
+              "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+              "name": { "type": "string" },
+              "symbol": { "type": "string" },
+              "image": { "type": "string" },
+              "template_id": { "type": "string" },
+              "phase": { "type": "string", "enum": ["bonding", "graduated", "unknown"] },
+              "progress": { "type": "string" },
+              "raised": { "type": "string" },
+              "agent_id_exclusive": { "type": "boolean" },
+              "wallet_eligible": { "type": "boolean" },
+              "eligibility_reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "capability", "request_id"],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "capability": { "const": "fourmeme.agent-tokens" },
+        "request_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "id"],
+      "properties": {
+        "name": { "const": "bsc" },
+        "id": { "const": 56 }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources", "freshness"],
+      "properties": {
+        "sources": { "type": "array", "items": { "type": "object" } },
+        "freshness": { "type": "string", "enum": ["fresh", "stale", "expired", "unknown"] },
+        "age_secs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimensions"],
+      "properties": {
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["complete", "partial", "not_run", "unavailable", "not_configured"]
+          }
+        }
+      }
+    },
+    "notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "source": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    }
+  }
+}

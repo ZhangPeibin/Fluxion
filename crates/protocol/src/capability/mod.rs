@@ -4,10 +4,19 @@
 //! or transport. Capability-specific code lives in its own top-level module
 //! (`crate::swap`), while this module holds the stable contract.
 
+pub mod catalog;
+pub mod envelope;
 pub mod error;
+pub mod registry;
 pub mod types;
 
+pub use catalog::{CapabilityEntry, Catalog, SurfaceEntry, WorkflowEntry};
+pub use envelope::{
+    CapabilityEnvelope, CapabilityErrorEnvelope, ENVELOPE_SCHEMA_VERSION, uses_v2, wrap_error,
+    wrap_success,
+};
 pub use error::{CapabilityError, CapabilityErrorCode};
+pub use registry::{CapabilityRegistry, mcp_tool_name};
 pub use types::{Amount, CapabilityMeta, Provenance, TokenRef};
 
 #[derive(Debug, Clone, Serialize)]
@@ -85,6 +94,13 @@ pub enum CapabilityId {
 }
 
 impl CapabilityId {
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::all()
+            .iter()
+            .copied()
+            .find(|capability| capability.as_str() == value)
+    }
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::SwapQuote => "swap.quote",

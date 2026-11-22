@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/swap_build.v2.json",
+  "title": "Fluxion swap.build v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta", "chain", "block", "as_of", "provenance", "coverage",
+    "warnings", "unknowns", "data"
+  ],
+  "properties": {
+    "meta": { "$ref": "#/$defs/meta" },
+    "chain": { "$ref": "#/$defs/chain" },
+    "block": { "$ref": "#/$defs/block" },
+    "as_of": { "type": "string" },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "coverage": { "$ref": "#/$defs/coverage" },
+    "warnings": { "type": "array", "items": { "$ref": "#/$defs/notice" } },
+    "unknowns": { "type": "array", "items": { "$ref": "#/$defs/notice" } },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "router", "value", "data", "token_in", "token_out", "amount_in",
+        "amount_out_min", "recipient", "deadline", "path", "hops"
+      ],
+      "properties": {
+        "router": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "value": { "type": "string", "pattern": "^[0-9]+$" },
+        "data": { "type": "string", "pattern": "^0x[0-9a-fA-F]*$" },
+        "token_in": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "token_out": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "amount_in": { "$ref": "swap_quote.v1.json#/$defs/amount" },
+        "amount_out_min": { "$ref": "swap_quote.v1.json#/$defs/amount" },
+        "recipient": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "deadline": { "type": "integer", "minimum": 0 },
+        "path": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" }
+        },
+        "hops": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["platform", "token_in", "token_out", "amount_in", "amount_out"],
+            "properties": {
+              "platform": { "type": "string" },
+              "token_in": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+              "token_out": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+              "amount_in": { "$ref": "swap_quote.v1.json#/$defs/amount" },
+              "amount_out": { "$ref": "swap_quote.v1.json#/$defs/amount" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "capability", "request_id"],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "capability": { "const": "swap.build" },
+        "request_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "id"],
+      "properties": {
+        "name": { "const": "ethereum" },
+        "id": { "const": 1 }
+      }
+    },
+    "block": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["number"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 0 },
+        "hash": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources", "freshness"],
+      "properties": {
+        "sources": { "type": "array", "items": { "type": "object" } },
+        "freshness": { "type": "string", "enum": ["fresh", "stale", "expired", "unknown"] },
+        "age_secs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimensions"],
+      "properties": {
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["complete", "partial", "not_run", "unavailable", "not_configured"]
+          }
+        }
+      }
+    },
+    "notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "source": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    }
+  }
+}

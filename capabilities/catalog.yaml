@@ -1,0 +1,552 @@
+version: 2
+updated: "2026-11-20"
+envelope: v1
+
+capabilities:
+  - id: swap.quote
+    domain: swap
+    action: quote
+    status: stable
+    summary: Exact-in swap quote on Ethereum.
+    envelope: v2
+    execution: remote
+    transports: [mcp, cli, http]
+    chains: [ethereum]
+    default_chain: ethereum
+    side_effects: read_only
+    requires: []
+    schema: schemas/swap_quote.v2.json
+    skill: skills/swap/SKILL.md
+    docs: docs/capabilities/swap/README.md
+    tests:
+      - crates/client/tests/client_remote.rs
+      - tests/integration_mainnet.rs
+      - tests/split_quotes.rs
+    workflows: [swap]
+    coverage_dimensions: [data, freshness]
+
+  - id: swap.build
+    domain: swap
+    action: build
+    status: stable
+    summary: Build V2 swap calldata from a quote.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum]
+    default_chain: ethereum
+    side_effects: prepares_calldata
+    requires: [swap.quote]
+    schema: schemas/swap_build.v2.json
+    skill: skills/swap/SKILL.md
+    docs: docs/capabilities/swap/README.md
+    tests:
+      - crates/client/src/swap_build.rs
+    workflows: [swap]
+    coverage_dimensions: [data]
+
+  - id: wallet.balance
+    domain: wallet
+    action: balance
+    status: stable
+    summary: Read native and token balances at a pinned block.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/wallet_balances.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/wallet.rs
+      - crates/client/tests/mcp_stdio.rs
+    workflows: [portfolio]
+    coverage_dimensions: [data]
+
+  - id: wallet.assets
+    domain: wallet
+    action: assets
+    status: stable
+    summary: Discover ERC20 positions and verify balances locally.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/wallet_assets.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/wallet.rs
+    workflows: [portfolio]
+    coverage_dimensions: [data]
+    notes: Shares the balances schema until asset discovery gets a dedicated v2 schema.
+
+  - id: wallet.allowance
+    domain: wallet
+    action: allowance
+    status: stable
+    summary: Read ERC20 allowances for an owner and spender.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/wallet_allowances.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/wallet.rs
+    workflows: [swap, yield-deposit]
+    coverage_dimensions: [data]
+
+  - id: wallet.collectibles
+    domain: wallet
+    action: collectibles
+    status: stable
+    summary: Read ERC721 and ERC1155 holdings.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/wallet_collectibles.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/wallet.rs
+    workflows: [portfolio]
+    coverage_dimensions: [data]
+
+  - id: wallet.connect
+    domain: wallet
+    action: connect
+    status: stable
+    summary: Start a WalletConnect v2 pairing.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: local_session
+    requires: []
+    schema: schemas/wallet_connect.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/walletconnect.rs
+    workflows: []
+    coverage_dimensions: []
+
+  - id: wallet.status
+    domain: wallet
+    action: status
+    status: stable
+    summary: Read the locally stored WalletConnect session.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/wallet_status.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/walletconnect.rs
+    workflows: []
+    coverage_dimensions: []
+
+  - id: wallet.disconnect
+    domain: wallet
+    action: disconnect
+    status: stable
+    summary: Remove the local WalletConnect session.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: local_session
+    requires: []
+    schema: schemas/wallet_disconnect.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/walletconnect.rs
+    workflows: []
+    coverage_dimensions: []
+
+  - id: wallet.agent-id
+    domain: wallet
+    action: agent-id
+    status: stable
+    summary: Resolve a BSC .ai Agent ID.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/wallet_agent_id.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/agent_id.rs
+    workflows: [fourmeme-discovery]
+    coverage_dimensions: [data, eligibility]
+
+  - id: wallet.sign
+    domain: wallet
+    action: sign
+    status: stable
+    summary: Sign a message or EIP-712 typed data through the wallet session.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: signs
+    requires: [wallet_session]
+    schema: schemas/wallet_sign.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/walletconnect.rs
+    workflows: []
+    coverage_dimensions: [policy]
+
+  - id: wallet.send
+    domain: wallet
+    action: send
+    status: stable
+    summary: Send a native or ERC20 transfer after simulation and confirmation.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: broadcasts
+    requires: [wallet_session]
+    schema: schemas/wallet_send.v2.json
+    skill: skills/wallet/SKILL.md
+    docs: docs/capabilities/wallet/README.md
+    tests:
+      - crates/client/src/wallet_send.rs
+    workflows: []
+    coverage_dimensions: [simulation, policy]
+
+  - id: transaction.simulate
+    domain: transaction
+    action: simulate
+    status: stable
+    summary: Simulate a transaction at a pinned block.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/transaction_simulate.v2.json
+    skill: skills/transaction/SKILL.md
+    docs: docs/capabilities/transaction/README.md
+    tests:
+      - crates/client/src/transaction.rs
+    workflows: [swap, yield-deposit]
+    coverage_dimensions: [simulation]
+
+  - id: transaction.inspect
+    domain: transaction
+    action: inspect
+    status: stable
+    summary: Inspect unsigned calldata before signing.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/transaction_inspect.v2.json
+    skill: skills/transaction/SKILL.md
+    docs: docs/capabilities/transaction/README.md
+    tests:
+      - crates/client/src/transaction_inspect.rs
+      - tests/security
+    workflows: [swap, yield-deposit]
+    coverage_dimensions: [decode, metadata, simulation, trace, policy]
+
+  - id: transaction.send
+    domain: transaction
+    action: send
+    status: stable
+    summary: Simulate, inspect, and send calldata through the wallet session.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: broadcasts
+    requires: [wallet_session]
+    schema: schemas/transaction_send.v2.json
+    skill: skills/transaction/SKILL.md
+    docs: docs/capabilities/transaction/README.md
+    tests:
+      - crates/client/src/transaction_send.rs
+    workflows: [swap, yield-deposit]
+    coverage_dimensions: [simulation, policy]
+
+  - id: signature.inspect
+    domain: signature
+    action: inspect
+    status: stable
+    summary: Inspect typed data, authorization lists, and user operations.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/signature_inspect.v2.json
+    skill: skills/signature/SKILL.md
+    docs: docs/capabilities/signature/README.md
+    tests:
+      - crates/client/src/signature_inspect.rs
+    workflows: []
+    coverage_dimensions: [decode, policy]
+
+  - id: fourmeme.agent-tokens
+    domain: fourmeme
+    action: agent-tokens
+    status: experimental
+    summary: Discover recent Four.meme Binance Agent ID Exclusive tokens.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/fourmeme_agent_tokens.v2.json
+    skill: skills/fourmeme/SKILL.md
+    docs: docs/capabilities/fourmeme/README.md
+    tests:
+      - crates/client/src/fourmeme.rs
+    workflows: [fourmeme-discovery]
+    coverage_dimensions: [data, eligibility]
+
+  - id: fourmeme.token
+    domain: fourmeme
+    action: token
+    status: experimental
+    summary: Read one Four.meme token, including phase and wallet eligibility.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/fourmeme_token.v2.json
+    skill: skills/fourmeme/SKILL.md
+    docs: docs/capabilities/fourmeme/README.md
+    tests:
+      - crates/client/src/fourmeme.rs
+    workflows: [fourmeme-discovery]
+    coverage_dimensions: [data, eligibility]
+
+  - id: yield.discover
+    domain: yield
+    action: discover
+    status: experimental
+    summary: Discover curated ETH staking and lending opportunities.
+    envelope: v2
+    execution: remote
+    transports: [mcp, cli, http]
+    chains: [ethereum]
+    default_chain: ethereum
+    side_effects: read_only
+    requires: []
+    schema: schemas/yield_discover.v2.json
+    skill: skills/yield/SKILL.md
+    docs: docs/capabilities/yield/README.md
+    tests:
+      - tests/yield_mainnet.rs
+      - crates/remote/src/yield_intel/score.rs
+    workflows: [yield-deposit]
+    coverage_dimensions: [data, freshness]
+
+  - id: yield.build
+    domain: yield
+    action: build
+    status: experimental
+    summary: Build deposit calldata and approval steps for a curated opportunity.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum]
+    default_chain: ethereum
+    side_effects: prepares_calldata
+    requires: [yield.discover]
+    schema: schemas/yield_build.v2.json
+    skill: skills/yield/SKILL.md
+    docs: docs/capabilities/yield/README.md
+    tests:
+      - crates/client/src/yield_build.rs
+    workflows: [yield-deposit]
+    coverage_dimensions: [data]
+
+  - id: yield.history
+    domain: yield
+    action: history
+    status: experimental
+    summary: Read historical APY and TVL for a curated opportunity.
+    envelope: v2
+    execution: remote
+    transports: [mcp, cli, http]
+    chains: [ethereum]
+    default_chain: ethereum
+    side_effects: read_only
+    requires: []
+    schema: schemas/yield_history.v2.json
+    skill: skills/yield/SKILL.md
+    docs: docs/capabilities/yield/README.md
+    tests:
+      - crates/remote/src/yield_intel/provider.rs
+    workflows: [yield-deposit]
+    coverage_dimensions: [data, freshness]
+
+  - id: yield.withdraw
+    domain: yield
+    action: withdraw
+    status: experimental
+    summary: Build exit calldata for a curated yield position.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum]
+    default_chain: ethereum
+    side_effects: prepares_calldata
+    requires: [position.analyze]
+    schema: schemas/yield_withdraw.v2.json
+    skill: skills/yield/SKILL.md
+    docs: docs/capabilities/yield/README.md
+    tests:
+      - crates/client/src/yield_withdraw.rs
+    workflows: []
+    coverage_dimensions: [data]
+
+  - id: position.analyze
+    domain: position
+    action: analyze
+    status: experimental
+    summary: Analyze curated ETH yield positions for a wallet.
+    envelope: v2
+    execution: remote
+    transports: [mcp, cli, http]
+    chains: [ethereum]
+    default_chain: ethereum
+    side_effects: read_only
+    requires: []
+    schema: schemas/position_analyze.v2.json
+    skill: skills/position/SKILL.md
+    docs: docs/capabilities/position/README.md
+    tests:
+      - crates/remote/src/position_intel/mod.rs
+    workflows: [yield-deposit, portfolio]
+    coverage_dimensions: [data, freshness]
+
+surfaces:
+  - id: fourmeme.ui
+    kind: local_web_ui
+    capability: false
+    status: experimental
+    summary: Local read-only Four.meme token list and detail page.
+    transports: [cli]
+    chains: [bsc]
+    docs: docs/capabilities/fourmeme/README.md
+
+workflows:
+  - id: swap
+    summary: Quote, build, inspect, and execute a swap.
+    status: experimental
+    chains: [ethereum]
+    steps:
+      - swap.quote
+      - swap.build
+      - wallet.allowance
+      - transaction.simulate
+      - transaction.inspect
+      - transaction.send
+    planned_steps:
+      - transaction.verify
+      - swap.execute
+    skill: skills/swap/SKILL.md
+    docs: docs/feature/v3/capability-runtime/workflows.md
+    gaps:
+      - swap.build supports one Uniswap V2 allocation only
+      - transaction.verify is not implemented
+      - approvals are documented but not a shared helper
+
+  - id: yield-deposit
+    summary: Discover a curated yield opportunity, deposit, and analyze the position.
+    status: experimental
+    chains: [ethereum]
+    steps:
+      - yield.discover
+      - yield.build
+      - wallet.allowance
+      - transaction.inspect
+      - transaction.simulate
+      - transaction.send
+      - position.analyze
+    planned_steps: []
+    skill: skills/yield/SKILL.md
+    docs: docs/feature/v3/capability-runtime/workflows.md
+    gaps:
+      - approval sequencing is not a shared helper
+      - position.analyze should use the post-execution block
+
+  - id: fourmeme-discovery
+    summary: Discover Four.meme Agent ID tokens and check wallet eligibility.
+    status: experimental
+    chains: [bsc]
+    steps:
+      - fourmeme.agent-tokens
+      - fourmeme.token
+      - wallet.agent-id
+    planned_steps: []
+    skill: skills/fourmeme/SKILL.md
+    docs: docs/feature/v3/capability-runtime/workflows.md
+    gaps:
+      - discovery is bounded by lookback-blocks
+      - eligibility is unknown when AgentIdentifier is unavailable
+
+  - id: portfolio
+    summary: Summarize wallet holdings and curated yield positions.
+    status: experimental
+    chains: [ethereum]
+    steps:
+      - wallet.balance
+      - wallet.assets
+      - wallet.collectibles
+      - position.analyze
+    planned_steps: []
+    skill: skills/wallet/SKILL.md
+    docs: docs/feature/v3/capability-runtime/workflows.md
+    gaps:
+      - position.analyze is Ethereum-only
+      - BSC portfolio excludes the position step

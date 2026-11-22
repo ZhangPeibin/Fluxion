@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/wallet_connect.v2.json",
+  "title": "Fluxion wallet connect v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["meta", "chain", "as_of", "provenance", "coverage", "warnings", "unknowns", "data"],
+  "properties": {
+    "meta": { "$ref": "#/$defs/meta" },
+    "chain": { "$ref": "#/$defs/chain" },
+    "as_of": { "type": "string" },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "coverage": { "$ref": "#/$defs/coverage" },
+    "warnings": { "type": "array", "items": { "$ref": "#/$defs/notice" } },
+    "unknowns": { "type": "array", "items": { "$ref": "#/$defs/notice" } },
+    "data": {
+      "description": "Connect response from MCP or the settled status response from the CLI.",
+      "oneOf": [
+        { "$ref": "wallet_connect.v1.json" },
+        { "$ref": "wallet_status.v1.json" }
+      ]
+    }
+  },
+  "$defs": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "capability", "request_id"],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "capability": { "const": "wallet.connect" },
+        "request_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "id"],
+      "properties": {
+        "name": { "type": "string", "enum": ["ethereum", "bsc"] },
+        "id": { "type": "integer", "enum": [1, 56] }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources", "freshness"],
+      "properties": {
+        "sources": { "type": "array", "items": { "type": "object" } },
+        "freshness": { "type": "string", "enum": ["fresh", "stale", "expired", "unknown"] },
+        "age_secs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimensions"],
+      "properties": {
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["complete", "partial", "not_run", "unavailable", "not_configured"]
+          }
+        }
+      }
+    },
+    "notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "source": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    }
+  }
+}

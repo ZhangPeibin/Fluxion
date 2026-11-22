@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fluxion.dev/schemas/yield_discover.v2.json",
+  "title": "Fluxion yield.discover v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta", "chain", "as_of", "provenance", "coverage",
+    "warnings", "unknowns", "data"
+  ],
+  "properties": {
+    "meta": { "$ref": "#/$defs/meta" },
+    "chain": { "$ref": "#/$defs/chain" },
+    "as_of": { "type": "string" },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "coverage": { "$ref": "#/$defs/coverage" },
+    "warnings": { "type": "array", "items": { "$ref": "#/$defs/notice" } },
+    "unknowns": { "type": "array", "items": { "$ref": "#/$defs/notice" } },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asset", "risk_profile", "objective", "opportunities", "excluded",
+        "age_secs", "stale", "disclaimer"
+      ],
+      "properties": {
+        "asset": { "$ref": "yield_discover.v1.json#/$defs/asset" },
+        "amount": { "$ref": "yield_discover.v1.json#/$defs/amount" },
+        "risk_profile": {
+          "type": "string",
+          "enum": ["conservative", "balanced", "aggressive"]
+        },
+        "objective": { "type": "string" },
+        "recommended": { "$ref": "yield_discover.v1.json#/$defs/recommendation" },
+        "opportunities": {
+          "type": "array",
+          "items": { "$ref": "yield_discover.v1.json#/$defs/opportunity" }
+        },
+        "excluded": {
+          "type": "array",
+          "items": { "$ref": "yield_discover.v1.json#/$defs/exclusion" }
+        },
+        "age_secs": { "type": "integer", "minimum": 0 },
+        "stale": { "type": "boolean" },
+        "disclaimer": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "capability", "request_id"],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "capability": { "const": "yield.discover" },
+        "request_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "id"],
+      "properties": {
+        "name": { "const": "ethereum" },
+        "id": { "const": 1 }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources", "freshness"],
+      "properties": {
+        "sources": { "type": "array", "items": { "type": "object" } },
+        "freshness": { "type": "string", "enum": ["fresh", "stale", "expired", "unknown"] },
+        "age_secs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dimensions"],
+      "properties": {
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["complete", "partial", "not_run", "unavailable", "not_configured"]
+          }
+        }
+      }
+    },
+    "notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "source": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    }
+  }
+}
