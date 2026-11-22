@@ -3,7 +3,7 @@
 use alloy_primitives::Address;
 use serde::Serialize;
 
-use crate::capability::{CapabilityDescriptor, SCHEMA_VERSION};
+use crate::capability::{Amount, CapabilityDescriptor, SCHEMA_VERSION};
 use crate::wallet::AssetSource;
 
 pub const AGENT_TOKENS_CAPABILITY: &str = "fourmeme.agent-tokens";
@@ -91,9 +91,37 @@ pub struct FourMemeTokenDetail {
     pub wallet_eligible: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eligibility_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tradability: Option<FourMemeTradability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wallet_cap: Option<FourMemeWalletCap>,
     pub coverage: String,
     pub sources: Vec<AssetSource>,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FourMemeTradability {
+    /// Inner-market transfers are locked while the token is bonding.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transfer_locked: Option<bool>,
+    /// Completion of the bonding curve, normalized to 0–100.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_percent: Option<f64>,
+    /// Creation-time max supply used as the 1% hold-cap denominator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_supply: Option<Amount>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FourMemeWalletCap {
+    /// Current token balance of the queried wallet.
+    pub balance: Amount,
+    /// 1% of creation-time max supply.
+    pub cap: Amount,
+    /// Remaining room before the cap; zero when reached.
+    pub remaining: Amount,
+    pub reached: bool,
 }
 
 pub fn describe() -> CapabilityDescriptor {

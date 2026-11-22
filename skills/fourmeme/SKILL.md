@@ -49,8 +49,16 @@ Both capabilities use envelope v2:
 `fourmeme.token` data:
 
 - `address`, `name`, `symbol`, `phase`, template fields, market fields, creator and timestamps.
+- `tradability.transfer_locked`: `true` while bonding; inner-market transfers are locked.
+- `tradability.progress_percent`: curve completion, 0–100.
+- `tradability.max_supply`: creation-time max supply; the 1% hold-cap denominator.
+- `wallet_cap`: when a wallet is supplied, the token is Agent ID Exclusive, and phase is bonding,
+  it reports `balance`, `cap` (1% of max supply), `remaining`, and `reached`.
 - If API detail is unavailable, it may return on-chain name/symbol/supply with `phase: unknown`;
   do not infer the phase.
+- If `wallet_cap` is missing, say the cap is unknown; never assume the wallet has room or is full.
+- `wallet_cap.reached: true` means further buys will revert or be clamped; a small `remaining` is
+  not a guarantee that a full buy will fill.
 
 ## Workflow recipe: fourmeme-discovery
 
@@ -63,6 +71,8 @@ Checkpoints:
 2. `fourmeme.token`: read the phase and template; do not infer them when the API is unavailable.
 3. `wallet.agent-id`: resolve the handle or address; an unavailable registry means `unknown`, not
    `false`.
+4. When a wallet is supplied to `fourmeme.token`, also read `wallet_cap` before suggesting a buy;
+   report `remaining` and `reached` explicitly.
 
 Failure handling: API unavailable → return on-chain fields with warnings; `AgentIdentifier`
 unavailable → eligibility stays unknown; a partial log range is never reported as zero tokens.

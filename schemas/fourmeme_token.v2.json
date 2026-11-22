@@ -42,7 +42,9 @@
         "ai_creator": { "type": "boolean" },
         "version": { "type": "string" },
         "wallet_eligible": { "type": "boolean" },
-        "eligibility_reason": { "type": "string" }
+        "eligibility_reason": { "type": "string" },
+        "tradability": { "$ref": "#/$defs/tradability" },
+        "wallet_cap": { "$ref": "#/$defs/wallet_cap" }
       }
     }
   },
@@ -99,6 +101,35 @@
         "message": { "type": "string" },
         "source": { "type": "string" },
         "details": { "type": "object" }
+      }
+    },
+    "amount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw", "decimal"],
+      "properties": {
+        "raw": { "type": "string", "pattern": "^[0-9]+$" },
+        "decimal": { "type": "string" }
+      }
+    },
+    "tradability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "transfer_locked": { "type": "boolean" },
+        "progress_percent": { "type": "number", "minimum": 0 },
+        "max_supply": { "$ref": "#/$defs/amount" }
+      }
+    },
+    "wallet_cap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["balance", "cap", "remaining", "reached"],
+      "properties": {
+        "balance": { "$ref": "#/$defs/amount" },
+        "cap": { "$ref": "#/$defs/amount" },
+        "remaining": { "$ref": "#/$defs/amount" },
+        "reached": { "type": "boolean" }
       }
     }
   }

@@ -372,6 +372,31 @@ function renderDetail(detail) {
   );
   card.append(stats);
 
+  if (detail.tradability || detail.wallet_cap) {
+    const limits = element("div", "section");
+    limits.append(element("h3", null, "交易限制"));
+    const limitStats = element("div", "stats");
+    if (detail.tradability?.progress_percent !== undefined) {
+      limitStats.append(stat("曲线进度", `${detail.tradability.progress_percent}%`));
+    }
+    if (detail.tradability?.transfer_locked !== undefined) {
+      limitStats.append(stat("内盘转账", detail.tradability.transfer_locked ? "锁定" : "开放"));
+    }
+    if (detail.tradability?.max_supply) {
+      limitStats.append(stat("创建时 maxSupply", detail.tradability.max_supply.decimal));
+    }
+    if (detail.wallet_cap) {
+      limitStats.append(
+        stat("钱包余额", detail.wallet_cap.balance.decimal),
+        stat("1% 上限", detail.wallet_cap.cap.decimal),
+        stat("剩余额度", detail.wallet_cap.remaining.decimal),
+        stat("已达上限", detail.wallet_cap.reached ? "是" : "否"),
+      );
+    }
+    limits.append(limitStats);
+    card.append(limits);
+  }
+
   const rule = element("div", "section");
   rule.append(element("h3", null, "Agent ID Exclusive 规则"));
   rule.append(

@@ -41,6 +41,8 @@ const USDC: &str = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 const WETH: &str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 const COLLECTION: &str = "0x0000000000000000000000000000000000000010";
 const AGENT_REGISTRY: &str = "0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F";
+const OPENFOUR_CORE: &str = "0xebe7b6C1089D9F72aD07f34E36d898e44E5e27f3";
+const VAULT: &str = "0x0000000000000000000000000000000000000077";
 const FOURMEME_TOKEN: &str = "0x00000000000000000000000000000000000000a1";
 
 fn word(value: U256) -> String {
@@ -85,6 +87,30 @@ async fn serve(app: Router) -> String {
     format!("http://{address}")
 }
 
+fn address_word_bytes(address: &str) -> [u8; 32] {
+    let address: Address = address.parse().unwrap();
+    let mut word = [0u8; 32];
+    word[12..].copy_from_slice(address.as_slice());
+    word
+}
+
+fn core_token_state() -> String {
+    let mut words = vec![U256::ZERO; 18];
+    words[1] = U256::from_be_slice(&address_word_bytes(OWNER));
+    words[2] = U256::from(1_778_027_615_735u64);
+    words[6] = U256::from(1_000_000_000u64) * U256::from(10).pow(U256::from(18));
+    words[7] = U256::from(800_000_000u64) * U256::from(10).pow(U256::from(18));
+    words[10] = U256::from_be_slice(&address_word_bytes(VAULT));
+    words[17] = U256::from(1u64);
+    format!(
+        "0x{}",
+        words
+            .iter()
+            .map(|word| format!("{word:064x}"))
+            .collect::<String>()
+    )
+}
+
 async fn rpc(Json(body): Json<Value>) -> Json<Value> {
     let is_batch = body.is_array();
     let requests = body.as_array().cloned().unwrap_or_else(|| vec![body]);
@@ -123,7 +149,17 @@ async fn rpc(Json(body): Json<Value>) -> Json<Value> {
                     let call = &request["params"][0];
                     let to = call["to"].as_str().unwrap_or_default().to_ascii_lowercase();
                     let data = call["data"].as_str().unwrap_or_default();
-                    if to == AGENT_REGISTRY.to_ascii_lowercase() {
+                    if to == OPENFOUR_CORE.to_ascii_lowercase() && data.starts_with("0xe4860339") {
+                        json!(core_token_state())
+                    } else if to == VAULT.to_ascii_lowercase() && data.starts_with("0xb1c9fe6e") {
+                        json!(word(U256::ZERO))
+                    } else if to == FOURMEME_TOKEN.to_ascii_lowercase()
+                        && data.starts_with("0x70a08231")
+                    {
+                        json!(word(
+                            U256::from(5_000_000u64) * U256::from(10).pow(U256::from(18))
+                        ))
+                    } else if to == AGENT_REGISTRY.to_ascii_lowercase() {
                         json!(word(
                             U256::from_str_radix(OWNER.trim_start_matches("0x"), 16).unwrap()
                         ))
@@ -258,7 +294,8 @@ async fn fourmeme_detail_api() -> Json<Value> {
         "data": {
             "name": "Agent Token",
             "shortName": "AGT",
-            "status": "TRADE",
+            "status": "PUBLISH",
+            "tokenPrice": {"progress": "0.42", "marketCap": "100", "price": "1"},
             "tokenTemplateVo": {"id": 1778027615735i64, "name": "Binance Agent ID Exclusive"},
             "userAddress": OWNER,
             "createDate": 1,
@@ -759,11 +796,24 @@ async fn fourmeme_workflow_discovers_tokens_and_agent_id() {
     .unwrap();
     assert!(discovered.tokens.is_empty());
 
-    let token = fourmeme::token(&fourmeme_config, FOURMEME_TOKEN.parse().unwrap(), None)
-        .await
-        .unwrap();
-    assert_eq!(token.phase, "graduated");
+    let token = fourmeme::token(
+        &fourmeme_config,
+        FOURMEME_TOKEN.parse().unwrap(),
+        Some(OWNER.parse().unwrap()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(token.phase, "bonding");
     assert_eq!(token.agent_id_exclusive, Some(true));
+    assert_eq!(token.wallet_eligible, Some(true));
+    let tradability = token.tradability.as_ref().unwrap();
+    assert_eq!(tradability.transfer_locked, Some(true));
+    assert_eq!(tradability.progress_percent, Some(42.0));
+    let cap = token.wallet_cap.as_ref().unwrap();
+    assert_eq!(cap.cap.raw, "10000000000000000000000000");
+    assert_eq!(cap.balance.raw, "5000000000000000000000000");
+    assert_eq!(cap.remaining.raw, "5000000000000000000000000");
+    assert!(!cap.reached);
 
     let resolved = agent_id::resolve(
         &agent_config,
