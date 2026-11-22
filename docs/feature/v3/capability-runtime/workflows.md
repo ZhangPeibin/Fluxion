@@ -44,6 +44,9 @@ call with its own contract and envelope.
 
 **Status:** experimental.
 
+**Preconditions:** Ethereum; a quote response; a connected WalletConnect session before send; an
+optional caller policy.
+
 **Steps:**
 
 1. `swap.quote`
@@ -53,6 +56,15 @@ call with its own contract and envelope.
 5. `transaction.inspect`
 6. `transaction.send`
 7. `transaction.verify`
+
+**Checkpoints:**
+
+- Quote is fresh and the route shape is known before build.
+- Build succeeded; no split/V3 route was approximated.
+- Allowance covers the sell amount, or an explicit approval is requested first.
+- Simulation succeeds before inspect and send.
+- Inspection has no blocking policy finding.
+- Verify returns `success` and matches the inspected effects.
 
 **Planned steps:**
 
@@ -81,6 +93,9 @@ resulting position.
 
 **Status:** experimental.
 
+**Preconditions:** Ethereum; a curated opportunity id or discovery profile; a connected
+WalletConnect session before send; an optional caller policy.
+
 **Steps:**
 
 1. `yield.discover`
@@ -91,6 +106,15 @@ resulting position.
 6. `transaction.send`
 7. `transaction.verify`
 8. `position.analyze`
+
+**Checkpoints:**
+
+- Discovery data is not stale and the user's risk profile is unchanged.
+- Build returns explicit steps and approvals, not a hidden sequence.
+- Each approval is requested explicitly before the deposit.
+- Inspection has no blocking policy finding; simulation succeeds.
+- Verify returns `success`.
+- `position.analyze` reads at a block at or after the deposit.
 
 **Gaps:**
 
@@ -113,11 +137,19 @@ resulting position.
 
 **Status:** experimental.
 
+**Preconditions:** BSC; an optional wallet for eligibility.
+
 **Steps:**
 
 1. `fourmeme.agent-tokens`
 2. `fourmeme.token`
 3. `wallet.agent-id`
+
+**Checkpoints:**
+
+- `lookback_blocks` is explicit; partial ranges stay warnings.
+- Template and phase come from the API or on-chain fields, never inferred.
+- Eligibility is `unknown`, not `false`, when `AgentIdentifier` is unavailable.
 
 **Nature:** read-only. There is no buy, sell, approve, or sign step.
 
@@ -135,6 +167,8 @@ resulting position.
 
 **Status:** experimental.
 
+**Preconditions:** a wallet address; a chain where the requested read capabilities are supported.
+
 **Steps:**
 
 1. `wallet.balance`
@@ -142,9 +176,21 @@ resulting position.
 3. `wallet.collectibles`
 4. `position.analyze` (Ethereum only)
 
+**Checkpoints:**
+
+- The pinned block and discovery coverage are stated.
+- NFTs are best-effort; non-enumerable collections may report only a count.
+- BSC portfolios stop before `position.analyze` and say why.
+
 **Gaps:**
 
 - `position.analyze` is Ethereum-only; the workflow must declare chain-specific steps.
+
+**Failure handling:**
+
+- Provider unavailable → registry fallback with warnings.
+- Unknown tokens stay unknown; do not infer balances.
+- `position.analyze` failure is reported separately and does not invalidate wallet balances.
 
 ## 8. Workflow skills
 
@@ -167,7 +213,14 @@ The skill must state:
 
 ## 9. End-to-end testing
 
-- Every workflow has at least one deterministic test using fixtures or a fork.
+- `crates/client/tests/workflows.rs` drives the catalog sequence for `swap`, `yield-deposit`,
+  `fourmeme-discovery`, and `portfolio` against mocked remote services and RPC.
+- Each workflow has a success path and a failure path: quote failure, unknown opportunity,
+  RPC/log failure, and position failure.
+- Catalog invariants are tested: steps exist, chains are the intersection, planned steps are not
+  implemented, and workflows with gaps stay experimental.
+- The wallet confirmation boundary is asserted through the catalog (`transaction.send` requires a
+  `wallet_session`); a real WalletConnect relay and phone confirmation are not simulated.
 - Signing and broadcasting tests use Anvil or a mock wallet; never real funds.
 - Chain-unsupported paths are tested.
 - Policy-blocked paths are tested.
