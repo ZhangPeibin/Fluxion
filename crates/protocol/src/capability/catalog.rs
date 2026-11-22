@@ -159,6 +159,7 @@ mod tests {
         "policy",
         "freshness",
         "eligibility",
+        "effects",
     ];
     const REMOTE: &[&str] = &[
         "swap.quote",

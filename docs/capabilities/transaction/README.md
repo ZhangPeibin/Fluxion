@@ -3,9 +3,9 @@
 Deterministic pre-sign inspection of unsigned calldata. It returns intent, target metadata,
 effects, findings, coverage and explicit unknowns. It is advisory only and never claims safety.
 
-`transaction.inspect` and `transaction.simulate` return capability envelope v2: `meta`, `chain`,
-`block`, `as_of`, `provenance`, `coverage`, `warnings`, `unknowns`, and `data`. Capability fields
-are under `data`; coverage is under `coverage.dimensions`.
+`transaction.inspect`, `transaction.simulate` and `transaction.verify` return capability envelope v2:
+`meta`, `chain`, `block`, `as_of`, `provenance`, `coverage`, `warnings`, `unknowns`, and `data`.
+Capability fields are under `data`; coverage is under `coverage.dimensions`.
 
 ```bash
 fluxion transaction inspect --to 0x... --data 0x... --json
@@ -104,9 +104,34 @@ Flow:
 The wallet remains the signing boundary. `transaction.send` does not hold keys and does not bypass
 phone confirmation.
 
+## `transaction.verify`
+
+Verify what a sent transaction actually did. It reads the transaction and receipt at one chain
+head, decodes receipt logs into effects, and optionally compares them with a prior
+`transaction.inspect` report. It is read-only and never signs or broadcasts.
+
+```bash
+fluxion transaction verify --hash 0x... --json
+fluxion transaction verify --hash 0x... --chain ethereum --confirmations 3 --json
+fluxion transaction verify --hash 0x... --expect inspect.json --json
+```
+
+- `--hash` is required; default chain is BSC.
+- `--confirmations` defaults to 1. With fewer confirmations the status is `pending`.
+- `--expect FILE` accepts a `transaction.inspect` envelope, a `{effects}` object, or a bare
+  effects object. Without it, `expectation.status` is `not_configured`.
+- `status` is one of `success`, `reverted`, `pending`, or `not_found`. `pending` and `not_found`
+  are normal results, not capability errors.
+- Coverage marks `data` complete and `effects` partial; a missing receipt marks effects `not_run`.
+- Effects are decoded from receipt logs; native effects come from the transaction value. Gas fees
+  and full state changes are not included.
+- Expectation comparison normalizes addresses and compares exact multisets per category. A
+  difference returns `mismatch` with explicit expected/actual entries.
+
 ## Boundaries
 
 - Advisory only; no signing, approval or broadcast.
+- `transaction.verify` is read-only; a mined receipt is not a safety guarantee.
 - Unknown or unsupported calldata stays unknown.
 - A successful inspection is not an execution guarantee.
 - LLM explanation is not part of the deterministic risk decision.

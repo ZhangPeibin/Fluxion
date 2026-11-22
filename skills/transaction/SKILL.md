@@ -1,6 +1,6 @@
 ---
 name: transaction
-description: Use when the user wants to inspect, simulate or send BSC or Ethereum calldata, or uses the Fluxion transaction_inspect, transaction_simulate or transaction_send MCP tools. Inspect/simulate are read-only; send requires the connected wallet and explicit phone confirmation.
+description: Use when the user wants to inspect, simulate, send or verify BSC or Ethereum transactions, or uses the Fluxion transaction_inspect, transaction_simulate, transaction_send or transaction_verify MCP tools. Inspect/simulate/verify are read-only; send requires the connected wallet and explicit phone confirmation.
 ---
 
 # transaction capabilities
@@ -83,6 +83,38 @@ an estimated gas limit.
 
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 - Schema: [`transaction_simulate`](../../schemas/transaction_simulate.v2.json)
+
+# transaction.verify
+
+Verify what a sent transaction actually did. Read-only; it never signs or broadcasts.
+
+```json
+{
+  "name": "transaction_verify",
+  "arguments": {
+    "chain": "ethereum",
+    "tx_hash": "0x...",
+    "confirmations": 3,
+    "expected": {"effects": {"native": [], "tokens": [], "approvals": [], "nfts": []}}
+  }
+}
+```
+
+- `chain` defaults to `bsc`; use `ethereum` for Ethereum.
+- `tx_hash` must be `0x`-prefixed 32-byte hex.
+- `confirmations` defaults to 1. Fewer confirmations -> `status: "pending"`.
+- `expected` accepts a `transaction.inspect` envelope, a `{effects}` object, or a bare effects
+  object. Without it, `expectation.status` is `not_configured`.
+- `data.status` is `success`, `reverted`, `pending`, or `not_found`. `pending` and `not_found` are
+  normal results, not errors; do not retry them as failures.
+- `data.effects` decodes receipt logs into native/token/approval/NFT effects. Native effects come
+  from the transaction value; gas and full state changes are not included.
+- `data.expectation.status` is `match`, `mismatch`, or `not_configured`. A mismatch lists explicit
+  expected/actual entries; surface it to the user and do not call the transaction successful.
+- `coverage.dimensions.effects` is `partial`; a missing receipt leaves it `not_run`.
+- A mined receipt is not a safety guarantee.
+- Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
+- Schema: [`transaction_verify`](../../schemas/transaction_verify.v2.json)
 
 ## Execution model
 

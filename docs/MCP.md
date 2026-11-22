@@ -148,9 +148,9 @@ Available tools depend on the installed capabilities. The source of truth is
 catalog-generated output. The wallet read tools (`wallet_balance`, `wallet_assets`,
 `wallet_allowance`, `wallet_collectibles`), the Four.meme tools (`fourmeme_agent_tokens`,
 `fourmeme_token`), and the read-only transaction/signature tools (`transaction_simulate`,
-`transaction_inspect`, `signature_inspect`), the yield tools (`yield_discover`, `yield_build`,
+`transaction_inspect`, `transaction_verify`, `signature_inspect`), the yield tools (`yield_discover`, `yield_build`,
 `yield_history`, `yield_withdraw`), `position_analyze`, the swap tools (`swap_quote`, `swap_build`),
-and the wallet tools already return capability envelope v2. All 23 catalog capabilities now use
+and the wallet tools already return capability envelope v2. All catalog capabilities now use
 envelope v2; read each catalog entry for its schema and chain support.
 
 | Capability | Tool | Contract |
@@ -170,6 +170,7 @@ envelope v2; read each catalog entry for its schema and chain support.
 | `transaction.inspect` | `transaction_inspect` | [capabilities/transaction](capabilities/transaction/README.md) |
 | `transaction.simulate` | `transaction_simulate` | [capabilities/transaction](capabilities/transaction/README.md) |
 | `transaction.send` | `transaction_send` | [capabilities/transaction](capabilities/transaction/README.md) |
+| `transaction.verify` | `transaction_verify` | [capabilities/transaction](capabilities/transaction/README.md) |
 | `signature.inspect` | `signature_inspect` | [capabilities/signature](capabilities/signature/README.md) |
 | `fourmeme.agent-tokens` | `fourmeme_agent_tokens` | [capabilities/fourmeme](capabilities/fourmeme/README.md) |
 | `fourmeme.token` | `fourmeme_token` | [capabilities/fourmeme](capabilities/fourmeme/README.md) |

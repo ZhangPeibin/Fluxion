@@ -107,6 +107,7 @@ capability envelope v2（`meta`、`chain`、`block`、`as_of`、`provenance`、`
 | `transaction.inspect` | stable | `fluxion transaction inspect --to 0x... --data 0x...` | 签名前 calldata 检查、effects、trace、源码、policy |
 | `transaction.simulate` | stable | `fluxion transaction simulate --to 0x... --data 0x...` | 固定区块 `eth_call` + gas |
 | `transaction.send` | stable | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | 模拟 + inspect + policy + 手机确认 + 广播 |
+| `transaction.verify` | experimental | `fluxion transaction verify --hash 0x...` | 回执状态、确认数、实际 effects，可选对照 inspect 报告 |
 
 #### 4. 签名授权
 
@@ -399,6 +400,26 @@ fluxion transaction simulate --to 0x... --data 0x... --from 0x...
 模拟这笔交易，看看会不会 revert，以及大概要多少 gas。
 ```
 
+#### `transaction.verify`
+
+读取已发送交易的 receipt，返回状态、确认数、gas/手续费和从日志解码的 effects；可选对照
+`transaction.inspect` 报告并返回 `match` / `mismatch`。只读，不签名、不广播。
+
+```bash
+fluxion transaction verify --hash 0x... --json
+fluxion transaction verify --hash 0x... --chain ethereum --confirmations 3 --json
+fluxion transaction verify --hash 0x... --expect inspect.json --json
+```
+
+状态为 `success`、`reverted`、`pending` 或 `not_found`；`pending` / `not_found` 是正常结果，
+不是错误。没有 receipt 时 effects 标记为 `not_run`。
+
+对 Agent 说：
+
+```text
+这笔交易 0x... 成功了吗？实际转了什么？如果和我签名前的检查不一致，告诉我差异。
+```
+
 ### 签名与授权检查
 
 Skill：[signature](skills/signature/SKILL.md) · 文档：[signature](docs/capabilities/signature/README.md)
@@ -487,6 +508,7 @@ fluxion fourmeme ui --open
 | `transaction.inspect` | local | 本地 RPC：block、code、simulate、trace、source | 缺失维度写入 `coverage` / `unknowns` |
 | `transaction.simulate` | local | 本地 RPC：`eth_call` + `eth_estimateGas` | RPC/revert 按 capability error 或 `success=false` 返回 |
 | `transaction.send` | local | RPC simulate/inspect -> WalletConnect -> 手机确认 | 模拟失败、policy block、拒绝或超时均不广播 |
+| `transaction.verify` | local | 本地 RPC：tx + receipt + receipt logs | 未找到/未确认 -> `pending`/`not_found`；RPC 失败 -> `RPC_ERROR` |
 | `signature.inspect` | local | 调用方提供的 typed data / authorization / userOp JSON | 无法解码 -> `SIG-006` 或 invalid argument |
 | `fourmeme.agent-tokens` | local | BSC `TokenCreated` logs + Four.meme API + BSC `AgentIdentifier` | API/RPC 失败 -> 明确 warning/coverage |
 | `fourmeme.token` | local | Four.meme API + BSC ERC20 fallback + `AgentIdentifier` | API 不可用 -> 链上基础字段 + warning |

@@ -21,6 +21,7 @@ use crate::token;
 use crate::transaction::{self, SimulateRequest};
 use crate::transaction_inspect::{self, InspectPolicy, InspectRequest};
 use crate::transaction_send::{self, SendRequest as TransactionSendRequest};
+use crate::transaction_verify;
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest, WalletConfig,
 };
@@ -360,6 +361,21 @@ fn tools_list() -> Value {
                 }
             },
             {
+                "name": "transaction_verify",
+                "description": "Verify a BSC or Ethereum transaction receipt, decode its effects, and optionally compare them with a transaction.inspect report. Read-only; never signs or broadcasts.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "chain": {"type": "string", "enum": ["bsc", "ethereum"], "default": "bsc"},
+                        "tx_hash": {"type": "string", "description": "0x-prefixed 32-byte transaction hash"},
+                        "confirmations": {"type": "integer", "minimum": 0, "default": 1},
+                        "expected": {"type": "object", "description": "Optional transaction.inspect report or effects object"},
+                        "rpc_url": {"type": "string", "description": "Optional local RPC override"}
+                    },
+                    "required": ["tx_hash"]
+                }
+            },
+            {
                 "name": "signature_inspect",
                 "description": "Inspect EIP-712 typed data, EIP-7702 authorization lists or an ERC-4337 user operation before signing. Advisory only; never signs or broadcasts.",
                 "inputSchema": {
@@ -524,6 +540,7 @@ async fn call_tool(
         "transaction_simulate" => transaction_simulate_tool(&arguments).await,
         "transaction_inspect" => transaction_inspect_tool(&arguments).await,
         "transaction_send" => transaction_send_tool(&arguments).await,
+        "transaction_verify" => transaction_verify_tool(&arguments).await,
         "fourmeme_agent_tokens" => fourmeme_agent_tokens_tool(&arguments).await,
         "fourmeme_token" => fourmeme_token_tool(&arguments).await,
         "yield_discover" => yield_discover_tool(&arguments, backend).await,
@@ -1314,6 +1331,26 @@ async fn transaction_send_tool(arguments: &Value) -> Result<Value, CapabilityErr
             block: optional_u64(arguments, "block")?,
             timeout: std::time::Duration::from_secs(timeout),
             policy,
+        },
+    )
+    .await?;
+    serde_json::to_value(response).map_err(|error| CapabilityError::internal(error.to_string()))
+}
+
+async fn transaction_verify_tool(arguments: &Value) -> Result<Value, CapabilityError> {
+    let expected = arguments
+        .get("expected")
+        .filter(|value| !value.is_null())
+        .map(transaction_verify::expected_from_value)
+        .transpose()?;
+    let config = wallet_config(arguments);
+    let response = transaction_verify::verify(
+        &config,
+        transaction_verify::VerifyRequest {
+            chain: chain_arg(arguments)?,
+            tx_hash: string_arg(arguments, "tx_hash")?,
+            confirmations: optional_u64(arguments, "confirmations")?.unwrap_or(1),
+            expected,
         },
     )
     .await?;

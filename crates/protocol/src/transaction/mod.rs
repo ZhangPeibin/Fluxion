@@ -4,12 +4,13 @@
 use std::collections::BTreeMap;
 
 use alloy_primitives::{Address, B256};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::capability::{Amount, CapabilityDescriptor, SCHEMA_VERSION};
 
 pub const SIMULATE_CAPABILITY: &str = "transaction.simulate";
 pub const INSPECT_CAPABILITY: &str = "transaction.inspect";
+pub const VERIFY_CAPABILITY: &str = "transaction.verify";
 pub const SEND_CAPABILITY: &str = "transaction.send";
 
 #[derive(Debug, Clone, Serialize)]
@@ -64,7 +65,8 @@ pub struct TransactionInspectTarget {
     pub proxy_kind: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct TransactionInspectEffects {
     pub native: Vec<TransactionInspectNativeEffect>,
     pub tokens: Vec<TransactionInspectTokenEffect>,
@@ -72,20 +74,20 @@ pub struct TransactionInspectEffects {
     pub nfts: Vec<TransactionInspectNftEffect>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionInspectNativeEffect {
     pub account: Address,
     pub delta: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionInspectTokenEffect {
     pub token: Address,
     pub account: Address,
     pub delta: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionInspectApprovalEffect {
     pub token: Address,
     pub owner: Address,
@@ -95,7 +97,7 @@ pub struct TransactionInspectApprovalEffect {
     pub after: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionInspectNftEffect {
     pub collection: Address,
     pub token_id: String,
@@ -193,6 +195,61 @@ pub struct TransactionSendResponse {
     pub inspection: TransactionInspectResponse,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct TransactionVerifyResponse {
+    pub chain: String,
+    pub chain_id: u64,
+    pub tx_hash: String,
+    /// `success`, `reverted`, `pending`, or `not_found`.
+    pub status: String,
+    pub block_number: u64,
+    pub block_hash: B256,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<Address>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<Amount>,
+    pub confirmations: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gas_used: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effective_gas_price: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fee: Option<Amount>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logs_count: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effects: Option<TransactionInspectEffects>,
+    pub expectation: TransactionVerifyExpectation,
+    pub sources: Vec<TransactionInspectSource>,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TransactionVerifyExpectation {
+    /// `match`, `mismatch`, or `not_configured`.
+    pub status: String,
+    pub mismatches: Vec<TransactionVerifyMismatch>,
+}
+
+impl TransactionVerifyExpectation {
+    pub fn not_configured() -> Self {
+        Self {
+            status: "not_configured".to_string(),
+            mismatches: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TransactionVerifyMismatch {
+    /// `native`, `token`, `approval`, or `nft`.
+    pub kind: String,
+    pub expected: String,
+    pub actual: String,
+}
+
 pub fn describe() -> CapabilityDescriptor {
     CapabilityDescriptor {
         name: SIMULATE_CAPABILITY,
@@ -214,6 +271,15 @@ pub fn describe_inspect() -> CapabilityDescriptor {
 pub fn describe_send() -> CapabilityDescriptor {
     CapabilityDescriptor {
         name: SEND_CAPABILITY,
+        schema_version: SCHEMA_VERSION,
+        execution: "local",
+        transports: vec!["cli", "mcp-stdio"],
+    }
+}
+
+pub fn describe_verify() -> CapabilityDescriptor {
+    CapabilityDescriptor {
+        name: VERIFY_CAPABILITY,
         schema_version: SCHEMA_VERSION,
         execution: "local",
         transports: vec!["cli", "mcp-stdio"],
@@ -243,5 +309,21 @@ mod tests {
         let descriptor = describe_send();
         assert_eq!(descriptor.name, "transaction.send");
         assert_eq!(descriptor.execution, "local");
+    }
+
+    #[test]
+    fn describes_local_verification() {
+        let descriptor = describe_verify();
+        assert_eq!(descriptor.name, "transaction.verify");
+        assert_eq!(descriptor.execution, "local");
+    }
+
+    #[test]
+    fn effects_deserialize_with_missing_categories() {
+        let effects: TransactionInspectEffects = serde_json::from_str(r#"{"tokens":[]}"#).unwrap();
+        assert!(effects.native.is_empty());
+        assert!(effects.tokens.is_empty());
+        assert!(effects.approvals.is_empty());
+        assert!(effects.nfts.is_empty());
     }
 }

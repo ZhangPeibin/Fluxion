@@ -52,16 +52,15 @@ call with its own contract and envelope.
 4. `transaction.simulate`
 5. `transaction.inspect`
 6. `transaction.send`
+7. `transaction.verify`
 
 **Planned steps:**
 
-- `transaction.verify`
 - optional `swap.execute` convenience wrapper
 
 **Gaps:**
 
 - `swap.build` currently supports one Uniswap V2 allocation; V3 and split allocations need support.
-- `transaction.verify` is not implemented.
 - Approval steps are documented but not a single capability.
 
 **Failure handling:**
@@ -90,7 +89,8 @@ resulting position.
 4. `transaction.inspect`
 5. `transaction.simulate`
 6. `transaction.send`
-7. `position.analyze`
+7. `transaction.verify`
+8. `position.analyze`
 
 **Gaps:**
 

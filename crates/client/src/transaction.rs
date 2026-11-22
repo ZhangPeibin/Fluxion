@@ -341,6 +341,25 @@ impl Rpc {
             })?;
         Ok((number, hash, tag))
     }
+
+    pub(crate) async fn transaction_by_hash(
+        &self,
+        hash: &str,
+    ) -> Result<Option<Value>, CapabilityError> {
+        let value = self
+            .call("eth_getTransactionByHash", json!([hash]))
+            .await
+            .map_err(rpc_failure)?;
+        Ok((!value.is_null()).then_some(value))
+    }
+
+    pub(crate) async fn receipt(&self, hash: &str) -> Result<Option<Value>, CapabilityError> {
+        let value = self
+            .call("eth_getTransactionReceipt", json!([hash]))
+            .await
+            .map_err(rpc_failure)?;
+        Ok((!value.is_null()).then_some(value))
+    }
 }
 
 fn error_data(error: &Value) -> Option<String> {
