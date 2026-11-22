@@ -52,6 +52,21 @@ Both capabilities use envelope v2:
 - If API detail is unavailable, it may return on-chain name/symbol/supply with `phase: unknown`;
   do not infer the phase.
 
+## Workflow recipe: fourmeme-discovery
+
+Use this when the user wants to find Agent ID Exclusive tokens and check a wallet's eligibility.
+The workflow is `fourmeme.agent-tokens → fourmeme.token → wallet.agent-id` and is read-only.
+
+Checkpoints:
+
+1. `fourmeme.agent-tokens`: keep `lookback_blocks` explicit; partial log ranges stay warnings.
+2. `fourmeme.token`: read the phase and template; do not infer them when the API is unavailable.
+3. `wallet.agent-id`: resolve the handle or address; an unavailable registry means `unknown`, not
+   `false`.
+
+Failure handling: API unavailable → return on-chain fields with warnings; `AgentIdentifier`
+unavailable → eligibility stays unknown; a partial log range is never reported as zero tokens.
+
 ## Boundaries
 
 - Never buy/sell; this skill has no execution path.

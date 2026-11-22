@@ -49,6 +49,29 @@ fluxion swap build --quote quote.json --recipient 0x... --slippage-bps 50 --json
 - Returns `router`, `data`, `value`, `amount_out_min`, `deadline`, `path`, `hops`.
 - Never signs or broadcasts.
 
+## Workflow recipe: swap
+
+Use this recipe only when the user wants to execute a swap, not merely quote it. The workflow is
+`swap.quote → swap.build → wallet.allowance → transaction.simulate → transaction.inspect →
+transaction.send → transaction.verify`.
+
+Required inputs: `token_in`, `token_out`, `amount`, `recipient`, `slippage_bps`, and an optional
+policy. The chain is Ethereum.
+
+Checkpoints:
+
+1. `swap.quote`: reject stale or incomplete state; confirm the route and amount before building.
+2. `swap.build`: stop on `UNSUPPORTED`; never ask for a signature if build failed.
+3. `wallet.allowance`: if the allowance is insufficient, request an explicit approval first; do
+   not hide the extra transaction.
+4. `transaction.simulate`: stop on revert before any wallet request.
+5. `transaction.inspect`: stop on a policy block and surface high findings to the user.
+6. `transaction.send`: requires a connected WalletConnect session; the user confirms on the phone.
+7. `transaction.verify`: require `status: success`; report `mismatch` against the inspect report.
+
+Failure handling: no route, unsupported build, insufficient allowance, simulation failure, policy
+block, or user rejection stops the workflow. Never skip a failed step or sign silently.
+
 ## CLI
 
 ```bash
@@ -129,6 +152,6 @@ gas and user authorization before building or executing a transaction.
 - This skill is documentation, not a security boundary.
 - Signing and authorization belong to the Local Runtime; never let the remote service sign.
 - `transaction.simulate` is available for read-only calldata simulation before signing.
-- `swap.build` / `swap.execute` are separate future local-only capabilities and are not part of
-  this skill.
+- `swap.build` is a separate local capability; `swap.execute` remains a future convenience wrapper
+  and is not part of this skill.
 - Related skills: [wallet](../wallet/SKILL.md) · [transaction](../transaction/SKILL.md).

@@ -339,6 +339,23 @@ Session, signing, and send capabilities use the same envelope:
 - `wallet.agent-id` data: `query`, `found`, and optional `handle`, `agent_id`, `owner`, `token_id`,
   `tx_hash`, `as_of_block`.
 
+## Workflow recipe: portfolio
+
+Use this when the user wants a read-only summary of holdings and curated yield positions. The
+workflow is `wallet.balance → wallet.assets → wallet.collectibles → position.analyze`.
+
+Checkpoints:
+
+1. `wallet.balance` and `wallet.assets`: state the pinned block and whether discovery used a
+   provider or the fallback registry.
+2. `wallet.collectibles`: NFT discovery is best-effort; non-enumerable collections may report only
+   a count.
+3. `position.analyze`: Ethereum only. BSC portfolios stop before this step and say so.
+
+Failure handling: provider unavailable → return registry results with warnings; unknown tokens stay
+unknown; a position failure is reported separately and does not invalidate wallet balances. Never
+invent USD values or infer positions from token balances.
+
 ## Errors
 
 | Code | Meaning | Agent action |

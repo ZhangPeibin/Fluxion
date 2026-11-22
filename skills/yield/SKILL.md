@@ -100,3 +100,28 @@ Build local exit calldata:
 - `owner` defaults to `recipient`; Rocket Pool burn uses the transaction sender and may require a delay.
 - Lido stETH and LRT/cbETH exits return `UNSUPPORTED` for now.
 - Never sign or broadcast from this skill. Simulate and inspect the step, then let the user approve.
+
+## Workflow recipe: yield-deposit
+
+Use this when the user wants to discover, deposit into, and confirm a curated ETH yield market. The
+workflow is `yield.discover → yield.build → wallet.allowance → transaction.inspect →
+transaction.simulate → transaction.send → transaction.verify → position.analyze`.
+
+Required inputs: asset (`ETH`), amount, opportunity id (or a profile for discovery), recipient, and
+an optional policy. The chain is Ethereum.
+
+Checkpoints:
+
+1. `yield.discover`: stop on `STALE_STATE`; keep the user's risk profile.
+2. `yield.build`: stop on `UNSUPPORTED` or `INVALID_ARGUMENT`; show every step and approval.
+3. `wallet.allowance`: approval sequencing is not a shared helper yet; request each approval
+   explicitly and do not hide it.
+4. `transaction.inspect`: stop on a policy block; surface high findings.
+5. `transaction.simulate`: stop on revert before the wallet request.
+6. `transaction.send`: requires a connected WalletConnect session; the user confirms on the phone.
+7. `transaction.verify`: require `status: success`.
+8. `position.analyze`: read the position at a block at or after the deposit. The post-execution
+   block is not pinned automatically yet; state it explicitly.
+
+Failure handling: stale data, unsupported market, approval failure, simulation failure, policy
+block, or user rejection stops the workflow. Never deposit from a failed step.
