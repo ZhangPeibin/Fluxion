@@ -400,6 +400,26 @@ fluxion transaction simulate --to 0x... --data 0x... --from 0x...
 模拟这笔交易，看看会不会 revert，以及大概要多少 gas。
 ```
 
+#### `transaction.verify`
+
+读取已发送交易的 receipt，返回状态、确认数、gas/手续费和从日志解码的 effects；可选对照
+`transaction.inspect` 报告并返回 `match` / `mismatch`。只读，不签名、不广播。
+
+```bash
+fluxion transaction verify --hash 0x... --json
+fluxion transaction verify --hash 0x... --chain ethereum --confirmations 3 --json
+fluxion transaction verify --hash 0x... --expect inspect.json --json
+```
+
+状态为 `success`、`reverted`、`pending` 或 `not_found`；`pending` / `not_found` 是正常结果，
+不是错误。没有 receipt 时 effects 标记为 `not_run`。
+
+对 Agent 说：
+
+```text
+这笔交易 0x... 成功了吗？实际转了什么？如果和我签名前的检查不一致，告诉我差异。
+```
+
 ### 签名与授权检查
 
 Skill：[signature](skills/signature/SKILL.md) · 文档：[signature](docs/capabilities/signature/README.md)

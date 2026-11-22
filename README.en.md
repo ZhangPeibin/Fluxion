@@ -415,6 +415,28 @@ Ask the agent:
 Simulate this transaction, tell me if it reverts, and estimate gas.
 ```
 
+#### `transaction.verify`
+
+Read a sent transaction's receipt and return status, confirmations, gas/fee, and effects decoded
+from logs; optionally compare against a `transaction.inspect` report and return `match` or
+`mismatch`. Read-only; never signs or broadcasts.
+
+```bash
+fluxion transaction verify --hash 0x... --json
+fluxion transaction verify --hash 0x... --chain ethereum --confirmations 3 --json
+fluxion transaction verify --hash 0x... --expect inspect.json --json
+```
+
+Status is `success`, `reverted`, `pending`, or `not_found`; `pending` and `not_found` are normal
+results, not errors. Without a receipt, effects are marked `not_run`.
+
+Ask the agent:
+
+```text
+Did transaction 0x... succeed? What did it actually move? If it differs from the report I
+inspected before signing, show me the differences.
+```
+
 ### Signature authorization
 
 Skill: [signature](skills/signature/SKILL.md) · Docs: [signature](docs/capabilities/signature/README.md)
