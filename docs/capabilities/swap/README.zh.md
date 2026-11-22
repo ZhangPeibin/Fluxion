@@ -17,7 +17,7 @@ fluxion swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 -
 - 只支持单条 allocation，hop 必须全部是 `uniswap-v2`。
 - 输出 `router`、`data`、`value`、`amount_out_min`、`deadline`、`path`、`hops`。
 - 拒绝拆单、嵌套 allocation、V3、Curve 和断开的 hop。
-- schema：`schemas/swap_build.v1.json`。
+- schema：`schemas/swap_build.v2.json`。
 
 ## 执行模型
 
@@ -157,7 +157,7 @@ Tool 名称：`swap_quote`。
 
 ## 输出
 
-响应遵循 [`schemas/swap_quote.v1.json`](../../../schemas/swap_quote.v1.json)。重要字段：
+响应遵循 [`schemas/swap_quote.v2.json`](../../../schemas/swap_quote.v2.json)。重要字段：
 
 - `amount_in`、`amount_out`：精确 `raw` 整数和展示用 `decimal`
 - `plan_kind`：`baseline`、`direct` 或 `split`
@@ -208,7 +208,7 @@ CLI 退出码：`2` 参数错误，`3` 无路径/流动性，`4` RPC/不支持�
 
 - [Capability index](../README.md)
 - [Agent skill](../../../skills/swap/SKILL.md)
-- [JSON schema](../../../schemas/swap_quote.v1.json)
+- [JSON schema](../../../schemas/swap_quote.v2.json)
 - [项目白皮书](../../WHITEPAPER.md)
 - [最新 benchmark](../../benchmarks/quote-freshness-2026-11-04-route-split.md)
 - [根 README](../../../README.md)

@@ -4,6 +4,10 @@ Deterministic pre-sign inspection for authorization that is not ordinary calldat
 BSC by default, Ethereum explicit `--chain ethereum`. It never signs or broadcasts and never claims
 safety.
 
+Returns capability envelope v2: `meta`, `chain`, `as_of`, `provenance`, `coverage`, `warnings`,
+`unknowns`, and `data`. Authorization fields are under `data`; coverage is under
+`coverage.dimensions`.
+
 ## Inputs
 
 Exactly one of:
@@ -65,15 +69,15 @@ mismatch and zero delegation address are also high.
 
 ## Output
 
-See [`schemas/signature_inspect.v1.json`](../../../schemas/signature_inspect.v1.json).
+See [`schemas/signature_inspect.v2.json`](../../../schemas/signature_inspect.v2.json).
 
 - `kind`: `typed_data`, `authorization_list`, or `user_operation`
 - `domain`: normalized EIP-712 domain when present
 - `calls`: decoded nested calls for supported SimpleAccount `execute` userOps
 - `findings`: rule ID, severity, evidence and confidence
 - `risk`: highest deterministic finding, otherwise `unknown`; never `safe`
-- `coverage`: `complete`, `partial`, `unavailable` or `not_configured`
-- `unknowns`: authorization that was not inspected
+- `coverage.dimensions`: `complete`, `partial`, `unavailable` or `not_configured`
+- `unknowns` (envelope): authorization that was not inspected
 - `policy`: policy `mode`, `decision` (`allow`/`warn`/`block`), `blocked`, and reasons
 - `assurance`: ruleset version, stable report ID, deterministic flag, limitations
 - `explanation`: deterministic summary for the host agent

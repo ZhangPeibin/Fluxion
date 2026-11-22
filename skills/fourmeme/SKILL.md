@@ -9,8 +9,8 @@ Read-only discovery, detail and optional wallet eligibility for Four.meme **Bina
 Exclusive** tokens on BSC.
 
 - Human docs: [`docs/capabilities/fourmeme`](../../docs/capabilities/fourmeme/README.md)
-- Schemas: [`agent-tokens`](../../schemas/fourmeme_agent_tokens.v1.json) ·
-  [`token`](../../schemas/fourmeme_token.v1.json)
+- Schemas: [`agent-tokens`](../../schemas/fourmeme_agent_tokens.v2.json) ·
+  [`token`](../../schemas/fourmeme_token.v2.json)
 
 ## MCP
 
@@ -30,14 +30,27 @@ fluxion fourmeme ui --open
 
 ## Reading the result
 
+Both capabilities use envelope v2:
+
+- `meta`: `schema_version`, `capability`, `request_id`.
+- `chain`: `{name: "bsc", id: 56}`.
+- `provenance` / `coverage` / `warnings` / `unknowns`: completeness and provenance.
+- `data`: discovery or token detail payload.
+
+`fourmeme.agent-tokens` data:
+
+- `mode`, `scanned`, `lookback_blocks`, `from_block`, `to_block`, `tokens[]`.
 - `template_id` must be `1778027615735`; `.ai` tag or `aiCreator` alone is not enough.
 - `phase`: `bonding` requires an Agent wallet; `graduated` is open to everyone.
 - `wallet_eligible`: `true`, `false`, or omitted when `AgentIdentifier` is unavailable.
-- `coverage`: combinations of `onchain`, `api`, and `agent-id`.
 - `lookback_blocks` bounds the scan; discovery is not complete history.
 - Check `warnings`; partial log ranges, API rate limits and region restrictions are explicit.
-- If API detail is unavailable, `fourmeme.token` may return on-chain name/symbol/supply with
-  `phase: unknown`; do not infer the phase.
+
+`fourmeme.token` data:
+
+- `address`, `name`, `symbol`, `phase`, template fields, market fields, creator and timestamps.
+- If API detail is unavailable, it may return on-chain name/symbol/supply with `phase: unknown`;
+  do not infer the phase.
 
 ## Boundaries
 

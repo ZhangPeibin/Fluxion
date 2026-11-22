@@ -11,7 +11,7 @@ provenance, and never signs, approves, or broadcasts.
 
 Human-facing capability documentation is in
 [docs/capabilities/swap/README.md](../../docs/capabilities/swap/README.md); the JSON contract is
-[schemas/swap_quote.v1.json](../../schemas/swap_quote.v1.json).
+[schemas/swap_quote.v2.json](../../schemas/swap_quote.v2.json).
 
 ## Capability
 
@@ -79,13 +79,15 @@ failures. Prefer parsing the JSON, not the human text.
 
 ## Reading the result
 
+`swap.quote` uses envelope v2: `meta`, `chain`, `block`, `as_of`, `provenance`, `coverage`,
+`warnings`, `unknowns`, and `data`. Quote fields are under `data`.
+
 - `amount_out.raw` / `amount_out.decimal`: exact integer and display amount
 - `plan_kind`: `baseline`, `direct`, or `split`
 - `allocations`: per-branch exact inputs, outputs and hop paths. Each entry may also carry
   `children`; see below.
-- `provenance.execution`: always `remote` for `swap.quote`
 - `provenance.pricing_mode`: `rpc` or `local_snapshot`
-- `quote_block`, `state_age_secs`, `lag_blocks`: state freshness
+- `block` and `provenance.age_secs`: pinned block and state freshness
 - `latency_ms`: runtime quote latency
 
 ### Shared-prefix allocations

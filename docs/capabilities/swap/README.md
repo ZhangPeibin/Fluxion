@@ -24,7 +24,7 @@ fluxion swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 -
 - Rejects split routes, V3, Curve, aggregators and disconnected hops.
 - Does not sign, broadcast or verify quote freshness beyond returning `quote_block`.
 
-Schema: [`schemas/swap_build.v1.json`](../../../schemas/swap_build.v1.json).
+Schema: [`schemas/swap_build.v2.json`](../../../schemas/swap_build.v2.json).
 
 ## Execution model
 
@@ -175,15 +175,17 @@ Project-level MCP installation, client registration, execution routing and troub
 
 ## Output
 
-The response follows [`schemas/swap_quote.v1.json`](../../../schemas/swap_quote.v1.json).
+`swap.quote` and `swap.build` return capability envelope v2: `meta`, `chain`, `block`, `as_of`,
+`provenance`, `coverage`, `warnings`, `unknowns`, and `data`. Quote/build fields are under `data`.
+
+The quote response follows [`schemas/swap_quote.v2.json`](../../../schemas/swap_quote.v2.json).
 Important fields:
 
 - `amount_in`, `amount_out`: exact `raw` integer and display `decimal`
 - `plan_kind`: `baseline`, `direct`, or `split`
 - `allocations`: exact per-branch inputs, outputs and hop paths; shared-prefix splits carry nested `sources` / `children`
-- `provenance.execution`: always `remote` for `swap.quote`
 - `provenance.pricing_mode`: `rpc` or `local_snapshot`
-- `quote_block`, `state_age_secs`, `lag_blocks`: freshness
+- `block` and `provenance.age_secs`: pinned block and freshness
 - `latency_ms`: runtime quote latency
 
 ### Shared-prefix routes
@@ -262,7 +264,7 @@ CLI exit codes: `2` invalid argument, `3` no path/liquidity, `4` RPC/unsupported
 
 - [Capability index](../README.md)
 - [Agent skill](../../../skills/swap/SKILL.md)
-- [JSON schema](../../../schemas/swap_quote.v1.json)
+- [JSON schema](../../../schemas/swap_quote.v2.json)
 - [Project whitepaper](../../WHITEPAPER.md)
 - [Latest benchmark](../../benchmarks/split-quality-2026-11-06-runtime.md)
 - [Gap attribution](../../benchmarks/split-gap-attribution-2026-11-06.md)

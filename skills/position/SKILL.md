@@ -10,7 +10,7 @@ It combines on-chain receipt-token balances with the current `yield.discover` AP
 
 Human-facing documentation is in
 [docs/capabilities/position/README.md](../../docs/capabilities/position/README.md); the JSON contract
-is [schemas/position_analyze.v1.json](../../schemas/position_analyze.v1.json).
+is [schemas/position_analyze.v2.json](../../schemas/position_analyze.v2.json).
 
 ## MCP
 
@@ -29,8 +29,11 @@ fluxion position analyze --owner 0x... --cost-basis lido-steth=10 --json
 
 ## Reading the result
 
-- `block_number` / `block_hash`: all balances are pinned to this block.
-- `yield_data_as_of`: APY/risk snapshot time; check `warnings` if it is old.
+`position.analyze` uses envelope v2: `meta`, `chain`, `block`, `as_of`, `provenance`, `coverage`,
+`warnings`, `unknowns`, and `data`.
+
+- `block`: all balances are pinned to this block.
+- `data.yield_data_as_of`: APY/risk snapshot time; check envelope `warnings` if it is old.
 - `positions[]`: receipt balance, estimated `value_eth`, APY, estimated annual yield, withdrawal
   conditions and risk factors.
 - `value_eth` may be omitted for rsETH/ezETH because exchange-rate conversion is not implemented.

@@ -10,7 +10,10 @@ returns a historical APY series.
 Agents and users do not choose local or remote. None of them deposits, approves, signs or
 broadcasts.
 
-Schemas: [`discover`](../../../schemas/yield_discover.v1.json) · [`build`](../../../schemas/yield_build.v1.json) · [`withdraw`](../../../schemas/yield_withdraw.v1.json) · [`history`](../../../schemas/yield_history.v1.json).
+All four capabilities return capability envelope v2: `meta`, `chain`, `as_of`, `provenance`,
+`coverage`, `warnings`, `unknowns`, and `data`. Capability fields are under `data`.
+
+Schemas: [`discover`](../../../schemas/yield_discover.v2.json) · [`build`](../../../schemas/yield_build.v2.json) · [`withdraw`](../../../schemas/yield_withdraw.v2.json) · [`history`](../../../schemas/yield_history.v2.json).
 
 ## Usage
 
@@ -50,13 +53,13 @@ Profile defaults:
 
 ## Response
 
-The response includes:
+The response includes envelope v2; the `data` payload contains:
 
 - `recommended`: highest ranking APY among eligible opportunities, plus `reason` and `tradeoffs`.
 - `opportunities`: ranked opportunities, each labeled with a safety tier, protocol, market, APY
   components, TVL, withdrawal conditions, risk factors, evidence and data confidence.
 - `excluded`: curated entries removed by the request or by data quality, with a stable reason.
-- `as_of`, `age_secs`, `stale`, `sources`, `coverage`, `disclaimer`, `warnings`.
+- `age_secs`, `stale`, `disclaimer` in `data`; freshness/sources/coverage/warnings on the envelope.
 
 Each opportunity's `yield` object separates:
 
@@ -147,7 +150,7 @@ fluxion yield build --opportunity aave-v3-weth --amount 10 --recipient 0x... --f
   protocol-specific deposit contracts are implemented.
 - Never signs, approves or broadcasts. Simulate and inspect every step before signing.
 
-Schema: [`schemas/yield_build.v1.json`](../../../schemas/yield_build.v1.json).
+Schema: [`schemas/yield_build.v2.json`](../../../schemas/yield_build.v2.json).
 
 ## `yield.history`
 
@@ -165,7 +168,7 @@ fluxion yield history --opportunity aave-v3-weth --days 90 --max-points 200 --js
 - Historical APY is not current APY and is not a guarantee.
 - Data source: DefiLlama chart endpoint for the registry's pool id.
 
-Schema: [`schemas/yield_history.v1.json`](../../../schemas/yield_history.v1.json).
+Schema: [`schemas/yield_history.v2.json`](../../../schemas/yield_history.v2.json).
 
 ## `yield.withdraw`
 
@@ -186,4 +189,4 @@ fluxion yield withdraw --opportunity morpho-steakhouse-eth --amount 5 --recipien
 - No approvals are returned; the position owner signs the exit directly.
 - Never signs or broadcasts. Simulate and inspect the step before signing.
 
-Schema: [`schemas/yield_withdraw.v1.json`](../../../schemas/yield_withdraw.v1.json).
+Schema: [`schemas/yield_withdraw.v2.json`](../../../schemas/yield_withdraw.v2.json).

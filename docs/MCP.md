@@ -143,7 +143,15 @@ Restart the agent after changing MCP or Skills config.
 
 ## Tools
 
-Available tools depend on the installed capabilities:
+Available tools depend on the installed capabilities. The source of truth is
+[`capabilities/catalog.yaml`](../capabilities/catalog.yaml); the table below is being migrated to
+catalog-generated output. The wallet read tools (`wallet_balance`, `wallet_assets`,
+`wallet_allowance`, `wallet_collectibles`), the Four.meme tools (`fourmeme_agent_tokens`,
+`fourmeme_token`), and the read-only transaction/signature tools (`transaction_simulate`,
+`transaction_inspect`, `signature_inspect`), the yield tools (`yield_discover`, `yield_build`,
+`yield_history`, `yield_withdraw`), `position_analyze`, the swap tools (`swap_quote`, `swap_build`),
+and the wallet tools already return capability envelope v2. All 23 catalog capabilities now use
+envelope v2; read each catalog entry for its schema and chain support.
 
 | Capability | Tool | Contract |
 |---|---|---|

@@ -9,7 +9,7 @@ Inspect non-calldata authorization before the user signs. Default chain is BSC; 
 `chain: "ethereum"` for Ethereum.
 
 - Human docs: [`docs/capabilities/signature`](../../docs/capabilities/signature/README.md)
-- Schema: [`signature_inspect`](../../schemas/signature_inspect.v1.json)
+- Schema: [`signature_inspect`](../../schemas/signature_inspect.v2.json)
 
 ## MCP tool
 
@@ -37,6 +37,9 @@ fluxion signature inspect --typed-data permit.json --policy policy.json --json
 ```
 
 ## Reading the result
+
+`signature.inspect` uses envelope v2: `meta`, `chain`, `as_of`, `provenance`, `coverage`,
+`warnings`, `unknowns`, and `data`. Findings and authorization fields are under `data`.
 
 - `SIG-001`: typed-data domain chain mismatch.
 - `SIG-002`: permit deadline/expiration is zero or expired.

@@ -2,6 +2,9 @@
 
 Read-only discovery and detail for Four.meme **Binance Agent ID Exclusive** tokens on BSC.
 
+Both capabilities return capability envelope v2: `meta`, `chain`, `as_of`, `provenance`,
+`coverage`, `warnings`, `unknowns`, and `data`. Discovery and detail fields are under `data`.
+
 This is not the same as Agent Creator or the `.ai` tag. Agent ID Exclusive restricts bonding-curve
 trading to Binance Agentic Wallets with an Agent ID; after graduation trading is open to everyone.
 
@@ -20,9 +23,10 @@ fluxion fourmeme agent-tokens --lookback-blocks 100000 --json
   3-second blocks).
 - `wallet`: optional; checks Four.meme `AgentIdentifier.isAgent(wallet)`.
 
-Output includes address, name, symbol, image, template id, phase, progress/raised when available,
-`agent_id_exclusive`, optional `wallet_eligible` / `eligibility_reason`, and
-`scanned` / `lookback_blocks` / `from_block` / `to_block` / `coverage` / `sources` / `warnings`.
+The `data` payload includes address, name, symbol, image, template id, phase, progress/raised when
+available, `agent_id_exclusive`, optional `wallet_eligible` / `eligibility_reason`, and
+`scanned` / `lookback_blocks` / `from_block` / `to_block` / `tokens`. Coverage is in
+`coverage.dimensions.data`; sources and warnings are in `provenance.sources` and `warnings`.
 
 ## `fourmeme.token`
 
@@ -30,8 +34,9 @@ Output includes address, name, symbol, image, template id, phase, progress/raise
 fluxion fourmeme token 0x... --wallet 0x... --json
 ```
 
-Returns one token's image, description, phase, template, raised, market cap, price, supply,
-creator, timestamps, optional wallet eligibility and warnings. If the Four.meme detail API is
+Returns envelope v2 with one token's image, description, phase, template, raised, market cap,
+price, supply, creator, timestamps, and optional wallet eligibility under `data`; warnings and
+sources are in the envelope. If the Four.meme detail API is
 unavailable (rate limit, region restriction, outage), Fluxion reads OpenFour Core
 `tokens(address)`, the vault phase and ERC20 `name` / `symbol` / `totalSupply` on BSC. It then
 reports the on-chain phase/template/creator/supply with an explicit warning. If Core state is also

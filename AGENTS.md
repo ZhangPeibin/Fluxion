@@ -13,6 +13,7 @@ execution location. `swap.quote` uses the remote service; `wallet` / `execute` u
 | Engine | `docs/ARCHITECTURE.md`, `docs/MULTI-POOL.md`, ... | internals |
 | Agent usage | `skills/<name>/SKILL.md` | when/how to call a capability |
 | Contract | `schemas/` | machine-readable JSON schema |
+| Catalog | `capabilities/catalog.yaml` | capability metadata, chains, status, side effects, workflows |
 | Benchmarks | `docs/benchmarks/` | methodology and full results |
 
 Rules:
@@ -20,6 +21,12 @@ Rules:
 - Capability docs link to transport docs; do not duplicate client snippets.
 - Root README is a landing page: no benchmark tables or capability internals.
 - Execution location is internal; never expose it as an agent choice.
+- Capability metadata changes start in `capabilities/catalog.yaml`; MCP, CLI, docs, schemas, and
+  skills must match it.
+- Every capability declares chains, status, side effects, and coverage dimensions. Unsupported
+  chains return `UNSUPPORTED`; do not add silent fallbacks.
+- Capability responses use the capability envelope; workflows are catalog entries, not hidden
+  execution paths.
 - When adding or moving docs, update the relevant index and links.
 
 ## Agent skills
@@ -58,6 +65,11 @@ Commands (from repo root):
 
 Architecture and docs (source of truth, link rather than duplicate):
 - `README.md` — landing page: positioning, capabilities, install, links.
+- `CONTEXT.md` — ubiquitous language for the capability layer.
+- `docs/adr/` — accepted architectural decisions.
+- `capabilities/catalog.yaml` — machine-readable capability catalog.
+- `docs/feature/v3/capability-runtime/` — catalog, envelope, chain matrix, registry, workflow,
+  migration, and lifecycle specs.
 - `docs/WHITEPAPER.md` — product vision and capability/execution boundaries.
 - `docs/MCP.md` — MCP transport, client registration, lifecycle and troubleshooting.
 - `docs/API.md` — HTTP API; `docs/CONFIGURATION.md` — config and execution routing.

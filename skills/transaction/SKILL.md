@@ -26,7 +26,8 @@ description: Use when the user wants to inspect, simulate or send BSC or Ethereu
 
 - `chain` defaults to `bsc`; use `ethereum` for Ethereum.
 - Empty `data` represents a native transfer.
-- Returns `intent`, `target`, `effects`, `findings`, `risk`, `coverage` and `unknowns`.
+- Returns envelope v2; `intent`, `target`, `effects`, `findings`, `risk` and the policy/assurance
+  fields are under `data`; coverage and unknowns are on the envelope.
 - `target.kind` is `eoa`, `contract` or `unknown`; EIP-1967 proxies report `proxy` and
   `implementation`. `verified: null` means source verification was not checked.
 - `effects` are derived from `eth_simulateV1` logs; token balances and allowances are re-simulated
@@ -42,7 +43,7 @@ description: Use when the user wants to inspect, simulate or send BSC or Ethereu
 - Contract findings report unverified targets (`CONTRACT-001`), EIP-1967 proxy targets
   (`CONTRACT-003`), and unexpected internal delegatecalls (`CONTRACT-004`). Set
   `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY` for source verification; without it `verified=null`.
-  Trace is unavailable on public BSC RPCs and is reported as `coverage.trace=unavailable`.
+  Trace is unavailable on public BSC RPCs and is reported as `coverage.dimensions.trace=unavailable`.
 - `multicall(bytes[])` is expanded into `call[i]` arguments, and nested approvals are checked with
   `nested_call` evidence. Malformed nested calls reduce decode coverage to `partial`.
 - Address findings cover zero/burn recipients (`ADDR-001`, `ADDR-002`) and self-targets
@@ -53,15 +54,16 @@ description: Use when the user wants to inspect, simulate or send BSC or Ethereu
   Permit2, 7702 and 4337 authorization inspection is tracked separately in #97.
 - Optional `policy` object: `mode`, `chains`, `max_native_spend`, `max_token_spend`,
   `target_allowlist`, `method_allowlist`, `spender_allowlist`. No policy means
-  `coverage.policy = not_configured`.
+  `coverage.dimensions.policy = not_configured`.
 - `explanation` contains a deterministic `summary`, `key_changes` and `unknowns`; use it for the
   user-facing explanation, never as a safety guarantee.
-- Read [`transaction_inspect`](../../schemas/transaction_inspect.v1.json) for the full shape.
+- Read [`transaction_inspect`](../../schemas/transaction_inspect.v2.json) for the full shape.
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
 
 # transaction.send
 
-Send already-built calldata through the connected WalletConnect session:
+Send already-built calldata through the connected WalletConnect session. It returns envelope v2;
+the transaction fields and the full inspection report are under `data`.
 
 ```bash
 fluxion transaction send --to 0x... --data 0x... --policy policy.json --json
@@ -70,7 +72,8 @@ fluxion transaction send --to 0x... --data 0x... --policy policy.json --json
 - Mandatory local simulation; revert -> `SIMULATION_FAILED`.
 - Mandatory `transaction.inspect`; enforce policy can return `POLICY_BLOCKED`.
 - The user confirms on the phone; rejection -> `USER_REJECTED`.
-- Returns `tx_hash`, `simulation`, and the full inspection report.
+- Schema: [`transaction_send`](../../schemas/transaction_send.v2.json)
+- Returns `tx_hash`, `simulation`, and the full inspection report under `data`.
 - This is generic calldata execution; `wallet.send` remains the simpler native/token transfer path.
 
 # transaction.simulate
@@ -79,7 +82,7 @@ Simulate an EVM call with `eth_call` at one pinned block and return success/reve
 an estimated gas limit.
 
 - Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
-- Schema: [`transaction_simulate`](../../schemas/transaction_simulate.v1.json)
+- Schema: [`transaction_simulate`](../../schemas/transaction_simulate.v2.json)
 
 ## Execution model
 
@@ -123,13 +126,16 @@ Options: `--chain bsc|ethereum`, `--from`, `--to`, `--data`, `--value`, `--block
 
 ## Reading the result
 
-- `chain` / `chain_id`: selected chain.
-- `success`: the call did not revert.
-- `return_data`: raw bytes returned by the call (`0x...`).
-- `gas_estimate`: `eth_estimateGas` result when available.
-- `revert_data` / `error`: revert bytes and normalized message.
-- `block_number` / `block_hash`: exact state used.
-- `value`: raw + decimal native value supplied.
+`transaction.simulate` returns envelope v2:
+
+- `chain`: selected chain, as `{name, id}`.
+- `block`: exact state used, as `{number, hash}`.
+- `coverage.dimensions.simulation`: `complete` when the call ran.
+- `data.success`: the call did not revert.
+- `data.return_data`: raw bytes returned by the call (`0x...`).
+- `data.gas_estimate`: `eth_estimateGas` result when available.
+- `data.revert_data` / `data.error`: revert bytes and normalized message.
+- `data.value`: raw + decimal native value supplied.
 
 A `success: false` response is still a successful simulation; inspect `error` and `revert_data`.
 Transport or RPC failures use stable capability error codes instead.

@@ -7,7 +7,10 @@ risk context, and optionally computes PnL from a supplied cost basis.
 `position.analyze` runs on the remote Fluxion service; agents and users do not choose local or
 remote. It never signs, approves or broadcasts.
 
-Schema: [`schemas/position_analyze.v1.json`](../../../schemas/position_analyze.v1.json).
+Returns capability envelope v2: `meta`, `chain`, `block`, `as_of`, `provenance`, `coverage`,
+`warnings`, `unknowns`, and `data`.
+
+Schema: [`schemas/position_analyze.v2.json`](../../../schemas/position_analyze.v2.json).
 
 ## Usage
 
@@ -44,13 +47,13 @@ Cost basis example:
 
 ## Response
 
-- `block_number` / `block_hash` / `as_of`: the pinned Ethereum block used for every balance read.
-- `yield_data_as_of`: the `yield.discover` snapshot used for APY and risk context.
+- `block` / `as_of`: the pinned Ethereum block and observation time on the envelope.
+- `data.yield_data_as_of`: the `yield.discover` snapshot used for APY and risk context.
 - `positions`: receipt balance, underlying asset, estimated ETH value, optional cost basis/PnL,
   APY, estimated annual yield, withdrawal conditions, risk factors, data confidence and status.
 - `totals`: position count, active count, value, estimated annual yield, and cost basis/PnL when
   every active position has a cost basis.
-- `coverage`, `sources`, `disclaimer`, `warnings`.
+- `data.disclaimer`; coverage, sources and warnings are on the envelope.
 
 ## Value conversion
 

@@ -109,6 +109,18 @@ corresponding coverage value.
 
 ## Trust and limitations
 
+### Trust boundaries
+
+| Component | Assumption | Failure / limit |
+|---|---|---|
+| Caller (agent or user) | Untrusted planner; can construct arbitrary calldata and bypass local MCP by calling the CLI or RPC directly | Not treated as a security boundary |
+| Phone wallet / WalletConnect | Private keys and final signature confirmation stay in the wallet | Rejection -> `USER_REJECTED`; timeout -> `TIMEOUT` |
+| Local runtime | No keys; read-only RPC; process and config are controlled by the local machine | Does not defend against a malicious local process or tampered binary |
+| RPC | Responses are used for block, code, simulation and trace; no light-client proof | Failure -> `RPC_ERROR` or explicit `unavailable` |
+| Remote quote service | Returns quotes over a published immutable snapshot | Failure -> `RPC_ERROR`; no local quote fallback |
+| Source verifier | Optional BscScan / Etherscan; returns `verified: true/false/null` | Missing key or request failure -> `null`, never inferred |
+| Trace backend | Optional `debug_traceCall`; public BSC RPC does not provide it | Unsupported -> `coverage.trace = unavailable` |
+
 - RPC data is trusted for block, code, simulation, and trace. No light-client proof is used.
 - `FLUXION_VERIFY_RPC_URL` can cross-check block hash and target code, but not every state read.
 - `FLUXION_THREAT_INTEL_FILE` is operator-provided and may be incomplete or stale. Configure
@@ -120,6 +132,57 @@ corresponding coverage value.
 - Native gas, full state diff, MEV, oracle manipulation, and protocol economics are out of scope.
 - A clean report is not a safety guarantee.
 
+## Threat model
+
+Covered:
+
+- Malicious or malformed calldata: unknown selectors, wrong argument layout, hidden multicall,
+  proxy upgrades.
+- Assets and approvals: unintended transfer, forged Transfer/Approval logs, unlimited approval,
+  NFT operator approval.
+- Contract execution: unexpected internal `DELEGATECALL`, unverified source, EIP-1967 proxy.
+- Addresses and policy: zero address, burn address, recipient mismatch, policy caps/allowlists.
+
+Not covered:
+
+- Private-key compromise, a malicious wallet app, or a controlled signing device.
+- Protocol-level economic attacks, oracle manipulation, MEV, liquidations, and bridge risk.
+- Off-chain signatures not supplied to the inspector, full semantics of non-standard tokens, or
+  every real-world attack pattern.
+- "No finding" does not mean safe; it means nothing was found within current coverage.
+
+## Inspection pipeline
+
+| Stage | Output | Failure / degradation |
+|---|---|---|
+| Canonicalize + pin block | `chain`, `block_number`, `block_hash` | RPC failure -> capability error |
+| Decode | selector, signature, arguments, unknowns | Unknown selector -> `decode=partial` + `unknown` |
+| Metadata | EOA/contract, EIP-1967 proxy/implementation | Code/storage failure -> error/unknown |
+| Simulation | call status, logs, effects | Unsupported RPC/trace -> `simulation=unavailable/partial` |
+| Effect verification | `balanceOf`, `allowance`, `ownerOf` before/after | Non-standard token -> verified=false/unknown |
+| Internal trace | internal calls, delegatecall | No `debug_traceCall` -> `trace=unavailable` |
+| Source verification | `verified`, provider source | Missing key/provider failure -> `verified=null` |
+| Detectors | finding ID, severity, evidence, confidence | Missing prerequisite -> no guess, write `unknown` |
+| Policy | cap/allowlist decision | Missing effects or policy -> `not_configured`/`partial` |
+
+## Risk aggregation
+
+Every finding carries a stable `id`, `category`, `severity`, `evidence`, `confidence`, and
+`deterministic` flag. Results aggregate as follows:
+
+1. With findings, `risk` is the highest severity.
+2. Without findings, `risk` is `unknown`, never `low` or `safe`.
+3. Missing critical coverage keeps `unknown`; it cannot be downgraded to low risk.
+4. `unknowns` must state what is missing; `warnings` are non-blocking notes.
+
+## Determinism and reproducibility
+
+- The same request, block, and code version should produce the same finding set.
+- Simulations and reads use a pinned block; no mixed-block state.
+- LLMs do not participate in detectors, risk, or coverage; `explanation` is a deterministic
+  template.
+- External providers supply input only; they do not change rule semantics.
+
 ## Test boundary
 
 - Rust unit/fixture tests: decode, effects, trace, approval, asset-flow, policy, signature.
@@ -127,4 +190,7 @@ corresponding coverage value.
   unlimited approval, permit, 7702, 4337, unverified target.
 - Benchmark: `docs/benchmarks/redteam-2026-11-11.md` and
   `docs/benchmarks/security-inspection-2026-11-11.md`.
+- Current authored red-team corpus: 17/17 detect, 3/3 controls with no findings.
+- Real historical BSC calldata: two unlimited-approval phishing transactions hit `AUTH-001`;
+  two opaque exploit entrypoints remain explicitly `unknown`.
 - No independent mainnet exploit corpus has been measured; do not claim real-world recall.

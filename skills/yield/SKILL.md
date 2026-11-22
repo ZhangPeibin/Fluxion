@@ -11,7 +11,7 @@ evidence and one recommendation with tradeoffs.
 
 Human-facing capability documentation is in
 [docs/capabilities/yield/README.md](../../docs/capabilities/yield/README.md); the JSON contract is
-[schemas/yield_discover.v1.json](../../schemas/yield_discover.v1.json).
+[schemas/yield_discover.v2.json](../../schemas/yield_discover.v2.json).
 
 ## MCP
 
@@ -28,6 +28,9 @@ fluxion yield discover --asset ETH --amount 10 --risk balanced --json
 
 ## Reading the result
 
+`yield.discover` uses envelope v2: `meta`, `chain`, `as_of`, `provenance`, `coverage`,
+`warnings`, `unknowns`, and `data`.
+
 - `recommended`: highest `ranking_apy_percent` among opportunities eligible for the profile.
   Always report its `tradeoffs`; do not present it as "safe".
 - `opportunities[].safety_tier`: `core`, `established`, or `experimental`. A non-core tier is a
@@ -40,7 +43,7 @@ fluxion yield discover --asset ETH --amount 10 --risk balanced --json
   conditions. Aave/SparkLend require WETH, so ETH must be wrapped.
 - `opportunities[].risk_factors` and `evidence`: cite these when explaining a choice.
 - `excluded`: curated entries filtered by the profile or data quality.
-- `stale`, `age_secs`, `sources`, `warnings`: data freshness and provenance.
+- `stale`, `age_secs`: in `data`; freshness, sources and warnings are on the envelope.
 - `disclaimer`: always include the no-guarantee caveat when giving financial information.
 
 ## Choosing a profile

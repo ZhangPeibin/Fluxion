@@ -3,6 +3,10 @@
 Deterministic pre-sign inspection of unsigned calldata. It returns intent, target metadata,
 effects, findings, coverage and explicit unknowns. It is advisory only and never claims safety.
 
+`transaction.inspect` and `transaction.simulate` return capability envelope v2: `meta`, `chain`,
+`block`, `as_of`, `provenance`, `coverage`, `warnings`, `unknowns`, and `data`. Capability fields
+are under `data`; coverage is under `coverage.dimensions`.
+
 ```bash
 fluxion transaction inspect --to 0x... --data 0x... --json
 fluxion transaction inspect --to 0x... --data 0x... --chain ethereum --json
@@ -14,7 +18,7 @@ fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
 - `multicall(bytes[])` is expanded into `call[i]` arguments; nested approvals are checked.
 - Built-in selectors decode signature, name and static arguments.
 - Unknown selectors return `signature: null`, `name: null` and an unknown entry.
-- The block is pinned and returned as `block_number` / `block_hash`.
+- The block is pinned and returned as `block.number` / `block.hash`.
 - `target` distinguishes EOA/contract and detects EIP-1967, EIP-1822, EIP-1167 minimal
   proxies, and EIP-1967 beacon proxies. `proxy_kind` reports the detected pattern.
 - Source verification uses `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`. Without a key it stays
@@ -28,7 +32,7 @@ fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
 
 ## Output
 
-See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect.v1.json) and the
+See [`schemas/transaction_inspect.v2.json`](../../../schemas/transaction_inspect.v2.json) and the
 [rule catalog](ASSURANCE.md).
 
 - `intent`: selector, signature, name and decoded arguments.
@@ -45,7 +49,7 @@ See [`schemas/transaction_inspect.v1.json`](../../../schemas/transaction_inspect
   `EFFECT-010`). Nested approvals from decoded multicalls carry a `nested_call` evidence
   field.
 - `risk`: `critical`, `high`, `medium`, `low` or `unknown`; never `safe`.
-- `coverage`: decode, metadata, simulation, trace and policy status. Contract metadata is `partial`
+- `coverage.dimensions`: decode, metadata, simulation, trace and policy status. Contract metadata is `partial`
   until source verification is configured; simulation is `partial` because it is log-derived;
   trace is `complete` only when the RPC supports `debug_traceCall`.
 
@@ -68,11 +72,11 @@ known tokens use their registry decimals. Unknown tokens require an explicit `de
 
 - `mode` is `advisory` (default) or `enforce`.
 - `advisory` returns `decision: warn` on high findings; `enforce` returns `decision: block`.
-- No policy means `coverage.policy = not_configured`.
+- No policy means `coverage.dimensions.policy = not_configured`.
 - Policy findings use `POLICY-001`–`POLICY-006`. There is no hidden default policy.
 - `wallet.send --policy FILE` runs the same check before the phone request and fails with
   `POLICY_BLOCKED` when enforcement blocks the transfer.
-- `unknowns`: what was not inspected and could change the conclusion.
+- `unknowns` (envelope): what was not inspected and could change the conclusion.
 - `assurance`: ruleset version, stable report ID, RPC cross-check status, and limitations.
 - `policy`: policy mode, `decision` (`allow`/`warn`/`block`), `blocked`, and reasons.
 - `explanation`: deterministic `summary`, `key_changes` and `unknowns` for host agents. It never says
@@ -81,6 +85,8 @@ known tokens use their registry decimals. Unknown tokens require an explicit `de
 ## `transaction.send`
 
 Simulate and inspect arbitrary calldata, then send it through the connected WalletConnect session.
+It returns capability envelope v2; `from`, `to`, `value`, `data`, `tx_hash`, `simulation`, and
+`inspection` are under `data`.
 
 ```bash
 fluxion transaction send --to 0x... --data 0x... --value 0 --json
@@ -127,10 +133,10 @@ fluxion transaction send --to 0x... --data 0x... --policy policy.json --json
 
 ## Output
 
-See [`schemas/transaction_simulate.v1.json`](../../../schemas/transaction_simulate.v1.json).
+See [`schemas/transaction_simulate.v2.json`](../../../schemas/transaction_simulate.v2.json).
 
-- `chain` / `chain_id`: selected chain
-- `block_number` / `block_hash`: pinned state
+- `chain`: selected chain, as `{name, id}`
+- `block`: pinned state, as `{number, hash}`
 - `success`: `eth_call` completed without a JSON-RPC revert
 - `return_data`: raw return bytes (`0x...`)
 - `gas_estimate`: `eth_estimateGas` result when available

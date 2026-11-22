@@ -4,6 +4,9 @@ Local wallet capabilities for **BSC by default**, with Ethereum available throug
 ethereum`. They cover balances, asset discovery, allowances, NFTs, WalletConnect sessions, message
 signing and native/ERC20/BEP-20 transfers.
 
+All wallet capabilities return capability envelope v2: `meta`, `chain`, `as_of`, `provenance`,
+`coverage`, `warnings`, `unknowns`, and `data`. Capability fields are under `data`.
+
 ## `wallet.balance`
 
 Exact balances for an explicit token set, queried locally at one pinned block.
@@ -17,7 +20,10 @@ fluxion wallet balance 0xabc... --tokens ETH,USDC --chain ethereum --json
 - `tokens` may be built-in symbols or `0x` addresses; an empty list uses the chain registry.
 - Native BNB/ETH is included unless `--no-native` is passed.
 - Unknown token addresses get `decimals()` / `symbol()` from the token contract.
-- Coverage is always `local`.
+- Returns capability envelope v2: `meta`, `chain`, `block`, `provenance`, `coverage`, `warnings`,
+  `unknowns`, and `data`. The data payload contains `address`, `native`, `tokens`, and
+  `unknown_count`.
+- Coverage is reported under `coverage.dimensions.data`; sources are under `provenance.sources`.
 
 ## `wallet.assets`
 
@@ -45,7 +51,8 @@ Defaults:
 - unknown nonzero tokens are summarized in `unknown_count`
 - `--include-unknown` expands unknown tokens (metadata is read from the token contract)
 - if the discovery provider is unavailable, falls back to registry-only discovery and reports
-  `coverage: registry+local` plus a warning
+  a warning; local balance verification still sets `coverage.dimensions.data` to `complete`
+- Returns envelope v2; balances are under `data`, and sources are under `provenance.sources`
 
 ## `wallet.allowance`
 
@@ -59,7 +66,7 @@ fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC --chain ether
 - Default chain is BSC; use `--chain ethereum` for Ethereum.
 - `tokens` may be symbols or addresses; an empty list uses the chain registry.
 - Zero allowances are returned so approval checks are unambiguous.
-- Coverage is `local`.
+- Returns envelope v2; the owner/spender pair and `allowances` are under `data`.
 
 ## `wallet.collectibles`
 
@@ -77,12 +84,14 @@ fluxion wallet collectibles 0xowner --collections 0xcollection1,0xcollection2 --
 - ERC721 collections that implement `ERC721Enumerable` return token IDs.
 - Non-enumerable ERC721 collections return the count only; ERC1155 enumeration requires the
   indexer.
-- `coverage` is `provider+local`, `registry+local`, or `local`.
+- Returns envelope v2; collections are under `data`, and discovery provenance is under
+  `provenance.sources`.
 
 ## `wallet.agent-id`
 
 Resolve a Binance/SPACE ID `.ai` Agent ID on BSC. Agent ID is a soulbound ERC-721
-handle that points at a BSC wallet address.
+handle that points at a BSC wallet address. The result is returned in envelope v2; the query and
+resolved fields are under `data`.
 
 ```bash
 fluxion wallet agent-id alice.ai
@@ -93,7 +102,8 @@ fluxion wallet agent-id 0xA506ac7069937571DC56C5f8FDa53c4A729456c6 --json
 - Primary source: SPACE ID Agent ID API.
 - Verification/fallback: BSC registry `0x60B9262456dE011F7d15a54CdD8c48bAaa8B022F`.
 - `found: false` means no Agent ID is registered for the handle or address.
-- `coverage` is `api+onchain`, `api`, or `onchain`.
+- `coverage.dimensions` reports data and eligibility coverage; sources are under
+  `provenance.sources`.
 - This is identity resolution only. It does not log in to Binance Agentic Wallet and does not
   check Four.meme launch eligibility.
 
@@ -161,6 +171,8 @@ fluxion wallet connect --json
   written and returned as `qr_png_path` for fallback, but it is not opened automatically. The agent
   should show the QR and call `wallet_status` with `wait_seconds` (up to 110) instead of asking the
   user to check manually.
+- The envelope `data` contains either the MCP connect response (`uri`, `qr_ascii`, `accounts`) or
+  the settled CLI status response.
 - If a valid session already exists, `wallet.connect` returns `connected` without a new pairing.
 - The session is stored at `~/.fluxion/walletconnect/session.json` with mode `0600`.
 
@@ -180,7 +192,8 @@ fluxion wallet status --wait 90
 - `pending`: a pairing is waiting for the wallet.
 - `connected`: session is active.
 - `expired`: session exists but its expiry has passed.
-- Returns accounts, chain, expiry, and wallet metadata. It does not contact the wallet.
+- The envelope `data` contains accounts, chain, expiry, and wallet metadata. It does not contact
+  the wallet.
 
 ## `wallet.disconnect`
 
@@ -219,36 +232,47 @@ fluxion wallet disconnect --json
 
 ## Output
 
-- Balances: [`schemas/wallet_balances.v1.json`](../../../schemas/wallet_balances.v1.json)
-- Allowances: [`schemas/wallet_allowances.v1.json`](../../../schemas/wallet_allowances.v1.json)
-- Collectibles: [`schemas/wallet_collectibles.v1.json`](../../../schemas/wallet_collectibles.v1.json)
-- Connect: [`schemas/wallet_connect.v1.json`](../../../schemas/wallet_connect.v1.json)
-- Status: [`schemas/wallet_status.v1.json`](../../../schemas/wallet_status.v1.json)
-- Disconnect: [`schemas/wallet_disconnect.v1.json`](../../../schemas/wallet_disconnect.v1.json)
-- Agent ID: [`schemas/wallet_agent_id.v1.json`](../../../schemas/wallet_agent_id.v1.json)
-- Sign: [`schemas/wallet_sign.v1.json`](../../../schemas/wallet_sign.v1.json)
-- Send: [`schemas/wallet_send.v1.json`](../../../schemas/wallet_send.v1.json)
+- Balance: [`schemas/wallet_balances.v2.json`](../../../schemas/wallet_balances.v2.json)
+- Assets: [`schemas/wallet_assets.v2.json`](../../../schemas/wallet_assets.v2.json)
+- Allowances: [`schemas/wallet_allowances.v2.json`](../../../schemas/wallet_allowances.v2.json)
+- Collectibles: [`schemas/wallet_collectibles.v2.json`](../../../schemas/wallet_collectibles.v2.json)
+- Connect: [`schemas/wallet_connect.v2.json`](../../../schemas/wallet_connect.v2.json)
+- Status: [`schemas/wallet_status.v2.json`](../../../schemas/wallet_status.v2.json)
+- Disconnect: [`schemas/wallet_disconnect.v2.json`](../../../schemas/wallet_disconnect.v2.json)
+- Agent ID: [`schemas/wallet_agent_id.v2.json`](../../../schemas/wallet_agent_id.v2.json)
+- Sign: [`schemas/wallet_sign.v2.json`](../../../schemas/wallet_sign.v2.json)
+- Send: [`schemas/wallet_send.v2.json`](../../../schemas/wallet_send.v2.json)
 
 ```json
 {
-  "chain": "bsc",
-  "chain_id": 56,
-  "address": "0xabc...",
-  "block_number": 132891764,
-  "block_hash": "0x...",
-  "native": {
-    "token": {"symbol": "BNB", "address": "0xeeee...", "decimals": 18},
-    "amount": {"raw": "5793818533768043911", "decimal": "5.793818533768043911"},
-    "known": true
+  "meta": {
+    "schema_version": 2,
+    "capability": "wallet.assets",
+    "request_id": "req_..."
   },
-  "tokens": [],
-  "unknown_count": 0,
-  "coverage": "provider+local",
-  "sources": [
-    {"name": "1inch-balance", "scope": "candidate-discovery"},
-    {"name": "bsc-rpc", "scope": "verified-balances", "block": 132891764}
-  ],
-  "warnings": []
+  "chain": {"name": "bsc", "id": 56},
+  "block": {"number": 132891764, "hash": "0x..."},
+  "as_of": "2026-11-20T10:00:00Z",
+  "provenance": {
+    "sources": [
+      {"name": "1inch-balance", "scope": "candidate-discovery"},
+      {"name": "bsc-rpc", "scope": "verified-balances", "block": 132891764}
+    ],
+    "freshness": "fresh"
+  },
+  "coverage": {"dimensions": {"data": "complete"}},
+  "warnings": [],
+  "unknowns": [],
+  "data": {
+    "address": "0xabc...",
+    "native": {
+      "token": {"symbol": "BNB", "address": "0xeeee...", "decimals": 18},
+      "amount": {"raw": "5793818533768043911", "decimal": "5.793818533768043911"},
+      "known": true
+    },
+    "tokens": [],
+    "unknown_count": 0
+  }
 }
 ```
 
@@ -265,4 +289,5 @@ fluxion wallet disconnect --json
   swap execution.
 - No private keys.
 - No USD valuation.
-- `wallet.assets` discovery is best-effort; `coverage` and `warnings` make completeness explicit.
+- `wallet.assets` discovery is best-effort; `provenance`, `coverage`, and `warnings` make
+  completeness explicit.

@@ -12,14 +12,16 @@ private keys, and a balance or allowance response is never authorization to tran
 
 - Human docs: [`docs/capabilities/wallet`](../../docs/capabilities/wallet/README.md)
 - Schemas:
-  [`wallet_balances`](../../schemas/wallet_balances.v1.json),
-  [`wallet_allowances`](../../schemas/wallet_allowances.v1.json),
-  [`wallet_connect`](../../schemas/wallet_connect.v1.json),
-  [`wallet_status`](../../schemas/wallet_status.v1.json),
-  [`wallet_disconnect`](../../schemas/wallet_disconnect.v1.json),
-  [`wallet_agent_id`](../../schemas/wallet_agent_id.v1.json),
-  [`wallet_sign`](../../schemas/wallet_sign.v1.json),
-  [`wallet_send`](../../schemas/wallet_send.v1.json)
+  [`wallet_balance v2`](../../schemas/wallet_balances.v2.json),
+  [`wallet_assets v2`](../../schemas/wallet_assets.v2.json),
+  [`wallet_allowances v2`](../../schemas/wallet_allowances.v2.json),
+  [`wallet_collectibles v2`](../../schemas/wallet_collectibles.v2.json),
+  [`wallet_connect`](../../schemas/wallet_connect.v2.json),
+  [`wallet_status`](../../schemas/wallet_status.v2.json),
+  [`wallet_disconnect`](../../schemas/wallet_disconnect.v2.json),
+  [`wallet_agent_id`](../../schemas/wallet_agent_id.v2.json),
+  [`wallet_sign`](../../schemas/wallet_sign.v2.json),
+  [`wallet_send`](../../schemas/wallet_send.v2.json)
 
 ## Execution model
 
@@ -62,7 +64,10 @@ Exact balances for a known token set at one pinned block.
 - `chain` defaults to `bsc`; use `ethereum` for Ethereum.
 - `tokens` are symbols or addresses; omit it to scan the chain registry.
 - Native BNB/ETH is included unless `include_native` is `false`.
-- Coverage is `local`.
+- Returns capability envelope v2: `meta`, `chain`, `block`, `provenance`, `coverage`, `warnings`,
+  `unknowns`, and `data`.
+- Read balances from `data.native` and `data.tokens[]`; the pinned block is in `block`.
+- `coverage.dimensions.data` is `complete` when the local read succeeded.
 
 ## `wallet_assets`
 
@@ -82,8 +87,9 @@ Discover what ERC20 tokens an account holds, then verify every balance locally.
 - Default result: native ETH + known-registry tokens with nonzero balances.
 - `unknown_count` reports unknown nonzero tokens that were hidden.
 - `include_unknown: true` expands unknown tokens; metadata is read from the token contract.
-- `coverage` is `provider+local` or `registry+local`.
-- Always inspect `warnings` before claiming the result is complete.
+- Returns envelope v2; balances are under `data`, and discovery sources are under
+  `provenance.sources`.
+- Always inspect `warnings` and `unknowns` before claiming the result is complete.
 
 ## `wallet_allowance`
 
@@ -103,7 +109,7 @@ ERC20 allowances for one owner/spender pair at one pinned block.
 - `address` (owner) and `spender` are required.
 - `tokens` defaults to the built-in registry.
 - Zero allowances are included; use `amount.raw` for approval checks.
-- Coverage is `local`.
+- Returns envelope v2; `owner`, `spender`, and `allowances[]` are under `data`.
 
 ## `wallet_collectibles`
 
@@ -120,10 +126,10 @@ Read ERC721/ERC1155 holdings.
 ```
 
 - With `ALCHEMY_API_KEY`, Alchemy discovers candidate NFTs and local RPC verifies ownership.
-- Without an indexer, pass `collections` or use the curated registry; coverage is
-  `registry+local` / `local`.
+- Without an indexer, pass `collections` or use the curated registry.
 - Non-enumerable ERC721 returns `enumerable: false` and a count only.
 - ERC1155 enumeration requires the indexer.
+- Returns envelope v2; `owner` and `collections[]` are under `data`.
 
 ## `wallet_agent_id`
 
@@ -140,9 +146,9 @@ Resolve a BSC `.ai` Agent ID from a handle or wallet address.
 
 - Pass exactly one of `handle` or `address`.
 - `alice`, `alice.ai`, and mixed-case input are normalized to `alice`.
-- Returns `found`, `agent_id`, `owner`, `token_id`, `tx_hash`, `block_number`, `as_of_block`,
-  `coverage`, `sources`, and `warnings`.
-- `coverage` is `api+onchain`, `api`, or `onchain`.
+- Returns envelope v2; `data` contains `query`, `found`, optional `handle`, `agent_id`, `owner`,
+  `token_id`, `tx_hash`, `as_of_block`. The pinned block is on the envelope.
+- `coverage.dimensions` reports data and eligibility coverage.
 - `found: false` means not registered; it is not an error.
 - This is identity resolution only. It does not log in to Binance Agentic Wallet and does not
   check Four.meme launch eligibility.
@@ -293,27 +299,45 @@ Common options: `--chain bsc|ethereum`, `--rpc-url URL`, `--block N`, `--no-nati
 
 ## Reading the result
 
-Balances and assets:
+Read capabilities (`wallet.balance`, `wallet.assets`, `wallet.allowance`,
+`wallet.collectibles`) use envelope v2:
 
-- `chain` / `chain_id`: selected chain
-- `block_number` / `block_hash`: the pinned block for every read.
+- `meta`: `schema_version`, `capability`, `request_id`.
+- `chain`: `{name, id}` for the selected chain.
+- `block`: pinned block number and hash.
+- `provenance` / `coverage` / `warnings` / `unknowns`: completeness and provenance.
+- `data`: capability payload.
+
+`wallet.balance` / `wallet.assets` data:
+
 - `native` / `tokens[]`: `token.symbol`, `token.address`, `token.decimals`, `amount.raw`,
   `amount.decimal`, `known`.
 - `unknown_count`: unknown nonzero tokens not expanded.
-- `coverage` / `sources` / `warnings`: completeness and provenance.
 
-Collectibles:
-
-- `collections[]`: `collection`, `name`, `symbol`, `standard`, `enumerable`, `item_count`,
-  `items[]` (`token_id`, `balance`).
-- `coverage`: `provider+local`, `registry+local`, or `local`.
-- Non-enumerable collections have no token IDs; do not infer holdings from `item_count` alone.
-
-Allowances:
+`wallet.allowance` data:
 
 - `owner`, `spender`: the queried pair.
 - `allowances[]`: `token`, `spender`, `amount.raw`, `amount.decimal`, `known`.
 - A zero `amount.raw` means no ERC20 allowance; it does not mean an approval is safe or required.
+
+`wallet.collectibles` data:
+
+- `owner`: the queried wallet.
+- `collections[]`: `collection`, `name`, `symbol`, `standard`, `enumerable`, `item_count`,
+  `items[]` (`token_id`, `balance`).
+- Non-enumerable collections have no token IDs; do not infer holdings from `item_count` alone.
+
+Session, signing, and send capabilities use the same envelope:
+
+- `wallet.connect` data: MCP connect response (`status`, `uri`, `qr_ascii`, `accounts`, `chain_id`)
+  or the settled CLI status response.
+- `wallet.status` data: `status`, `accounts`, optional `chain_id`, `expires_at`, `connection_id`,
+  `wallet`, `error`.
+- `wallet.disconnect` data: `disconnected`.
+- `wallet.sign` data: `address`, `method`, `signature`.
+- `wallet.send` data: `from`, `recipient`, `token`, `amount`, `contract`, `tx_hash`, `simulation`.
+- `wallet.agent-id` data: `query`, `found`, and optional `handle`, `agent_id`, `owner`, `token_id`,
+  `tx_hash`, `as_of_block`.
 
 ## Errors
 
