@@ -16,6 +16,7 @@ use crate::token;
 use crate::transaction::{self, SimulateRequest, TransactionSimulateResponse};
 use crate::transaction_inspect::{self, InspectPolicy, InspectRequest, TransactionInspectResponse};
 use crate::transaction_send::{self, SendRequest as TransactionSendRequest};
+use crate::transaction_verify;
 use crate::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest,
     WalletAllowancesResponse, WalletBalancesResponse, WalletCollectiblesResponse, WalletConfig,
@@ -134,6 +135,7 @@ fluxion wallet send --to ADDR --token T --amount A [--policy FILE]  Send ETH/ERC
 fluxion transaction inspect --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
 fluxion transaction send --to ADDRESS --data HEX [--value BNB] [--policy FILE]\n  \
+fluxion transaction verify --hash HASH [--chain bsc|ethereum] [--confirmations N] [--expect FILE]\n  \
 fluxion signature inspect --typed-data FILE | --authorization-list FILE | --user-operation FILE [--policy FILE]\n  \
 fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N]\n  \
 fluxion fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  \
@@ -1691,7 +1693,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
         || raw.first().map(String::as_str) == Some("-h")
     {
         println!(
-            "Usage:\n  fluxion transaction inspect --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--policy FILE] [--json]\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]\n  fluxion transaction send --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--policy FILE] [--timeout N] [--json]"
+            "Usage:\n  fluxion transaction inspect --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--policy FILE] [--json]\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]\n  fluxion transaction send --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--policy FILE] [--timeout N] [--json]\n  fluxion transaction verify --hash HASH [--chain bsc|ethereum] [--confirmations N] [--expect FILE] [--rpc-url URL] [--json]"
         );
         return 0;
     }
@@ -1699,9 +1701,11 @@ async fn run_transaction(raw: &[String]) -> i32 {
         Some("inspect") => "inspect",
         Some("simulate") => "simulate",
         Some("send") => "send",
+        Some("verify") => "verify",
         _ => {
-            let error =
-                CapabilityError::invalid_argument("expected: transaction inspect|simulate|send");
+            let error = CapabilityError::invalid_argument(
+                "expected: transaction inspect|simulate|send|verify",
+            );
             report_error_as(
                 "transaction.inspect",
                 &error,
@@ -1714,8 +1718,12 @@ async fn run_transaction(raw: &[String]) -> i32 {
         "send" => "transaction.send",
         "inspect" => "transaction.inspect",
         "simulate" => "transaction.simulate",
+        "verify" => "transaction.verify",
         _ => "transaction.inspect",
     };
+    if command == "verify" {
+        return run_transaction_verify(&raw[1..]).await;
+    }
     let args = match parse_transaction_args(&raw[1..]) {
         Ok(args) => args,
         Err(error) => {
@@ -2668,6 +2676,212 @@ fn parse_transaction_args(raw: &[String]) -> Result<TransactionArgs, CapabilityE
         timeout_seconds,
         json,
     })
+}
+
+struct VerifyArgs {
+    chain: Chain,
+    hash: String,
+    confirmations: u64,
+    expect: Option<String>,
+    rpc_url: Option<String>,
+    json: bool,
+}
+
+fn parse_verify_args(raw: &[String]) -> Result<VerifyArgs, CapabilityError> {
+    let mut chain = DEFAULT_CHAIN;
+    let mut hash = None;
+    let mut confirmations = 1u64;
+    let mut expect = None;
+    let mut rpc_url = None;
+    let mut json = false;
+    let mut index = 0;
+    while index < raw.len() {
+        match raw[index].as_str() {
+            "--chain" => {
+                index += 1;
+                let value = raw
+                    .get(index)
+                    .ok_or_else(|| CapabilityError::invalid_argument("--chain needs a value"))?;
+                chain = Chain::parse(value)?;
+            }
+            "--hash" => {
+                index += 1;
+                hash = Some(
+                    raw.get(index)
+                        .ok_or_else(|| CapabilityError::invalid_argument("--hash needs a value"))?
+                        .clone(),
+                );
+            }
+            "--confirmations" => {
+                index += 1;
+                let value = raw.get(index).ok_or_else(|| {
+                    CapabilityError::invalid_argument("--confirmations needs a value")
+                })?;
+                confirmations = value.parse().map_err(|_| {
+                    CapabilityError::invalid_argument(format!("invalid --confirmations: {value}"))
+                })?;
+            }
+            "--expect" => {
+                index += 1;
+                expect = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--expect needs a file path")
+                        })?
+                        .clone(),
+                );
+            }
+            "--rpc-url" => {
+                index += 1;
+                rpc_url = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--rpc-url needs a value")
+                        })?
+                        .clone(),
+                );
+            }
+            "--json" => json = true,
+            value if value.starts_with('-') => {
+                return Err(CapabilityError::invalid_argument(format!(
+                    "unknown transaction verify option: {value}"
+                )));
+            }
+            value => {
+                if hash.is_some() {
+                    return Err(CapabilityError::invalid_argument(
+                        "transaction verify accepts one transaction hash",
+                    ));
+                }
+                hash = Some(value.to_string());
+            }
+        }
+        index += 1;
+    }
+    Ok(VerifyArgs {
+        chain,
+        hash: hash.ok_or_else(|| CapabilityError::invalid_argument("missing --hash"))?,
+        confirmations,
+        expect,
+        rpc_url,
+        json,
+    })
+}
+
+async fn run_transaction_verify(raw: &[String]) -> i32 {
+    let args = match parse_verify_args(raw) {
+        Ok(args) => args,
+        Err(error) => {
+            report_error_as(
+                "transaction.verify",
+                &error,
+                raw.iter().any(|arg| arg == "--json"),
+            );
+            return exit_code(error.code);
+        }
+    };
+    let expected = match args.expect.as_deref() {
+        Some(path) => {
+            let text = match std::fs::read_to_string(path) {
+                Ok(text) => text,
+                Err(error) => {
+                    let error = CapabilityError::invalid_argument(format!(
+                        "cannot read expected report {path}: {error}"
+                    ));
+                    report_error_as("transaction.verify", &error, args.json);
+                    return exit_code(error.code);
+                }
+            };
+            let value: serde_json::Value = match serde_json::from_str(&text) {
+                Ok(value) => value,
+                Err(error) => {
+                    let error = CapabilityError::invalid_argument(format!(
+                        "invalid expected report {path}: {error}"
+                    ));
+                    report_error_as("transaction.verify", &error, args.json);
+                    return exit_code(error.code);
+                }
+            };
+            match transaction_verify::expected_from_value(&value) {
+                Ok(effects) => Some(effects),
+                Err(error) => {
+                    report_error_as("transaction.verify", &error, args.json);
+                    return exit_code(error.code);
+                }
+            }
+        }
+        None => None,
+    };
+    let mut config = WalletConfig::from_env();
+    if let Some(rpc_url) = args.rpc_url {
+        config.set_rpc_url(rpc_url);
+    }
+    match transaction_verify::verify(
+        &config,
+        transaction_verify::VerifyRequest {
+            chain: args.chain,
+            tx_hash: args.hash,
+            confirmations: args.confirmations,
+            expected,
+        },
+    )
+    .await
+    {
+        Ok(response) => {
+            if args.json {
+                print_capability_json("transaction.verify", &response);
+            } else {
+                print_transaction_verify_human(&response);
+            }
+            0
+        }
+        Err(error) => {
+            report_error_as("transaction.verify", &error, args.json);
+            exit_code(error.code)
+        }
+    }
+}
+
+fn print_transaction_verify_human(
+    response: &fluxion_protocol::transaction::TransactionVerifyResponse,
+) {
+    println!("Tx:       {}", response.tx_hash);
+    println!(
+        "Status:   {} ({} confirmations)",
+        response.status, response.confirmations
+    );
+    println!(
+        "Block:    {} ({})",
+        response.block_number, response.block_hash
+    );
+    if let Some(from) = response.from {
+        println!("From:     {from}");
+    }
+    if let Some(to) = response.to {
+        println!("To:       {to}");
+    }
+    if let Some(value) = &response.value {
+        println!("Value:    {}", value.decimal);
+    }
+    if let Some(gas) = &response.gas_used {
+        println!("Gas used: {gas}");
+    }
+    if let Some(fee) = &response.fee {
+        println!("Fee:      {}", fee.decimal);
+    }
+    if let Some(logs) = response.logs_count {
+        println!("Effects:  {logs} logs");
+    }
+    println!("Expected: {}", response.expectation.status);
+    for mismatch in &response.expectation.mismatches {
+        println!(
+            "  {}: expected {}, actual {}",
+            mismatch.kind, mismatch.expected, mismatch.actual
+        );
+    }
+    for warning in &response.warnings {
+        println!("Warning:  {warning}");
+    }
 }
 
 fn print_transaction_human(response: &TransactionSimulateResponse) {
@@ -3920,6 +4134,36 @@ mod tests {
         assert_eq!(parsed.chain, Chain::Bsc);
         assert_eq!(parsed.block, Some(100));
         assert!(parse_transaction_args(&["--data".to_string(), "0x".to_string()]).is_err());
+    }
+
+    #[test]
+    fn parses_transaction_verify_arguments() {
+        let hash = "0x00000000000000000000000000000000000000000000000000000000000000aa";
+        let parsed = parse_verify_args(&[
+            "--hash".to_string(),
+            hash.to_string(),
+            "--chain".to_string(),
+            "ethereum".to_string(),
+            "--confirmations".to_string(),
+            "3".to_string(),
+            "--expect".to_string(),
+            "inspect.json".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(parsed.hash, hash);
+        assert_eq!(parsed.chain, Chain::Ethereum);
+        assert_eq!(parsed.confirmations, 3);
+        assert_eq!(parsed.expect.as_deref(), Some("inspect.json"));
+        assert!(parse_verify_args(&[]).is_err());
+        assert!(
+            parse_verify_args(&[
+                "--hash".to_string(),
+                hash.to_string(),
+                "--chain".to_string(),
+                "solana".to_string(),
+            ])
+            .is_err()
+        );
     }
 
     #[test]

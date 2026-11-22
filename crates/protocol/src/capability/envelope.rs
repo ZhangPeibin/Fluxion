@@ -322,6 +322,11 @@ fn extract_coverage(capability: &str, value: &Value) -> EnvelopeCoverage {
                     .unwrap_or_else(|| "not_run".to_string());
                 dimensions.insert("policy".to_string(), policy);
             }
+            "transaction.verify" => {
+                dimensions.insert("data".to_string(), "complete".to_string());
+                let effects = value.get("effects").map(|_| "partial").unwrap_or("not_run");
+                dimensions.insert("effects".to_string(), effects.to_string());
+            }
             _ => {}
         }
     }
@@ -463,11 +468,25 @@ mod tests {
             "wallet.sign",
             "wallet.send",
             "transaction.send",
+            "transaction.verify",
         ] {
             assert!(uses_v2(capability), "{capability} should use v2");
         }
         assert!(uses_v2("wallet.agent-id"));
         assert!(!uses_v2("unknown.capability"));
+    }
+
+    #[test]
+    fn transaction_verify_coverage_marks_effects_partial() {
+        let with_effects = json!({"status": "success", "effects": {}});
+        let coverage = extract_coverage("transaction.verify", &with_effects);
+        assert_eq!(coverage.dimensions["data"], "complete");
+        assert_eq!(coverage.dimensions["effects"], "partial");
+
+        let without_effects = json!({"status": "not_found"});
+        let coverage = extract_coverage("transaction.verify", &without_effects);
+        assert_eq!(coverage.dimensions["data"], "complete");
+        assert_eq!(coverage.dimensions["effects"], "not_run");
     }
 
     #[test]

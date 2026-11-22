@@ -2478,21 +2478,25 @@ fn effect_finding<const N: usize>(
 const TRANSFER_TOPIC: &str = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const APPROVAL_TOPIC: &str = "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925";
 
-fn decode_log(log: &Value, effects: &mut TransactionInspectEffects, warnings: &mut Vec<String>) {
+pub(crate) fn decode_log(
+    log: &Value,
+    effects: &mut TransactionInspectEffects,
+    warnings: &mut Vec<String>,
+) {
     let Some(token) = log
         .get("address")
         .and_then(Value::as_str)
         .and_then(parse_address)
     else {
-        warnings.push("simulation log has an invalid address".to_string());
+        warnings.push("log has an invalid address".to_string());
         return;
     };
     let Some(topics) = log.get("topics").and_then(Value::as_array) else {
-        warnings.push("simulation log has no topics".to_string());
+        warnings.push("log has no topics".to_string());
         return;
     };
     let Some(topic0) = topics.first().and_then(Value::as_str) else {
-        warnings.push("simulation log has no topic0".to_string());
+        warnings.push("log has no topic0".to_string());
         return;
     };
     let data = log.get("data").and_then(Value::as_str).unwrap_or("0x");

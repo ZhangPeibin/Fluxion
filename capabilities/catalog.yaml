@@ -1,5 +1,5 @@
 version: 2
-updated: "2026-11-20"
+updated: "2026-11-22"
 envelope: v1
 
 capabilities:
@@ -308,6 +308,26 @@ capabilities:
     workflows: [swap, yield-deposit]
     coverage_dimensions: [simulation, policy]
 
+  - id: transaction.verify
+    domain: transaction
+    action: verify
+    status: experimental
+    summary: Verify a transaction receipt and compare actual effects with an inspection report.
+    envelope: v2
+    execution: local
+    transports: [mcp, cli]
+    chains: [ethereum, bsc]
+    default_chain: bsc
+    side_effects: read_only
+    requires: []
+    schema: schemas/transaction_verify.v2.json
+    skill: skills/transaction/SKILL.md
+    docs: docs/capabilities/transaction/README.md
+    tests:
+      - crates/client/src/transaction_verify.rs
+    workflows: [swap, yield-deposit]
+    coverage_dimensions: [data, effects]
+
   - id: signature.inspect
     domain: signature
     action: inspect
@@ -491,14 +511,13 @@ workflows:
       - transaction.simulate
       - transaction.inspect
       - transaction.send
-    planned_steps:
       - transaction.verify
+    planned_steps:
       - swap.execute
     skill: skills/swap/SKILL.md
     docs: docs/feature/v3/capability-runtime/workflows.md
     gaps:
       - swap.build supports one Uniswap V2 allocation only
-      - transaction.verify is not implemented
       - approvals are documented but not a shared helper
 
   - id: yield-deposit
@@ -512,6 +531,7 @@ workflows:
       - transaction.inspect
       - transaction.simulate
       - transaction.send
+      - transaction.verify
       - position.analyze
     planned_steps: []
     skill: skills/yield/SKILL.md

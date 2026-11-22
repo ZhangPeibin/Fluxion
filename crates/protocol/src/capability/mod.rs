@@ -75,6 +75,8 @@ pub enum CapabilityId {
     TransactionInspect,
     #[serde(rename = "transaction.send")]
     TransactionSend,
+    #[serde(rename = "transaction.verify")]
+    TransactionVerify,
     #[serde(rename = "signature.inspect")]
     SignatureInspect,
     #[serde(rename = "fourmeme.agent-tokens")]
@@ -118,6 +120,7 @@ impl CapabilityId {
             Self::TransactionSimulate => "transaction.simulate",
             Self::TransactionInspect => "transaction.inspect",
             Self::TransactionSend => "transaction.send",
+            Self::TransactionVerify => "transaction.verify",
             Self::SignatureInspect => "signature.inspect",
             Self::FourMemeAgentTokens => "fourmeme.agent-tokens",
             Self::FourMemeTokenDetail => "fourmeme.token",
@@ -146,6 +149,7 @@ impl CapabilityId {
             Self::TransactionSimulate,
             Self::TransactionInspect,
             Self::TransactionSend,
+            Self::TransactionVerify,
             Self::SignatureInspect,
             Self::FourMemeAgentTokens,
             Self::FourMemeTokenDetail,
@@ -197,6 +201,7 @@ mod tests {
                 "transaction.simulate",
                 "transaction.inspect",
                 "transaction.send",
+                "transaction.verify",
                 "signature.inspect",
                 "fourmeme.agent-tokens",
                 "fourmeme.token",
@@ -231,6 +236,10 @@ mod tests {
             "transaction.inspect"
         );
         assert_eq!(CapabilityId::TransactionSend.as_str(), "transaction.send");
+        assert_eq!(
+            CapabilityId::TransactionVerify.as_str(),
+            "transaction.verify"
+        );
         assert_eq!(CapabilityId::SignatureInspect.as_str(), "signature.inspect");
         assert_eq!(CapabilityId::YieldDiscover.as_str(), "yield.discover");
         assert_eq!(CapabilityId::YieldBuild.as_str(), "yield.build");

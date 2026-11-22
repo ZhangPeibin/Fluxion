@@ -107,6 +107,7 @@ capability envelope v2（`meta`、`chain`、`block`、`as_of`、`provenance`、`
 | `transaction.inspect` | stable | `fluxion transaction inspect --to 0x... --data 0x...` | 签名前 calldata 检查、effects、trace、源码、policy |
 | `transaction.simulate` | stable | `fluxion transaction simulate --to 0x... --data 0x...` | 固定区块 `eth_call` + gas |
 | `transaction.send` | stable | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | 模拟 + inspect + policy + 手机确认 + 广播 |
+| `transaction.verify` | experimental | `fluxion transaction verify --hash 0x...` | 回执状态、确认数、实际 effects，可选对照 inspect 报告 |
 
 #### 4. 签名授权
 
@@ -487,6 +488,7 @@ fluxion fourmeme ui --open
 | `transaction.inspect` | local | 本地 RPC：block、code、simulate、trace、source | 缺失维度写入 `coverage` / `unknowns` |
 | `transaction.simulate` | local | 本地 RPC：`eth_call` + `eth_estimateGas` | RPC/revert 按 capability error 或 `success=false` 返回 |
 | `transaction.send` | local | RPC simulate/inspect -> WalletConnect -> 手机确认 | 模拟失败、policy block、拒绝或超时均不广播 |
+| `transaction.verify` | local | 本地 RPC：tx + receipt + receipt logs | 未找到/未确认 -> `pending`/`not_found`；RPC 失败 -> `RPC_ERROR` |
 | `signature.inspect` | local | 调用方提供的 typed data / authorization / userOp JSON | 无法解码 -> `SIG-006` 或 invalid argument |
 | `fourmeme.agent-tokens` | local | BSC `TokenCreated` logs + Four.meme API + BSC `AgentIdentifier` | API/RPC 失败 -> 明确 warning/coverage |
 | `fourmeme.token` | local | Four.meme API + BSC ERC20 fallback + `AgentIdentifier` | API 不可用 -> 链上基础字段 + warning |

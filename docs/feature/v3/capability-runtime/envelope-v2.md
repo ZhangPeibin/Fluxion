@@ -17,7 +17,8 @@ As of 2026-11-20, these capabilities use envelope v2: `wallet.balance`, `wallet.
 `transaction.simulate`, `transaction.inspect`, `signature.inspect`, `yield.discover`,
 `yield.build`, `yield.history`, `yield.withdraw`, `position.analyze`, `swap.quote`, `swap.build`,
 `wallet.connect`, `wallet.status`, `wallet.disconnect`, `wallet.sign`, `wallet.send`,
-`wallet.agent-id`, and `transaction.send`. All 23 catalog capabilities now use envelope v2. Callers must read the catalog entry rather than assuming every
+`wallet.agent-id`, and `transaction.send`. All catalog capabilities, including later additions such as
+`transaction.verify`, use envelope v2. Callers must read the catalog entry rather than assuming every
 capability has migrated.
 
 ## 2. Success envelope

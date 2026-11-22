@@ -25,6 +25,7 @@ its execution location is an internal Fluxion decision.
 | `transaction.simulate` | stable | ethereum, bsc | read_only | [transaction](transaction/README.md) |
 | `transaction.inspect` | stable | ethereum, bsc | read_only | [transaction](transaction/README.md) |
 | `transaction.send` | stable | ethereum, bsc | broadcasts | [transaction](transaction/README.md) |
+| `transaction.verify` | experimental | ethereum, bsc | read_only | [transaction](transaction/README.md) |
 | `signature.inspect` | stable | ethereum, bsc | read_only | [signature](signature/README.md) |
 | `fourmeme.agent-tokens` | experimental | bsc | read_only | [fourmeme](fourmeme/README.md) |
 | `fourmeme.token` | experimental | bsc | read_only | [fourmeme](fourmeme/README.md) |

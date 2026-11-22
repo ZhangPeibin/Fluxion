@@ -114,6 +114,7 @@ it. Every capability returns capability envelope v2 (`meta`, `chain`, `block`, `
 | `transaction.inspect` | stable | `fluxion transaction inspect --to 0x... --data 0x...` | Pre-sign calldata, effects, trace, source, policy |
 | `transaction.simulate` | stable | `fluxion transaction simulate --to 0x... --data 0x...` | Pinned `eth_call` + gas |
 | `transaction.send` | stable | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | Simulate + inspect + policy + phone + broadcast |
+| `transaction.verify` | experimental | `fluxion transaction verify --hash 0x...` | Receipt status, confirmations and effects, optionally compared with an inspect report |
 
 #### 4. Signature authorization
 
@@ -509,6 +510,7 @@ only routes.
 | `transaction.inspect` | local | local RPC: block, code, simulate, trace, source | Missing dimensions -> `coverage` / `unknowns` |
 | `transaction.simulate` | local | local RPC: `eth_call` + `eth_estimateGas` | RPC/revert -> capability error or `success=false` |
 | `transaction.send` | local | RPC simulate/inspect -> WalletConnect -> phone | Simulation failure, policy block, rejection or timeout never broadcast |
+| `transaction.verify` | local | local RPC: tx + receipt + receipt logs | Missing/unconfirmed -> `pending`/`not_found`; RPC failure -> `RPC_ERROR` |
 | `signature.inspect` | local | caller-provided typed data / authorization / userOp JSON | Undecodable -> `SIG-006` or invalid argument |
 | `fourmeme.agent-tokens` | local | BSC `TokenCreated` logs + Four.meme API + BSC `AgentIdentifier` | API/RPC failure -> explicit warning/coverage |
 | `fourmeme.token` | local | Four.meme API + BSC ERC20 fallback + `AgentIdentifier` | API unavailable -> on-chain basics + warning |

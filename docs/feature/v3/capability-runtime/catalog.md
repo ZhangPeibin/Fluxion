@@ -146,13 +146,13 @@ A capability with `signs` or `broadcasts` must declare `wallet_session` in `requ
     - transaction.simulate
     - transaction.inspect
     - transaction.send
-  planned_steps:
     - transaction.verify
+  planned_steps:
+    - swap.execute
   skill: skills/swap/SKILL.md
   docs: docs/feature/v3/capability-runtime/workflows.md
   gaps:
     - swap.build supports V2 only
-    - transaction.verify is not implemented
 ```
 
 Rules:
