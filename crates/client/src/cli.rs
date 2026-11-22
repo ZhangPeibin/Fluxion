@@ -1,7 +1,10 @@
 //! Agent-facing CLI. Commands are thin clients over a warm local runtime.
 
 use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
-use crate::capability::{CapabilityError, CapabilityErrorCode, CapabilityErrorResponse};
+use crate::capability::{
+    CapabilityEntry, CapabilityError, CapabilityErrorCode, CapabilityErrorResponse,
+    CapabilityRegistry, uses_v2, wrap_error, wrap_success,
+};
 use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
 use crate::fourmeme::{self, FourMemeConfig, ListRequest};
@@ -317,7 +320,7 @@ async fn run_swap_build(raw: &[String]) -> i32 {
     let args = match parse_build_args(raw) {
         Ok(args) => args,
         Err(error) => {
-            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            report_error_as("swap.build", &error, raw.iter().any(|arg| arg == "--json"));
             return exit_code(error.code);
         }
     };
@@ -328,7 +331,7 @@ async fn run_swap_build(raw: &[String]) -> i32 {
                 "cannot read quote file {}: {error}",
                 args.quote
             ));
-            report_error(&error, args.json);
+            report_error_as("swap.build", &error, args.json);
             return exit_code(error.code);
         }
     };
@@ -339,7 +342,7 @@ async fn run_swap_build(raw: &[String]) -> i32 {
                 "invalid quote file {}: {error}",
                 args.quote
             ));
-            report_error(&error, args.json);
+            report_error_as("swap.build", &error, args.json);
             return exit_code(error.code);
         }
     };
@@ -347,7 +350,7 @@ async fn run_swap_build(raw: &[String]) -> i32 {
         Ok(address) => address,
         Err(_) => {
             let error = CapabilityError::invalid_argument("invalid --recipient address");
-            report_error(&error, args.json);
+            report_error_as("swap.build", &error, args.json);
             return exit_code(error.code);
         }
     };
@@ -367,7 +370,7 @@ async fn run_swap_build(raw: &[String]) -> i32 {
     ) {
         Ok(response) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("swap.build", &response);
             } else {
                 println!("router: {}", response.router);
                 println!("chain: {} ({})", response.chain, response.chain_id);
@@ -384,7 +387,7 @@ async fn run_swap_build(raw: &[String]) -> i32 {
             0
         }
         Err(error) => {
-            report_error(&error, args.json);
+            report_error_as("swap.build", &error, args.json);
             exit_code(error.code)
         }
     }
@@ -522,7 +525,7 @@ async fn run_quote(raw: &[String]) -> i32 {
     {
         Ok(response) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("swap.quote", &response);
             } else {
                 print_human(&response, &args.amount);
             }
@@ -541,6 +544,15 @@ enum WalletMode {
     Assets,
     Allowance,
     Collectibles,
+}
+
+fn wallet_capability(mode: WalletMode) -> &'static str {
+    match mode {
+        WalletMode::Balance => "wallet.balance",
+        WalletMode::Assets => "wallet.assets",
+        WalletMode::Allowance => "wallet.allowance",
+        WalletMode::Collectibles => "wallet.collectibles",
+    }
 }
 
 #[derive(Debug)]
@@ -569,6 +581,12 @@ async fn run_wallet(raw: &[String]) -> i32 {
         Some("send") => return run_wallet_send(&raw[1..]).await,
         _ => {}
     }
+    let requested_capability = match raw.first().map(String::as_str) {
+        Some("assets") => "wallet.assets",
+        Some("allowance") => "wallet.allowance",
+        Some("collectibles") => "wallet.collectibles",
+        _ => "wallet.balance",
+    };
     let args = match parse_wallet_args(raw) {
         Ok(args) => args,
         Err(error) if error.message == "help requested" => {
@@ -578,7 +596,11 @@ async fn run_wallet(raw: &[String]) -> i32 {
             return 0;
         }
         Err(error) => {
-            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            report_error_as(
+                requested_capability,
+                &error,
+                raw.iter().any(|arg| arg == "--json"),
+            );
             return exit_code(error.code);
         }
     };
@@ -589,7 +611,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
                 "invalid wallet address: {}",
                 args.address
             ));
-            report_error(&error, args.json);
+            report_error_as(wallet_capability(args.mode), &error, args.json);
             return exit_code(error.code);
         }
     };
@@ -598,9 +620,9 @@ async fn run_wallet(raw: &[String]) -> i32 {
         config.set_rpc_url(rpc_url);
     }
     enum WalletOutput {
-        Balances(WalletBalancesResponse),
-        Allowances(WalletAllowancesResponse),
-        Collectibles(WalletCollectiblesResponse),
+        Balances(&'static str, WalletBalancesResponse),
+        Allowances(&'static str, WalletAllowancesResponse),
+        Collectibles(&'static str, WalletCollectiblesResponse),
     }
     let result = match args.mode {
         WalletMode::Balance => wallet::balance(
@@ -614,13 +636,13 @@ async fn run_wallet(raw: &[String]) -> i32 {
             },
         )
         .await
-        .map(WalletOutput::Balances),
+        .map(|response| WalletOutput::Balances("wallet.balance", response)),
         WalletMode::Assets => {
             if !args.tokens.is_empty() {
                 let error = CapabilityError::invalid_argument(
                     "wallet assets does not accept --tokens; use wallet balance",
                 );
-                report_error(&error, args.json);
+                report_error_as(wallet_capability(args.mode), &error, args.json);
                 return exit_code(error.code);
             }
             wallet::assets(
@@ -634,20 +656,20 @@ async fn run_wallet(raw: &[String]) -> i32 {
                 },
             )
             .await
-            .map(WalletOutput::Balances)
+            .map(|response| WalletOutput::Balances("wallet.assets", response))
         }
         WalletMode::Allowance => {
             let Some(spender) = args.spender.as_deref() else {
                 let error =
                     CapabilityError::invalid_argument("wallet allowance requires --spender");
-                report_error(&error, args.json);
+                report_error_as(wallet_capability(args.mode), &error, args.json);
                 return exit_code(error.code);
             };
             let spender = match spender.parse::<alloy_primitives::Address>() {
                 Ok(spender) => spender,
                 Err(_) => {
                     let error = CapabilityError::invalid_argument("invalid --spender address");
-                    report_error(&error, args.json);
+                    report_error_as(wallet_capability(args.mode), &error, args.json);
                     return exit_code(error.code);
                 }
             };
@@ -662,7 +684,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
                 },
             )
             .await
-            .map(WalletOutput::Allowances)
+            .map(|response| WalletOutput::Allowances("wallet.allowance", response))
         }
         WalletMode::Collectibles => {
             let mut collections = Vec::new();
@@ -673,7 +695,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
                         let error = CapabilityError::invalid_argument(format!(
                             "invalid collection address: {collection}"
                         ));
-                        report_error(&error, args.json);
+                        report_error_as(wallet_capability(args.mode), &error, args.json);
                         return exit_code(error.code);
                     }
                 }
@@ -689,36 +711,36 @@ async fn run_wallet(raw: &[String]) -> i32 {
                 },
             )
             .await
-            .map(WalletOutput::Collectibles)
+            .map(|response| WalletOutput::Collectibles("wallet.collectibles", response))
         }
     };
     match result {
-        Ok(WalletOutput::Balances(response)) => {
+        Ok(WalletOutput::Balances(capability, response)) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json(capability, &response);
             } else {
                 print_wallet_human(&response);
             }
             0
         }
-        Ok(WalletOutput::Allowances(response)) => {
+        Ok(WalletOutput::Allowances(capability, response)) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json(capability, &response);
             } else {
                 print_allowance_human(&response);
             }
             0
         }
-        Ok(WalletOutput::Collectibles(response)) => {
+        Ok(WalletOutput::Collectibles(capability, response)) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json(capability, &response);
             } else {
                 print_collectibles_human(&response);
             }
             0
         }
         Err(error) => {
-            report_error(&error, args.json);
+            report_error_as(wallet_capability(args.mode), &error, args.json);
             exit_code(error.code)
         }
     }
@@ -796,7 +818,7 @@ async fn run_wallet_send(raw: &[String]) -> i32 {
     .await
     {
         Ok(response) if args.json => {
-            println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            print_capability_json("wallet.send", &response);
             0
         }
         Ok(response) => {
@@ -1011,7 +1033,7 @@ async fn run_wallet_sign(raw: &[String]) -> i32 {
     .await
     {
         Ok(response) if args.json => {
-            println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            print_capability_json("wallet.sign", &response);
             0
         }
         Ok(response) => {
@@ -1168,7 +1190,7 @@ async fn run_wallet_agent_id(raw: &[String]) -> i32 {
     }
     match agent_id::resolve(&config, AgentIdRequest { lookup }).await {
         Ok(response) if args.json => {
-            println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            print_capability_json("wallet.agent-id", &response);
             0
         }
         Ok(response) => {
@@ -1249,7 +1271,11 @@ async fn run_wallet_connect(raw: &[String]) -> i32 {
     let (json, chain_id) = match parse_wallet_connect_args(raw) {
         Ok(args) => args,
         Err(error) => {
-            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            report_error_as(
+                "wallet.connect",
+                &error,
+                raw.iter().any(|arg| arg == "--json"),
+            );
             return exit_code(error.code);
         }
     };
@@ -1257,7 +1283,7 @@ async fn run_wallet_connect(raw: &[String]) -> i32 {
     let response = match manager.connect(chain_id).await {
         Ok(response) => response,
         Err(error) => {
-            report_error(&error, json);
+            report_error_as("wallet.connect", &error, json);
             return exit_code(error.code);
         }
     };
@@ -1274,12 +1300,12 @@ async fn run_wallet_connect(raw: &[String]) -> i32 {
     let status = match wait_for_wallet(&manager, response).await {
         Ok(status) => status,
         Err(error) => {
-            report_error(&error, json);
+            report_error_as("wallet.connect", &error, json);
             return exit_code(error.code);
         }
     };
     if json {
-        println!("{}", serde_json::to_string_pretty(&status).unwrap());
+        print_capability_json("wallet.connect", &status);
     } else {
         print_wallet_status_human(&status);
     }
@@ -1315,7 +1341,11 @@ async fn run_wallet_status(raw: &[String]) -> i32 {
     let (json, wait_seconds) = match parse_wallet_status_args(raw) {
         Ok(args) => args,
         Err(error) => {
-            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            report_error_as(
+                "wallet.status",
+                &error,
+                raw.iter().any(|arg| arg == "--json"),
+            );
             return exit_code(error.code);
         }
     };
@@ -1326,7 +1356,7 @@ async fn run_wallet_status(raw: &[String]) -> i32 {
     };
     match result {
         Ok(status) if json => {
-            println!("{}", serde_json::to_string_pretty(&status).unwrap());
+            print_capability_json("wallet.status", &status);
             0
         }
         Ok(status) => {
@@ -1334,7 +1364,7 @@ async fn run_wallet_status(raw: &[String]) -> i32 {
             0
         }
         Err(error) => {
-            report_error(&error, json);
+            report_error_as("wallet.status", &error, json);
             exit_code(error.code)
         }
     }
@@ -1344,13 +1374,17 @@ async fn run_wallet_disconnect(raw: &[String]) -> i32 {
     let json = match parse_wallet_session_args(raw) {
         Ok(json) => json,
         Err(error) => {
-            report_error(&error, raw.iter().any(|arg| arg == "--json"));
+            report_error_as(
+                "wallet.disconnect",
+                &error,
+                raw.iter().any(|arg| arg == "--json"),
+            );
             return exit_code(error.code);
         }
     };
     match walletconnect::disconnect() {
         Ok(response) if json => {
-            println!("{}", serde_json::to_string_pretty(&response).unwrap());
+            print_capability_json("wallet.disconnect", &response);
             0
         }
         Ok(_) => {
@@ -1358,7 +1392,7 @@ async fn run_wallet_disconnect(raw: &[String]) -> i32 {
             0
         }
         Err(error) => {
-            report_error(&error, json);
+            report_error_as("wallet.disconnect", &error, json);
             exit_code(error.code)
         }
     }
@@ -1762,7 +1796,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
         {
             Ok(response) => {
                 if args.json {
-                    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                    print_capability_json("transaction.inspect", &response);
                 } else {
                     print_transaction_inspect_human(&response);
                 }
@@ -1817,7 +1851,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
         {
             Ok(response) => {
                 if args.json {
-                    println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                    print_capability_json("transaction.send", &response);
                 } else {
                     println!("From: {}", response.from);
                     println!("To: {}", response.to);
@@ -1851,7 +1885,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
     {
         Ok(response) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("transaction.simulate", &response);
             } else {
                 print_transaction_human(&response);
             }
@@ -1930,7 +1964,7 @@ async fn run_fourmeme_agent_tokens(raw: &[String]) -> i32 {
     {
         Ok(response) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("fourmeme.agent-tokens", &response);
             } else {
                 println!(
                     "Four.meme · Binance Agent ID Exclusive · {} events · blocks {}-{}",
@@ -1992,7 +2026,7 @@ async fn run_fourmeme_token(raw: &[String]) -> i32 {
     match fourmeme::token(&FourMemeConfig::from_env(), address, wallet).await {
         Ok(detail) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&detail).unwrap());
+                print_capability_json("fourmeme.token", &detail);
             } else {
                 println!("{} ({}) · {}", detail.name, detail.symbol, detail.phase);
                 println!("address: {}", detail.address);
@@ -2272,13 +2306,17 @@ async fn run_signature(raw: &[String]) -> i32 {
     }
     if raw.first().map(String::as_str) != Some("inspect") {
         let error = CapabilityError::invalid_argument("expected: signature inspect");
-        report_error(&error, raw.iter().any(|arg| arg == "--json"));
+        report_error_as(
+            "signature.inspect",
+            &error,
+            raw.iter().any(|arg| arg == "--json"),
+        );
         return exit_code(error.code);
     }
     let args = match parse_signature_args(&raw[1..]) {
         Ok(args) => args,
         Err(error) => {
-            report_error(&error, args_json(raw));
+            report_error_as("signature.inspect", &error, args_json(raw));
             return exit_code(error.code);
         }
     };
@@ -2294,7 +2332,7 @@ async fn run_signature(raw: &[String]) -> i32 {
         let error = CapabilityError::invalid_argument(
             "signature inspect needs exactly one of --typed-data, --authorization-list or --user-operation",
         );
-        report_error(&error, args.json);
+        report_error_as("signature.inspect", &error, args.json);
         return exit_code(error.code);
     }
     let from = match args.from.as_deref() {
@@ -2302,7 +2340,7 @@ async fn run_signature(raw: &[String]) -> i32 {
             Ok(address) => Some(address),
             Err(_) => {
                 let error = CapabilityError::invalid_argument("invalid --from address");
-                report_error(&error, args.json);
+                report_error_as("signature.inspect", &error, args.json);
                 return exit_code(error.code);
             }
         },
@@ -2322,21 +2360,21 @@ async fn run_signature(raw: &[String]) -> i32 {
     let typed_data = match input(args.typed_data.as_deref()) {
         Ok(value) => value,
         Err(error) => {
-            report_error(&error, args.json);
+            report_error_as("signature.inspect", &error, args.json);
             return exit_code(error.code);
         }
     };
     let authorization_list = match input(args.authorization_list.as_deref()) {
         Ok(value) => value,
         Err(error) => {
-            report_error(&error, args.json);
+            report_error_as("signature.inspect", &error, args.json);
             return exit_code(error.code);
         }
     };
     let user_operation = match input(args.user_operation.as_deref()) {
         Ok(value) => value,
         Err(error) => {
-            report_error(&error, args.json);
+            report_error_as("signature.inspect", &error, args.json);
             return exit_code(error.code);
         }
     };
@@ -2348,7 +2386,7 @@ async fn run_signature(raw: &[String]) -> i32 {
                     let error = CapabilityError::invalid_argument(format!(
                         "cannot read policy file {path}: {error}"
                     ));
-                    report_error(&error, args.json);
+                    report_error_as("signature.inspect", &error, args.json);
                     return exit_code(error.code);
                 }
             };
@@ -2358,7 +2396,7 @@ async fn run_signature(raw: &[String]) -> i32 {
                     let error = CapabilityError::invalid_argument(format!(
                         "invalid policy file {path}: {error}"
                     ));
-                    report_error(&error, args.json);
+                    report_error_as("signature.inspect", &error, args.json);
                     return exit_code(error.code);
                 }
             }
@@ -2375,14 +2413,14 @@ async fn run_signature(raw: &[String]) -> i32 {
     }) {
         Ok(response) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("signature.inspect", &response);
             } else {
                 print_signature_human(&response);
             }
             0
         }
         Err(error) => {
-            report_error(&error, args.json);
+            report_error_as("signature.inspect", &error, args.json);
             exit_code(error.code)
         }
     }
@@ -2796,7 +2834,16 @@ fn report_error(error: &CapabilityError, json: bool) {
 
 fn report_error_as(capability: &str, error: &CapabilityError, json: bool) {
     if json {
-        let response = CapabilityErrorResponse::new(capability, request_id(), error.clone());
+        let response = if uses_v2(capability) {
+            wrap_error(capability, error.clone())
+        } else {
+            serde_json::to_value(CapabilityErrorResponse::new(
+                capability,
+                request_id(),
+                error.clone(),
+            ))
+            .unwrap()
+        };
         println!("{}", serde_json::to_string_pretty(&response).unwrap());
     } else {
         eprintln!("{}: {}", error.code_string(), error.message);
@@ -2889,7 +2936,7 @@ async fn run_yield_discover(raw: &[String]) -> i32 {
     match controller.yield_discover(&request).await {
         Ok(response) => {
             if args.json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("yield.discover", &response);
             } else {
                 print_yield_human(&response);
             }
@@ -2920,7 +2967,7 @@ fn run_yield_build(raw: &[String]) -> i32 {
     match crate::yield_build::build(&request) {
         Ok(response) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("yield.build", &response);
             } else {
                 print_yield_build_human(&response);
             }
@@ -3003,7 +3050,7 @@ async fn run_yield_history(raw: &[String]) -> i32 {
     {
         Ok(response) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("yield.history", &response);
             } else {
                 print_yield_history_human(&response);
             }
@@ -3126,7 +3173,7 @@ fn run_yield_withdraw(raw: &[String]) -> i32 {
     match crate::yield_withdraw::withdraw(&args) {
         Ok(response) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("yield.withdraw", &response);
             } else {
                 print_yield_withdraw_human(&response);
             }
@@ -3395,7 +3442,7 @@ async fn run_position_analyze(raw: &[String]) -> i32 {
     {
         Ok(response) => {
             if json {
-                println!("{}", serde_json::to_string_pretty(&response).unwrap());
+                print_capability_json("position.analyze", &response);
             } else {
                 print_position_human(&response);
             }
@@ -3518,19 +3565,58 @@ fn print_position_human(response: &PositionAnalyzeResponse) {
     }
 }
 
+fn capability_json_value<T: serde::Serialize>(capability: &str, response: &T) -> serde_json::Value {
+    let value = serde_json::to_value(response).unwrap();
+    if uses_v2(capability) {
+        wrap_success(capability, value)
+    } else {
+        value
+    }
+}
+
+fn capability_list_json() -> serde_json::Value {
+    serde_json::json!({
+        "schema_version": crate::capability::SCHEMA_VERSION,
+        "capabilities": CapabilityRegistry::global().iter().collect::<Vec<_>>(),
+    })
+}
+
+fn print_capability_json<T: serde::Serialize>(capability: &str, response: &T) {
+    let value = capability_json_value(capability, response);
+    println!("{}", serde_json::to_string_pretty(&value).unwrap());
+}
+
+fn print_capability_entry(entry: &CapabilityEntry) {
+    println!("{} — {}", entry.id, entry.summary);
+    println!("  status: {}", entry.status);
+    println!("  execution: {}", entry.execution);
+    println!("  transports: {}", entry.transports.join(", "));
+    println!("  chains: {}", entry.chains.join(", "));
+    if let Some(default) = &entry.default_chain {
+        println!("  default chain: {default}");
+    }
+    println!("  side effects: {}", entry.side_effects);
+    if !entry.requires.is_empty() {
+        println!("  requires: {}", entry.requires.join(", "));
+    }
+    println!("  schema: {}", entry.schema);
+    println!("  skill: {}", entry.skill);
+    println!("  docs: {}", entry.docs);
+}
+
 async fn run_capability(raw: &[String]) -> i32 {
     match raw.first().map(String::as_str) {
         Some("list") => {
             let json = raw.iter().any(|arg| arg == "--json");
+            let registry = CapabilityRegistry::global();
             if json {
-                let value = serde_json::json!({
-                    "schema_version": crate::capability::SCHEMA_VERSION,
-                    "capabilities": crate::capability::names().collect::<Vec<_>>(),
-                });
-                println!("{}", serde_json::to_string_pretty(&value).unwrap());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&capability_list_json()).unwrap()
+                );
             } else {
-                for name in crate::capability::names() {
-                    println!("{name}");
+                for entry in registry.iter() {
+                    println!("{} [{}] {}", entry.id, entry.status, entry.chains.join(","));
                 }
             }
             0
@@ -3541,49 +3627,19 @@ async fn run_capability(raw: &[String]) -> i32 {
                 return 2;
             };
             let json = raw.iter().any(|arg| arg == "--json");
-            let descriptor = match name.as_str() {
-                "swap.quote" => crate::swap::describe(),
-                "swap.build" => fluxion_protocol::swap::build::describe(),
-                "wallet.balance" => fluxion_protocol::wallet::describe_balance(),
-                "wallet.assets" => fluxion_protocol::wallet::describe_assets(),
-                "wallet.allowance" => fluxion_protocol::wallet::describe_allowance(),
-                "wallet.collectibles" => fluxion_protocol::wallet::describe_collectibles(),
-                "wallet.connect" => fluxion_protocol::wallet::describe_connect(),
-                "wallet.status" => fluxion_protocol::wallet::describe_status(),
-                "wallet.disconnect" => fluxion_protocol::wallet::describe_disconnect(),
-                "wallet.agent-id" => fluxion_protocol::wallet::describe_agent_id(),
-                "wallet.sign" => fluxion_protocol::wallet::describe_sign(),
-                "wallet.send" => fluxion_protocol::wallet::describe_send(),
-                "transaction.simulate" => fluxion_protocol::transaction::describe(),
-                "transaction.send" => fluxion_protocol::transaction::describe_send(),
-                "transaction.inspect" => fluxion_protocol::transaction::describe_inspect(),
-                "signature.inspect" => fluxion_protocol::signature::describe(),
-                "fourmeme.agent-tokens" => fluxion_protocol::fourmeme::describe(),
-                "fourmeme.token" => fluxion_protocol::fourmeme::describe_token(),
-                "yield.discover" => fluxion_protocol::yield_capability::describe(),
-                "yield.build" => fluxion_protocol::yield_capability::describe_build(),
-                "yield.history" => fluxion_protocol::yield_capability::describe_history(),
-                "yield.withdraw" => fluxion_protocol::yield_capability::describe_withdraw(),
-                "position.analyze" => fluxion_protocol::position::describe(),
-                other => {
-                    let error = CapabilityError::new(
-                        CapabilityErrorCode::Unsupported,
-                        format!("unknown capability: {other}"),
-                        false,
-                    );
-                    report_error(&error, json);
-                    return exit_code(error.code);
-                }
+            let Some(entry) = CapabilityRegistry::global().get(name) else {
+                let error = CapabilityError::new(
+                    CapabilityErrorCode::Unsupported,
+                    format!("unknown capability: {name}"),
+                    false,
+                );
+                report_error(&error, json);
+                return exit_code(error.code);
             };
             if json {
-                println!("{}", serde_json::to_string_pretty(&descriptor).unwrap());
+                println!("{}", serde_json::to_string_pretty(entry).unwrap());
             } else {
-                println!(
-                    "{} (schema v{})",
-                    descriptor.name, descriptor.schema_version
-                );
-                println!("  execution: {}", descriptor.execution);
-                println!("  transports: {}", descriptor.transports.join(", "));
+                print_capability_entry(entry);
             }
             0
         }
@@ -3864,6 +3920,52 @@ mod tests {
         assert_eq!(parsed.chain, Chain::Bsc);
         assert_eq!(parsed.block, Some(100));
         assert!(parse_transaction_args(&["--data".to_string(), "0x".to_string()]).is_err());
+    }
+
+    #[test]
+    fn capability_list_covers_every_cli_capability() {
+        let listed = capability_list_json();
+        let listed = listed["capabilities"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|entry| entry["id"].as_str().unwrap())
+            .collect::<Vec<_>>();
+        let expected = CapabilityRegistry::global()
+            .iter()
+            .filter(|entry| entry.transports.iter().any(|transport| transport == "cli"))
+            .map(|entry| entry.id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(listed, expected);
+    }
+
+    #[test]
+    fn wraps_v2_capability_json_at_the_cli_boundary() {
+        let value = serde_json::json!({
+            "chain": "bsc",
+            "chain_id": 56,
+            "owner": "0x0000000000000000000000000000000000000001",
+            "spender": "0x0000000000000000000000000000000000000002",
+            "block_number": 1,
+            "block_hash": "0xabc",
+            "allowances": [],
+            "coverage": "local",
+            "sources": [],
+            "warnings": []
+        });
+        let wrapped = capability_json_value("wallet.allowance", &value);
+        assert_eq!(wrapped["meta"]["schema_version"], 2);
+        assert_eq!(wrapped["meta"]["capability"], "wallet.allowance");
+        assert_eq!(wrapped["chain"]["name"], "bsc");
+        assert!(wrapped["data"].get("owner").is_some());
+        assert!(wrapped["data"].get("chain").is_none());
+    }
+
+    #[test]
+    fn leaves_unknown_capability_json_unchanged_at_the_cli_boundary() {
+        let value = serde_json::json!({"chain": "bsc", "found": true});
+        let output = capability_json_value("unknown.capability", &value);
+        assert_eq!(output, value);
     }
 
     #[test]

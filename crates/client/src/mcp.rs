@@ -8,7 +8,9 @@ use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 use crate::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
-use crate::capability::{CapabilityError, CapabilityErrorResponse};
+use crate::capability::{
+    CapabilityError, CapabilityErrorResponse, CapabilityRegistry, uses_v2, wrap_error, wrap_success,
+};
 use crate::chain::{Chain, DEFAULT_CHAIN};
 use crate::client::{RuntimeClient, request_id};
 use crate::fourmeme::{self, FourMemeConfig, ListRequest as FourMemeListRequest};
@@ -493,7 +495,10 @@ async fn call_tool(
         .and_then(Value::as_str)
         .unwrap_or_default();
     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-    let capability = capability_for_tool(name);
+    let capability = CapabilityRegistry::global()
+        .capability_for_tool(name)
+        .map(|entry| entry.id.as_str())
+        .unwrap_or("unknown");
     let mut image = None;
     let result = match name {
         "swap_quote" => quote_tool(&arguments, backend).await.and_then(|response| {
@@ -532,36 +537,15 @@ async fn call_tool(
         ))),
     };
     match result {
-        Ok(value) => tool_result(value, image),
+        Ok(value) => {
+            let value = if uses_v2(capability) {
+                wrap_success(capability, value)
+            } else {
+                value
+            };
+            tool_result(value, image)
+        }
         Err(error) => tool_error(capability, error),
-    }
-}
-
-fn capability_for_tool(name: &str) -> &'static str {
-    match name {
-        "swap_quote" => "swap.quote",
-        "swap_build" => "swap.build",
-        "wallet_balance" => "wallet.balance",
-        "wallet_assets" => "wallet.assets",
-        "wallet_allowance" => "wallet.allowance",
-        "wallet_collectibles" => "wallet.collectibles",
-        "wallet_connect" => "wallet.connect",
-        "wallet_status" => "wallet.status",
-        "wallet_sign" => "wallet.sign",
-        "wallet_agent_id" => "wallet.agent-id",
-        "wallet_disconnect" => "wallet.disconnect",
-        "transaction_simulate" => "transaction.simulate",
-        "transaction_inspect" => "transaction.inspect",
-        "transaction_send" => "transaction.send",
-        "fourmeme_agent_tokens" => "fourmeme.agent-tokens",
-        "fourmeme_token" => "fourmeme.token",
-        "yield_discover" => "yield.discover",
-        "yield_build" => "yield.build",
-        "yield_history" => "yield.history",
-        "yield_withdraw" => "yield.withdraw",
-        "position_analyze" => "position.analyze",
-        "signature_inspect" => "signature.inspect",
-        _ => "unknown",
     }
 }
 
@@ -1460,12 +1444,16 @@ fn tool_result(value: Value, image: Option<String>) -> Value {
 }
 
 fn tool_error(capability: &str, error: CapabilityError) -> Value {
-    let value = serde_json::to_value(CapabilityErrorResponse::new(
-        capability,
-        request_id(),
-        error,
-    ))
-    .unwrap_or(Value::Null);
+    let value = if uses_v2(capability) {
+        wrap_error(capability, error)
+    } else {
+        serde_json::to_value(CapabilityErrorResponse::new(
+            capability,
+            request_id(),
+            error,
+        ))
+        .unwrap_or(Value::Null)
+    };
     json!({
         "content": [{
             "type": "text",
@@ -1496,40 +1484,19 @@ mod tests {
                 .unwrap()
                 .contains("children")
         );
-        let names = tools["tools"]
+        let mut names = tools["tools"]
             .as_array()
             .unwrap()
             .iter()
-            .map(|tool| tool["name"].as_str().unwrap())
+            .map(|tool| tool["name"].as_str().unwrap().to_string())
             .collect::<Vec<_>>();
-        assert_eq!(
-            names,
-            vec![
-                "swap_quote",
-                "swap_build",
-                "wallet_balance",
-                "wallet_assets",
-                "wallet_allowance",
-                "wallet_collectibles",
-                "wallet_connect",
-                "wallet_status",
-                "wallet_send",
-                "wallet_sign",
-                "wallet_agent_id",
-                "wallet_disconnect",
-                "transaction_simulate",
-                "transaction_inspect",
-                "transaction_send",
-                "signature_inspect",
-                "fourmeme_agent_tokens",
-                "fourmeme_token",
-                "yield_discover",
-                "yield_build",
-                "yield_history",
-                "yield_withdraw",
-                "position_analyze"
-            ]
-        );
+        let mut expected = CapabilityRegistry::global()
+            .mcp_capabilities()
+            .map(|entry| crate::capability::mcp_tool_name(&entry.id))
+            .collect::<Vec<_>>();
+        names.sort();
+        expected.sort();
+        assert_eq!(names, expected, "MCP tools must match the catalog");
     }
 
     #[test]
@@ -1596,5 +1563,37 @@ mod tests {
                 .unwrap()
                 .contains("NO_PATH")
         );
+    }
+
+    #[test]
+    fn wallet_read_errors_use_v2_envelope() {
+        for tool in ["wallet_balance", "wallet_assets", "wallet_allowance"] {
+            let result = futures::executor::block_on(call_tool(
+                json!({"name": tool, "arguments": {"address": "nope"}}),
+                &Ok(RuntimeClient::new("http://127.0.0.1:1")),
+                &Manager::new(),
+            ));
+            assert_eq!(result["isError"], true);
+            let value: Value =
+                serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+            assert_eq!(value["meta"]["schema_version"], 2, "{tool}");
+            assert_eq!(value["chain"]["name"], "bsc", "{tool}");
+        }
+    }
+
+    #[test]
+    fn wallet_balance_errors_use_v2_envelope() {
+        let result = futures::executor::block_on(call_tool(
+            json!({"name": "wallet_balance", "arguments": {"address": "nope"}}),
+            &Ok(RuntimeClient::new("http://127.0.0.1:1")),
+            &Manager::new(),
+        ));
+        assert_eq!(result["isError"], true);
+        let value: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(value["meta"]["schema_version"], 2);
+        assert_eq!(value["meta"]["capability"], "wallet.balance");
+        assert_eq!(value["chain"]["name"], "bsc");
+        assert_eq!(value["error"]["code"], "INVALID_ARGUMENT");
     }
 }

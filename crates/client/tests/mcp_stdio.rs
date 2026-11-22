@@ -120,10 +120,10 @@ async fn mcp_stdio_initializes_lists_and_calls_swap_quote() {
     assert_eq!(called["result"]["isError"], false);
     let text = called["result"]["content"][0]["text"].as_str().unwrap();
     let capability: Value = serde_json::from_str(text).unwrap();
-    assert_eq!(capability["capability"], "swap.quote");
-    assert_eq!(capability["amount_out"]["raw"], "5000000000000000");
-    assert_eq!(capability["provenance"]["execution"], "remote");
-    assert_eq!(capability["provenance"]["quote_block"], 100);
+    assert_eq!(capability["meta"]["capability"], "swap.quote");
+    assert_eq!(capability["data"]["amount_out"]["raw"], "5000000000000000");
+    assert_eq!(capability["provenance"]["pricing_mode"], "local_snapshot");
+    assert_eq!(capability["block"]["number"], 100);
 
     child.kill().await.unwrap();
     server.abort();
