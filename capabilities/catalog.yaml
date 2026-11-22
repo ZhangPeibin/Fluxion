@@ -372,7 +372,7 @@ capabilities:
     domain: fourmeme
     action: token
     status: experimental
-    summary: Read one Four.meme token, including phase and wallet eligibility.
+    summary: Read one Four.meme token, including phase, tradability and wallet eligibility.
     envelope: v2
     execution: local
     transports: [mcp, cli]

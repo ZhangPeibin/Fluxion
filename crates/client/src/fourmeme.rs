@@ -10,9 +10,12 @@ use alloy_primitives::{Address, U256};
 use data_encoding::HEXLOWER;
 use serde_json::{Value, json};
 
-use crate::capability::{CapabilityError, CapabilityErrorCode};
+use crate::capability::{Amount, CapabilityError, CapabilityErrorCode};
 use crate::transaction::Rpc;
-use fluxion_protocol::fourmeme::{FourMemeAgentTokensResponse, FourMemeToken, FourMemeTokenDetail};
+use fluxion_protocol::fourmeme::{
+    FourMemeAgentTokensResponse, FourMemeToken, FourMemeTokenDetail, FourMemeTradability,
+    FourMemeWalletCap,
+};
 use fluxion_protocol::wallet::AssetSource;
 
 const DEFAULT_API_URL: &str = "https://four.meme/meme-api/v1";
@@ -349,14 +352,38 @@ pub async fn token(
             None
         }
     };
-    let phase = token_phase(&detail);
-    let mut onchain_used = false;
+
+    let rpc = Rpc::new(&config.bsc_rpc_url);
+    let onchain = onchain_state(config, address).await.ok().flatten();
+    let phase = match onchain.as_ref() {
+        Some(state) if state.phase != "unknown" => state.phase,
+        _ => token_phase(&detail),
+    };
+    let max_supply = onchain.as_ref().and_then(|state| state.max_supply);
+    let tradability = FourMemeTradability {
+        transfer_locked: match phase {
+            "bonding" => Some(true),
+            "graduated" => Some(false),
+            _ => None,
+        },
+        progress_percent: if phase == "graduated" {
+            Some(100.0)
+        } else {
+            progress_percent(&detail)
+        },
+        max_supply: max_supply.map(|value| Amount::from_raw(value, 18)),
+    };
+    let tradability = (tradability.transfer_locked.is_some()
+        || tradability.progress_percent.is_some()
+        || tradability.max_supply.is_some())
+    .then_some(tradability);
+
+    let mut agent_checked = false;
     let (wallet_eligible, eligibility_reason) = if let Some(wallet) = wallet {
         match (agent_id_exclusive, phase) {
             (Some(true), "graduated") => (Some(true), Some("graduated_open_to_all".to_string())),
             (Some(true), "bonding") => {
-                onchain_used = true;
-                let rpc = Rpc::new(&config.bsc_rpc_url);
+                agent_checked = true;
                 match is_agent_wallet(&rpc, wallet).await {
                     Ok(true) => (Some(true), Some("agent_wallet".to_string())),
                     Ok(false) => (Some(false), Some("not_agent_wallet".to_string())),
@@ -373,18 +400,62 @@ pub async fn token(
     } else {
         (None, None)
     };
-    let sources = if onchain_used {
-        vec![
-            detail_source(),
-            AssetSource {
-                name: "bsc-rpc".to_string(),
-                scope: "agent-identifier".to_string(),
-                block: None,
-            },
-        ]
+
+    let wallet_cap = if let Some(wallet) = wallet {
+        if agent_id_exclusive == Some(true) && phase == "bonding" {
+            match max_supply {
+                Some(max_supply) => {
+                    match read_wallet_cap(&rpc, address, wallet, max_supply).await {
+                        Ok(cap) => Some(cap),
+                        Err(error) => {
+                            warnings.push(format!("wallet cap check failed: {}", error.message));
+                            None
+                        }
+                    }
+                }
+                None => {
+                    warnings.push(
+                        "creation-time max supply is unavailable; wallet cap was not computed"
+                            .to_string(),
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        }
     } else {
-        vec![detail_source()]
+        None
     };
+
+    let mut sources = vec![detail_source()];
+    if onchain.is_some() {
+        sources.push(AssetSource {
+            name: "bsc-rpc".to_string(),
+            scope: "core-tokens".to_string(),
+            block: None,
+        });
+    }
+    if wallet_cap.is_some() {
+        sources.push(AssetSource {
+            name: "bsc-rpc".to_string(),
+            scope: "hold-cap".to_string(),
+            block: None,
+        });
+    }
+    if agent_checked {
+        sources.push(AssetSource {
+            name: "bsc-rpc".to_string(),
+            scope: "agent-identifier".to_string(),
+            block: None,
+        });
+    }
+    let coverage = if onchain.is_some() || agent_checked || wallet_cap.is_some() {
+        "api+onchain"
+    } else {
+        "api"
+    };
+
     Ok(FourMemeTokenDetail {
         chain: "bsc".to_string(),
         address,
@@ -400,12 +471,20 @@ pub async fn token(
             .and_then(Value::as_str)
             .map(str::to_string),
         agent_id_exclusive,
-        progress: field_string(&detail, "progress"),
-        raised: field_string(&detail, "raisedAmount"),
+        progress: nested_string(&detail, "tokenPrice", "progress")
+            .or_else(|| field_string(&detail, "progress")),
+        raised: field_string(&detail, "raisedAmount")
+            .or_else(|| nested_string(&detail, "tokenPrice", "raisedAmount")),
         market_cap: nested_string(&detail, "tokenPrice", "marketCap"),
         price: nested_string(&detail, "tokenPrice", "price"),
-        total_supply: field_string(&detail, "totalAmount"),
-        sale_amount: field_string(&detail, "saleAmount"),
+        total_supply: onchain
+            .as_ref()
+            .and_then(|state| state.total_supply.clone())
+            .or_else(|| field_string(&detail, "totalAmount")),
+        sale_amount: onchain
+            .as_ref()
+            .and_then(|state| state.sale_amount.clone())
+            .or_else(|| field_string(&detail, "saleAmount")),
         creator: field_string(&detail, "userAddress").and_then(|value| value.parse().ok()),
         created_at: field_u64(&detail, "createDate"),
         launch_at: field_u64(&detail, "launchTime"),
@@ -413,13 +492,46 @@ pub async fn token(
         version: field_string(&detail, "version"),
         wallet_eligible,
         eligibility_reason,
-        coverage: if onchain_used {
-            "api+agent-id".to_string()
-        } else {
-            "api".to_string()
-        },
+        tradability,
+        wallet_cap,
+        coverage: coverage.to_string(),
         sources,
         warnings,
+    })
+}
+
+fn progress_percent(detail: &Value) -> Option<f64> {
+    let raw = nested_string(detail, "tokenPrice", "progress")
+        .or_else(|| field_string(detail, "progress"))?;
+    let value: f64 = raw.parse().ok()?;
+    if !value.is_finite() || value < 0.0 {
+        return None;
+    }
+    let percent = if value <= 1.0 { value * 100.0 } else { value };
+    Some((percent * 100.0).round() / 100.0)
+}
+
+async fn read_wallet_cap(
+    rpc: &Rpc,
+    token: Address,
+    wallet: Address,
+    max_supply: U256,
+) -> Result<FourMemeWalletCap, CapabilityError> {
+    let data = format!("0x70a08231{}", address_word(wallet));
+    let value = rpc.call_hex(token, &data, "latest").await?;
+    let bytes = decode_hex(&value).ok_or_else(|| api_error("balanceOf returned invalid data"))?;
+    let balance = word_u256(&bytes, 0).ok_or_else(|| api_error("balanceOf returned no value"))?;
+    let cap = max_supply / U256::from(100);
+    let remaining = if balance >= cap {
+        U256::ZERO
+    } else {
+        cap - balance
+    };
+    Ok(FourMemeWalletCap {
+        balance: Amount::from_raw(balance, 18),
+        cap: Amount::from_raw(cap, 18),
+        remaining: Amount::from_raw(remaining, 18),
+        reached: balance >= cap,
     })
 }
 
@@ -485,6 +597,52 @@ async fn onchain_fallback(
             None => (None, None, None),
         };
     let phase = state.as_ref().map(|state| state.phase).unwrap_or("unknown");
+    let max_supply = state.as_ref().and_then(|state| state.max_supply);
+    let tradability = FourMemeTradability {
+        transfer_locked: match phase {
+            "bonding" => Some(true),
+            "graduated" => Some(false),
+            _ => None,
+        },
+        progress_percent: if phase == "graduated" {
+            Some(100.0)
+        } else {
+            None
+        },
+        max_supply: max_supply.map(|value| Amount::from_raw(value, 18)),
+    };
+    let tradability = (tradability.transfer_locked.is_some()
+        || tradability.progress_percent.is_some()
+        || tradability.max_supply.is_some())
+    .then_some(tradability);
+    let mut cap_warning = None;
+    let wallet_cap = if let Some(wallet) = wallet {
+        if agent_id_exclusive == Some(true) && phase == "bonding" {
+            match max_supply {
+                Some(max_supply) => {
+                    match read_wallet_cap(&rpc, address, wallet, max_supply).await {
+                        Ok(cap) => Some(cap),
+                        Err(error) => {
+                            cap_warning =
+                                Some(format!("wallet cap check failed: {}", error.message));
+                            None
+                        }
+                    }
+                }
+                None => {
+                    cap_warning = Some(
+                        "creation-time max supply is unavailable; wallet cap was not computed"
+                            .to_string(),
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     let (wallet_eligible, eligibility_reason) = if let Some(wallet) = wallet {
         match (agent_id_exclusive, phase) {
             (Some(true), "bonding") => match is_agent_wallet(&rpc, wallet).await {
@@ -515,19 +673,25 @@ async fn onchain_fallback(
                         version: None,
                         wallet_eligible: None,
                         eligibility_reason: Some("agent_identifier_unavailable".to_string()),
+                        tradability: tradability.clone(),
+                        wallet_cap: wallet_cap.clone(),
                         coverage: "onchain".to_string(),
                         sources: vec![AssetSource {
                             name: "bsc-rpc".to_string(),
                             scope: "core-tokens".to_string(),
                             block: None,
                         }],
-                        warnings: vec![
-                            format!(
-                                "Four.meme detail API unavailable; showing on-chain fields: {}",
-                                api_error.message
-                            ),
-                            format!("AgentIdentifier check failed: {}", error.message),
-                        ],
+                        warnings: {
+                            let mut warnings = vec![
+                                format!(
+                                    "Four.meme detail API unavailable; showing on-chain fields: {}",
+                                    api_error.message
+                                ),
+                                format!("AgentIdentifier check failed: {}", error.message),
+                            ];
+                            warnings.extend(cap_warning.clone());
+                            warnings
+                        },
                     }));
                 }
             },
@@ -562,6 +726,8 @@ async fn onchain_fallback(
         version: None,
         wallet_eligible,
         eligibility_reason,
+        tradability,
+        wallet_cap,
         coverage: "onchain".to_string(),
         sources: vec![AssetSource {
             name: "bsc-rpc".to_string(),
@@ -572,10 +738,14 @@ async fn onchain_fallback(
             },
             block: None,
         }],
-        warnings: vec![format!(
-            "Four.meme detail API unavailable; showing on-chain fields: {}",
-            api_error.message
-        )],
+        warnings: {
+            let mut warnings = vec![format!(
+                "Four.meme detail API unavailable; showing on-chain fields: {}",
+                api_error.message
+            )];
+            warnings.extend(cap_warning);
+            warnings
+        },
     }))
 }
 
@@ -712,6 +882,7 @@ struct OnchainTokenState {
     creator: Option<Address>,
     preset_id: Option<String>,
     total_supply: Option<String>,
+    max_supply: Option<U256>,
     sale_amount: Option<String>,
     phase: &'static str,
 }
@@ -734,7 +905,8 @@ async fn onchain_state(
     let name = word_usize(&bytes, 4).and_then(|offset| string_at(&bytes, offset));
     let symbol = word_usize(&bytes, 5).and_then(|offset| string_at(&bytes, offset));
     let vault = word_address(&bytes, 10);
-    let total_supply = word_u256(&bytes, 6).map(|value| format_units(value, 18));
+    let max_supply = word_u256(&bytes, 6);
+    let total_supply = max_supply.map(|value| format_units(value, 18));
     let sale_amount = word_u256(&bytes, 7).map(|value| format_units(value, 18));
     let phase = match vault {
         Some(vault) => match read_u8(&rpc, vault, "0xb1c9fe6e").await {
@@ -749,6 +921,7 @@ async fn onchain_state(
         creator,
         preset_id,
         total_supply,
+        max_supply,
         sale_amount,
         phase,
     }))
@@ -1031,6 +1204,20 @@ mod tests {
             format_units(U256::from(1_500_000_000_000_000_000u64), 18),
             "1.5"
         );
+    }
+
+    #[test]
+    fn normalizes_progress_percent() {
+        assert_eq!(
+            progress_percent(&json!({"tokenPrice": {"progress": "0.42"}})),
+            Some(42.0)
+        );
+        assert_eq!(
+            progress_percent(&json!({"tokenPrice": {"progress": 42.0}})),
+            Some(42.0)
+        );
+        assert_eq!(progress_percent(&json!({"progress": "0.5"})), Some(50.0));
+        assert_eq!(progress_percent(&json!({})), None);
     }
 
     #[test]
