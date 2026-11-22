@@ -70,65 +70,71 @@ Skills 告诉 Agent 何时调用哪个能力，以及如何解释结果。把仓
 
 所有能力都有固定执行位置。Agent 和用户不选择 remote/local；这是 Fluxion 的内部路由。
 
+能力元数据以 [`capabilities/catalog.yaml`](capabilities/catalog.yaml) 为唯一来源，
+[`docs/capabilities/README.md`](docs/capabilities/README.md) 的表格由它生成。所有能力返回
+capability envelope v2（`meta`、`chain`、`block`、`as_of`、`provenance`、`coverage`、
+`warnings`、`unknowns`、`data`）；见 [ADR 0003](docs/adr/0003-capability-envelope-v2.md) 和
+[ADR 0005](docs/adr/0005-capability-catalog.md)。
+
 ### 能力总览
 
 #### 1. 报价
 
-| Capability | CLI | 说明 |
-|---|---|---|
-| `swap.quote` | `fluxion swap ldo-eth 100` | Ethereum 主网 exact-in 报价、多跳、拆单 |
-| `swap.build` | `fluxion swap build --quote quote.json --recipient 0x...` | 从报价构建 V2 swap calldata |
+| Capability | Status | CLI | 说明 |
+|---|---|---|---|
+| `swap.quote` | stable | `fluxion swap ldo-eth 100` | Ethereum 主网 exact-in 报价、多跳、拆单 |
+| `swap.build` | stable | `fluxion swap build --quote quote.json --recipient 0x...` | 从报价构建 V2 swap calldata |
 
 #### 2. 钱包
 
-| Capability | CLI | 说明 |
-|---|---|---|
-| `wallet.balance` | `fluxion wallet balance 0x... --tokens BNB,USDT` | 固定区块余额 |
-| `wallet.assets` | `fluxion wallet assets 0x...` | 资产发现 + 本地核对 |
-| `wallet.allowance` | `fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT` | 授权额度 |
-| `wallet.collectibles` | `fluxion wallet collectibles 0x...` | NFT 持仓 |
-| `wallet.connect` | `fluxion wallet connect` | WalletConnect 连接 |
-| `wallet.status` | `fluxion wallet status` | 查看本地会话 |
-| `wallet.disconnect` | `fluxion wallet disconnect` | 删除本地会话 |
-| `wallet.agent-id` | `fluxion wallet agent-id alice.ai` | BSC `.ai` Agent ID |
-| `wallet.sign` | `fluxion wallet sign --typed-data typed-data.json` | 消息 / EIP-712 签名 |
-| `wallet.send` | `fluxion wallet send --to 0x... --token BNB --amount 0.01` | 原生 / 代币转账 |
+| Capability | Status | CLI | 说明 |
+|---|---|---|---|
+| `wallet.balance` | stable | `fluxion wallet balance 0x... --tokens BNB,USDT` | 固定区块余额 |
+| `wallet.assets` | stable | `fluxion wallet assets 0x...` | 资产发现 + 本地核对 |
+| `wallet.allowance` | stable | `fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT` | 授权额度 |
+| `wallet.collectibles` | stable | `fluxion wallet collectibles 0x...` | NFT 持仓 |
+| `wallet.connect` | stable | `fluxion wallet connect` | WalletConnect 连接 |
+| `wallet.status` | stable | `fluxion wallet status` | 查看本地会话 |
+| `wallet.disconnect` | stable | `fluxion wallet disconnect` | 删除本地会话 |
+| `wallet.agent-id` | stable | `fluxion wallet agent-id alice.ai` | BSC `.ai` Agent ID |
+| `wallet.sign` | stable | `fluxion wallet sign --typed-data typed-data.json` | 消息 / EIP-712 签名 |
+| `wallet.send` | stable | `fluxion wallet send --to 0x... --token BNB --amount 0.01` | 原生 / 代币转账 |
 
 #### 3. 交易安全
 
-| Capability | CLI | 说明 |
-|---|---|---|
-| `transaction.inspect` | `fluxion transaction inspect --to 0x... --data 0x...` | 签名前 calldata 检查、effects、trace、源码、policy |
-| `transaction.simulate` | `fluxion transaction simulate --to 0x... --data 0x...` | 固定区块 `eth_call` + gas |
-| `transaction.send` | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | 模拟 + inspect + policy + 手机确认 + 广播 |
+| Capability | Status | CLI | 说明 |
+|---|---|---|---|
+| `transaction.inspect` | stable | `fluxion transaction inspect --to 0x... --data 0x...` | 签名前 calldata 检查、effects、trace、源码、policy |
+| `transaction.simulate` | stable | `fluxion transaction simulate --to 0x... --data 0x...` | 固定区块 `eth_call` + gas |
+| `transaction.send` | stable | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | 模拟 + inspect + policy + 手机确认 + 广播 |
 
 #### 4. 签名授权
 
-| Capability | CLI | 说明 |
-|---|---|---|
-| `signature.inspect` | `fluxion signature inspect --typed-data typed-data.json` | EIP-712、Permit2、7702、4337 |
+| Capability | Status | CLI | 说明 |
+|---|---|---|---|
+| `signature.inspect` | stable | `fluxion signature inspect --typed-data typed-data.json` | EIP-712、Permit2、7702、4337 |
 
 #### 5. Four.meme
 
-| Capability | CLI | 说明 |
-|---|---|---|
-| `fourmeme.agent-tokens` | `fluxion fourmeme agent-tokens --wallet 0x...` | 发现 Binance Agent ID Exclusive token，查询钱包资格 |
-| `fourmeme.token` | `fluxion fourmeme token 0x... --wallet 0x...` | 单币详情、阶段、市场数据、资格 |
+| Capability | Status | CLI | 说明 |
+|---|---|---|---|
+| `fourmeme.agent-tokens` | experimental | `fluxion fourmeme agent-tokens --wallet 0x...` | 发现 Binance Agent ID Exclusive token，查询钱包资格 |
+| `fourmeme.token` | experimental | `fluxion fourmeme token 0x... --wallet 0x...` | 单币详情、阶段、市场数据、资格 |
 
 #### 6. 收益发现
 
-| Capability | CLI | 说明 |
-|---|---|---|
-| `yield.discover` | `fluxion yield discover --asset ETH --amount 10` | Ethereum ETH 质押/借贷机会：安全层级、APY、TVL、提现条件、推荐 |
-| `yield.build` | `fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x...` | 本地构造 stake/supply/deposit calldata 与授权步骤 |
-| `yield.history` | `fluxion yield history --opportunity lido-steth --days 30` | 历史 APY、base/reward 拆分、TVL 与稳定性摘要 |
-| `yield.withdraw` | `fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x...` | 本地构造 withdraw/redeem/burn 退出 calldata |
+| Capability | Status | CLI | 说明 |
+|---|---|---|---|
+| `yield.discover` | experimental | `fluxion yield discover --asset ETH --amount 10` | Ethereum ETH 质押/借贷机会：安全层级、APY、TVL、提现条件、推荐 |
+| `yield.build` | experimental | `fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x...` | 本地构造 stake/supply/deposit calldata 与授权步骤 |
+| `yield.history` | experimental | `fluxion yield history --opportunity lido-steth --days 30` | 历史 APY、base/reward 拆分、TVL 与稳定性摘要 |
+| `yield.withdraw` | experimental | `fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x...` | 本地构造 withdraw/redeem/burn 退出 calldata |
 
 #### 7. 仓位分析
 
-| Capability | CLI | 说明 |
-|---|---|---|
-| `position.analyze` | `fluxion position analyze --owner 0x...` | 跨 curated 市场的 ETH 仓位、估值、APY、提现条件、风险与可选 PnL |
+| Capability | Status | CLI | 说明 |
+|---|---|---|---|
+| `position.analyze` | experimental | `fluxion position analyze --owner 0x...` | 跨 curated 市场的 ETH 仓位、估值、APY、提现条件、风险与可选 PnL |
 
 完整用法和“对 Agent 说”的示例见下面各能力小节。
 
@@ -441,109 +447,25 @@ fluxion fourmeme ui --open
 
 ## 安全模型
 
-`transaction.inspect` / `signature.inspect` 只做**签名前检查**。它们不持有私钥、不签名、
-不广播，也不构成审计或安全保证。检查结果用于辅助调用方和用户决定是否进入钱包确认流程。
+`transaction.inspect` / `signature.inspect` 只做**签名前检查**：不持有私钥、不签名、不广播，
+也不构成审计或安全保证。检查结果用于辅助调用方和用户决定是否进入钱包确认流程。
 
-### 信任边界
+- **风险语义**：有 finding 时 `risk` 取最高 severity；没有 finding 时是 `unknown`，不是
+  `low` 或 `safe`；关键覆盖缺失时保持 `unknown`。
+- **覆盖**：`decode`、`metadata`、`simulation`、`trace`、`policy` 五个独立维度；
+  `unknowns` 是结果的一部分，不是附注。
+- **强制执行**：`wallet.send --policy` 和 `wallet.sign --policy` 只在 Fluxion 自己的发送和
+  typed-data 签名路径上执行 enforce gate，命中高风险返回 `POLICY_BLOCKED`；这不是通用
+  signer 边界。
+- **确定性**：同一请求、同一区块、同一代码版本产生相同 finding；LLM 不参与 detector、
+  risk 或 coverage 计算。
 
-| 组件 | 信任假设 | 失败/限制 |
-|---|---|---|
-| 调用方（Agent 或用户） | 不可信规划器；可以构造任意 calldata，也可以绕过本地 MCP 直接调用 CLI 或 RPC | 不作为安全边界 |
-| 手机钱包 / WalletConnect | 私钥和最终签名确认只在钱包内 | 拒绝返回 `USER_REJECTED`；超时返回 `TIMEOUT` |
-| Local runtime | 无密钥，只读 RPC；进程和配置由本机控制 | 不承诺防御本机恶意进程或已被篡改的二进制 |
-| RPC | RPC 返回用于区块、代码、模拟和 trace；没有轻客户端证明 | 不可用时返回 `RPC_ERROR` 或明确 `unavailable` |
-| Remote quote service | 只返回已发布 snapshot 的报价 | 不可用时返回 `RPC_ERROR`，不回落本地报价 |
-| Source verifier | 可选 BscScan / Etherscan；返回 `verified: true/false/null` | 无 key 或请求失败时为 `null`，不推断 |
-| Trace backend | 可选 `debug_traceCall`；公共 BSC RPC 不提供 | 不支持时 `coverage.trace = unavailable` |
-
-### 威胁模型
-
-覆盖范围：
-
-- 恶意或错误的 calldata：未知 selector、参数错位、隐藏 multicall、代理升级。
-- 资产和授权：超出意图的转账、伪造 Transfer/Approval 日志、无限授权、NFT operator 授权。
-- 合约执行：非预期 internal `DELEGATECALL`、未验证源码、EIP-1967 proxy。
-- 地址和策略：零地址、burn 地址、recipient mismatch、policy cap/allowlist。
-
-不覆盖：
-
-- 私钥泄露、恶意钱包 App、已被控制的签名设备。
-- 协议级经济攻击、预言机操纵、MEV、清算和跨链桥风险。
-- 未提供的链下签名、非标准 token 的完整语义、真实世界的全部攻击模式。
-- “没有 finding”不等于安全；它只表示当前覆盖范围内没有发现。
-
-### 检查管线
-
-| 阶段 | 输出 | 失败/降级 |
-|---|---|---|
-| 规范化与区块固定 | `chain`、`block_number`、`block_hash` | RPC 失败 -> capability error |
-| Decode | selector、signature、参数、未知项 | 未知 selector -> `decode=partial` + `unknown` |
-| Metadata | EOA/contract、EIP-1967 proxy/implementation | 代码或 storage 读取失败 -> error/unknown |
-| Simulation | call status、logs、effects | trace/RPC 不支持 -> `simulation=unavailable/partial` |
-| Effect verification | `balanceOf`、`allowance`、`ownerOf` 前后状态 | 非标准 token -> verified=false/unknown |
-| Internal trace | internal calls、delegatecall | 无 `debug_traceCall` -> `trace=unavailable` |
-| Source verification | `verified`、provider source | 无 key/provider 失败 -> `verified=null` |
-| Detectors | finding ID、severity、evidence、confidence | 缺前置数据 -> 不猜，写 `unknown` |
-| Policy | cap/allowlist 判断 | 缺 effects 或 policy -> `not_configured`/`partial` |
-
-### Finding 和风险语义
-
-每个 finding 固定包含：
-
-- `id`：稳定规则 ID，例如 `AUTH-001`、`EFFECT-007`、`CONTRACT-004`。
-- `category`：approval、asset-flow、contract、address、swap、signature、policy 等。
-- `severity`：`critical | high | medium | low`。
-- `evidence`：地址、金额、selector、日志、trace 或 provider 结果。
-- `confidence`：`high | medium | low`。
-- `deterministic`：规则本身是否确定性执行。
-
-聚合规则：
-
-1. 有 finding 时，`risk` 取最高 severity。
-2. 没有 finding 时为 `unknown`，而不是 `low` 或 `safe`。
-3. 关键覆盖缺失时，保留 `unknown`，不能降级成低风险。
-4. `unknowns` 必须说明缺少什么；`warnings` 只做非阻塞提示。
-
-### Coverage
-
-`coverage` 有五个独立维度：
-
-- `decode`：selector、参数、动态 bytes、multicall。
-- `metadata`：EOA/contract、proxy、源码验证。
-- `simulation`：状态模拟和 effects。
-- `trace`：internal call / delegatecall。
-- `policy`：调用方策略。
-
-每个维度取值为 `complete | partial | not_run | unavailable | not_configured`。报告不会把
-缺失维度当成通过；`unknowns` 是结果的一部分，不是附注。
-
-### 确定性和可复现性
-
-- 同一请求、同一区块、同一代码版本应产生相同 finding 集合。
-- 模拟和读取使用 pinned block；不会混用不同区块的状态。
-- LLM 不参与 detector、risk 或 coverage 计算；`explanation` 是确定性模板。
-- 外部 provider 只提供输入，不改变规则语义。
-
-### 强制执行
-
-- `transaction.inspect` / `signature.inspect` 本身是 advisory，不签名、不广播、不保管私钥。
-- `wallet.send --policy` 和 `wallet.sign --policy` 在 Fluxion 自己的发送和 typed-data 签名路径上
-  执行 enforce gate；命中高风险策略时返回 `POLICY_BLOCKED`，不会进入手机确认。
-- 这不是通用 signer 边界。任意 calldata、绕过 Fluxion 的调用、或已被篡改的本地进程不受约束；
-  通用强制仍需 smart account、session key 或 signer policy。
-
-### 验证方式
-
-- Rust 单元测试和 fixture corpus 覆盖 decode、effects、trace、approval、asset-flow、swap、
-  policy 和 signature。
-- Foundry/Anvil 红队合约覆盖伪造日志、hidden delegatecall、proxy upgrade、无限授权、permit、
-  7702 和 4337。
-- 当前红队语料 **17/17 detect**，**3/3 controls 无误报**。
-- 真实历史 BSC calldata：两笔真实 unlimited approval phishing 交易命中 `AUTH-001`；两个 opaque
-  exploit entrypoint 明确保持 `unknown`。
-- 方法和原始数据见 [red-team](docs/benchmarks/redteam-2026-11-11.md)、
-  [historical calldata](docs/benchmarks/historical-calddata-2026-11-11.md) 与
-  [security benchmark](docs/benchmarks/security-inspection-2026-11-11.md)。
+规则目录、信任边界、威胁模型、检查管线、覆盖率语义和红队边界见
+[`docs/capabilities/transaction/ASSURANCE.md`](docs/capabilities/transaction/ASSURANCE.md)；
+威胁情报配置见 [`docs/capabilities/transaction/THREAT-INTEL.md`](docs/capabilities/transaction/THREAT-INTEL.md)；
+红队方法和原始数据见 [red-team](docs/benchmarks/redteam-2026-11-11.md)、
+[historical calldata](docs/benchmarks/historical-calddata-2026-11-11.md) 与
+[security benchmark](docs/benchmarks/security-inspection-2026-11-11.md)。
 
 ## 执行模型
 
@@ -615,7 +537,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - 架构：[产品架构](docs/PRODUCT-ARCHITECTURE.md) · [引擎架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
 - 运维：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
 - 安全：[规则目录](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- 契约：[fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [yield.discover schema](schemas/yield_discover.v1.json) · [yield.build schema](schemas/yield_build.v1.json) · [yield.history schema](schemas/yield_history.v1.json) · [yield.withdraw schema](schemas/yield_withdraw.v1.json) · [position.analyze schema](schemas/position_analyze.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
+- 契约：[能力目录](capabilities/catalog.yaml) · [catalog schema](schemas/capability_catalog.v2.json) · [能力文档索引](docs/capabilities/README.md)
 - 研究：[benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills：[swap](skills/swap/SKILL.md) · [yield](skills/yield/SKILL.md) · [position](skills/position/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
 

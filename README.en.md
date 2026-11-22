@@ -76,65 +76,72 @@ The “Ask the agent” examples under each capability are ready to use.
 Every capability has one fixed execution location. Agents and users do not choose remote/local;
 that is internal Fluxion routing.
 
+Capability metadata lives in [`capabilities/catalog.yaml`](capabilities/catalog.yaml) as the single
+source of truth, and [`docs/capabilities/README.md`](docs/capabilities/README.md) is generated from
+it. Every capability returns capability envelope v2 (`meta`, `chain`, `block`, `as_of`,
+`provenance`, `coverage`, `warnings`, `unknowns`, `data`); see
+[ADR 0003](docs/adr/0003-capability-envelope-v2.md) and
+[ADR 0005](docs/adr/0005-capability-catalog.md).
+
 ### Capability overview
 
 #### 1. Quotes
 
-| Capability | CLI | Description |
-|---|---|---|
-| `swap.quote` | `fluxion swap ldo-eth 100` | Ethereum mainnet exact-in quotes, multi-hop, split allocation |
-| `swap.build` | `fluxion swap build --quote quote.json --recipient 0x...` | Build V2 swap calldata from a quote |
+| Capability | Status | CLI | Description |
+|---|---|---|---|
+| `swap.quote` | stable | `fluxion swap ldo-eth 100` | Ethereum mainnet exact-in quotes, multi-hop, split allocation |
+| `swap.build` | stable | `fluxion swap build --quote quote.json --recipient 0x...` | Build V2 swap calldata from a quote |
 
 #### 2. Wallet
 
-| Capability | CLI | Description |
-|---|---|---|
-| `wallet.balance` | `fluxion wallet balance 0x... --tokens BNB,USDT` | Pinned-block balances |
-| `wallet.assets` | `fluxion wallet assets 0x...` | Asset discovery + local verification |
-| `wallet.allowance` | `fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT` | Allowances |
-| `wallet.collectibles` | `fluxion wallet collectibles 0x...` | NFT holdings |
-| `wallet.connect` | `fluxion wallet connect` | WalletConnect session |
-| `wallet.status` | `fluxion wallet status` | Inspect local session |
-| `wallet.disconnect` | `fluxion wallet disconnect` | Remove local session |
-| `wallet.agent-id` | `fluxion wallet agent-id alice.ai` | BSC `.ai` Agent ID |
-| `wallet.sign` | `fluxion wallet sign --typed-data typed-data.json` | Message / EIP-712 signing |
-| `wallet.send` | `fluxion wallet send --to 0x... --token BNB --amount 0.01` | Native / token transfer |
+| Capability | Status | CLI | Description |
+|---|---|---|---|
+| `wallet.balance` | stable | `fluxion wallet balance 0x... --tokens BNB,USDT` | Pinned-block balances |
+| `wallet.assets` | stable | `fluxion wallet assets 0x...` | Asset discovery + local verification |
+| `wallet.allowance` | stable | `fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT` | Allowances |
+| `wallet.collectibles` | stable | `fluxion wallet collectibles 0x...` | NFT holdings |
+| `wallet.connect` | stable | `fluxion wallet connect` | WalletConnect session |
+| `wallet.status` | stable | `fluxion wallet status` | Inspect local session |
+| `wallet.disconnect` | stable | `fluxion wallet disconnect` | Remove local session |
+| `wallet.agent-id` | stable | `fluxion wallet agent-id alice.ai` | BSC `.ai` Agent ID |
+| `wallet.sign` | stable | `fluxion wallet sign --typed-data typed-data.json` | Message / EIP-712 signing |
+| `wallet.send` | stable | `fluxion wallet send --to 0x... --token BNB --amount 0.01` | Native / token transfer |
 
 #### 3. Transaction safety
 
-| Capability | CLI | Description |
-|---|---|---|
-| `transaction.inspect` | `fluxion transaction inspect --to 0x... --data 0x...` | Pre-sign calldata, effects, trace, source, policy |
-| `transaction.simulate` | `fluxion transaction simulate --to 0x... --data 0x...` | Pinned `eth_call` + gas |
-| `transaction.send` | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | Simulate + inspect + policy + phone + broadcast |
+| Capability | Status | CLI | Description |
+|---|---|---|---|
+| `transaction.inspect` | stable | `fluxion transaction inspect --to 0x... --data 0x...` | Pre-sign calldata, effects, trace, source, policy |
+| `transaction.simulate` | stable | `fluxion transaction simulate --to 0x... --data 0x...` | Pinned `eth_call` + gas |
+| `transaction.send` | stable | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | Simulate + inspect + policy + phone + broadcast |
 
 #### 4. Signature authorization
 
-| Capability | CLI | Description |
-|---|---|---|
-| `signature.inspect` | `fluxion signature inspect --typed-data typed-data.json` | EIP-712, Permit2, 7702, 4337 |
+| Capability | Status | CLI | Description |
+|---|---|---|---|
+| `signature.inspect` | stable | `fluxion signature inspect --typed-data typed-data.json` | EIP-712, Permit2, 7702, 4337 |
 
 #### 5. Four.meme
 
-| Capability | CLI | Description |
-|---|---|---|
-| `fourmeme.agent-tokens` | `fluxion fourmeme agent-tokens --wallet 0x...` | Discover Binance Agent ID Exclusive tokens and wallet eligibility |
-| `fourmeme.token` | `fluxion fourmeme token 0x... --wallet 0x...` | Single-token detail, phase, market data and eligibility |
+| Capability | Status | CLI | Description |
+|---|---|---|---|
+| `fourmeme.agent-tokens` | experimental | `fluxion fourmeme agent-tokens --wallet 0x...` | Discover Binance Agent ID Exclusive tokens and wallet eligibility |
+| `fourmeme.token` | experimental | `fluxion fourmeme token 0x... --wallet 0x...` | Single-token detail, phase, market data and eligibility |
 
 #### 6. Yield discovery
 
-| Capability | CLI | Description |
-|---|---|---|
-| `yield.discover` | `fluxion yield discover --asset ETH --amount 10` | Ethereum ETH staking/lending: safety tier, APY, TVL, withdrawal conditions, recommendation |
-| `yield.build` | `fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x...` | Local stake/supply/deposit calldata and approval steps |
-| `yield.history` | `fluxion yield history --opportunity lido-steth --days 30` | Historical APY, base/reward split, TVL and stability summary |
-| `yield.withdraw` | `fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x...` | Local withdraw/redeem/burn exit calldata |
+| Capability | Status | CLI | Description |
+|---|---|---|---|
+| `yield.discover` | experimental | `fluxion yield discover --asset ETH --amount 10` | Ethereum ETH staking/lending: safety tier, APY, TVL, withdrawal conditions, recommendation |
+| `yield.build` | experimental | `fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x...` | Local stake/supply/deposit calldata and approval steps |
+| `yield.history` | experimental | `fluxion yield history --opportunity lido-steth --days 30` | Historical APY, base/reward split, TVL and stability summary |
+| `yield.withdraw` | experimental | `fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x...` | Local withdraw/redeem/burn exit calldata |
 
 #### 7. Position analysis
 
-| Capability | CLI | Description |
-|---|---|---|
-| `position.analyze` | `fluxion position analyze --owner 0x...` | Cross-market ETH positions, valuation, APY, withdrawal conditions, risk and optional PnL |
+| Capability | Status | CLI | Description |
+|---|---|---|---|
+| `position.analyze` | experimental | `fluxion position analyze --owner 0x...` | Cross-market ETH positions, valuation, APY, withdrawal conditions, risk and optional PnL |
 
 Full usage and "ask the agent" examples are below in each capability section.
 
@@ -458,116 +465,28 @@ after graduation. This capability only discovers and checks; it never buys, sell
 
 ## Security model
 
-`transaction.inspect` / `signature.inspect` are **pre-sign inspection** only. They do not hold
-private keys, sign, or broadcast, and they are not an audit or a safety guarantee. Their output helps
-the caller and the user decide whether to enter the wallet confirmation flow.
+`transaction.inspect` / `signature.inspect` are **pre-sign inspection** only: they do not hold
+private keys, sign, or broadcast, and they are not an audit or a safety guarantee. Their output
+helps the caller and the user decide whether to enter the wallet confirmation flow.
 
-### Trust boundaries
+- **Risk semantics**: with findings, `risk` is the highest severity; without findings it is
+  `unknown`, never `low` or `safe`; missing critical coverage keeps `unknown`.
+- **Coverage**: five independent dimensions — `decode`, `metadata`, `simulation`, `trace`, and
+  `policy`; `unknowns` is part of the result, not an appendix.
+- **Enforcement**: `wallet.send --policy` and `wallet.sign --policy` enforce policy only on
+  Fluxion's own send and typed-data signing paths, returning `POLICY_BLOCKED` on high risk; this is
+  not a general signer boundary.
+- **Determinism**: the same request, block, and code version produce the same finding set; LLMs do
+  not participate in detectors, risk, or coverage.
 
-| Component | Assumption | Failure / limit |
-|---|---|---|
-| Caller (agent or user) | Untrusted planner; can construct arbitrary calldata and bypass local MCP by calling the CLI or RPC directly | Not treated as a security boundary |
-| Phone wallet / WalletConnect | Private keys and final signature confirmation stay in the wallet | Rejection -> `USER_REJECTED`; timeout -> `TIMEOUT` |
-| Local runtime | No keys; read-only RPC; process and config are controlled by the local machine | Does not defend against a malicious local process or tampered binary |
-| RPC | Responses are used for block, code, simulation and trace; no light-client proof | Failure -> `RPC_ERROR` or explicit `unavailable` |
-| Remote quote service | Returns quotes over a published immutable snapshot | Failure -> `RPC_ERROR`; no local quote fallback |
-| Source verifier | Optional BscScan / Etherscan; returns `verified: true/false/null` | Missing key or request failure -> `null`, never inferred |
-| Trace backend | Optional `debug_traceCall`; public BSC RPC does not provide it | Unsupported -> `coverage.trace = unavailable` |
-
-### Threat model
-
-Covered:
-
-- Malicious or malformed calldata: unknown selectors, wrong argument layout, hidden multicall,
-  proxy upgrades.
-- Assets and approvals: unintended transfer, forged Transfer/Approval logs, unlimited approval,
-  NFT operator approval.
-- Contract execution: unexpected internal `DELEGATECALL`, unverified source, EIP-1967 proxy.
-- Addresses and policy: zero address, burn address, recipient mismatch, policy caps/allowlists.
-
-Not covered:
-
-- Private-key compromise, a malicious wallet app, or a controlled signing device.
-- Protocol-level economic attacks, oracle manipulation, MEV, liquidations, and bridge risk.
-- Off-chain signatures not supplied to the inspector, full semantics of non-standard tokens, or
-  every real-world attack pattern.
-- “No finding” does not mean safe; it means nothing was found within current coverage.
-
-### Inspection pipeline
-
-| Stage | Output | Failure / degradation |
-|---|---|---|
-| Canonicalize + pin block | `chain`, `block_number`, `block_hash` | RPC failure -> capability error |
-| Decode | selector, signature, arguments, unknowns | Unknown selector -> `decode=partial` + `unknown` |
-| Metadata | EOA/contract, EIP-1967 proxy/implementation | Code/storage failure -> error/unknown |
-| Simulation | call status, logs, effects | Unsupported RPC/trace -> `simulation=unavailable/partial` |
-| Effect verification | `balanceOf`, `allowance`, `ownerOf` before/after | Non-standard token -> verified=false/unknown |
-| Internal trace | internal calls, delegatecall | No `debug_traceCall` -> `trace=unavailable` |
-| Source verification | `verified`, provider source | Missing key/provider failure -> `verified=null` |
-| Detectors | finding ID, severity, evidence, confidence | Missing prerequisite -> no guess, write `unknown` |
-| Policy | cap/allowlist decision | Missing effects or policy -> `not_configured`/`partial` |
-
-### Findings and risk semantics
-
-Every finding contains:
-
-- `id`: stable rule ID, e.g. `AUTH-001`, `EFFECT-007`, `CONTRACT-004`.
-- `category`: approval, asset-flow, contract, address, swap, signature, policy, etc.
-- `severity`: `critical | high | medium | low`.
-- `evidence`: addresses, amounts, selector, logs, trace, or provider result.
-- `confidence`: `high | medium | low`.
-- `deterministic`: whether the rule itself is deterministic.
-
-Aggregation:
-
-1. With findings, `risk` is the highest severity.
-2. Without findings, `risk` is `unknown`, never `low` or `safe`.
-3. Missing critical coverage keeps `unknown`; it cannot be downgraded to low risk.
-4. `unknowns` must state what is missing; `warnings` are non-blocking notes.
-
-### Coverage
-
-`coverage` has five independent dimensions:
-
-- `decode`: selector, arguments, dynamic bytes, multicall.
-- `metadata`: EOA/contract, proxy, source verification.
-- `simulation`: state simulation and effects.
-- `trace`: internal calls / delegatecall.
-- `policy`: caller policy.
-
-Each value is `complete | partial | not_run | unavailable | not_configured`. Missing dimensions are
-never treated as passing; `unknowns` is part of the result, not an appendix.
-
-### Determinism and reproducibility
-
-- The same request, block, and code version should produce the same finding set.
-- Simulations and reads use a pinned block; no mixed-block state.
-- LLMs do not participate in detectors, risk, or coverage; `explanation` is a deterministic template.
-- External providers supply input only; they do not change rule semantics.
-
-### Enforcement
-
-- `transaction.inspect` / `signature.inspect` are advisory; they do not sign, broadcast, or hold
-  private keys.
-- `wallet.send --policy` and `wallet.sign --policy` enforce policy on Fluxion's own send and
-  typed-data signing paths. A high-risk policy decision returns `POLICY_BLOCKED` before the phone
-  request.
-- This is not a general signer boundary. Arbitrary calldata, calls that bypass Fluxion, or a tampered
-  local process are not constrained; general enforcement still requires a smart account, session
-  key, or signer policy.
-
-### Verification
-
-- Rust unit tests and fixture corpora cover decode, effects, trace, approval, asset-flow, swap,
-  policy, and signature.
-- The Foundry/Anvil red-team contracts cover fake logs, hidden delegatecalls, proxy upgrades,
-  unlimited approvals, permits, 7702, and 4337.
-- Current corpus: **17/17 detect**, **3/3 controls with no findings**.
-- Real historical BSC calldata: two real unlimited-approval phishing transactions hit `AUTH-001`;
-  two opaque exploit entrypoints remain explicitly `unknown`.
-- Method and raw data: [red-team](docs/benchmarks/redteam-2026-11-11.md),
-  [historical calldata](docs/benchmarks/historical-calddata-2026-11-11.md), and
-  [security benchmark](docs/benchmarks/security-inspection-2026-11-11.md).
+The rule catalog, trust boundaries, threat model, inspection pipeline, coverage semantics, and
+red-team boundary are in
+[`docs/capabilities/transaction/ASSURANCE.md`](docs/capabilities/transaction/ASSURANCE.md);
+threat-intel configuration is in
+[`docs/capabilities/transaction/THREAT-INTEL.md`](docs/capabilities/transaction/THREAT-INTEL.md);
+method and raw data are in [red-team](docs/benchmarks/redteam-2026-11-11.md),
+[historical calldata](docs/benchmarks/historical-calddata-2026-11-11.md), and
+[security benchmark](docs/benchmarks/security-inspection-2026-11-11.md).
 
 ## Execution model
 
@@ -643,7 +562,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
 - Security: [rule catalog](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- Contracts: [fourmeme.agent-tokens schema](schemas/fourmeme_agent_tokens.v1.json) · [fourmeme.token schema](schemas/fourmeme_token.v1.json) · [yield.discover schema](schemas/yield_discover.v1.json) · [yield.build schema](schemas/yield_build.v1.json) · [yield.history schema](schemas/yield_history.v1.json) · [yield.withdraw schema](schemas/yield_withdraw.v1.json) · [position.analyze schema](schemas/position_analyze.v1.json) · [swap.build schema](schemas/swap_build.v1.json) · [transaction.inspect schema](schemas/transaction_inspect.v1.json) · [transaction.send schema](schemas/transaction_send.v1.json)
+- Contracts: [capability catalog](capabilities/catalog.yaml) · [catalog schema](schemas/capability_catalog.v2.json) · [capability docs index](docs/capabilities/README.md)
 - Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
 - Skills: [swap](skills/swap/SKILL.md) · [yield](skills/yield/SKILL.md) · [position](skills/position/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
 
