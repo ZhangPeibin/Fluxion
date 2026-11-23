@@ -126,8 +126,8 @@ it. Every capability returns capability envelope v2 (`meta`, `chain`, `block`, `
 
 | Capability | Status | CLI | Description |
 |---|---|---|---|
-| `fourmeme.agent-tokens` | experimental | `fluxion fourmeme agent-tokens --wallet 0x...` | Discover Binance Agent ID Exclusive tokens and wallet eligibility |
-| `fourmeme.token` | experimental | `fluxion fourmeme token 0x... --wallet 0x...` | Single-token detail, phase, market data and eligibility |
+| `fourmeme.agent-tokens` | experimental | `fluxion fourmeme agent-tokens --wallet 0x... --before-block N` | Discover Binance Agent ID Exclusive tokens with block continuation and wallet eligibility |
+| `fourmeme.token` | experimental | `fluxion fourmeme token 0x... --wallet 0x...` | Detail: phase, market/momentum, socials, holders, tradability and 1% cap, safety signals, eligibility |
 
 #### 6. Yield discovery
 
@@ -462,7 +462,7 @@ Inspect this Permit2 typed data: check the amount, expiration, spender, and chai
 
 Skill: [fourmeme](skills/fourmeme/SKILL.md) · Docs: [fourmeme](docs/capabilities/fourmeme/README.md)
 
-Discover recent Four.meme tokens using the `Binance Agent ID Exclusive` template
+Discover Four.meme tokens using the `Binance Agent ID Exclusive` template
 (`presetId=1778027615735`) and optionally check Agent ID eligibility. An `aiCreator` label or
 `.ai` tag is not sufficient.
 
@@ -470,21 +470,30 @@ Discover recent Four.meme tokens using the `Binance Agent ID Exclusive` template
 fluxion fourmeme agent-tokens --json
 fluxion fourmeme agent-tokens --wallet 0x... --limit 20 --json
 fluxion fourmeme agent-tokens --lookback-blocks 100000 --json
+fluxion fourmeme agent-tokens --lookback-blocks 100000 --before-block 26350000 --json
 fluxion fourmeme token 0x... --wallet 0x... --json
 fluxion fourmeme ui --open
 ```
 
-`fourmeme.token` returns one token's image, description, phase, template, raised, market cap,
-price, supply, creator and optional wallet eligibility. If the detail API is unavailable it falls
+`fourmeme.agent-tokens` scans OpenFour Core `TokenCreated` logs and filters by template.
+`--before-block` continues backwards from an older block; `next_before_block` in the response is the
+cursor for the next page.
+
+`fourmeme.token` returns image, description, phase, template, market/momentum (price, max price,
+market cap, liquidity, 24h volume/change), social links, holder count, tradability (inner transfer
+lock, creation-time maxSupply, 1% wallet cap), safety signals (raw buy/sell tax, min/max buy,
+optional BscScan verification) and wallet eligibility. If the detail API is unavailable it falls
 back to OpenFour Core `tokens`, vault phase and BSC ERC20 fields; only when Core is also unavailable
-does it report `phase: unknown`.
+does it report `phase: unknown`. Missing fields are omitted with a warning, never reported as zero.
 
 `fourmeme.ui` starts a local read-only page on `127.0.0.1:8787` by default. List cards link to
-`#/token/<address>` detail pages. It never connects a wallet, signs, buys or sells.
+`#/token/<address>` detail pages, and "load earlier" continues paging. It never connects a wallet,
+signs, buys or sells.
 
 During the bonding phase only a Binance Agentic Wallet with an Agent ID can trade, each address
 is capped at 1% of creation-time `maxSupply`, and inner-market transfers are locked. Trading opens
-after graduation. This capability only discovers and checks; it never buys, sells, or signs.
+after graduation. `fourmeme.token` reports `wallet_cap` (balance, 1% cap, remaining, reached).
+This capability only discovers and checks; it never buys, sells, or signs.
 
 ## Security model
 

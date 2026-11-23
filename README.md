@@ -119,8 +119,8 @@ capability envelope v2（`meta`、`chain`、`block`、`as_of`、`provenance`、`
 
 | Capability | Status | CLI | 说明 |
 |---|---|---|---|
-| `fourmeme.agent-tokens` | experimental | `fluxion fourmeme agent-tokens --wallet 0x...` | 发现 Binance Agent ID Exclusive token，查询钱包资格 |
-| `fourmeme.token` | experimental | `fluxion fourmeme token 0x... --wallet 0x...` | 单币详情、阶段、市场数据、资格 |
+| `fourmeme.agent-tokens` | experimental | `fluxion fourmeme agent-tokens --wallet 0x... --before-block N` | 发现 Binance Agent ID Exclusive token，支持按区块向前翻页、查询钱包资格 |
+| `fourmeme.token` | experimental | `fluxion fourmeme token 0x... --wallet 0x...` | 单币详情：阶段、市场/动量、社交、持有人、交易限制与 1% 额度、安全信号、资格 |
 
 #### 6. 收益发现
 
@@ -452,19 +452,26 @@ token，并可检查钱包是否持有 Agent ID。`aiCreator` 或 `.ai` 标签�
 fluxion fourmeme agent-tokens --json
 fluxion fourmeme agent-tokens --wallet 0x... --limit 20 --json
 fluxion fourmeme agent-tokens --lookback-blocks 100000 --json
+fluxion fourmeme agent-tokens --lookback-blocks 100000 --before-block 26350000 --json
 fluxion fourmeme token 0x... --wallet 0x... --json
 fluxion fourmeme ui --open
 ```
 
-`fourmeme.token` 返回单个 token 的图标、描述、阶段、模板、募资、市值、价格、供应量、创建者
-和可选钱包资格；API 不可用时回退到 OpenFour Core `tokens`、vault phase 和 BSC ERC20
-只读字段；Core 也不可用时才标记 `phase: unknown`。
+`fourmeme.agent-tokens` 扫描 OpenFour Core `TokenCreated` 日志并按模板过滤；`--before-block`
+可以从更早的区块继续向前翻页，响应里的 `next_before_block` 就是下一次的游标。
+
+`fourmeme.token` 返回图标、描述、阶段、模板、市场/动量（价格、max price、市值、流动性、
+24h 成交量/涨跌幅）、社交链接、持有人数、交易限制（内盘转账锁定、创建时 maxSupply、1% 钱包
+额度）、安全信号（原始买卖税、min/max buy、可选 BscScan 合约验证）和钱包资格。API 不可用时
+回退到 OpenFour Core `tokens`、vault phase 和 BSC ERC20 只读字段；Core 也不可用时才标记
+`phase: unknown`。缺失字段会省略并给出 warning，不会当成 0。
 
 `fourmeme.ui` 启动本地只读网页（默认 `127.0.0.1:8787`），列表卡片可点击进入
-`#/token/<address>` 详情页。页面不连接钱包、不签名、不买不卖。
+`#/token/<address>` 详情页，并支持“加载更早”继续翻页。页面不连接钱包、不签名、不买不卖。
 
 内盘阶段只有 Binance Agentic Wallet + Agent ID 可交易，单地址最多持有创建时 `maxSupply`
-的 1%，且内盘转账被锁定；毕业后开放交易。该能力只发现和检查，不买、不卖、不签名。
+的 1%，且内盘转账被锁定；毕业后开放交易。`fourmeme.token` 会返回 `wallet_cap`（余额、1%
+上限、剩余额度、是否触顶）。该能力只发现和检查，不买、不卖、不签名。
 
 ## 安全模型
 
