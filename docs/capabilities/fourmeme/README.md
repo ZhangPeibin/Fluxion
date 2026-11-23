@@ -42,6 +42,19 @@ unavailable (rate limit, region restriction, outage), Fluxion reads OpenFour Cor
 reports the on-chain phase/template/creator/supply with an explicit warning. If Core state is also
 unavailable, only ERC20 basics are returned with `phase: unknown`.
 
+### Pre-buy safety
+
+`fourmeme.token` returns a `safety` object when any signal is available:
+
+- `buy_tax_raw`, `sell_tax_raw`, `min_buy_raw`, `max_buy_raw`: raw Four.meme API values. Their
+  units are not normalized yet; do not present them as percentages or amounts.
+- `contract_verified`: `true`, `false`, or `null`. `null` means not checked or unavailable.
+- `source`: `fourmeme-api`, `bscscan`, `fourmeme-api+bscscan`, or `none`.
+
+Contract verification uses `BSCSCAN_API_KEY` and the configured BscScan endpoint. Without a key
+the field is `null` and a warning is added; it is never inferred. A missing or failed verification
+is not evidence of safety.
+
 ### Socials and holder count
 
 `fourmeme.token` also returns:

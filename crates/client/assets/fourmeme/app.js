@@ -60,6 +60,13 @@ function socialLink(label, href) {
   }
 }
 
+function contractText(safety) {
+  if (!safety) return "—";
+  if (safety.contract_verified === true) return "verified";
+  if (safety.contract_verified === false) return "unverified";
+  return "unknown";
+}
+
 function formatChange(market) {
   if (!market) return "—";
   if (market.change_24h) return market.change_24h;
@@ -399,6 +406,11 @@ function renderDetail(detail) {
         ? String(detail.holder_count)
         : "—",
     ),
+    stat("Buy tax (raw)", detail.safety?.buy_tax_raw),
+    stat("Sell tax (raw)", detail.safety?.sell_tax_raw),
+    stat("Min buy (raw)", detail.safety?.min_buy_raw),
+    stat("Max buy (raw)", detail.safety?.max_buy_raw),
+    stat("Contract", contractText(detail.safety)),
     stat("Total supply", detail.total_supply),
     stat("Sale amount", detail.sale_amount),
     stat("Phase", phaseText(detail.phase)),

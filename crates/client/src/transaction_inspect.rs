@@ -71,7 +71,7 @@ impl SourceVerifier {
         })
     }
 
-    async fn verify(&self, address: Address) -> SourceVerification {
+    pub(crate) async fn verify(&self, address: Address) -> SourceVerification {
         let client = reqwest::Client::new();
         let response = client
             .get(&self.url)
@@ -160,12 +160,12 @@ impl SourceVerifier {
 }
 
 #[derive(Debug, Default)]
-struct SourceVerification {
-    verified: Option<bool>,
-    proxy: Option<bool>,
-    implementation: Option<Address>,
-    warnings: Vec<String>,
-    unknowns: Vec<String>,
+pub(crate) struct SourceVerification {
+    pub(crate) verified: Option<bool>,
+    pub(crate) proxy: Option<bool>,
+    pub(crate) implementation: Option<Address>,
+    pub(crate) warnings: Vec<String>,
+    pub(crate) unknowns: Vec<String>,
 }
 
 const RULESET_VERSION: &str = "2026-11-11.1";

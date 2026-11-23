@@ -295,6 +295,10 @@ async fn fourmeme_detail_api() -> Json<Value> {
             "name": "Agent Token",
             "shortName": "AGT",
             "status": "PUBLISH",
+            "tradeFeeRate": "1",
+            "sellFeeRate": "2",
+            "minBuy": "0.0001",
+            "maxBuy": "1",
             "twitterUrl": "https://x.com/agent",
             "telegramUrl": "https://t.me/agent",
             "webUrl": "https://agent.example",
@@ -822,6 +826,11 @@ async fn fourmeme_workflow_discovers_tokens_and_agent_id() {
     let tradability = token.tradability.as_ref().unwrap();
     assert_eq!(tradability.transfer_locked, Some(true));
     assert_eq!(tradability.progress_percent, Some(42.0));
+    let safety = token.safety.as_ref().unwrap();
+    assert_eq!(safety.buy_tax_raw.as_deref(), Some("1"));
+    assert_eq!(safety.sell_tax_raw.as_deref(), Some("2"));
+    assert_eq!(safety.min_buy_raw.as_deref(), Some("0.0001"));
+    assert_eq!(safety.max_buy_raw.as_deref(), Some("1"));
     let socials = token.socials.as_ref().unwrap();
     assert_eq!(socials.twitter.as_deref(), Some("https://x.com/agent"));
     assert_eq!(socials.telegram.as_deref(), Some("https://t.me/agent"));

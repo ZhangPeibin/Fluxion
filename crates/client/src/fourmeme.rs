@@ -11,9 +11,11 @@ use data_encoding::HEXLOWER;
 use serde_json::{Value, json};
 
 use crate::capability::{Amount, CapabilityError, CapabilityErrorCode};
+use crate::chain::Chain;
 use crate::transaction::Rpc;
+use crate::transaction_inspect::SourceVerifier;
 use fluxion_protocol::fourmeme::{
-    FourMemeAgentTokensResponse, FourMemeMarket, FourMemeSocials, FourMemeToken,
+    FourMemeAgentTokensResponse, FourMemeMarket, FourMemeSafety, FourMemeSocials, FourMemeToken,
     FourMemeTokenDetail, FourMemeTradability, FourMemeWalletCap,
 };
 use fluxion_protocol::wallet::AssetSource;
@@ -431,6 +433,9 @@ pub async fn token(
     let market = market_from_detail(&detail, phase);
     let socials = socials_from_detail(&detail);
     let holder_count = holder_count_from_detail(&detail);
+    let (safety, safety_warnings) =
+        safety_from_detail(Some(&detail), address, SourceVerifier::from_env(Chain::Bsc)).await;
+    warnings.extend(safety_warnings);
 
     let mut sources = vec![detail_source()];
     if onchain.is_some() {
@@ -498,6 +503,7 @@ pub async fn token(
         eligibility_reason,
         socials,
         holder_count,
+        safety,
         market,
         tradability,
         wallet_cap,
@@ -544,6 +550,53 @@ fn holder_count_from_detail(detail: &Value) -> Option<u64> {
             .get("tokenPrice")
             .and_then(|price| field_u64(price, "holderCount"))
     })
+}
+
+async fn safety_from_detail(
+    detail: Option<&Value>,
+    address: Address,
+    verifier: Option<SourceVerifier>,
+) -> (Option<FourMemeSafety>, Vec<String>) {
+    let buy_tax_raw = detail.and_then(|detail| field_string(detail, "tradeFeeRate"));
+    let sell_tax_raw = detail.and_then(|detail| field_string(detail, "sellFeeRate"));
+    let min_buy_raw = detail.and_then(|detail| field_string(detail, "minBuy"));
+    let max_buy_raw = detail.and_then(|detail| field_string(detail, "maxBuy"));
+    let mut warnings = Vec::new();
+    let (contract_verified, verified_source) = match verifier {
+        Some(verifier) => {
+            let result = verifier.verify(address).await;
+            warnings.extend(result.warnings);
+            warnings.extend(result.unknowns);
+            (result.verified, true)
+        }
+        None => {
+            warnings.push(
+                "BSCSCAN_API_KEY is not set; contract verification was not checked".to_string(),
+            );
+            (None, false)
+        }
+    };
+    let has_raw = buy_tax_raw.is_some()
+        || sell_tax_raw.is_some()
+        || min_buy_raw.is_some()
+        || max_buy_raw.is_some();
+    let source = match (has_raw, verified_source) {
+        (true, true) => "fourmeme-api+bscscan",
+        (true, false) => "fourmeme-api",
+        (false, true) => "bscscan",
+        (false, false) => "none",
+    };
+    (
+        Some(FourMemeSafety {
+            source: source.to_string(),
+            buy_tax_raw,
+            sell_tax_raw,
+            min_buy_raw,
+            max_buy_raw,
+            contract_verified,
+        }),
+        warnings,
+    )
 }
 
 fn market_from_detail(detail: &Value, phase: &str) -> Option<FourMemeMarket> {
@@ -627,6 +680,8 @@ async fn onchain_fallback(
     api_error: &CapabilityError,
 ) -> Result<Option<FourMemeTokenDetail>, CapabilityError> {
     let rpc = Rpc::new(&config.bsc_rpc_url);
+    let (safety, safety_warnings) =
+        safety_from_detail(None, address, SourceVerifier::from_env(Chain::Bsc)).await;
     let state = onchain_state(config, address).await.ok().flatten();
     let name = match state.as_ref() {
         Some(state) => state.name.clone(),
@@ -760,6 +815,7 @@ async fn onchain_fallback(
                         eligibility_reason: Some("agent_identifier_unavailable".to_string()),
                         socials: None,
                         holder_count: None,
+                        safety: safety.clone(),
                         market: None,
                         tradability: tradability.clone(),
                         wallet_cap: wallet_cap.clone(),
@@ -778,6 +834,7 @@ async fn onchain_fallback(
                                 format!("AgentIdentifier check failed: {}", error.message),
                             ];
                             warnings.extend(cap_warning.clone());
+                            warnings.extend(safety_warnings.clone());
                             warnings
                         },
                     }));
@@ -816,6 +873,7 @@ async fn onchain_fallback(
         eligibility_reason,
         socials: None,
         holder_count: None,
+        safety,
         market: None,
         tradability,
         wallet_cap,
@@ -835,6 +893,7 @@ async fn onchain_fallback(
                 api_error.message
             )];
             warnings.extend(cap_warning);
+            warnings.extend(safety_warnings);
             warnings
         },
     }))
@@ -1294,6 +1353,33 @@ mod tests {
         assert_eq!(
             format_units(U256::from(1_500_000_000_000_000_000u64), 18),
             "1.5"
+        );
+    }
+
+    #[tokio::test]
+    async fn safety_without_verifier_is_unknown() {
+        let (safety, warnings) = safety_from_detail(
+            Some(&json!({
+                "tradeFeeRate": "1",
+                "sellFeeRate": "2",
+                "minBuy": "0.0001",
+                "maxBuy": "1"
+            })),
+            Address::with_last_byte(1),
+            None,
+        )
+        .await;
+        let safety = safety.unwrap();
+        assert_eq!(safety.source, "fourmeme-api");
+        assert_eq!(safety.buy_tax_raw.as_deref(), Some("1"));
+        assert_eq!(safety.sell_tax_raw.as_deref(), Some("2"));
+        assert_eq!(safety.min_buy_raw.as_deref(), Some("0.0001"));
+        assert_eq!(safety.max_buy_raw.as_deref(), Some("1"));
+        assert_eq!(safety.contract_verified, None);
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("BSCSCAN_API_KEY"))
         );
     }
 
