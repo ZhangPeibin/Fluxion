@@ -96,6 +96,8 @@ pub struct FourMemeTokenDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub holder_count: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety: Option<FourMemeSafety>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub market: Option<FourMemeMarket>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tradability: Option<FourMemeTradability>,
@@ -162,6 +164,27 @@ pub struct FourMemeSocials {
     pub telegram: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub website: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FourMemeSafety {
+    /// `fourmeme-api`, `bscscan`, `fourmeme-api+bscscan`, or `none`.
+    pub source: String,
+    /// Raw API value; units are not normalized yet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub buy_tax_raw: Option<String>,
+    /// Raw API value; units are not normalized yet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sell_tax_raw: Option<String>,
+    /// Raw API value; units are not normalized yet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_buy_raw: Option<String>,
+    /// Raw API value; units are not normalized yet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_buy_raw: Option<String>,
+    /// `true | false | null`; null means not checked or unavailable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contract_verified: Option<bool>,
 }
 
 pub fn describe() -> CapabilityDescriptor {

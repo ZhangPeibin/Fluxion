@@ -45,6 +45,7 @@
         "eligibility_reason": { "type": "string" },
         "socials": { "$ref": "#/$defs/socials" },
         "holder_count": { "type": "integer", "minimum": 0 },
+        "safety": { "$ref": "#/$defs/safety" },
         "market": { "$ref": "#/$defs/market" },
         "tradability": { "$ref": "#/$defs/tradability" },
         "wallet_cap": { "$ref": "#/$defs/wallet_cap" }
@@ -104,6 +105,22 @@
         "message": { "type": "string" },
         "source": { "type": "string" },
         "details": { "type": "object" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["fourmeme-api", "bscscan", "fourmeme-api+bscscan", "none"]
+        },
+        "buy_tax_raw": { "type": "string" },
+        "sell_tax_raw": { "type": "string" },
+        "min_buy_raw": { "type": "string" },
+        "max_buy_raw": { "type": "string" },
+        "contract_verified": { "type": "boolean" }
       }
     },
     "socials": {
