@@ -304,11 +304,11 @@ impl Classic3Pool {
         let ann = mul(self.amp, n)?;
         let mut sum = U256::ZERO;
         let mut c = d;
-        for k in 0..3 {
+        for (k, reserve) in self.xp.iter().enumerate() {
             if k == j {
                 continue;
             }
-            let value = if k == i { x } else { self.xp[k] };
+            let value = if k == i { x } else { *reserve };
             sum = add(sum, value)?;
             c = div(mul(c, d)?, mul(value, n)?)?;
         }
