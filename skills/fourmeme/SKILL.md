@@ -49,6 +49,9 @@ Both capabilities use envelope v2:
 `fourmeme.token` data:
 
 - `address`, `name`, `symbol`, `phase`, template fields, market fields, creator and timestamps.
+- `market`: `price`, `max_price`, `market_cap`, `liquidity`, `raised`, `volume_24h`,
+  `change_24h`, and `progress_percent`. `change_24h_percent` is present only when the raw value is
+  unambiguous; otherwise report the raw `change_24h` and do not invent a percentage.
 - `tradability.transfer_locked`: `true` while bonding; inner-market transfers are locked.
 - `tradability.progress_percent`: curve completion, 0–100.
 - `tradability.max_supply`: creation-time max supply; the 1% hold-cap denominator.
