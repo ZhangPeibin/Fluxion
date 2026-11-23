@@ -44,6 +44,8 @@ Both capabilities use envelope v2:
 - `phase`: `bonding` requires an Agent wallet; `graduated` is open to everyone.
 - `wallet_eligible`: `true`, `false`, or omitted when `AgentIdentifier` is unavailable.
 - `lookback_blocks` bounds the scan; discovery is not complete history.
+- Pass `before_block` to scan older windows; use `next_before_block` from the response as the next
+  `before_block`. A value above the head is clamped and warned.
 - Check `warnings`; partial log ranges, API rate limits and region restrictions are explicit.
 
 `fourmeme.token` data:

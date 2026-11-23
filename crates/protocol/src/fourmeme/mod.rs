@@ -39,6 +39,8 @@ pub struct FourMemeAgentTokensResponse {
     pub lookback_blocks: u64,
     pub from_block: u64,
     pub to_block: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_before_block: Option<u64>,
     pub tokens: Vec<FourMemeToken>,
     pub coverage: String,
     pub sources: Vec<AssetSource>,

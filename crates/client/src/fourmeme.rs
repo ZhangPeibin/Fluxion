@@ -57,6 +57,8 @@ pub struct ListRequest {
     pub wallet: Option<Address>,
     pub limit: usize,
     pub lookback_blocks: u64,
+    /// Scan the window ending at this block; defaults to the current head.
+    pub before_block: Option<u64>,
 }
 
 impl Default for ListRequest {
@@ -65,6 +67,7 @@ impl Default for ListRequest {
             wallet: None,
             limit: 20,
             lookback_blocks: DEFAULT_LOOKBACK_BLOCKS,
+            before_block: None,
         }
     }
 }
@@ -82,15 +85,26 @@ pub async fn agent_tokens(
     config: &FourMemeConfig,
     request: ListRequest,
 ) -> Result<FourMemeAgentTokensResponse, CapabilityError> {
+    if request.lookback_blocks == 0 || request.lookback_blocks > 5_000_000 {
+        return Err(CapabilityError::invalid_argument(
+            "lookback_blocks must be between 1 and 5000000",
+        ));
+    }
     let wallet = request.wallet;
     let rpc = Rpc::new(&config.bsc_rpc_url);
     let (latest, _, _) = rpc.block(None).await?;
-    let from_block = latest.saturating_sub(request.lookback_blocks.saturating_sub(1));
+    let (from_block, to_block, next_before_block, clamped) =
+        scan_window(latest, request.lookback_blocks, request.before_block);
     let mut warnings = Vec::new();
+    if clamped {
+        warnings.push(format!(
+            "before_block is above the current head {latest}; using {to_block}"
+        ));
+    }
     let mut created = Vec::new();
     let mut seen = BTreeSet::new();
     let mut ranges = Vec::new();
-    let mut end = latest;
+    let mut end = to_block;
 
     loop {
         let start = end.saturating_sub(LOG_CHUNK_BLOCKS - 1).max(from_block);
@@ -315,7 +329,8 @@ pub async fn agent_tokens(
         scanned,
         lookback_blocks: request.lookback_blocks,
         from_block,
-        to_block: latest,
+        to_block,
+        next_before_block,
         tokens,
         coverage: coverage.join("+"),
         sources,
@@ -899,6 +914,23 @@ async fn onchain_fallback(
     }))
 }
 
+fn scan_window(
+    latest: u64,
+    lookback_blocks: u64,
+    before_block: Option<u64>,
+) -> (u64, u64, Option<u64>, bool) {
+    let requested = before_block.unwrap_or(latest);
+    let clamped = requested > latest;
+    let to_block = requested.min(latest);
+    let from_block = to_block.saturating_sub(lookback_blocks.saturating_sub(1));
+    let next_before_block = if from_block > 0 {
+        Some(from_block - 1)
+    } else {
+        None
+    };
+    (from_block, to_block, next_before_block, clamped)
+}
+
 async fn log_pages(
     config: &FourMemeConfig,
     ranges: &[(u64, u64)],
@@ -1309,6 +1341,14 @@ mod tests {
             bytes.push(0);
         }
         format!("{}{}", word(length as u64), HEXLOWER.encode(&bytes))
+    }
+
+    #[test]
+    fn computes_scan_window_and_continuation() {
+        assert_eq!(scan_window(100, 10, None), (91, 100, Some(90), false));
+        assert_eq!(scan_window(100, 10, Some(50)), (41, 50, Some(40), false));
+        assert_eq!(scan_window(100, 200, Some(50)), (0, 50, None, false));
+        assert_eq!(scan_window(100, 10, Some(200)), (91, 100, Some(90), true));
     }
 
     #[test]

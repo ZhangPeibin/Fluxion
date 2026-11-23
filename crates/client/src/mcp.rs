@@ -397,7 +397,8 @@ fn tools_list() -> Value {
                     "properties": {
                         "wallet": {"type": "string", "description": "Optional wallet for AgentIdentifier eligibility"},
                         "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
-                        "lookback_blocks": {"type": "integer", "minimum": 1, "maximum": 5000000, "default": 100000}
+                        "lookback_blocks": {"type": "integer", "minimum": 1, "maximum": 5000000, "default": 100000},
+                        "before_block": {"type": "integer", "minimum": 0, "description": "Scan the window ending at this block; defaults to the current head"}
                     }
                 }
             },
@@ -1052,6 +1053,7 @@ async fn fourmeme_agent_tokens_tool(arguments: &Value) -> Result<Value, Capabili
             wallet,
             limit,
             lookback_blocks,
+            before_block: optional_u64(arguments, "before_block")?,
         },
     )
     .await?;

@@ -352,7 +352,7 @@ capabilities:
     domain: fourmeme
     action: agent-tokens
     status: experimental
-    summary: Discover recent Four.meme Binance Agent ID Exclusive tokens.
+    summary: Discover Four.meme Binance Agent ID Exclusive tokens with block continuation.
     envelope: v2
     execution: local
     transports: [mcp, cli]

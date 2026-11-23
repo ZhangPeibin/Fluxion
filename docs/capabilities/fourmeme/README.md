@@ -16,11 +16,15 @@ trading to Binance Agentic Wallets with an Agent ID; after graduation trading is
 fluxion fourmeme agent-tokens --json
 fluxion fourmeme agent-tokens --wallet 0x... --limit 20 --json
 fluxion fourmeme agent-tokens --lookback-blocks 100000 --json
+fluxion fourmeme agent-tokens --lookback-blocks 100000 --before-block 26350000 --json
 ```
 
 - `limit`: maximum returned tokens (1–50, default 20).
 - `lookback-blocks`: BSC block range to scan (1–5,000,000, default 100,000; roughly 3.5 days at
   3-second blocks).
+- `before-block`: optional; scan the window ending at this block instead of the current head. The
+  response returns `next_before_block` when older history may exist; pass it as the next
+  `before-block` to page backwards. A value above the head is clamped to the head.
 - `wallet`: optional; checks Four.meme `AgentIdentifier.isAgent(wallet)`.
 
 The `data` payload includes address, name, symbol, image, template id, phase, progress/raised when
@@ -129,7 +133,8 @@ GET /api/token/<address>    detail + optional wallet eligibility
   has no 1% cap, and a creator create-block presale is exempt.
 - `wallet_cap.reached` means further buys would revert or be clamped; do not treat a small
   `remaining` as a guarantee that a full buy will fill.
-- The scan is bounded by `lookback-blocks`; it is not complete history.
+- The scan is bounded by `lookback-blocks`; it is not complete history. Use
+  `next_before_block` as the next `before-block` to continue backwards.
 - API detail is optional enrichment. If the API is unavailable or rate-limited, token discovery
   still works from logs, with `phase: unknown` and one warning; detail calls stop after an
   unavailable response.
