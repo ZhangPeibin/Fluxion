@@ -49,6 +49,10 @@ Both capabilities use envelope v2:
 `fourmeme.token` data:
 
 - `address`, `name`, `symbol`, `phase`, template fields, market fields, creator and timestamps.
+- `safety`: raw `buy_tax_raw`, `sell_tax_raw`, `min_buy_raw`, `max_buy_raw` and
+  `contract_verified` (`true | false | null`), with a `source`. Units are not normalized yet; do
+  not call the raw tax a percentage. `contract_verified: null` means not checked or unavailable;
+  never treat it as verified or unverified.
 - `socials`: optional `twitter`, `telegram`, and `website` links.
 - `holder_count`: bonding-phase holder count when the API supplies it; after graduation it may be
   0 or unavailable. If it is missing, say unknown; never report zero.
