@@ -56,6 +56,7 @@ struct Defaults {
 struct CachedList {
     at: Instant,
     lookback_blocks: u64,
+    before_block: Option<u64>,
     wallet: Option<Address>,
     response: FourMemeAgentTokensResponse,
 }
@@ -68,6 +69,7 @@ struct CachedDetail {
 #[derive(Debug, Deserialize)]
 struct ListQuery {
     lookback_blocks: Option<u64>,
+    before_block: Option<u64>,
     wallet: Option<String>,
     refresh: Option<String>,
 }
@@ -204,6 +206,7 @@ async fn list_tokens(
         .lookback_blocks
         .unwrap_or(state.defaults.lookback_blocks);
     validate_lookback(lookback_blocks)?;
+    let before_block = query.before_block;
     let wallet = parse_wallet(query.wallet.as_deref(), state.defaults.wallet)?;
     let refresh = query
         .refresh
@@ -215,6 +218,7 @@ async fn list_tokens(
         if let Some(cached) = cache.as_ref()
             && cached.at.elapsed() < LIST_TTL
             && cached.lookback_blocks == lookback_blocks
+            && cached.before_block == before_block
             && cached.wallet == wallet
         {
             return Ok(Json(cached.response.clone()));
@@ -227,12 +231,14 @@ async fn list_tokens(
             wallet,
             limit: 50,
             lookback_blocks,
+            before_block,
         },
     )
     .await?;
     *state.list_cache.lock().await = Some(CachedList {
         at: Instant::now(),
         lookback_blocks,
+        before_block,
         wallet,
         response: response.clone(),
     });

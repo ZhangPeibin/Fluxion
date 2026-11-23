@@ -26,6 +26,7 @@
         "lookback_blocks": { "type": "integer", "minimum": 1 },
         "from_block": { "type": "integer", "minimum": 0 },
         "to_block": { "type": "integer", "minimum": 0 },
+        "next_before_block": { "type": "integer", "minimum": 0 },
         "tokens": {
           "type": "array",
           "items": {

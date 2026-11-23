@@ -8,6 +8,7 @@ const state = {
   filter: "all",
   search: "",
   loading: false,
+  nextBeforeBlock: null,
   detail: null,
   detailAddress: null,
 };
@@ -22,6 +23,8 @@ const elements = {
   status: document.getElementById("status"),
   warnings: document.getElementById("warnings"),
   list: document.getElementById("list"),
+  loadMore: document.getElementById("load-more"),
+  loadMoreWrap: document.getElementById("load-more-wrap"),
   listView: document.getElementById("list-view"),
   detailView: document.getElementById("detail-view"),
   detail: document.getElementById("detail"),
@@ -113,6 +116,9 @@ function setMeta(data) {
     `lookback: ${data.lookback_blocks}`,
     `coverage: ${data.coverage}`,
   ];
+  if (data.next_before_block !== undefined && data.next_before_block !== null) {
+    lines.push(`next before block: ${data.next_before_block}`);
+  }
   elements.meta.textContent = lines.join("\n");
 }
 
@@ -152,6 +158,7 @@ async function loadTokens(force = false) {
     return;
   }
   state.loading = true;
+  state.nextBeforeBlock = null;
   setStatus("正在扫描 BSC 日志并读取 Four.meme 详情…", false);
   setWarnings([]);
   elements.list.replaceChildren(
@@ -168,6 +175,7 @@ async function loadTokens(force = false) {
     const data = await api(`/api/tokens?${query.toString()}`);
     state.tokens = data.tokens || [];
     state.meta = data;
+    state.nextBeforeBlock = data.next_before_block ?? null;
     setMeta(data);
     setWarnings(data.warnings);
     setStatus(data.tokens.length ? "" : "当前回看范围内没有匹配的 Agent ID Exclusive token。", false);
@@ -180,7 +188,59 @@ async function loadTokens(force = false) {
     renderList();
   } finally {
     state.loading = false;
+    updateLoadMore();
   }
+}
+
+async function loadMore() {
+  if (state.loading || state.nextBeforeBlock === null || state.nextBeforeBlock === undefined) {
+    return;
+  }
+  if (!validateWallet()) return;
+  const lookback = Number(elements.lookback.value);
+  if (!Number.isInteger(lookback) || lookback < 1 || lookback > 5000000) {
+    setStatus("回看区块必须在 1 到 5000000 之间。", true);
+    return;
+  }
+  state.loading = true;
+  updateLoadMore();
+  setStatus("正在加载更早的区块…", false);
+  try {
+    const query = new URLSearchParams({
+      lookback_blocks: String(lookback),
+      before_block: String(state.nextBeforeBlock),
+    });
+    if (elements.wallet.value.trim()) {
+      query.set("wallet", elements.wallet.value.trim());
+    }
+    const data = await api(`/api/tokens?${query.toString()}`);
+    const known = new Set(state.tokens.map((token) => token.address.toLowerCase()));
+    for (const token of data.tokens || []) {
+      if (!known.has(token.address.toLowerCase())) {
+        state.tokens.push(token);
+        known.add(token.address.toLowerCase());
+      }
+    }
+    state.meta = data;
+    state.nextBeforeBlock = data.next_before_block ?? null;
+    setMeta(data);
+    setWarnings(data.warnings);
+    setStatus(
+      data.tokens.length ? `已加载更早的 ${data.tokens.length} 个 token。` : "没有更早的 token。",
+      false,
+    );
+    renderList();
+  } catch (error) {
+    setStatus(`加载更早区块失败：${error.message}`, true);
+  } finally {
+    state.loading = false;
+    updateLoadMore();
+  }
+}
+
+function updateLoadMore() {
+  elements.loadMoreWrap.hidden =
+    state.loading || state.nextBeforeBlock === null || state.nextBeforeBlock === undefined;
 }
 
 function renderList() {
@@ -503,6 +563,10 @@ function externalLink(label, href) {
 }
 
 function bindEvents() {
+  elements.loadMore.addEventListener("click", () => {
+    loadMore();
+  });
+
   elements.refresh.addEventListener("click", () => {
     if (window.location.hash.startsWith("#/token/")) {
       const address = window.location.hash.split("/").pop();

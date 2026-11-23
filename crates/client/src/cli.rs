@@ -1911,10 +1911,11 @@ struct FourMemeArgs {
     wallet: Option<String>,
     limit: usize,
     lookback_blocks: u64,
+    before_block: Option<u64>,
     json: bool,
 }
 
-const FOURMEME_USAGE: &str = "Usage:\n  fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N] [--json]\n  fluxion fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  fluxion fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]";
+const FOURMEME_USAGE: &str = "Usage:\n  fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N] [--before-block N] [--json]\n  fluxion fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  fluxion fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]";
 
 async fn run_fourmeme(raw: &[String]) -> i32 {
     let Some(command) = raw.first().map(String::as_str) else {
@@ -1966,6 +1967,7 @@ async fn run_fourmeme_agent_tokens(raw: &[String]) -> i32 {
             wallet,
             limit: args.limit,
             lookback_blocks: args.lookback_blocks,
+            before_block: args.before_block,
         },
     )
     .await
@@ -2126,6 +2128,7 @@ fn parse_fourmeme_args(raw: &[String]) -> Result<FourMemeArgs, CapabilityError> 
     let mut wallet = None;
     let mut limit = 20usize;
     let mut lookback_blocks = 100_000u64;
+    let mut before_block = None;
     let mut json = false;
     let mut index = 0;
     while index < raw.len() {
@@ -2166,6 +2169,17 @@ fn parse_fourmeme_args(raw: &[String]) -> Result<FourMemeArgs, CapabilityError> 
                     ));
                 }
             }
+            "--before-block" => {
+                index += 1;
+                before_block = Some(
+                    raw.get(index)
+                        .ok_or_else(|| {
+                            CapabilityError::invalid_argument("--before-block needs a value")
+                        })?
+                        .parse()
+                        .map_err(|_| CapabilityError::invalid_argument("invalid --before-block"))?,
+                );
+            }
             "--json" => json = true,
             value => {
                 return Err(CapabilityError::invalid_argument(format!(
@@ -2179,6 +2193,7 @@ fn parse_fourmeme_args(raw: &[String]) -> Result<FourMemeArgs, CapabilityError> 
         wallet,
         limit,
         lookback_blocks,
+        before_block,
         json,
     })
 }
