@@ -42,6 +42,15 @@ unavailable (rate limit, region restriction, outage), Fluxion reads OpenFour Cor
 reports the on-chain phase/template/creator/supply with an explicit warning. If Core state is also
 unavailable, only ERC20 basics are returned with `phase: unknown`.
 
+### Socials and holder count
+
+`fourmeme.token` also returns:
+
+- `socials`: optional `twitter`, `telegram`, and `website` links from the detail API. The local UI
+  only renders `http`/`https` links.
+- `holder_count`: the API holder count when present. This is bonding-phase platform data; it may
+  be 0 or unavailable after graduation. Missing values are omitted, never reported as zero.
+
 ### Market and momentum
 
 `fourmeme.token` returns a `market` object when the detail API supplies it:
