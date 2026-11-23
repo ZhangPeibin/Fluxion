@@ -123,6 +123,54 @@ impl Catalog {
         }
         output
     }
+
+    /// Machine-readable subset consumed by the `site/` landing page.
+    ///
+    /// Keep this intentionally narrow: the site only needs identity, status,
+    /// chains and links. Everything else stays in the catalog.
+    pub fn site_catalog_json(&self) -> serde_json::Value {
+        let capabilities = self
+            .capabilities
+            .iter()
+            .map(|entry| {
+                serde_json::json!({
+                    "id": entry.id,
+                    "domain": entry.domain,
+                    "action": entry.action,
+                    "status": entry.status,
+                    "summary": entry.summary,
+                    "execution": entry.execution,
+                    "chains": entry.chains,
+                    "sideEffects": entry.side_effects,
+                    "transports": entry.transports,
+                    "docs": entry.docs,
+                    "skill": entry.skill,
+                })
+            })
+            .collect::<Vec<_>>();
+        let workflows = self
+            .workflows
+            .iter()
+            .map(|workflow| {
+                serde_json::json!({
+                    "id": workflow.id,
+                    "summary": workflow.summary,
+                    "status": workflow.status,
+                    "chains": workflow.chains,
+                    "steps": workflow.steps,
+                    "plannedSteps": workflow.planned_steps,
+                    "gaps": workflow.gaps,
+                })
+            })
+            .collect::<Vec<_>>();
+
+        serde_json::json!({
+            "version": self.version,
+            "updated": self.updated,
+            "capabilities": capabilities,
+            "workflows": workflows,
+        })
+    }
 }
 
 fn default_envelope() -> String {
@@ -424,5 +472,24 @@ mod tests {
                 assert_path(&root, docs);
             }
         }
+    }
+
+    #[test]
+    fn site_catalog_matches_catalog() {
+        let catalog = load_embedded();
+        let path = repo_root().join("site/src/data/capabilities.json");
+        let document = std::fs::read_to_string(&path).unwrap_or_else(|_| {
+            panic!(
+                "missing {}; generate it with `cargo run -p fluxion-protocol --bin catalog-json > site/src/data/capabilities.json`",
+                path.display()
+            )
+        });
+        let expected = serde_json::to_string_pretty(&catalog.site_catalog_json())
+            .expect("catalog serializes to JSON");
+        assert_eq!(
+            document.trim(),
+            expected.trim(),
+            "site/src/data/capabilities.json is stale; regenerate it from the catalog"
+        );
     }
 }

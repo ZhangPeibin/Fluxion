@@ -86,6 +86,13 @@ Workspace crates:
 - `crates/client` — CLI, MCP bridge, remote client, token registry, `fluxion` binary.
 - Root `src/lib.rs` is a test/compatibility facade; production binaries live in the crates.
 
+Other surfaces:
+- `ui/` — internal React + Vite routing-graph viewer (dev server only).
+- `site/` — public product landing page (React + Vite, GitHub Pages). Capability cards are generated
+  from `capabilities/catalog.yaml` via
+  `cargo run -p fluxion-protocol --bin catalog-json > site/src/data/capabilities.json`; a catalog
+  test fails when the checked-in JSON is stale.
+
 Project-specific constraints:
 - Chain interaction uses **raw JSON-RPC via `reqwest`** with hand-written ABI encode/decode;
   only `alloy-primitives` (U256/Address) is used from alloy. Do not reintroduce the full `alloy` stack.

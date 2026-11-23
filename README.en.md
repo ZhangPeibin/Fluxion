@@ -14,6 +14,8 @@ It addresses two problems:
 
 English · [中文](README.md)
 
+Website: <https://zhangpeibin.github.io/Fluxion/en.html> · source: [`site/`](site/)
+
 [![CI](https://github.com/ZhangPeibin/Fluxion/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ZhangPeibin/Fluxion/actions/workflows/ci.yml)
 ![status](https://img.shields.io/badge/status-pre--1.0-orange)
 ![MCP](https://img.shields.io/badge/MCP-stdio-blueviolet)

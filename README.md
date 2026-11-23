@@ -11,6 +11,8 @@ Fluxion 是面向 AI Agent 的 Web3 能力层。它把报价、账户读取、�
 
 [English](README.en.md) · 中文
 
+产品官网：<https://zhangpeibin.github.io/Fluxion/> · 源码：[`site/`](site/)
+
 [![CI](https://github.com/ZhangPeibin/Fluxion/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ZhangPeibin/Fluxion/actions/workflows/ci.yml)
 ![status](https://img.shields.io/badge/status-pre--1.0-orange)
 ![MCP](https://img.shields.io/badge/MCP-stdio-blueviolet)

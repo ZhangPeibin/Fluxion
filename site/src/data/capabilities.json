@@ -1,0 +1,542 @@
+{
+  "capabilities": [
+    {
+      "action": "quote",
+      "chains": [
+        "ethereum"
+      ],
+      "docs": "docs/capabilities/swap/README.md",
+      "domain": "swap",
+      "execution": "remote",
+      "id": "swap.quote",
+      "sideEffects": "read_only",
+      "skill": "skills/swap/SKILL.md",
+      "status": "stable",
+      "summary": "Exact-in swap quote on Ethereum.",
+      "transports": [
+        "mcp",
+        "cli",
+        "http"
+      ]
+    },
+    {
+      "action": "build",
+      "chains": [
+        "ethereum"
+      ],
+      "docs": "docs/capabilities/swap/README.md",
+      "domain": "swap",
+      "execution": "local",
+      "id": "swap.build",
+      "sideEffects": "prepares_calldata",
+      "skill": "skills/swap/SKILL.md",
+      "status": "stable",
+      "summary": "Build V2 swap calldata from a quote.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "balance",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.balance",
+      "sideEffects": "read_only",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Read native and token balances at a pinned block.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "assets",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.assets",
+      "sideEffects": "read_only",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Discover ERC20 positions and verify balances locally.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "allowance",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.allowance",
+      "sideEffects": "read_only",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Read ERC20 allowances for an owner and spender.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "collectibles",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.collectibles",
+      "sideEffects": "read_only",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Read ERC721 and ERC1155 holdings.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "connect",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.connect",
+      "sideEffects": "local_session",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Start a WalletConnect v2 pairing.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "status",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.status",
+      "sideEffects": "read_only",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Read the locally stored WalletConnect session.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "disconnect",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.disconnect",
+      "sideEffects": "local_session",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Remove the local WalletConnect session.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "agent-id",
+      "chains": [
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.agent-id",
+      "sideEffects": "read_only",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Resolve a BSC .ai Agent ID.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "sign",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.sign",
+      "sideEffects": "signs",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Sign a message or EIP-712 typed data through the wallet session.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "send",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/wallet/README.md",
+      "domain": "wallet",
+      "execution": "local",
+      "id": "wallet.send",
+      "sideEffects": "broadcasts",
+      "skill": "skills/wallet/SKILL.md",
+      "status": "stable",
+      "summary": "Send a native or ERC20 transfer after simulation and confirmation.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "simulate",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/transaction/README.md",
+      "domain": "transaction",
+      "execution": "local",
+      "id": "transaction.simulate",
+      "sideEffects": "read_only",
+      "skill": "skills/transaction/SKILL.md",
+      "status": "stable",
+      "summary": "Simulate a transaction at a pinned block.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "inspect",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/transaction/README.md",
+      "domain": "transaction",
+      "execution": "local",
+      "id": "transaction.inspect",
+      "sideEffects": "read_only",
+      "skill": "skills/transaction/SKILL.md",
+      "status": "stable",
+      "summary": "Inspect unsigned calldata before signing.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "send",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/transaction/README.md",
+      "domain": "transaction",
+      "execution": "local",
+      "id": "transaction.send",
+      "sideEffects": "broadcasts",
+      "skill": "skills/transaction/SKILL.md",
+      "status": "stable",
+      "summary": "Simulate, inspect, and send calldata through the wallet session.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "verify",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/transaction/README.md",
+      "domain": "transaction",
+      "execution": "local",
+      "id": "transaction.verify",
+      "sideEffects": "read_only",
+      "skill": "skills/transaction/SKILL.md",
+      "status": "experimental",
+      "summary": "Verify a transaction receipt and compare actual effects with an inspection report.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "inspect",
+      "chains": [
+        "ethereum",
+        "bsc"
+      ],
+      "docs": "docs/capabilities/signature/README.md",
+      "domain": "signature",
+      "execution": "local",
+      "id": "signature.inspect",
+      "sideEffects": "read_only",
+      "skill": "skills/signature/SKILL.md",
+      "status": "stable",
+      "summary": "Inspect typed data, authorization lists, and user operations.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "agent-tokens",
+      "chains": [
+        "bsc"
+      ],
+      "docs": "docs/capabilities/fourmeme/README.md",
+      "domain": "fourmeme",
+      "execution": "local",
+      "id": "fourmeme.agent-tokens",
+      "sideEffects": "read_only",
+      "skill": "skills/fourmeme/SKILL.md",
+      "status": "experimental",
+      "summary": "Discover Four.meme Binance Agent ID Exclusive tokens with block continuation.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "token",
+      "chains": [
+        "bsc"
+      ],
+      "docs": "docs/capabilities/fourmeme/README.md",
+      "domain": "fourmeme",
+      "execution": "local",
+      "id": "fourmeme.token",
+      "sideEffects": "read_only",
+      "skill": "skills/fourmeme/SKILL.md",
+      "status": "experimental",
+      "summary": "Read one Four.meme token, including phase, tradability and wallet eligibility.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "discover",
+      "chains": [
+        "ethereum"
+      ],
+      "docs": "docs/capabilities/yield/README.md",
+      "domain": "yield",
+      "execution": "remote",
+      "id": "yield.discover",
+      "sideEffects": "read_only",
+      "skill": "skills/yield/SKILL.md",
+      "status": "experimental",
+      "summary": "Discover curated ETH staking and lending opportunities.",
+      "transports": [
+        "mcp",
+        "cli",
+        "http"
+      ]
+    },
+    {
+      "action": "build",
+      "chains": [
+        "ethereum"
+      ],
+      "docs": "docs/capabilities/yield/README.md",
+      "domain": "yield",
+      "execution": "local",
+      "id": "yield.build",
+      "sideEffects": "prepares_calldata",
+      "skill": "skills/yield/SKILL.md",
+      "status": "experimental",
+      "summary": "Build deposit calldata and approval steps for a curated opportunity.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "history",
+      "chains": [
+        "ethereum"
+      ],
+      "docs": "docs/capabilities/yield/README.md",
+      "domain": "yield",
+      "execution": "remote",
+      "id": "yield.history",
+      "sideEffects": "read_only",
+      "skill": "skills/yield/SKILL.md",
+      "status": "experimental",
+      "summary": "Read historical APY and TVL for a curated opportunity.",
+      "transports": [
+        "mcp",
+        "cli",
+        "http"
+      ]
+    },
+    {
+      "action": "withdraw",
+      "chains": [
+        "ethereum"
+      ],
+      "docs": "docs/capabilities/yield/README.md",
+      "domain": "yield",
+      "execution": "local",
+      "id": "yield.withdraw",
+      "sideEffects": "prepares_calldata",
+      "skill": "skills/yield/SKILL.md",
+      "status": "experimental",
+      "summary": "Build exit calldata for a curated yield position.",
+      "transports": [
+        "mcp",
+        "cli"
+      ]
+    },
+    {
+      "action": "analyze",
+      "chains": [
+        "ethereum"
+      ],
+      "docs": "docs/capabilities/position/README.md",
+      "domain": "position",
+      "execution": "remote",
+      "id": "position.analyze",
+      "sideEffects": "read_only",
+      "skill": "skills/position/SKILL.md",
+      "status": "experimental",
+      "summary": "Analyze curated ETH yield positions for a wallet.",
+      "transports": [
+        "mcp",
+        "cli",
+        "http"
+      ]
+    }
+  ],
+  "updated": "2026-11-22",
+  "version": 2,
+  "workflows": [
+    {
+      "chains": [
+        "ethereum"
+      ],
+      "gaps": [
+        "swap.build supports one Uniswap V2 allocation only",
+        "approvals are documented but not a shared helper"
+      ],
+      "id": "swap",
+      "plannedSteps": [
+        "swap.execute"
+      ],
+      "status": "experimental",
+      "steps": [
+        "swap.quote",
+        "swap.build",
+        "wallet.allowance",
+        "transaction.simulate",
+        "transaction.inspect",
+        "transaction.send",
+        "transaction.verify"
+      ],
+      "summary": "Quote, build, inspect, and execute a swap."
+    },
+    {
+      "chains": [
+        "ethereum"
+      ],
+      "gaps": [
+        "approval sequencing is not a shared helper",
+        "position.analyze should use the post-execution block"
+      ],
+      "id": "yield-deposit",
+      "plannedSteps": [],
+      "status": "experimental",
+      "steps": [
+        "yield.discover",
+        "yield.build",
+        "wallet.allowance",
+        "transaction.inspect",
+        "transaction.simulate",
+        "transaction.send",
+        "transaction.verify",
+        "position.analyze"
+      ],
+      "summary": "Discover a curated yield opportunity, deposit, and analyze the position."
+    },
+    {
+      "chains": [
+        "bsc"
+      ],
+      "gaps": [
+        "discovery is bounded by lookback-blocks",
+        "eligibility is unknown when AgentIdentifier is unavailable"
+      ],
+      "id": "fourmeme-discovery",
+      "plannedSteps": [],
+      "status": "experimental",
+      "steps": [
+        "fourmeme.agent-tokens",
+        "fourmeme.token",
+        "wallet.agent-id"
+      ],
+      "summary": "Discover Four.meme Agent ID tokens and check wallet eligibility."
+    },
+    {
+      "chains": [
+        "ethereum"
+      ],
+      "gaps": [
+        "position.analyze is Ethereum-only",
+        "BSC portfolio excludes the position step"
+      ],
+      "id": "portfolio",
+      "plannedSteps": [],
+      "status": "experimental",
+      "steps": [
+        "wallet.balance",
+        "wallet.assets",
+        "wallet.collectibles",
+        "position.analyze"
+      ],
+      "summary": "Summarize wallet holdings and curated yield positions."
+    }
+  ]
+}
