@@ -295,7 +295,16 @@ async fn fourmeme_detail_api() -> Json<Value> {
             "name": "Agent Token",
             "shortName": "AGT",
             "status": "PUBLISH",
-            "tokenPrice": {"progress": "0.42", "marketCap": "100", "price": "1"},
+            "tokenPrice": {
+                "progress": "0.42",
+                "marketCap": "100",
+                "price": "1",
+                "maxPrice": "2",
+                "dayTrading": "1234",
+                "dayIncrease": "5.2",
+                "liquidity": "50",
+                "raisedAmount": "10"
+            },
             "tokenTemplateVo": {"id": 1778027615735i64, "name": "Binance Agent ID Exclusive"},
             "userAddress": OWNER,
             "createDate": 1,
@@ -809,6 +818,11 @@ async fn fourmeme_workflow_discovers_tokens_and_agent_id() {
     let tradability = token.tradability.as_ref().unwrap();
     assert_eq!(tradability.transfer_locked, Some(true));
     assert_eq!(tradability.progress_percent, Some(42.0));
+    let market = token.market.as_ref().unwrap();
+    assert_eq!(market.max_price.as_deref(), Some("2"));
+    assert_eq!(market.volume_24h.as_deref(), Some("1234"));
+    assert_eq!(market.change_24h_percent, Some(5.2));
+    assert_eq!(market.liquidity.as_deref(), Some("50"));
     let cap = token.wallet_cap.as_ref().unwrap();
     assert_eq!(cap.cap.raw, "10000000000000000000000000");
     assert_eq!(cap.balance.raw, "5000000000000000000000000");
