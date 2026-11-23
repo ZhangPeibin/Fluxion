@@ -13,8 +13,8 @@ use serde_json::{Value, json};
 use crate::capability::{Amount, CapabilityError, CapabilityErrorCode};
 use crate::transaction::Rpc;
 use fluxion_protocol::fourmeme::{
-    FourMemeAgentTokensResponse, FourMemeMarket, FourMemeToken, FourMemeTokenDetail,
-    FourMemeTradability, FourMemeWalletCap,
+    FourMemeAgentTokensResponse, FourMemeMarket, FourMemeSocials, FourMemeToken,
+    FourMemeTokenDetail, FourMemeTradability, FourMemeWalletCap,
 };
 use fluxion_protocol::wallet::AssetSource;
 
@@ -429,6 +429,8 @@ pub async fn token(
     };
 
     let market = market_from_detail(&detail, phase);
+    let socials = socials_from_detail(&detail);
+    let holder_count = holder_count_from_detail(&detail);
 
     let mut sources = vec![detail_source()];
     if onchain.is_some() {
@@ -494,6 +496,8 @@ pub async fn token(
         version: field_string(&detail, "version"),
         wallet_eligible,
         eligibility_reason,
+        socials,
+        holder_count,
         market,
         tradability,
         wallet_cap,
@@ -518,6 +522,28 @@ fn percent_value(raw: &str) -> Option<f64> {
     } else {
         None
     }
+}
+
+fn socials_from_detail(detail: &Value) -> Option<FourMemeSocials> {
+    let twitter = field_string(detail, "twitterUrl");
+    let telegram = field_string(detail, "telegramUrl");
+    let website = field_string(detail, "webUrl");
+    if twitter.is_none() && telegram.is_none() && website.is_none() {
+        return None;
+    }
+    Some(FourMemeSocials {
+        twitter,
+        telegram,
+        website,
+    })
+}
+
+fn holder_count_from_detail(detail: &Value) -> Option<u64> {
+    field_u64(detail, "holderCount").or_else(|| {
+        detail
+            .get("tokenPrice")
+            .and_then(|price| field_u64(price, "holderCount"))
+    })
 }
 
 fn market_from_detail(detail: &Value, phase: &str) -> Option<FourMemeMarket> {
@@ -732,6 +758,8 @@ async fn onchain_fallback(
                         version: None,
                         wallet_eligible: None,
                         eligibility_reason: Some("agent_identifier_unavailable".to_string()),
+                        socials: None,
+                        holder_count: None,
                         market: None,
                         tradability: tradability.clone(),
                         wallet_cap: wallet_cap.clone(),
@@ -786,6 +814,8 @@ async fn onchain_fallback(
         version: None,
         wallet_eligible,
         eligibility_reason,
+        socials: None,
+        holder_count: None,
         market: None,
         tradability,
         wallet_cap,
@@ -1265,6 +1295,27 @@ mod tests {
             format_units(U256::from(1_500_000_000_000_000_000u64), 18),
             "1.5"
         );
+    }
+
+    #[test]
+    fn parses_socials_and_holder_count() {
+        let detail = json!({
+            "twitterUrl": "https://x.com/foo",
+            "telegramUrl": "https://t.me/foo",
+            "webUrl": "https://foo.example",
+            "tokenPrice": {"holderCount": 156}
+        });
+        let socials = socials_from_detail(&detail).unwrap();
+        assert_eq!(socials.twitter.as_deref(), Some("https://x.com/foo"));
+        assert_eq!(socials.telegram.as_deref(), Some("https://t.me/foo"));
+        assert_eq!(socials.website.as_deref(), Some("https://foo.example"));
+        assert_eq!(holder_count_from_detail(&detail), Some(156));
+        assert_eq!(
+            holder_count_from_detail(&json!({"holderCount": 42})),
+            Some(42)
+        );
+        assert!(socials_from_detail(&json!({})).is_none());
+        assert_eq!(holder_count_from_detail(&json!({})), None);
     }
 
     #[test]

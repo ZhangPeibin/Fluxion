@@ -92,6 +92,10 @@ pub struct FourMemeTokenDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eligibility_reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub socials: Option<FourMemeSocials>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub holder_count: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub market: Option<FourMemeMarket>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tradability: Option<FourMemeTradability>,
@@ -148,6 +152,16 @@ pub struct FourMemeMarket {
     pub raised: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress_percent: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FourMemeSocials {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub twitter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub telegram: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub website: Option<String>,
 }
 
 pub fn describe() -> CapabilityDescriptor {
