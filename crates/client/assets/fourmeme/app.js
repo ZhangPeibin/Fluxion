@@ -49,6 +49,13 @@ function phaseClass(phase) {
   return phase === "bonding" || phase === "graduated" ? phase : "unknown";
 }
 
+function formatChange(market) {
+  if (!market) return "—";
+  if (market.change_24h) return market.change_24h;
+  if (market.change_24h_percent !== undefined) return `${market.change_24h_percent}%`;
+  return "—";
+}
+
 function badge(text, className) {
   return element("span", `badge ${className || ""}`.trim(), text);
 }
@@ -358,10 +365,15 @@ function renderDetail(detail) {
   card.append(head, addressRow, links);
 
   const stats = element("div", "stats");
+  const raised = detail.market?.raised ?? detail.raised;
   stats.append(
-    stat("Raised", detail.raised ? `${detail.raised} BNB` : "—"),
-    stat("Market cap", detail.market_cap),
-    stat("Price", detail.price),
+    stat("Raised", raised ? `${raised} BNB` : "—"),
+    stat("Market cap", detail.market?.market_cap ?? detail.market_cap),
+    stat("Price", detail.market?.price ?? detail.price),
+    stat("Max price", detail.market?.max_price),
+    stat("Liquidity", detail.market?.liquidity),
+    stat("24h volume", detail.market?.volume_24h),
+    stat("24h change", formatChange(detail.market)),
     stat("Total supply", detail.total_supply),
     stat("Sale amount", detail.sale_amount),
     stat("Phase", phaseText(detail.phase)),

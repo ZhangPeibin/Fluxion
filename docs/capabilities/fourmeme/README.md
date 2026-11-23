@@ -42,6 +42,19 @@ unavailable (rate limit, region restriction, outage), Fluxion reads OpenFour Cor
 reports the on-chain phase/template/creator/supply with an explicit warning. If Core state is also
 unavailable, only ERC20 basics are returned with `phase: unknown`.
 
+### Market and momentum
+
+`fourmeme.token` returns a `market` object when the detail API supplies it:
+
+- `price`, `max_price`, `market_cap`, `liquidity`, `raised`
+- `volume_24h`: API `dayTrading`
+- `change_24h`: raw API `dayIncrease`; `change_24h_percent` is filled only when the raw value
+  is unambiguous (explicit `%`, or an absolute value greater than 1)
+- `progress_percent`: curve completion normalized to 0–100
+
+Missing or null values are omitted. Prefer the raw `change_24h` when `change_24h_percent` is
+absent rather than guessing a unit.
+
 ### Tradability and 1% cap
 
 `fourmeme.token` also returns:

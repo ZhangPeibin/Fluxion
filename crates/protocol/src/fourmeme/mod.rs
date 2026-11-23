@@ -92,6 +92,8 @@ pub struct FourMemeTokenDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eligibility_reason: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub market: Option<FourMemeMarket>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tradability: Option<FourMemeTradability>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wallet_cap: Option<FourMemeWalletCap>,
@@ -122,6 +124,30 @@ pub struct FourMemeWalletCap {
     /// Remaining room before the cap; zero when reached.
     pub remaining: Amount,
     pub reached: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FourMemeMarket {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_price: Option<String>,
+    /// Raw 24h change as returned by the API.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub change_24h: Option<String>,
+    /// 24h change as a percent, only when the raw value is unambiguous.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub change_24h_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub volume_24h: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub market_cap: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub liquidity: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub raised: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_percent: Option<f64>,
 }
 
 pub fn describe() -> CapabilityDescriptor {
