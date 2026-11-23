@@ -13,8 +13,8 @@ use serde_json::{Value, json};
 use crate::capability::{Amount, CapabilityError, CapabilityErrorCode};
 use crate::transaction::Rpc;
 use fluxion_protocol::fourmeme::{
-    FourMemeAgentTokensResponse, FourMemeToken, FourMemeTokenDetail, FourMemeTradability,
-    FourMemeWalletCap,
+    FourMemeAgentTokensResponse, FourMemeMarket, FourMemeToken, FourMemeTokenDetail,
+    FourMemeTradability, FourMemeWalletCap,
 };
 use fluxion_protocol::wallet::AssetSource;
 
@@ -428,6 +428,8 @@ pub async fn token(
         None
     };
 
+    let market = market_from_detail(&detail, phase);
+
     let mut sources = vec![detail_source()];
     if onchain.is_some() {
         sources.push(AssetSource {
@@ -492,11 +494,68 @@ pub async fn token(
         version: field_string(&detail, "version"),
         wallet_eligible,
         eligibility_reason,
+        market,
         tradability,
         wallet_cap,
         coverage: coverage.to_string(),
         sources,
         warnings,
+    })
+}
+
+fn percent_value(raw: &str) -> Option<f64> {
+    let raw = raw.trim();
+    let (value, explicit) = if let Some(stripped) = raw.strip_suffix('%') {
+        (stripped.trim().parse::<f64>().ok()?, true)
+    } else {
+        (raw.parse::<f64>().ok()?, false)
+    };
+    if !value.is_finite() {
+        return None;
+    }
+    if explicit || value.abs() > 1.0 {
+        Some((value * 100.0).round() / 100.0)
+    } else {
+        None
+    }
+}
+
+fn market_from_detail(detail: &Value, phase: &str) -> Option<FourMemeMarket> {
+    let price = nested_string(detail, "tokenPrice", "price");
+    let max_price = nested_string(detail, "tokenPrice", "maxPrice");
+    let change_24h = nested_string(detail, "tokenPrice", "dayIncrease");
+    let change_24h_percent = change_24h.as_deref().and_then(percent_value);
+    let volume_24h = nested_string(detail, "tokenPrice", "dayTrading");
+    let market_cap = nested_string(detail, "tokenPrice", "marketCap");
+    let liquidity = nested_string(detail, "tokenPrice", "liquidity");
+    let raised = field_string(detail, "raisedAmount")
+        .or_else(|| nested_string(detail, "tokenPrice", "raisedAmount"));
+    let progress_percent = if phase == "graduated" {
+        Some(100.0)
+    } else {
+        progress_percent(detail)
+    };
+    if price.is_none()
+        && max_price.is_none()
+        && change_24h.is_none()
+        && volume_24h.is_none()
+        && market_cap.is_none()
+        && liquidity.is_none()
+        && raised.is_none()
+        && progress_percent.is_none()
+    {
+        return None;
+    }
+    Some(FourMemeMarket {
+        price,
+        max_price,
+        change_24h,
+        change_24h_percent,
+        volume_24h,
+        market_cap,
+        liquidity,
+        raised,
+        progress_percent,
     })
 }
 
@@ -673,6 +732,7 @@ async fn onchain_fallback(
                         version: None,
                         wallet_eligible: None,
                         eligibility_reason: Some("agent_identifier_unavailable".to_string()),
+                        market: None,
                         tradability: tradability.clone(),
                         wallet_cap: wallet_cap.clone(),
                         coverage: "onchain".to_string(),
@@ -726,6 +786,7 @@ async fn onchain_fallback(
         version: None,
         wallet_eligible,
         eligibility_reason,
+        market: None,
         tradability,
         wallet_cap,
         coverage: "onchain".to_string(),
@@ -1204,6 +1265,39 @@ mod tests {
             format_units(U256::from(1_500_000_000_000_000_000u64), 18),
             "1.5"
         );
+    }
+
+    #[test]
+    fn parses_market_fields_and_ambiguous_change() {
+        assert_eq!(percent_value("5.2"), Some(5.2));
+        assert_eq!(percent_value("5.2%"), Some(5.2));
+        assert_eq!(percent_value("0.05"), None);
+
+        let detail = json!({
+            "raisedAmount": "20",
+            "tokenPrice": {
+                "price": "0.0001",
+                "maxPrice": "0.0002",
+                "dayIncrease": "5.2",
+                "dayTrading": "123.4",
+                "marketCap": "100000",
+                "liquidity": "50",
+                "raisedAmount": "20",
+                "progress": "0.42"
+            }
+        });
+        let market = market_from_detail(&detail, "bonding").unwrap();
+        assert_eq!(market.price.as_deref(), Some("0.0001"));
+        assert_eq!(market.max_price.as_deref(), Some("0.0002"));
+        assert_eq!(market.change_24h.as_deref(), Some("5.2"));
+        assert_eq!(market.change_24h_percent, Some(5.2));
+        assert_eq!(market.volume_24h.as_deref(), Some("123.4"));
+        assert_eq!(market.market_cap.as_deref(), Some("100000"));
+        assert_eq!(market.liquidity.as_deref(), Some("50"));
+        assert_eq!(market.raised.as_deref(), Some("20"));
+        assert_eq!(market.progress_percent, Some(42.0));
+
+        assert!(market_from_detail(&json!({}), "bonding").is_none());
     }
 
     #[test]
