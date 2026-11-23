@@ -807,6 +807,7 @@ async fn fourmeme_workflow_discovers_tokens_and_agent_id() {
             wallet: None,
             limit: 5,
             lookback_blocks: 1_000,
+            before_block: None,
         },
     )
     .await
@@ -896,6 +897,7 @@ async fn fourmeme_workflow_reports_rpc_failure() {
             wallet: None,
             limit: 5,
             lookback_blocks: 1_000,
+            before_block: None,
         },
     )
     .await
