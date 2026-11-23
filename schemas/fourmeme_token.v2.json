@@ -43,6 +43,8 @@
         "version": { "type": "string" },
         "wallet_eligible": { "type": "boolean" },
         "eligibility_reason": { "type": "string" },
+        "socials": { "$ref": "#/$defs/socials" },
+        "holder_count": { "type": "integer", "minimum": 0 },
         "market": { "$ref": "#/$defs/market" },
         "tradability": { "$ref": "#/$defs/tradability" },
         "wallet_cap": { "$ref": "#/$defs/wallet_cap" }
@@ -102,6 +104,15 @@
         "message": { "type": "string" },
         "source": { "type": "string" },
         "details": { "type": "object" }
+      }
+    },
+    "socials": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "twitter": { "type": "string" },
+        "telegram": { "type": "string" },
+        "website": { "type": "string" }
       }
     },
     "market": {

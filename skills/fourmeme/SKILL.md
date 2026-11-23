@@ -49,6 +49,9 @@ Both capabilities use envelope v2:
 `fourmeme.token` data:
 
 - `address`, `name`, `symbol`, `phase`, template fields, market fields, creator and timestamps.
+- `socials`: optional `twitter`, `telegram`, and `website` links.
+- `holder_count`: bonding-phase holder count when the API supplies it; after graduation it may be
+  0 or unavailable. If it is missing, say unknown; never report zero.
 - `market`: `price`, `max_price`, `market_cap`, `liquidity`, `raised`, `volume_24h`,
   `change_24h`, and `progress_percent`. `change_24h_percent` is present only when the raw value is
   unambiguous; otherwise report the raw `change_24h` and do not invent a percentage.

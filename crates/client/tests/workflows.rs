@@ -295,6 +295,9 @@ async fn fourmeme_detail_api() -> Json<Value> {
             "name": "Agent Token",
             "shortName": "AGT",
             "status": "PUBLISH",
+            "twitterUrl": "https://x.com/agent",
+            "telegramUrl": "https://t.me/agent",
+            "webUrl": "https://agent.example",
             "tokenPrice": {
                 "progress": "0.42",
                 "marketCap": "100",
@@ -303,7 +306,8 @@ async fn fourmeme_detail_api() -> Json<Value> {
                 "dayTrading": "1234",
                 "dayIncrease": "5.2",
                 "liquidity": "50",
-                "raisedAmount": "10"
+                "raisedAmount": "10",
+                "holderCount": 156
             },
             "tokenTemplateVo": {"id": 1778027615735i64, "name": "Binance Agent ID Exclusive"},
             "userAddress": OWNER,
@@ -818,6 +822,11 @@ async fn fourmeme_workflow_discovers_tokens_and_agent_id() {
     let tradability = token.tradability.as_ref().unwrap();
     assert_eq!(tradability.transfer_locked, Some(true));
     assert_eq!(tradability.progress_percent, Some(42.0));
+    let socials = token.socials.as_ref().unwrap();
+    assert_eq!(socials.twitter.as_deref(), Some("https://x.com/agent"));
+    assert_eq!(socials.telegram.as_deref(), Some("https://t.me/agent"));
+    assert_eq!(socials.website.as_deref(), Some("https://agent.example"));
+    assert_eq!(token.holder_count, Some(156));
     let market = token.market.as_ref().unwrap();
     assert_eq!(market.max_price.as_deref(), Some("2"));
     assert_eq!(market.volume_24h.as_deref(), Some("1234"));

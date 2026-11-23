@@ -49,6 +49,17 @@ function phaseClass(phase) {
   return phase === "bonding" || phase === "graduated" ? phase : "unknown";
 }
 
+function socialLink(label, href) {
+  if (!href) return null;
+  try {
+    const url = new URL(href);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return externalLink(label, url.href);
+  } catch {
+    return null;
+  }
+}
+
 function formatChange(market) {
   if (!market) return "—";
   if (market.change_24h) return market.change_24h;
@@ -360,6 +371,14 @@ function renderDetail(detail) {
   const links = element("div", "links");
   links.append(externalLink("Four.meme", `${FOURMEME_TOKEN_URL}${detail.address}`));
   links.append(externalLink("BscScan", `${BSCSCAN_URL}${detail.address}`));
+  for (const [label, href] of [
+    ["X / Twitter", detail.socials?.twitter],
+    ["Telegram", detail.socials?.telegram],
+    ["Website", detail.socials?.website],
+  ]) {
+    const link = socialLink(label, href);
+    if (link) links.append(link);
+  }
 
   head.append(thumb, title);
   card.append(head, addressRow, links);
@@ -374,6 +393,12 @@ function renderDetail(detail) {
     stat("Liquidity", detail.market?.liquidity),
     stat("24h volume", detail.market?.volume_24h),
     stat("24h change", formatChange(detail.market)),
+    stat(
+      "Holders",
+      detail.holder_count !== undefined && detail.holder_count !== null
+        ? String(detail.holder_count)
+        : "—",
+    ),
     stat("Total supply", detail.total_supply),
     stat("Sale amount", detail.sale_amount),
     stat("Phase", phaseText(detail.phase)),
