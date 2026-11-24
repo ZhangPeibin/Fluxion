@@ -2,15 +2,15 @@
 
 [English](README.md) · 中文
 
-`swap.quote` 是 Fluxion 的第一个 capability：Ethereum mainnet 上的 exact-in swap 报价。它返回
+`swap.quote` 是 Eollo 的第一个 capability：Ethereum mainnet 上的 exact-in swap 报价。它返回
 金额、拆单分配、hop 路径和状态来源信息。`swap.build` 把单条 V2 allocation 转成 router
 calldata。两者都只读，不签名、不授权、不广播。
 
 ## `swap.build`
 
 ```bash
-fluxion swap quote --in USDC --out WETH --amount 100 --json > /tmp/quote.json
-fluxion swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 --json
+eollo swap quote --in USDC --out WETH --amount 100 --json > /tmp/quote.json
+eollo swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 --json
 ```
 
 - 只支持 Ethereum。
@@ -21,10 +21,10 @@ fluxion swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 -
 
 ## 执行模型
 
-`swap.quote` 固定使用远程 Fluxion 服务；`swap.build` 和 `wallet` / `execute` capability 使用
+`swap.quote` 固定使用远程 Eollo 服务；`swap.build` 和 `wallet` / `execute` capability 使用
 local runtime。Agent 和用户都不选择 local/remote。
 
-远程 endpoint 通过 `FLUXION_REMOTE_URL`（或 `--url`）配置；认证和注册见
+远程 endpoint 通过 `EOLLO_REMOTE_URL`（或 `--url`）配置；认证和注册见
 [docs/MCP.md](../../MCP.md)。这是 endpoint 配置，不是执行模式。
 
 ## 架构
@@ -41,11 +41,11 @@ local runtime。Agent 和用户都不选择 local/remote。
 flowchart TB
     subgraph Client["客户端"]
         Agent["Agent<br/>opencode · Claude · Codex"]
-        MCP["fluxion mcp<br/>swap_quote tool"]
+        MCP["eollo mcp<br/>swap_quote tool"]
         CapRouter["Capability router<br/>每个 capability 执行位置固定"]
     end
 
-    subgraph Remote["Fluxion remote"]
+    subgraph Remote["Eollo remote"]
         API["POST /quote<br/>校验 · 限流 · 超时"]
         Lease["Snapshot lease<br/>一个不可变版本"]
         Engine["报价引擎<br/>Router / SplitOptimizer<br/>local_snapshot: 0 RPC"]
@@ -75,7 +75,7 @@ flowchart TB
 
 ### 请求路径
 
-1. **MCP 入口。** `fluxion mcp` 暴露 `swap_quote` tool，并把参数映射为 `POST /quote`。没有
+1. **MCP 入口。** `eollo mcp` 暴露 `swap_quote` tool，并把参数映射为 `POST /quote`。没有
    local/remote 选择器。
 2. **请求准入。** API 校验地址和金额，应用限流，获取有界 compute slot，并租用当前 snapshot。
    如果没有完整 snapshot，或者 snapshot 过期、落后、reorg、不完整，请求返回显式状态错误；
@@ -123,15 +123,15 @@ flowchart TB
 ## 快速开始
 
 ```bash
-fluxion swap ldo-eth 100
-fluxion swap ldo-eth 100 --json
-fluxion capability describe swap.quote --json
+eollo swap ldo-eth 100
+eollo swap ldo-eth 100 --json
+eollo capability describe swap.quote --json
 ```
 
 机器接口：
 
 ```bash
-fluxion swap quote --in LDO --out ETH --amount 100 --json
+eollo swap quote --in LDO --out ETH --amount 100 --json
 ```
 
 MCP tool：`swap_quote`，参数为 `token_in`、`token_out`、`amount`，可选 `max_hops`、`split`、
@@ -177,7 +177,7 @@ Tool 名称：`swap_quote`。
 |---|---:|
 | 快照落后区块 p50/p95/max | **0 / 1 / 1** |
 | 快照落后时间 p50/p95/max | **0 / 12 / 12 s** |
-| Fluxion HTTP p50/p95 | **49 / 133 ms** |
+| Eollo HTTP p50/p95 | **49 / 133 ms** |
 | 成功率 | **90 / 90** |
 | ParaSwap 平均偏差 / ±50 bps 内 | **−2.6 bps / 89** |
 | 1inch 平均偏差 / ±50 bps 内 | **−8.7 bps / 82** |
@@ -211,4 +211,4 @@ CLI 退出码：`2` 参数错误，`3` 无路径/流动性，`4` RPC/不支持�
 - [JSON schema](../../../schemas/swap_quote.v2.json)
 - [项目白皮书](../../WHITEPAPER.md)
 - [最新 benchmark](../../benchmarks/quote-freshness-2026-11-04-route-split.md)
-- [根 README](../../../README.md)
+- [根 README](../../../README.zh.md)

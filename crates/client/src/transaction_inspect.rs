@@ -18,7 +18,7 @@ use crate::token;
 use crate::transaction::{Rpc, normalize_data};
 use crate::wallet::WalletConfig;
 
-pub use fluxion_protocol::transaction::{
+pub use eollo_protocol::transaction::{
     TransactionInspectApprovalEffect, TransactionInspectArg, TransactionInspectAssurance,
     TransactionInspectCoverage, TransactionInspectEffects, TransactionInspectExplanation,
     TransactionInspectFinding, TransactionInspectIntent, TransactionInspectNativeEffect,
@@ -48,13 +48,13 @@ impl SourceVerifier {
         let (key_var, url_var, default_url, label) = match chain {
             Chain::Bsc => (
                 "BSCSCAN_API_KEY",
-                "FLUXION_BSCSCAN_API_URL",
+                "EOLLO_BSCSCAN_API_URL",
                 "https://api.bscscan.com/api",
                 "bscscan",
             ),
             Chain::Ethereum => (
                 "ETHERSCAN_API_KEY",
-                "FLUXION_ETHERSCAN_API_URL",
+                "EOLLO_ETHERSCAN_API_URL",
                 "https://api.etherscan.io/api",
                 "etherscan",
             ),
@@ -353,7 +353,7 @@ async fn inspect_with_options(
     let metadata = inspect_target(&rpc, request.to, &tag, verifier.as_ref()).await?;
     let simulation = inspect_effects(&rpc, &request, &data, &tag).await;
     let trace = inspect_trace(&rpc, &request, &data, &tag, &metadata.target).await;
-    let verify_rpc_url = std::env::var("FLUXION_VERIFY_RPC_URL")
+    let verify_rpc_url = std::env::var("EOLLO_VERIFY_RPC_URL")
         .ok()
         .filter(|value| !value.trim().is_empty());
     let cross_check = cross_check(
@@ -2626,7 +2626,7 @@ struct ThreatIntel {
 
 impl ThreatIntel {
     fn from_env() -> (Option<Self>, Option<String>) {
-        let Some(path) = std::env::var("FLUXION_THREAT_INTEL_FILE")
+        let Some(path) = std::env::var("EOLLO_THREAT_INTEL_FILE")
             .ok()
             .filter(|value| !value.trim().is_empty())
         else {
@@ -2643,7 +2643,7 @@ impl ThreatIntel {
                 );
             }
         };
-        let pubkey = std::env::var("FLUXION_THREAT_INTEL_PUBKEY")
+        let pubkey = std::env::var("EOLLO_THREAT_INTEL_PUBKEY")
             .ok()
             .filter(|value| !value.trim().is_empty());
         let (intel, warning) = Self::from_json(&text, pubkey.as_deref());
@@ -2666,10 +2666,9 @@ impl ThreatIntel {
         let signed = match pubkey {
             None => {
                 let warning = if file.signature.is_some() {
-                    "has a signature but FLUXION_THREAT_INTEL_PUBKEY is not configured".to_string()
+                    "has a signature but EOLLO_THREAT_INTEL_PUBKEY is not configured".to_string()
                 } else {
-                    "is unsigned; configure FLUXION_THREAT_INTEL_PUBKEY for signed feeds"
-                        .to_string()
+                    "is unsigned; configure EOLLO_THREAT_INTEL_PUBKEY for signed feeds".to_string()
                 };
                 return (
                     Some(Self {

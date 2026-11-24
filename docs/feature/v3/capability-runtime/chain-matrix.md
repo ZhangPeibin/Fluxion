@@ -6,15 +6,15 @@
 
 ## 1. Purpose
 
-This spec defines how Fluxion declares and enforces chain support. Chain support is a capability
+This spec defines how Eollo declares and enforces chain support. Chain support is a capability
 property, not a global mode and not an implicit default.
 
 ## 2. Supported chains
 
 | Chain | Id | Native symbol | Default RPC env | Token registry |
 |---|---|---|---|---|
-| Ethereum | 1 | ETH | `FLUXION_RPC_URL` / `RPC_URL` | built-in Ethereum registry |
-| BSC | 56 | BNB | `FLUXION_BSC_RPC_URL` | built-in BSC registry |
+| Ethereum | 1 | ETH | `EOLLO_RPC_URL` / `RPC_URL` | built-in Ethereum registry |
+| BSC | 56 | BNB | `EOLLO_BSC_RPC_URL` | built-in BSC registry |
 
 Ethereum and BSC are first-class. Base is not an implementation target in v3.
 
@@ -93,7 +93,7 @@ Rules:
 
 | Concern | Ethereum | BSC |
 |---|---|---|
-| RPC | `FLUXION_RPC_URL` / `RPC_URL` | `FLUXION_BSC_RPC_URL` |
+| RPC | `EOLLO_RPC_URL` / `RPC_URL` | `EOLLO_BSC_RPC_URL` |
 | Source verification | `ETHERSCAN_API_KEY` | `BSCSCAN_API_KEY` |
 | Explorer | `etherscan.io` | `bscscan.com` |
 | WalletConnect chain id | 1 | 56 |

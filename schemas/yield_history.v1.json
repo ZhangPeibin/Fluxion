@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/yield_history.v1.json",
-  "title": "Fluxion yield.history v1",
+  "$id": "https://eollo.xyz/schemas/yield_history.v1.json",
+  "title": "Eollo yield.history v1",
   "oneOf": [
     { "$ref": "#/$defs/success" },
     { "$ref": "#/$defs/error" }

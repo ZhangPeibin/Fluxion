@@ -1,4 +1,4 @@
-//! Thin client for a warm local Fluxion runtime.
+//! Thin client for a warm local Eollo runtime.
 //!
 //! The public interface is the CLI/MCP process; this client talks to the
 //! internal HTTP endpoint so repeated quotes reuse the runtime's warm state.
@@ -17,8 +17,8 @@ use crate::capability::{
 use crate::swap::PlanKind;
 use crate::swap::quote::{AllocationResponse, HopResponse, QuoteRequest, QuoteResponse};
 use crate::token;
-use fluxion_protocol::position::{PositionAnalyzeRequest, PositionAnalyzeResponse};
-use fluxion_protocol::yield_capability::{
+use eollo_protocol::position::{PositionAnalyzeRequest, PositionAnalyzeResponse};
+use eollo_protocol::yield_capability::{
     YieldDiscoverRequest, YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse,
 };
 
@@ -151,7 +151,7 @@ impl RuntimeClient {
             let response = http_request.send().await.map_err(|error| {
                 CapabilityError::new(
                     CapabilityErrorCode::RpcError,
-                    format!("Fluxion runtime unavailable: {error}"),
+                    format!("Eollo runtime unavailable: {error}"),
                     true,
                 )
             })?;
@@ -394,7 +394,7 @@ pub fn request_id() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    format!("fluxion-{}-{nanos}", std::process::id())
+    format!("eollo-{}-{nanos}", std::process::id())
 }
 
 #[cfg(test)]

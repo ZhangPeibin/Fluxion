@@ -9,14 +9,14 @@ use alloy_primitives::{Address, U256};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use fluxion_remote::config::Config;
-use fluxion_remote::graph::Graph;
-use fluxion_remote::model::{Hop, QuoteRequest};
-use fluxion_remote::reference::{ReferenceMetadata, paraswap};
-use fluxion_remote::router::{PriceSnapshot, Router, RouterConfig};
-use fluxion_remote::rpc::RpcClient;
-use fluxion_remote::split::{PlanKind, SearchStats, SplitConfig, SplitOptimizer, SplitResult};
-use fluxion_remote::universe::{discover_pools, pricing_source, warm_coarse_prices};
+use eollo_remote::config::Config;
+use eollo_remote::graph::Graph;
+use eollo_remote::model::{Hop, QuoteRequest};
+use eollo_remote::reference::{ReferenceMetadata, paraswap};
+use eollo_remote::router::{PriceSnapshot, Router, RouterConfig};
+use eollo_remote::rpc::RpcClient;
+use eollo_remote::split::{PlanKind, SearchStats, SplitConfig, SplitOptimizer, SplitResult};
+use eollo_remote::universe::{discover_pools, pricing_source, warm_coarse_prices};
 
 #[derive(Debug, Deserialize)]
 struct Corpus {
@@ -149,7 +149,7 @@ async fn local_quote(
     optimizer: &SplitOptimizer,
     router: &Router,
     graph: &Graph,
-    source: &(dyn fluxion_remote::source::QuoteSource + Send + Sync),
+    source: &(dyn eollo_remote::source::QuoteSource + Send + Sync),
     request: &QuoteRequest,
     rpc: &RpcClient,
     timeout_ms: u64,

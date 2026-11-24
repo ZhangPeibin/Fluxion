@@ -12,7 +12,7 @@ use crate::chain::Chain;
 use crate::transaction::{self, SimulateRequest, normalize_data};
 use crate::transaction_inspect::{self, InspectPolicy, InspectRequest};
 use crate::wallet::WalletConfig;
-use fluxion_protocol::transaction::TransactionSendResponse;
+use eollo_protocol::transaction::TransactionSendResponse;
 
 const MAX_DATA_BYTES: usize = 256 * 1024;
 

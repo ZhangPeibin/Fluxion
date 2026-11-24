@@ -1,5 +1,5 @@
 use alloy_primitives::U256;
-use fluxion::{curve_local::Classic3Pool, error::QuoteError};
+use eollo::{curve_local::Classic3Pool, error::QuoteError};
 
 #[test]
 fn classic_three_coin_quotes_preserve_decimals_fees_and_all_directions() {

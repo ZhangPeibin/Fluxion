@@ -5,8 +5,8 @@
 
 use alloy_primitives::{Address, U256};
 use data_encoding::HEXLOWER;
-use fluxion_protocol::capability::{Amount, CapabilityError, CapabilityErrorCode, SCHEMA_VERSION};
-use fluxion_protocol::yield_capability::{
+use eollo_protocol::capability::{Amount, CapabilityError, CapabilityErrorCode, SCHEMA_VERSION};
+use eollo_protocol::yield_capability::{
     Registry, YieldAction, YieldApproval, YieldAsset, YieldBuildRequest, YieldBuildResponse,
     YieldBuildStep,
 };
@@ -21,7 +21,7 @@ const ERC20_APPROVE: &str = "095ea7b3";
 const AAVE_SUPPLY: &str = "617ba037";
 const ERC4626_DEPOSIT: &str = "6e553f65";
 const DISCLAIMER: &str =
-    "Calldata only. Simulate and inspect before signing; Fluxion does not sign or broadcast.";
+    "Calldata only. Simulate and inspect before signing; Eollo does not sign or broadcast.";
 
 pub fn build(request: &YieldBuildRequest) -> Result<YieldBuildResponse, CapabilityError> {
     let registry = Registry::load_default()
@@ -110,7 +110,7 @@ pub fn build(request: &YieldBuildRequest) -> Result<YieldBuildResponse, Capabili
 }
 
 fn supply_steps(
-    entry: &fluxion_protocol::yield_capability::RegistryEntry,
+    entry: &eollo_protocol::yield_capability::RegistryEntry,
     amount: U256,
     recipient: Address,
     funding: &str,
@@ -157,7 +157,7 @@ fn supply_steps(
 }
 
 fn vault_steps(
-    entry: &fluxion_protocol::yield_capability::RegistryEntry,
+    entry: &eollo_protocol::yield_capability::RegistryEntry,
     amount: U256,
     recipient: Address,
     funding: &str,
@@ -183,7 +183,7 @@ fn vault_steps(
 }
 
 fn stake_step(
-    entry: &fluxion_protocol::yield_capability::RegistryEntry,
+    entry: &eollo_protocol::yield_capability::RegistryEntry,
     amount: U256,
     data: String,
 ) -> YieldBuildStep {
@@ -226,9 +226,7 @@ fn lido_submit() -> String {
     hex_data(LIDO_SUBMIT, &[word_address(Address::ZERO)])
 }
 
-pub(crate) fn deposit_asset(
-    entry: &fluxion_protocol::yield_capability::RegistryEntry,
-) -> YieldAsset {
+pub(crate) fn deposit_asset(entry: &eollo_protocol::yield_capability::RegistryEntry) -> YieldAsset {
     YieldAsset {
         symbol: entry.deposit_asset_symbol.clone(),
         address: entry.deposit_asset_address.clone(),
@@ -236,9 +234,7 @@ pub(crate) fn deposit_asset(
     }
 }
 
-pub(crate) fn receipt_asset(
-    entry: &fluxion_protocol::yield_capability::RegistryEntry,
-) -> YieldAsset {
+pub(crate) fn receipt_asset(entry: &eollo_protocol::yield_capability::RegistryEntry) -> YieldAsset {
     YieldAsset {
         symbol: entry.receipt_asset_symbol.clone(),
         address: format!("{:#x}", entry.receipt_asset_address),

@@ -40,12 +40,12 @@ async fn mock_runtime() -> (String, tokio::task::JoinHandle<()>) {
 }
 
 fn spawn_mcp(args: &[&str]) -> (tokio::process::Child, ChildStdin, BufReader<ChildStdout>) {
-    let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_fluxion"));
+    let mut command = tokio::process::Command::new(env!("CARGO_BIN_EXE_eollo"));
     command
         .arg("mcp")
         .args(args)
-        .env_remove("FLUXION_REMOTE_URL")
-        .env_remove("FLUXION_API_KEY")
+        .env_remove("EOLLO_REMOTE_URL")
+        .env_remove("EOLLO_API_KEY")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -86,7 +86,7 @@ async fn mcp_stdio_initializes_lists_and_calls_swap_quote() {
         }),
     )
     .await;
-    assert_eq!(initialize["result"]["serverInfo"]["name"], "fluxion");
+    assert_eq!(initialize["result"]["serverInfo"]["name"], "eollo");
 
     // Notifications never receive a response.
     stdin
@@ -139,7 +139,7 @@ async fn mcp_starts_without_remote_and_returns_structured_tool_error() {
         json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
     )
     .await;
-    assert_eq!(initialize["result"]["serverInfo"]["name"], "fluxion");
+    assert_eq!(initialize["result"]["serverInfo"]["name"], "eollo");
 
     let tools = request(
         &mut stdin,

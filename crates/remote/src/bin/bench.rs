@@ -1,4 +1,4 @@
-//! Quote benchmark: compares Fluxion's `/quote` with external aggregator APIs.
+//! Quote benchmark: compares Eollo's `/quote` with external aggregator APIs.
 //!
 //! Usage:
 //!   cargo run --bin bench -- [--service URL] [--corpus PATH] [--out PATH.md]
@@ -19,8 +19,8 @@ use alloy_primitives::{Address, U256};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use fluxion_remote::config::Config;
-use fluxion_remote::rpc::{BlockHeader, RpcClient};
+use eollo_remote::config::Config;
+use eollo_remote::rpc::{BlockHeader, RpcClient};
 
 const ONEINCH_URL: &str = "https://api.1inch.com/swap/v6.0/1/quote";
 const ZEROX_URL: &str = "https://api.0x.org/swap/allowance-holder/price";
@@ -89,7 +89,7 @@ struct Row {
     token_in: String,
     token_out: String,
     amount_in: String,
-    fluxion: Side,
+    eollo: Side,
     freshness: QuoteFreshness,
     control: Option<Side>,
     paraswap: Side,
@@ -227,7 +227,7 @@ impl QuoteFreshness {
 #[derive(Debug, Serialize)]
 struct Summary {
     rows: usize,
-    fluxion_ok: usize,
+    eollo_ok: usize,
     paraswap_ok: usize,
     oneinch_ok: usize,
     zerox_ok: usize,
@@ -243,8 +243,8 @@ struct Summary {
     zerox_median_delta_bps: Option<f64>,
     zerox_mean_delta_bps: Option<f64>,
     zerox_within_50_bps: usize,
-    fluxion_latency_p50_ms: Option<u128>,
-    fluxion_latency_p95_ms: Option<u128>,
+    eollo_latency_p50_ms: Option<u128>,
+    eollo_latency_p95_ms: Option<u128>,
     paraswap_latency_p50_ms: Option<u128>,
     paraswap_latency_p95_ms: Option<u128>,
     oneinch_latency_p50_ms: Option<u128>,
@@ -291,7 +291,7 @@ fn quality(rows: &[&Row], control: bool) -> Quality {
             if control {
                 row.control.as_ref().map(|side| (side, &row.paraswap))
             } else {
-                Some((&row.fluxion, &row.paraswap))
+                Some((&row.eollo, &row.paraswap))
             }
         })
         .collect::<Vec<_>>();
@@ -338,7 +338,7 @@ fn cohorts(rows: &[Row]) -> HashMap<String, Cohort> {
             let mut worse = 0;
             for row in &selected {
                 if let (Some(new), Some(old)) = (
-                    row.fluxion.amount_out.as_deref(),
+                    row.eollo.amount_out.as_deref(),
                     row.control
                         .as_ref()
                         .and_then(|side| side.amount_out.as_deref()),
@@ -371,7 +371,7 @@ fn cohorts(rows: &[Row]) -> HashMap<String, Cohort> {
 #[derive(Debug, Serialize)]
 struct Comparison {
     both_ok: usize,
-    fluxion_only: usize,
+    eollo_only: usize,
     aggregator_only: usize,
     both_failed: usize,
 }
@@ -379,15 +379,15 @@ struct Comparison {
 fn comparison<'a>(rows: &'a [Row], pick: impl Fn(&'a Row) -> Option<&'a Side>) -> Comparison {
     let mut counts = Comparison {
         both_ok: 0,
-        fluxion_only: 0,
+        eollo_only: 0,
         aggregator_only: 0,
         both_failed: 0,
     };
     for row in rows {
         if let Some(other) = pick(row) {
-            match (row.fluxion.is_ok(), other.is_ok()) {
+            match (row.eollo.is_ok(), other.is_ok()) {
                 (true, true) => counts.both_ok += 1,
-                (true, false) => counts.fluxion_only += 1,
+                (true, false) => counts.eollo_only += 1,
                 (false, true) => counts.aggregator_only += 1,
                 (false, false) => counts.both_failed += 1,
             }
@@ -406,7 +406,7 @@ struct Meta {
     end_block: Option<u64>,
     paraswap_enabled: bool,
     oneinch_enabled: bool,
-    fluxion_split: bool,
+    eollo_split: bool,
     zerox_enabled: bool,
     working_tree_dirty: bool,
     service_info: Value,
@@ -444,12 +444,12 @@ fn print_help() {
         "Usage: cargo run --bin bench -- [options]\n\
          \n\
          Options:\n\
-            --service URL    Fluxion base URL (default http://127.0.0.1:8080)\n\
+            --service URL    Eollo base URL (default http://127.0.0.1:8080)\n\
             --control-service URL  optional feature-disabled control, quoted in the same run\n\
            --corpus PATH    corpus YAML (default bench/corpus.yaml)\n\
            --out PATH       Markdown output path (also writes PATH.json)\n\
             --limit N        only benchmark the first N pairs\n\
-            --split          enable Fluxion multi-pool routing\n\
+            --split          enable Eollo multi-pool routing\n\
             --delay-ms MS    pause after each external request (default 250)\n\
             --config PATH    local RPC config (default config.yaml)\n\
             --freshness-rpc-url URL  separate Ethereum RPC for head observations\n\
@@ -556,13 +556,13 @@ fn parse_amount(value: &str) -> Option<String> {
     U256::from_str_radix(value, 10).ok().map(|v| v.to_string())
 }
 
-fn delta_bps(fluxion: &Side, other: &Side) -> Option<f64> {
-    let fluxion_out = fluxion.out()?;
+fn delta_bps(eollo: &Side, other: &Side) -> Option<f64> {
+    let eollo_out = eollo.out()?;
     let other_out = other.out()?;
     if other_out <= 0.0 {
         return None;
     }
-    Some((fluxion_out - other_out) / other_out * 10_000.0)
+    Some((eollo_out - other_out) / other_out * 10_000.0)
 }
 
 fn median(values: &mut [f64]) -> Option<f64> {
@@ -605,7 +605,7 @@ where
     rows.iter()
         .filter_map(|row| {
             let other = pick(row)?;
-            delta_bps(&row.fluxion, other)
+            delta_bps(&row.eollo, other)
         })
         .collect()
 }
@@ -614,7 +614,7 @@ fn summarize(rows: &[Row]) -> Summary {
     let mut paraswap_deltas = aggregator_deltas(rows, |row| Some(&row.paraswap));
     let mut oneinch_deltas = aggregator_deltas(rows, |row| row.oneinch.as_ref());
     let mut zerox_deltas = aggregator_deltas(rows, |row| row.zerox.as_ref());
-    let mut fluxion_latencies = side_latencies(rows, |row| Some(&row.fluxion));
+    let mut eollo_latencies = side_latencies(rows, |row| Some(&row.eollo));
     let mut paraswap_latencies = side_latencies(rows, |row| Some(&row.paraswap));
     let mut oneinch_latencies = side_latencies(rows, |row| row.oneinch.as_ref());
     let mut zerox_latencies = side_latencies(rows, |row| row.zerox.as_ref());
@@ -640,7 +640,7 @@ fn summarize(rows: &[Row]) -> Summary {
 
     Summary {
         rows: rows.len(),
-        fluxion_ok: rows.iter().filter(|row| row.fluxion.is_ok()).count(),
+        eollo_ok: rows.iter().filter(|row| row.eollo.is_ok()).count(),
         paraswap_ok: rows.iter().filter(|row| row.paraswap.is_ok()).count(),
         oneinch_ok: rows
             .iter()
@@ -662,8 +662,8 @@ fn summarize(rows: &[Row]) -> Summary {
         zerox_median_delta_bps: median(&mut zerox_deltas),
         zerox_mean_delta_bps: mean(&zerox_deltas),
         zerox_within_50_bps: within_50(&zerox_deltas),
-        fluxion_latency_p50_ms: percentile(&mut fluxion_latencies, 0.50),
-        fluxion_latency_p95_ms: percentile(&mut fluxion_latencies, 0.95),
+        eollo_latency_p50_ms: percentile(&mut eollo_latencies, 0.50),
+        eollo_latency_p95_ms: percentile(&mut eollo_latencies, 0.95),
         paraswap_latency_p50_ms: percentile(&mut paraswap_latencies, 0.50),
         paraswap_latency_p95_ms: percentile(&mut paraswap_latencies, 0.95),
         oneinch_latency_p50_ms: percentile(&mut oneinch_latencies, 0.50),
@@ -703,7 +703,7 @@ fn format_signed(value: Option<i64>) -> String {
     value.map_or_else(|| "-".to_string(), |n| n.to_string())
 }
 
-async fn quote_fluxion(
+async fn quote_eollo(
     client: &reqwest::Client,
     service: &str,
     token_in: &str,
@@ -1014,7 +1014,7 @@ fn format_hops(side: Option<&Side>) -> String {
 
 fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus) -> String {
     let mut out = String::new();
-    let _ = writeln!(out, "# Fluxion quote benchmark\n");
+    let _ = writeln!(out, "# Eollo quote benchmark\n");
     let _ = writeln!(out, "| field | value |");
     let _ = writeln!(out, "|---|---|");
     let _ = writeln!(out, "| timestamp | {} |", meta.timestamp_unix);
@@ -1074,7 +1074,7 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
 
     let _ = writeln!(
         out,
-        "\n| pair | amount_in | fluxion_out | fluxion_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | fluxion ms | paraswap ms | 1inch ms | 0x ms |"
+        "\n| pair | amount_in | eollo_out | eollo_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | eollo ms | paraswap ms | 1inch ms | 0x ms |"
     );
     let _ = writeln!(
         out,
@@ -1086,28 +1086,28 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
             symbol(corpus, &row.token_in),
             symbol(corpus, &row.token_out)
         );
-        let paraswap_delta = delta_bps(&row.fluxion, &row.paraswap);
+        let paraswap_delta = delta_bps(&row.eollo, &row.paraswap);
         let oneinch_delta = row
             .oneinch
             .as_ref()
-            .and_then(|side| delta_bps(&row.fluxion, side));
+            .and_then(|side| delta_bps(&row.eollo, side));
         let zerox_delta = row
             .zerox
             .as_ref()
-            .and_then(|side| delta_bps(&row.fluxion, side));
+            .and_then(|side| delta_bps(&row.eollo, side));
         let _ = writeln!(
             out,
             "| {pair} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             row.amount_in,
-            format_side(Some(&row.fluxion)),
-            format_hops(Some(&row.fluxion)),
+            format_side(Some(&row.eollo)),
+            format_hops(Some(&row.eollo)),
             format_side(Some(&row.paraswap)),
             format_option(paraswap_delta),
             format_side(row.oneinch.as_ref()),
             format_option(oneinch_delta),
             format_side(row.zerox.as_ref()),
             format_option(zerox_delta),
-            format_latency(Some(row.fluxion.latency_ms)),
+            format_latency(Some(row.eollo.latency_ms)),
             format_latency(Some(row.paraswap.latency_ms)),
             format_latency(row.oneinch.as_ref().map(|side| side.latency_ms)),
             format_latency(row.zerox.as_ref().map(|side| side.latency_ms)),
@@ -1170,9 +1170,9 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
     );
     for (name, p50, p95) in [
         (
-            "fluxion latency ms",
-            summary.fluxion_latency_p50_ms,
-            summary.fluxion_latency_p95_ms,
+            "eollo latency ms",
+            summary.eollo_latency_p50_ms,
+            summary.eollo_latency_p95_ms,
         ),
         (
             "paraswap latency ms",
@@ -1233,10 +1233,10 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
                     symbol(corpus, &row.token_out),
                     row.amount_in,
                     format_side(Some(control)),
-                    format_side(Some(&row.fluxion)),
-                    format_option(delta_bps(&row.fluxion, control)),
+                    format_side(Some(&row.eollo)),
+                    format_option(delta_bps(&row.eollo, control)),
                     control.latency_ms,
-                    row.fluxion.latency_ms
+                    row.eollo.latency_ms
                 );
             }
         }
@@ -1246,14 +1246,14 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
         let counts = &summary.comparisons[name];
         let _ = writeln!(
             out,
-            "- {name}: both success {}, Fluxion only {}, aggregator only {}, both failed {}",
-            counts.both_ok, counts.fluxion_only, counts.aggregator_only, counts.both_failed
+            "- {name}: both success {}, Eollo only {}, aggregator only {}, both failed {}",
+            counts.both_ok, counts.eollo_only, counts.aggregator_only, counts.both_failed
         );
     }
     let _ = writeln!(
         out,
-        "- success: fluxion {}, paraswap {}, 1inch {}, 0x {}",
-        summary.fluxion_ok, summary.paraswap_ok, summary.oneinch_ok, summary.zerox_ok
+        "- success: eollo {}, paraswap {}, 1inch {}, 0x {}",
+        summary.eollo_ok, summary.paraswap_ok, summary.oneinch_ok, summary.zerox_ok
     );
     let _ = writeln!(
         out,
@@ -1281,9 +1281,9 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
     );
     let _ = writeln!(
         out,
-        "- latency p50/p95 (ms): fluxion {}/{}, paraswap {}/{}, 1inch {}/{}, 0x {}/{}",
-        format_latency(summary.fluxion_latency_p50_ms),
-        format_latency(summary.fluxion_latency_p95_ms),
+        "- latency p50/p95 (ms): eollo {}/{}, paraswap {}/{}, 1inch {}/{}, 0x {}/{}",
+        format_latency(summary.eollo_latency_p50_ms),
+        format_latency(summary.eollo_latency_p95_ms),
         format_latency(summary.paraswap_latency_p50_ms),
         format_latency(summary.paraswap_latency_p95_ms),
         format_latency(summary.oneinch_latency_p50_ms),
@@ -1305,7 +1305,7 @@ fn render_markdown(meta: &Meta, rows: &[Row], summary: &Summary, corpus: &Corpus
     );
     let _ = writeln!(
         out,
-        "\nFreshness lag is bracketed by latest-chain headers read immediately before and after each Fluxion quote; the after value is the conservative observed bound, not an atomic chain-head sample. Seconds use Ethereum block timestamps. Negative values indicate the quote block/time is ahead of the observed head and should be treated as provider skew. Missing quote metadata or RPC reads are excluded from freshness percentiles and shown per row. This measures snapshot age, not amount_out deviation from a quote recomputed on latest state.\n\nΔ bps = (fluxion - aggregator) / aggregator × 10000; negative means Fluxion returned less. Quotes use live state, not a pinned block. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations."
+        "\nFreshness lag is bracketed by latest-chain headers read immediately before and after each Eollo quote; the after value is the conservative observed bound, not an atomic chain-head sample. Seconds use Ethereum block timestamps. Negative values indicate the quote block/time is ahead of the observed head and should be treated as provider skew. Missing quote metadata or RPC reads are excluded from freshness percentiles and shown per row. This measures snapshot age, not amount_out deviation from a quote recomputed on latest state.\n\nΔ bps = (eollo - aggregator) / aggregator × 10000; negative means Eollo returned less. Quotes use live state, not a pinned block. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations."
     );
     out
 }
@@ -1451,9 +1451,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .json()
         .await?;
     if service_info["mode"] != "mainnet" {
-        return Err(
-            "refusing to benchmark a mock service; start Fluxion with real discovery".into(),
-        );
+        return Err("refusing to benchmark a mock service; start Eollo with real discovery".into());
     }
 
     let state_info: Value = client
@@ -1521,12 +1519,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut control = None;
             if control_first && let Some(service) = &args.control_service {
                 control = Some(
-                    quote_fluxion(&client, service, token_in, token_out, amount_in, args.split)
-                        .await,
+                    quote_eollo(&client, service, token_in, token_out, amount_in, args.split).await,
                 );
             }
             let head_before = rpc.block_header(None).await.map_err(|e| e.to_string());
-            let fluxion = quote_fluxion(
+            let eollo = quote_eollo(
                 &client,
                 &args.service,
                 token_in,
@@ -1536,11 +1533,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await;
             let head_after = rpc.block_header(None).await.map_err(|e| e.to_string());
-            let freshness = QuoteFreshness::from_quote(&fluxion, head_before, head_after);
+            let freshness = QuoteFreshness::from_quote(&eollo, head_before, head_after);
             if !control_first && let Some(service) = &args.control_service {
                 control = Some(
-                    quote_fluxion(&client, service, token_in, token_out, amount_in, args.split)
-                        .await,
+                    quote_eollo(&client, service, token_in, token_out, amount_in, args.split).await,
                 );
             }
 
@@ -1580,8 +1576,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             eprintln!(
-                "{label} fluxion={} paraswap={} oneinch={} zerox={}",
-                format_side(Some(&fluxion)),
+                "{label} eollo={} paraswap={} oneinch={} zerox={}",
+                format_side(Some(&eollo)),
                 format_side(Some(&paraswap)),
                 format_side(oneinch.as_ref()),
                 format_side(zerox.as_ref())
@@ -1592,7 +1588,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 token_in: token_in.clone(),
                 token_out: token_out.clone(),
                 amount_in: amount_in.clone(),
-                fluxion,
+                eollo,
                 freshness,
                 control,
                 paraswap,
@@ -1613,7 +1609,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         end_block,
         paraswap_enabled: true,
         oneinch_enabled: oneinch_key.is_some(),
-        fluxion_split: args.split,
+        eollo_split: args.split,
         zerox_enabled: zerox_key.is_some(),
         working_tree_dirty: std::process::Command::new("git")
             .args(["status", "--porcelain"])
@@ -1673,9 +1669,9 @@ mod tests {
 
     #[test]
     fn delta_is_signed_relative_to_aggregator() {
-        let fluxion = Side::ok("100".to_string(), 1, None);
+        let eollo = Side::ok("100".to_string(), 1, None);
         let other = Side::ok("110".to_string(), 1, None);
-        let delta = delta_bps(&fluxion, &other).unwrap();
+        let delta = delta_bps(&eollo, &other).unwrap();
         assert!((delta + 909.0909).abs() < 0.01);
     }
 
@@ -1748,13 +1744,13 @@ mod tests {
             (failed(), failed()),
         ]
         .into_iter()
-        .map(|(fluxion, paraswap)| Row {
+        .map(|(eollo, paraswap)| Row {
             started_unix_ms: 0,
             finished_unix_ms: 1,
             token_in: "a".into(),
             token_out: "b".into(),
             amount_in: "1".into(),
-            fluxion,
+            eollo,
             freshness: QuoteFreshness::unavailable("fixture"),
             control: None,
             paraswap,
@@ -1767,7 +1763,7 @@ mod tests {
         assert_eq!(
             (
                 counts.both_ok,
-                counts.fluxion_only,
+                counts.eollo_only,
                 counts.aggregator_only,
                 counts.both_failed
             ),
@@ -1792,7 +1788,7 @@ mod tests {
             token_in: token.into(),
             token_out: "destination".into(),
             amount_in: "1".into(),
-            fluxion: Side::ok("100".into(), 10, Some(2)),
+            eollo: Side::ok("100".into(), 10, Some(2)),
             freshness: QuoteFreshness::unavailable("fixture"),
             control: Some(Side::ok("50".into(), 5, Some(1))),
             paraswap: Side::ok("100".into(), 4, Some(1)),
@@ -1847,7 +1843,7 @@ mod tests {
             }),
         );
         let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        let side = quote_fluxion(&reqwest::Client::new(), &url, "a", "b", "5", true).await;
+        let side = quote_eollo(&reqwest::Client::new(), &url, "a", "b", "5", true).await;
         server.abort();
         assert_eq!(side.amount_out.as_deref(), Some("123"));
         assert_eq!(side.platforms, ["uniswap-v2", "uniswap-v3"]);
@@ -1873,7 +1869,7 @@ mod tests {
         let server = tokio::spawn(async move {
             axum::serve(listener, app).await.unwrap();
         });
-        let side = quote_fluxion(&reqwest::Client::new(), &url, "a", "b", "1", false).await;
+        let side = quote_eollo(&reqwest::Client::new(), &url, "a", "b", "1", false).await;
         server.abort();
         assert_eq!(side.amount_out.as_deref(), Some("123"));
         assert_eq!(side.platforms, ["uniswap-v2"]);

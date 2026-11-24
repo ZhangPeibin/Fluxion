@@ -14,8 +14,8 @@ import catalog from "./data/capabilities.json";
 import { copy } from "./i18n.js";
 
 const TITLES = {
-  zh: "Fluxion — 给 Agent 的 Web3 能力层",
-  en: "Fluxion — A Web3 Layer for agents",
+  zh: "Eollo — 给 Agent 的 Web3 能力层",
+  en: "Eollo — A Web3 Layer for agents",
 };
 
 export default function App({ lang }) {

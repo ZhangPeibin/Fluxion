@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use alloy_primitives::{Address, B256};
-use fluxion_protocol::yield_capability::YieldSource;
+use eollo_protocol::yield_capability::YieldSource;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -150,13 +150,13 @@ impl YieldProvider {
                 .timeout(Duration::from_secs(15))
                 .build()
                 .expect("yield provider HTTP client"),
-            pools_url: std::env::var("FLUXION_YIELD_POOLS_URL")
+            pools_url: std::env::var("EOLLO_YIELD_POOLS_URL")
                 .unwrap_or_else(|_| DEFAULT_POOLS_URL.to_string()),
-            protocols_url: std::env::var("FLUXION_YIELD_PROTOCOLS_URL")
+            protocols_url: std::env::var("EOLLO_YIELD_PROTOCOLS_URL")
                 .unwrap_or_else(|_| DEFAULT_PROTOCOLS_URL.to_string()),
-            hacks_url: std::env::var("FLUXION_YIELD_HACKS_URL")
+            hacks_url: std::env::var("EOLLO_YIELD_HACKS_URL")
                 .unwrap_or_else(|_| DEFAULT_HACKS_URL.to_string()),
-            chart_url: std::env::var("FLUXION_YIELD_CHART_URL")
+            chart_url: std::env::var("EOLLO_YIELD_CHART_URL")
                 .unwrap_or_else(|_| DEFAULT_CHART_URL.to_string()),
             rpc,
         }

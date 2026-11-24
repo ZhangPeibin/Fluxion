@@ -7,11 +7,11 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::routing::post;
 use axum::{Json, Router};
-use fluxion_client::capability::TokenRef;
-use fluxion_client::client::RuntimeClient;
-use fluxion_client::swap::quote::QuoteRequest;
-use fluxion_protocol::position::PositionAnalyzeRequest;
-use fluxion_protocol::yield_capability::{YieldDiscoverRequest, YieldHistoryRequest};
+use eollo_client::capability::TokenRef;
+use eollo_client::client::RuntimeClient;
+use eollo_client::swap::quote::QuoteRequest;
+use eollo_protocol::position::PositionAnalyzeRequest;
+use eollo_protocol::yield_capability::{YieldDiscoverRequest, YieldHistoryRequest};
 use serde_json::{Value, json};
 
 type CapturedRequest = Option<(Option<String>, Value)>;
@@ -142,7 +142,7 @@ async fn remote_client_calls_yield_discover() {
             chain: "ethereum".to_string(),
             asset: "ETH".to_string(),
             amount: Some("10".to_string()),
-            risk_profile: fluxion_protocol::yield_capability::RiskProfile::Conservative,
+            risk_profile: eollo_protocol::yield_capability::RiskProfile::Conservative,
             min_tvl_usd: None,
             max_lockup_days: None,
             include_reward_apy: None,

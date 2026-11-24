@@ -3,8 +3,8 @@
 use std::collections::HashSet;
 
 use alloy_primitives::U256;
-use fluxion_protocol::capability::{Amount, SCHEMA_VERSION};
-use fluxion_protocol::yield_capability::{
+use eollo_protocol::capability::{Amount, SCHEMA_VERSION};
+use eollo_protocol::yield_capability::{
     RiskProfile, SafetyTier, YieldAction, YieldAsset, YieldDiscoverRequest, YieldDiscoverResponse,
     YieldEvidence, YieldExclusion, YieldInfo, YieldMarket, YieldOpportunity, YieldProtocol,
     YieldRecommendation, YieldRiskFactor, YieldSource, YieldWithdrawal,
@@ -15,7 +15,7 @@ use super::YieldError;
 use super::provider::{OnChainCheck, ProtocolMeta, tvl_to_u64};
 
 pub const DISCLAIMER: &str =
-    "Safety tiers are Fluxion's curated confidence labels, not a guarantee. APY is variable.";
+    "Safety tiers are Eollo's curated confidence labels, not a guarantee. APY is variable.";
 pub const COVERAGE: &str = "curated-universe+defillama+onchain";
 
 #[derive(Debug, Clone)]
@@ -650,7 +650,7 @@ fn request_id() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    format!("fluxion-{}-{nanos}", std::process::id())
+    format!("eollo-{}-{nanos}", std::process::id())
 }
 
 #[cfg(test)]
@@ -726,7 +726,7 @@ mod tests {
     }
 
     fn snapshot() -> YieldSnapshot {
-        let registry = fluxion_protocol::yield_capability::Registry::load_default().unwrap();
+        let registry = eollo_protocol::yield_capability::Registry::load_default().unwrap();
         let mut opportunities = Vec::new();
         for entry in registry.entries() {
             let apy = match entry.id.as_str() {

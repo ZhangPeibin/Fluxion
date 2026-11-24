@@ -1,4 +1,4 @@
-//! Fluxion remote service: discovery, state snapshots, routing and HTTP API.
+//! Eollo remote service: discovery, state snapshots, routing and HTTP API.
 
 pub mod adapters;
 pub mod api;

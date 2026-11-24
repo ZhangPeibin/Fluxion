@@ -1,4 +1,4 @@
-export const GITHUB_URL = "https://github.com/ZhangPeibin/Fluxion";
+export const GITHUB_URL = "https://github.com/ZhangPeibin/eollo";
 
 const REPO = `${GITHUB_URL}/blob/master`;
 
@@ -7,8 +7,8 @@ export const MCP_CONFIGS = {
     path: ".mcp.json",
     code: `{
   "mcpServers": {
-    "fluxion": {
-      "command": "fluxion",
+    "eollo": {
+      "command": "eollo",
       "args": ["mcp"]
     }
   }
@@ -16,8 +16,8 @@ export const MCP_CONFIGS = {
   },
   codex: {
     path: "~/.codex/config.toml",
-    code: `[mcp_servers.fluxion]
-command = "fluxion"
+    code: `[mcp_servers.eollo]
+command = "eollo"
 args = ["mcp"]`,
   },
   opencode: {
@@ -25,9 +25,9 @@ args = ["mcp"]`,
     code: `{
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "fluxion": {
+    "eollo": {
       "type": "local",
-      "command": ["fluxion", "mcp"],
+      "command": ["eollo", "mcp"],
       "enabled": true
     }
   }
@@ -36,10 +36,10 @@ args = ["mcp"]`,
 };
 
 export const INSTALL_COMMAND = "cargo install --path crates/client";
-export const MCP_COMMAND = "fluxion mcp";
+export const MCP_COMMAND = "eollo mcp";
 export const SKILLS_CONFIG = `{
   "skills": {
-    "paths": ["/absolute/path/to/fluxion/skills"]
+    "paths": ["/absolute/path/to/eollo/skills"]
   }
 }`;
 
@@ -56,7 +56,7 @@ export const copy = {
       docsLink: "能力文档",
     },
     nav: {
-      brand: "Fluxion",
+      brand: "Eollo",
       tagline: "Web3 capability layer",
       links: [
         { href: "#problems", label: "产品" },
@@ -78,7 +78,7 @@ export const copy = {
       tagline: {
         line1: "一边是 Agent，一边是链。",
         line2Before: "中间，是 ",
-        highlight: "Fluxion",
+        highlight: "Eollo",
         line2After: "。",
       },
       installLabel: "一条命令开始",
@@ -121,16 +121,16 @@ export const copy = {
         },
         {
           title: "自主需要一次交接",
-          body: "让 Agent 直接持有私钥不可接受。Fluxion 让 Agent 准备交易，把最后一步交给手机钱包确认；私钥始终不进入运行时。",
+          body: "让 Agent 直接持有私钥不可接受。Eollo 让 Agent 准备交易，把最后一步交给手机钱包确认；私钥始终不进入运行时。",
           points: ["私钥留在手机", "WalletConnect 会话", "每次发送都显式确认"],
         },
       ],
     },
     flow: {
       eyebrow: "工作流",
-      title: "一次 swap 如何穿过 Fluxion",
+      title: "一次 swap 如何穿过 Eollo",
       lead: "每个步骤都是一个独立能力，按目录顺序组合；不是隐藏的执行路径。",
-      note: "执行位置由 Fluxion 固定：swap.quote 走 remote 服务，钱包与交易检查在本地运行。Agent 和用户不选择 remote/local。",
+      note: "执行位置由 Eollo 固定：swap.quote 走 remote 服务，钱包与交易检查在本地运行。Agent 和用户不选择 remote/local。",
       cta: "查看 swap 工作流",
       routeTitle: "路由预览",
       routeNote: "示意图：真实路由多重图由 remote 服务导出。",
@@ -191,11 +191,11 @@ export const copy = {
     install: {
       eyebrow: "接入",
       title: "两分钟接入",
-      lead: "Fluxion 通过 MCP stdio 暴露能力。客户端只负责启动进程，能力路由由 Fluxion 内部完成。",
+      lead: "Eollo 通过 MCP stdio 暴露能力。客户端只负责启动进程，能力路由由 Eollo 内部完成。",
       steps: [
-        { title: "安装 CLI", body: "需要 Rust 工具链；安装后 fluxion 必须在 PATH 中。" },
+        { title: "安装 CLI", body: "需要 Rust 工具链；安装后 eollo 必须在 PATH 中。" },
         { title: "启动 MCP", body: "stdio 暴露已安装的能力，不会启动 remote 服务。" },
-        { title: "注册到你的 Agent", body: "把 fluxion mcp 写进客户端配置，然后重启 Agent。" },
+        { title: "注册到你的 Agent", body: "把 eollo mcp 写进客户端配置，然后重启 Agent。" },
       ],
       remote: {
         title: "Remote 服务",
@@ -210,8 +210,8 @@ export const copy = {
           docs: "Remote 接入文档",
         },
         selfHost: {
-          installCommand: "cargo install --path crates/remote --bin fluxion-remote",
-          serveCommand: "FLUXION_REQUIRE_AUTH=1 fluxion-remote serve --config configs/runtime.yaml",
+          installCommand: "cargo install --path crates/remote --bin eollo-remote",
+          serveCommand: "EOLLO_REQUIRE_AUTH=1 eollo-remote serve --config configs/runtime.yaml",
           secretNote: "GRAPH_API_KEY 和 RPC_URL 只放服务端 .env，永远不要给客户端。",
           warmupNote: "首次启动会发现池子并同步 local snapshot，需要一些时间。",
           docs: "配置文档",
@@ -253,7 +253,7 @@ export const copy = {
         { title: "确定性", body: "同一请求、同一区块、同一代码版本产生相同结论。LLM 不参与 detector、risk 或 coverage 计算。" },
         { title: "覆盖与未知", body: "decode、metadata、simulation、trace、policy 五个维度独立报告；unknowns 是结果的一部分。" },
         { title: "风险语义", body: "没有 finding 时是 unknown，不是 low 或 safe；关键覆盖缺失时保持 unknown。" },
-        { title: "强制执行有边界", body: "policy enforce 只覆盖 Fluxion 自己的 send/sign 路径，不是通用 signer 边界。" },
+        { title: "强制执行有边界", body: "policy enforce 只覆盖 Eollo 自己的 send/sign 路径，不是通用 signer 边界。" },
       ],
       disclaimer: "Pre-1.0。能力范围与支持链仍在演进；检查结果用于辅助决策，不构成审计或安全保证。",
       cta: "阅读安全说明",
@@ -266,7 +266,7 @@ export const copy = {
           links: [
             { label: "能力目录", href: `${REPO}/capabilities/catalog.yaml` },
             { label: "Skills", href: `${REPO}/skills` },
-            { label: "路线与边界", href: `${GITHUB_URL}#readme` },
+            { label: "路线与边界", href: `${REPO}/README.zh.md#状态与边界` },
           ],
         },
         {
@@ -282,12 +282,12 @@ export const copy = {
           title: "项目",
           links: [
             { label: "GitHub", href: GITHUB_URL },
-            { label: "英文 README", href: `${REPO}/README.en.md` },
+            { label: "英文 README", href: `${REPO}/README.md` },
             { label: "CI", href: `${GITHUB_URL}/actions/workflows/ci.yml` },
           ],
         },
       ],
-      copyright: "Fluxion · Pre-1.0",
+      copyright: "Eollo · Pre-1.0",
     },
   },
   en: {
@@ -302,7 +302,7 @@ export const copy = {
       docsLink: "Capability docs",
     },
     nav: {
-      brand: "Fluxion",
+      brand: "Eollo",
       tagline: "Web3 capability layer",
       links: [
         { href: "#problems", label: "Product" },
@@ -324,7 +324,7 @@ export const copy = {
       tagline: {
         line1: "Agent on one side. Chain on the other.",
         line2Before: "",
-        highlight: "Fluxion",
+        highlight: "Eollo",
         line2After: " in between.",
       },
       installLabel: "Start with one command",
@@ -367,16 +367,16 @@ export const copy = {
         },
         {
           title: "Autonomy needs a handoff",
-          body: "Giving an agent the keys is not acceptable. Fluxion prepares the transaction, then hands the final step to the phone wallet; keys never enter the runtime.",
+          body: "Giving an agent the keys is not acceptable. Eollo prepares the transaction, then hands the final step to the phone wallet; keys never enter the runtime.",
           points: ["Keys stay on the phone", "WalletConnect session", "Explicit confirmation on every send"],
         },
       ],
     },
     flow: {
       eyebrow: "Workflow",
-      title: "How one swap moves through Fluxion",
+      title: "How one swap moves through Eollo",
       lead: "Each step is its own capability, composed in catalog order — never a hidden execution path.",
-      note: "Execution location is fixed by Fluxion: swap.quote uses the remote service; wallet and transaction checks run locally. Agents and users do not choose remote or local.",
+      note: "Execution location is fixed by Eollo: swap.quote uses the remote service; wallet and transaction checks run locally. Agents and users do not choose remote or local.",
       cta: "Read the swap workflow",
       routeTitle: "Route preview",
       routeNote: "Illustrative: the real routing multigraph comes from the remote service.",
@@ -411,11 +411,11 @@ export const copy = {
     install: {
       eyebrow: "Install",
       title: "Wired up in two minutes",
-      lead: "Fluxion exposes capabilities over MCP stdio. The client only starts a process; routing stays inside Fluxion.",
+      lead: "Eollo exposes capabilities over MCP stdio. The client only starts a process; routing stays inside Eollo.",
       steps: [
-        { title: "Install the CLI", body: "Rust toolchain required; fluxion must be on PATH afterwards." },
+        { title: "Install the CLI", body: "Rust toolchain required; eollo must be on PATH afterwards." },
         { title: "Start MCP", body: "stdio exposes the installed capabilities and never starts the remote server." },
-        { title: "Register your agent", body: "Add fluxion mcp to the client config, then restart the agent." },
+        { title: "Register your agent", body: "Add eollo mcp to the client config, then restart the agent." },
       ],
       remote: {
         title: "Remote service",
@@ -430,8 +430,8 @@ export const copy = {
           docs: "Remote setup",
         },
         selfHost: {
-          installCommand: "cargo install --path crates/remote --bin fluxion-remote",
-          serveCommand: "FLUXION_REQUIRE_AUTH=1 fluxion-remote serve --config configs/runtime.yaml",
+          installCommand: "cargo install --path crates/remote --bin eollo-remote",
+          serveCommand: "EOLLO_REQUIRE_AUTH=1 eollo-remote serve --config configs/runtime.yaml",
           secretNote: "GRAPH_API_KEY and RPC_URL live only in the server .env; never give them to the client.",
           warmupNote: "First start discovers pools and warms the local snapshot, so it takes a while.",
           docs: "Configuration",
@@ -473,7 +473,7 @@ export const copy = {
         { title: "Deterministic", body: "The same request, same block and same code version produce the same findings. No LLM touches detectors, risk or coverage." },
         { title: "Coverage and unknowns", body: "decode, metadata, simulation, trace and policy are reported independently; unknowns are part of the result." },
         { title: "Risk semantics", body: "No findings means unknown, not low or safe. Missing critical coverage keeps it unknown." },
-        { title: "Enforcement has borders", body: "Policy enforcement only covers Fluxion's own send/sign paths, not a universal signer boundary." },
+        { title: "Enforcement has borders", body: "Policy enforcement only covers Eollo's own send/sign paths, not a universal signer boundary." },
       ],
       disclaimer: "Pre-1.0. Capability scope and chain support are still moving; inspection helps a decision and is not an audit or a safety guarantee.",
       cta: "Read the assurance notes",
@@ -486,7 +486,7 @@ export const copy = {
           links: [
             { label: "Catalog", href: `${REPO}/capabilities/catalog.yaml` },
             { label: "Skills", href: `${REPO}/skills` },
-            { label: "Roadmap and limits", href: `${GITHUB_URL}#readme` },
+            { label: "Roadmap and limits", href: `${REPO}/README.md#status-and-boundaries` },
           ],
         },
         {
@@ -502,12 +502,12 @@ export const copy = {
           title: "Project",
           links: [
             { label: "GitHub", href: GITHUB_URL },
-            { label: "Chinese README", href: `${REPO}/README.md` },
+            { label: "Chinese README", href: `${REPO}/README.zh.md` },
             { label: "CI", href: `${GITHUB_URL}/actions/workflows/ci.yml` },
           ],
         },
       ],
-      copyright: "Fluxion · Pre-1.0",
+      copyright: "Eollo · Pre-1.0",
     },
   },
 };

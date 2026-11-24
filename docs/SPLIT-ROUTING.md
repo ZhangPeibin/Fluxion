@@ -1,6 +1,6 @@
 # Two-pool split quote experiment (#30)
 
-[Issue #30](https://github.com/ZhangPeibin/Fluxion/issues/30) delivered a public library optimizer and
+[Issue #30](https://github.com/ZhangPeibin/eollo/issues/30) delivered a public library optimizer and
 a runnable fixed-block experiment. In that historical phase, HTTP `/quote` and Viewer stayed single-path;
 parallel branches are not flattened into a fake sequential route. This phase optimizes gross
 output, excluding additional execution gas, MEV, transaction construction and actual execution.

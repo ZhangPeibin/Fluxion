@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, U256, keccak256};
-use fluxion::{
+use eollo::{
     conversion::ProtocolConversions,
     graph::Graph,
     local_state::{LocalStateConfig, SnapshotStore, StateSynchronizer},
@@ -130,7 +130,7 @@ async fn lido_v4_local_conversions_match_deployed_views_including_internal_ratio
                     "direction={i} amount={amount}"
                 ),
                 Err(error) => {
-                    assert_eq!(error, fluxion::error::QuoteError::InsufficientLiquidity);
+                    assert_eq!(error, eollo::error::QuoteError::InsufficientLiquidity);
                     assert!(
                         local.is_err(),
                         "zero-output integer rounding cannot invent a positive route"

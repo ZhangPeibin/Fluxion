@@ -1,4 +1,4 @@
-use fluxion_client::cli;
+use eollo_client::cli;
 
 #[tokio::main]
 async fn main() {
@@ -14,6 +14,6 @@ async fn main() {
     if let Some(code) = handled {
         std::process::exit(code);
     }
-    eprintln!("serve is provided by the fluxion-remote binary");
+    eprintln!("serve is provided by the eollo-remote binary");
     std::process::exit(2);
 }

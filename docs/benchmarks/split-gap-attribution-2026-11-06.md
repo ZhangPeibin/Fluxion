@@ -6,10 +6,10 @@ Profile: 309-pool runtime profile (Uniswap V2/V3, Sushi V3, Pancake V3, Curve, S
 
 ## Method
 
-For each of the 90 rows, compare Fluxion `amount_out` with the better of ParaSwap and 1inch.
+For each of the 90 rows, compare Eollo `amount_out` with the better of ParaSwap and 1inch.
 Take the 10 worst rows, then inspect:
 
-- Fluxion baseline / selected route and `stop_reason`
+- Eollo baseline / selected route and `stop_reason`
 - ParaSwap pool addresses and whether each pool exists in the current graph
 - 1inch protocol names
 - Token path / missing conversion steps
@@ -21,12 +21,12 @@ Classes:
 - **B — path exists but candidate missing**: could not be proven from benchmark output alone; no row
   is assigned B without candidate-level tracing.
 - **C — present venues but candidate/allocation/budget insufficient**: winning ParaSwap route is
-  mostly or entirely in the current graph, but Fluxion did not find or fully allocate it.
+  mostly or entirely in the current graph, but Eollo did not find or fully allocate it.
 - **D — benchmark/state anomaly**: none found.
 
 ## Results
 
-| # | pair | amount | delta bps | best | Fluxion stop | ParaSwap pools present | primary class |
+| # | pair | amount | delta bps | best | Eollo stop | ParaSwap pools present | primary class |
 |---:|---|---:|---:|---|---:|---:|---|
 | 1 | USDC→stETH | 100,000 | -2307.6 | ParaSwap | no_pairs | 2/3 | **A** — missing WETH→ETH→stETH (Lido) conversion |
 | 2 | AAVE→USDC | 400 | -1872.9 | 1inch | no_pairs | 7/9 | **A** — Balancer / Curve factory / PMM / V4 missing; some present pools underused |
@@ -47,7 +47,7 @@ lower bound on coverage because 1inch routes often use venues without public poo
 - **5/10 primarily horizontal**: missing venues/conversions dominate the largest losses
   (USDC→stETH, AAVE→USDC, stETH→LDO, stETH→USDC).
 - **5/10 primarily vertical**: the winning ParaSwap route uses pools already in our graph, but
-  Fluxion either stopped at the quote budget or completed without finding the better allocation.
+  Eollo either stopped at the quote budget or completed without finding the better allocation.
 - The single largest gap, USDC→stETH, is not an allocator problem: it needs a WETH→ETH→stETH
   conversion path.
 - No `D` anomalies were found.

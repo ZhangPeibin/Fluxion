@@ -1,6 +1,6 @@
 ---
 name: position
-description: Use when the user asks what yield positions a wallet holds, wants ETH value, APY, estimated annual yield, withdrawal conditions or PnL for Lido/Rocket Pool/Aave/SparkLend/Morpho positions, or uses the Fluxion position_analyze tool. Read-only; never deposits, signs or broadcasts.
+description: Use when the user asks what yield positions a wallet holds, wants ETH value, APY, estimated annual yield, withdrawal conditions or PnL for Lido/Rocket Pool/Aave/SparkLend/Morpho positions, or uses the Eollo position_analyze tool. Read-only; never deposits, signs or broadcasts.
 ---
 
 # position.analyze
@@ -23,8 +23,8 @@ is [schemas/position_analyze.v2.json](../../schemas/position_analyze.v2.json).
 ## CLI
 
 ```bash
-fluxion position analyze --owner 0x... --json
-fluxion position analyze --owner 0x... --cost-basis lido-steth=10 --json
+eollo position analyze --owner 0x... --json
+eollo position analyze --owner 0x... --cost-basis lido-steth=10 --json
 ```
 
 ## Reading the result

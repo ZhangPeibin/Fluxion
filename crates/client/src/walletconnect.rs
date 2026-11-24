@@ -2,7 +2,7 @@
 //!
 //! The dApp side of WalletConnect is implemented directly: relay JWT auth,
 //! pairing envelopes, session proposal/settle and session persistence. Private
-//! keys never enter Fluxion; the wallet signs on the user's device.
+//! keys never enter Eollo; the wallet signs on the user's device.
 
 use std::env;
 use std::fs;
@@ -36,7 +36,7 @@ use x25519_dalek::{PublicKey, StaticSecret};
 use crate::capability::{CapabilityError, CapabilityErrorCode};
 use crate::signature_inspect::{self, SignatureInspectRequest};
 use crate::transaction_inspect::InspectPolicy;
-use fluxion_protocol::wallet::{
+use eollo_protocol::wallet::{
     WalletConnectResponse, WalletDisconnectResponse, WalletPeer, WalletSignResponse,
     WalletStatusResponse,
 };
@@ -205,7 +205,7 @@ impl Session {
         let relay_secret = self.relay_secret.as_deref().ok_or_else(|| {
             CapabilityError::new(
                 CapabilityErrorCode::Unsupported,
-                "WalletConnect session was created by an older Fluxion version; run wallet.disconnect and wallet.connect again",
+                "WalletConnect session was created by an older Eollo version; run wallet.disconnect and wallet.connect again",
                 false,
             )
         })?;
@@ -296,11 +296,11 @@ impl Session {
 }
 
 fn walletconnect_dir() -> PathBuf {
-    let home = env::var_os("FLUXION_HOME")
+    let home = env::var_os("EOLLO_HOME")
         .map(PathBuf::from)
         .or_else(|| env::var_os("HOME").map(PathBuf::from))
         .unwrap_or_else(env::temp_dir);
-    home.join(".fluxion").join("walletconnect")
+    home.join(".eollo").join("walletconnect")
 }
 
 pub fn session_path() -> PathBuf {
@@ -548,9 +548,9 @@ impl Pairing {
                 "proposer": {
                     "publicKey": hex(&proposer_public.to_bytes()),
                     "metadata": {
-                        "name": "Fluxion",
-                        "description": "Fluxion local wallet session",
-                        "url": "https://github.com/ZhangPeibin/Fluxion",
+                        "name": "Eollo",
+                        "description": "Eollo local wallet session",
+                        "url": "https://github.com/ZhangPeibin/eollo",
                         "icons": []
                     }
                 }
@@ -1345,7 +1345,7 @@ fn auth_token(key: &SigningKey, relay_url: &str) -> String {
     let header = json!({"typ": "JWT", "alg": "EdDSA"});
     let claims = json!({
         "iss": did_key(&key.verifying_key()),
-        "sub": "https://github.com/ZhangPeibin/Fluxion",
+        "sub": "https://github.com/ZhangPeibin/eollo",
         "aud": relay_url,
         "iat": now,
         "exp": now + 3600
@@ -1603,7 +1603,7 @@ mod tests {
     #[test]
     fn saves_and_loads_a_session() {
         let path = env::temp_dir().join(format!(
-            "fluxion-walletconnect-test-{}.json",
+            "eollo-walletconnect-test-{}.json",
             std::process::id()
         ));
         let session = Session {

@@ -2,10 +2,10 @@
 use std::collections::HashMap;
 
 use alloy_primitives::{Address, U256};
-use fluxion::graph::Graph;
-use fluxion::model::{Pool, PoolKind, QuoteRequest};
-use fluxion::router::{Router, RouterConfig};
-use fluxion::source::MockV2;
+use eollo::graph::Graph;
+use eollo::model::{Pool, PoolKind, QuoteRequest};
+use eollo::router::{Router, RouterConfig};
+use eollo::source::MockV2;
 
 fn add_pool(
     graph: &mut Graph,

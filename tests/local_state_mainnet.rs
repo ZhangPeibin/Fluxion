@@ -5,7 +5,7 @@ use std::{
 };
 
 use alloy_primitives::{Address, U256};
-use fluxion::{
+use eollo::{
     graph::Graph,
     local_state::{LocalStateConfig, SnapshotStore, StateSynchronizer, SyncMode},
     model::{Pool, PoolKind, QuoteRequest},

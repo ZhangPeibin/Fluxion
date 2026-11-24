@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/wallet_connect.v1.json",
-  "title": "Fluxion wallet connect v1",
+  "$id": "https://eollo.xyz/schemas/wallet_connect.v1.json",
+  "title": "Eollo wallet connect v1",
   "type": "object",
   "additionalProperties": false,
   "required": [

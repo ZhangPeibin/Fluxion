@@ -1,7 +1,7 @@
 # Capabilities
 
-Fluxion exposes Web3 actions as capabilities. A capability defines the request/response contract;
-its execution location is an internal Fluxion decision.
+Eollo exposes Web3 actions as capabilities. A capability defines the request/response contract;
+its execution location is an internal Eollo decision.
 
 > Capability metadata is defined in [`capabilities/catalog.yaml`](../../capabilities/catalog.yaml).
 > The table below is generated from the catalog and validated by `cargo test`; edit the catalog,

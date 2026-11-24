@@ -8,7 +8,7 @@ pub mod store;
 
 use thiserror::Error;
 
-pub use fluxion_protocol::yield_capability::{Registry, RegistryEntry};
+pub use eollo_protocol::yield_capability::{Registry, RegistryEntry};
 pub use score::discover;
 pub use store::{YieldOptions, YieldStore};
 

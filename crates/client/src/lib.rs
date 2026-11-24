@@ -1,4 +1,4 @@
-//! Local Fluxion client: CLI, MCP bridge, remote client and token storage.
+//! Local Eollo client: CLI, MCP bridge, remote client and token storage.
 
 pub mod agent_id;
 pub mod auth;
@@ -22,4 +22,4 @@ pub mod walletconnect;
 pub mod yield_build;
 pub mod yield_withdraw;
 
-pub use fluxion_protocol::{capability, swap};
+pub use eollo_protocol::{capability, swap};

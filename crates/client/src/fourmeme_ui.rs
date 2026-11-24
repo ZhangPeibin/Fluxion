@@ -19,7 +19,7 @@ use tokio::sync::Mutex;
 
 use crate::capability::{CapabilityError, CapabilityErrorCode};
 use crate::fourmeme::{self, FourMemeConfig, ListRequest};
-use fluxion_protocol::fourmeme::{FourMemeAgentTokensResponse, FourMemeTokenDetail};
+use eollo_protocol::fourmeme::{FourMemeAgentTokensResponse, FourMemeTokenDetail};
 
 const INDEX_HTML: &str = include_str!("../assets/fourmeme/index.html");
 const APP_JS: &str = include_str!("../assets/fourmeme/app.js");

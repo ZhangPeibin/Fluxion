@@ -1,4 +1,4 @@
-# Fluxion quote benchmark
+# Eollo quote benchmark
 
 | field | value |
 |---|---|
@@ -95,7 +95,7 @@ Service mode, graph size and effective public configuration:
 }
 ```
 
-| pair | amount_in | fluxion_out | fluxion_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | fluxion ms | paraswap ms | 1inch ms | 0x ms |
+| pair | amount_in | eollo_out | eollo_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | eollo ms | paraswap ms | 1inch ms | 0x ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | WETH → USDC | 333333333333333333 | 750171394 | 1 | 750439212 | -3.6 | 748187928 | 26.5 | skipped | - | 6504 | 1311 | 875 | - |
 | WETH → USDC | 3333333333333333333 | 7503346714 | 1 | 7503403173 | -0.1 | 7481850934 | 28.7 | skipped | - | 6595 | 459 | 489 | - |
@@ -191,15 +191,15 @@ Service mode, graph size and effective public configuration:
 ## Summary
 
 - rows: 90
-- paraswap: both success 90, Fluxion only 0, aggregator only 0, both failed 0
-- 1inch: both success 90, Fluxion only 0, aggregator only 0, both failed 0
-- 0x: both success 0, Fluxion only 0, aggregator only 0, both failed 0
-- success: fluxion 90, paraswap 90, 1inch 90, 0x 0
+- paraswap: both success 90, Eollo only 0, aggregator only 0, both failed 0
+- 1inch: both success 90, Eollo only 0, aggregator only 0, both failed 0
+- 0x: both success 0, Eollo only 0, aggregator only 0, both failed 0
+- success: eollo 90, paraswap 90, 1inch 90, 0x 0
 - paraswap deltas (n=90): median -0.2 bps, mean -3.8 bps, within ±50 bps 87
 - 1inch deltas (n=90): median 9.8 bps, mean -6.2 bps, within ±50 bps 84
 - 0x deltas (n=0): median - bps, mean - bps, within ±50 bps 0
-- latency p50/p95 (ms): fluxion 5086/7004, paraswap 362/517, 1inch 470/843, 0x -/-
+- latency p50/p95 (ms): eollo 5086/7004, paraswap 362/517, 1inch 470/843, 0x -/-
 
-Δ bps = (fluxion - aggregator) / aggregator × 10000; negative means Fluxion returned less.
+Δ bps = (eollo - aggregator) / aggregator × 10000; negative means Eollo returned less.
 
 Quotes use live state, not a pinned block. Block range and row timestamps describe skew, not deterministic replay. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations.

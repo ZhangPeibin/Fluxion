@@ -1,8 +1,8 @@
 //! Local calldata construction for curated yield exits.
 
 use alloy_primitives::{Address, U256};
-use fluxion_protocol::capability::{Amount, CapabilityError, CapabilityErrorCode, SCHEMA_VERSION};
-use fluxion_protocol::yield_capability::{
+use eollo_protocol::capability::{Amount, CapabilityError, CapabilityErrorCode, SCHEMA_VERSION};
+use eollo_protocol::yield_capability::{
     Registry, RegistryEntry, YieldBuildStep, YieldWithdrawRequest, YieldWithdrawResponse,
 };
 
@@ -13,7 +13,7 @@ const AAVE_WITHDRAW: &str = "69328dec";
 const ERC4626_REDEEM: &str = "ba087652";
 const ROCKET_BURN: &str = "42966c68";
 const DISCLAIMER: &str =
-    "Calldata only. Simulate and inspect before signing; Fluxion does not sign or broadcast.";
+    "Calldata only. Simulate and inspect before signing; Eollo does not sign or broadcast.";
 
 pub fn withdraw(request: &YieldWithdrawRequest) -> Result<YieldWithdrawResponse, CapabilityError> {
     let registry = Registry::load_default()

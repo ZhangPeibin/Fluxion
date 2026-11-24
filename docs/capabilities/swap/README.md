@@ -2,7 +2,7 @@
 
 English · [中文](README.zh.md)
 
-`swap.quote` is Fluxion's first capability: an exact-in swap quote on Ethereum mainnet. It returns
+`swap.quote` is Eollo's first capability: an exact-in swap quote on Ethereum mainnet. It returns
 amounts, split allocations, hop paths and state provenance. `swap.build` turns a single V2
 allocation into router calldata. Both are read-only and never sign, approve, or broadcast.
 
@@ -11,8 +11,8 @@ allocation into router calldata. Both are read-only and never sign, approve, or 
 Local calldata construction from a saved `swap.quote` response.
 
 ```bash
-fluxion swap quote --in USDC --out WETH --amount 100 --json > /tmp/quote.json
-fluxion swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 --json
+eollo swap quote --in USDC --out WETH --amount 100 --json > /tmp/quote.json
+eollo swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 --json
 ```
 
 - Ethereum only in the first slice.
@@ -28,10 +28,10 @@ Schema: [`schemas/swap_build.v2.json`](../../../schemas/swap_build.v2.json).
 
 ## Execution model
 
-`swap.quote` always uses the remote Fluxion service; `swap.build` and `wallet` / `execute`
+`swap.quote` always uses the remote Eollo service; `swap.build` and `wallet` / `execute`
 capabilities use the local runtime. Agents and users do not choose local/remote.
 
-The remote endpoint is configured with `FLUXION_REMOTE_URL` (or `--url`); authentication and
+The remote endpoint is configured with `EOLLO_REMOTE_URL` (or `--url`); authentication and
 registration live in [docs/MCP.md](../../MCP.md). This is endpoint configuration, not an execution
 mode.
 
@@ -51,11 +51,11 @@ snapshot-refresh options, scale limits and the future multi-chain design, see
 flowchart TB
     subgraph Client["Client machine"]
         Agent["Agent<br/>opencode · Claude · Codex"]
-        MCP["fluxion mcp<br/>swap_quote tool"]
+        MCP["eollo mcp<br/>swap_quote tool"]
         CapRouter["Capability router<br/>fixed execution per capability"]
     end
 
-    subgraph Remote["Fluxion remote"]
+    subgraph Remote["Eollo remote"]
         API["POST /quote<br/>validate · rate limit · timeout"]
         Lease["Snapshot lease<br/>one immutable version"]
         Engine["Quote engine<br/>Router / SplitOptimizer<br/>local_snapshot: 0 RPC"]
@@ -85,7 +85,7 @@ flowchart TB
 
 ### Request path
 
-1. **MCP entry.** `fluxion mcp` exposes the `swap_quote` tool and maps its arguments to
+1. **MCP entry.** `eollo mcp` exposes the `swap_quote` tool and maps its arguments to
    `POST /quote`. There is no local/remote selector.
 2. **Admission.** The API validates addresses and amounts, applies the rate limit, acquires a
    bounded compute slot and leases the current snapshot. If no complete snapshot is ready, or it is
@@ -141,15 +141,15 @@ flowchart TB
 ## Quick start
 
 ```bash
-fluxion swap ldo-eth 100
-fluxion swap ldo-eth 100 --json
-fluxion capability describe swap.quote --json
+eollo swap ldo-eth 100
+eollo swap ldo-eth 100 --json
+eollo capability describe swap.quote --json
 ```
 
 Machine interface:
 
 ```bash
-fluxion swap quote --in LDO --out ETH --amount 100 --json
+eollo swap quote --in LDO --out ETH --amount 100 --json
 ```
 
 MCP tool: `swap_quote` with `token_in`, `token_out`, `amount`, optional `max_hops`, `split`,
@@ -217,7 +217,7 @@ Curve, ShibaSwap, wstETH):
 | Cold start to ready | **55 s** |
 | Snapshot lag blocks p50/p95/max | **0 / 1 / 1** |
 | Snapshot lag seconds p50/p95/max | **0 / 12 / 12 s** |
-| Fluxion HTTP p50/p95 | **35 / 197 ms** |
+| Eollo HTTP p50/p95 | **35 / 197 ms** |
 | Success | **90 / 90** |
 | ParaSwap mean delta / within ±50 bps | **−61.9 bps / 82** |
 | 1inch mean delta / within ±50 bps | **−65.4 bps / 79** |

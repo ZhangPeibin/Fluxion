@@ -1,12 +1,12 @@
-# ADR-0001: Fluxion is a composable Web3 capability runtime
+# ADR-0001: Eollo is a composable Web3 capability runtime
 
 - **Status:** Accepted
 - **Date:** 2026-11-20
-- **Deciders:** Fluxion maintainers
+- **Deciders:** Eollo maintainers
 
 ## Context
 
-Fluxion started as an Ethereum swap-quote engine. It now exposes swap, wallet, transaction,
+Eollo started as an Ethereum swap-quote engine. It now exposes swap, wallet, transaction,
 signature, yield, position, and Four.meme capabilities. The growth raised a legitimate question:
 is the project drifting by adding Web3 domains, or is breadth the product?
 
@@ -17,7 +17,7 @@ collection of unrelated tools.
 
 ## Decision
 
-Fluxion is a **composable Web3 capability runtime**. A capability is an action-level contract, not a
+Eollo is a **composable Web3 capability runtime**. A capability is an action-level contract, not a
 protocol integration. Breadth is admitted only when the capability satisfies the admission checklist
 in the lifecycle spec:
 

@@ -1,5 +1,5 @@
 use alloy_primitives::U256;
-use fluxion::curve_plain::{Plain2Pool, PlainProfile};
+use eollo::curve_plain::{Plain2Pool, PlainProfile};
 
 #[test]
 fn both_deployment_models_preserve_normalized_fees_and_two_coin_precision() {
@@ -70,7 +70,7 @@ fn independent_historical_vectors_match_each_deployment_without_tolerance() {
 
 #[test]
 fn precise_a_is_not_truncated_and_zero_or_overflow_inputs_are_explicit() {
-    use fluxion::error::QuoteError;
+    use eollo::error::QuoteError;
     let profile = PlainProfile::FraxUsdc;
     let units = profile.units();
     let balances = units.map(|u| u * U256::from(1_000_000));

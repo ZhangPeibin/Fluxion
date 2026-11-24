@@ -1,10 +1,10 @@
 [package]
-name = "fluxion-remote"
+name = "eollo-remote"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-fluxion-protocol = { path = "../protocol" }
+eollo-protocol = { path = "../protocol" }
 alloy-primitives = { version = "1.7.3", features = ["serde"] }
 async-trait = "0.1.92"
 axum = "0.8.9"

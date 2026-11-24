@@ -53,7 +53,7 @@ None.
 
 ## Acceptance
 
-- capability appears in `fluxion capability list` and MCP `tools/list`;
+- capability appears in `eollo capability list` and MCP `tools/list`;
 - CLI and MCP accept the same fields;
 - no signing or broadcast paths are touched;
 - workspace fmt/clippy/test pass.

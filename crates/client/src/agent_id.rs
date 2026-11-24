@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::capability::{CapabilityError, CapabilityErrorCode};
-use fluxion_protocol::wallet::{AgentIdQuery, AssetSource, WalletAgentIdResponse};
+use eollo_protocol::wallet::{AgentIdQuery, AssetSource, WalletAgentIdResponse};
 
 const DEFAULT_API_URL: &str = "https://agentid.prd.space.id";
 const DEFAULT_BSC_RPC_URL: &str = "https://bsc-dataseed.bnbchain.org";
@@ -28,9 +28,9 @@ pub struct AgentIdConfig {
 impl AgentIdConfig {
     pub fn from_env() -> Self {
         Self {
-            api_url: env::var("FLUXION_AGENT_ID_API_URL")
+            api_url: env::var("EOLLO_AGENT_ID_API_URL")
                 .unwrap_or_else(|_| DEFAULT_API_URL.to_string()),
-            bsc_rpc_url: env::var("FLUXION_BSC_RPC_URL")
+            bsc_rpc_url: env::var("EOLLO_BSC_RPC_URL")
                 .unwrap_or_else(|_| DEFAULT_BSC_RPC_URL.to_string()),
         }
     }

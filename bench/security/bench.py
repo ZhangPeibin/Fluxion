@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""End-to-end latency and expectation benchmark for Fluxion security inspection.
+"""End-to-end latency and expectation benchmark for Eollo security inspection.
 
 This measures the installed CLI, so process startup and live BSC RPC round-trips are included.
 It is a regression benchmark, not an independent security evaluation.
@@ -216,12 +216,12 @@ def markdown(results: list[dict], iterations: int) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--bin", default="fluxion")
+    parser.add_argument("--bin", default="eollo")
     parser.add_argument("--iterations", type=int, default=20)
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
-    with tempfile.TemporaryDirectory(prefix="fluxion-security-bench-") as temp:
+    with tempfile.TemporaryDirectory(prefix="eollo-security-bench-") as temp:
         cases = transaction_cases() + signature_cases(Path(temp))
         results = [run_case(args.bin, case, args.iterations) for case in cases]
 

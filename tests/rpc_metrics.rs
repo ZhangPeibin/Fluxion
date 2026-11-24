@@ -1,6 +1,6 @@
 use alloy_primitives::Address;
 use axum::Json;
-use fluxion::rpc::RpcClient;
+use eollo::rpc::RpcClient;
 use serde_json::{Value, json};
 use std::sync::{
     Arc,

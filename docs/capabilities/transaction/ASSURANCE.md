@@ -122,9 +122,9 @@ corresponding coverage value.
 | Trace backend | Optional `debug_traceCall`; public BSC RPC does not provide it | Unsupported -> `coverage.trace = unavailable` |
 
 - RPC data is trusted for block, code, simulation, and trace. No light-client proof is used.
-- `FLUXION_VERIFY_RPC_URL` can cross-check block hash and target code, but not every state read.
-- `FLUXION_THREAT_INTEL_FILE` is operator-provided and may be incomplete or stale. Configure
-  `FLUXION_THREAT_INTEL_PUBKEY` to require an Ed25519-signed feed.
+- `EOLLO_VERIFY_RPC_URL` can cross-check block hash and target code, but not every state read.
+- `EOLLO_THREAT_INTEL_FILE` is operator-provided and may be incomplete or stale. Configure
+  `EOLLO_THREAT_INTEL_PUBKEY` to require an Ed25519-signed feed.
 - `debug_traceCall` is optional; public BSC RPC does not provide it.
 - Source verification is optional; missing key or provider failure is `verified=null`.
 - Balance/allowance verification depends on standard getters; non-standard tokens degrade to
@@ -164,6 +164,9 @@ Not covered:
 | Source verification | `verified`, provider source | Missing key/provider failure -> `verified=null` |
 | Detectors | finding ID, severity, evidence, confidence | Missing prerequisite -> no guess, write `unknown` |
 | Policy | cap/allowlist decision | Missing effects or policy -> `not_configured`/`partial` |
+
+Per-detector goals, rule IDs, evidence fields, failure semantics, and test boundaries are in
+[detectors](detectors/README.md).
 
 ## Risk aggregation
 

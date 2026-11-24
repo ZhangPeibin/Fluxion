@@ -1,13 +1,13 @@
 //! Live read-only yield provider check. Run with:
 //! `cargo test --test yield_mainnet -- --ignored`
 
-use fluxion_protocol::position::PositionAnalyzeRequest;
-use fluxion_protocol::yield_capability::YieldHistoryRequest;
-use fluxion_remote::rpc::RpcClient;
-use fluxion_remote::yield_intel::Registry;
-use fluxion_remote::yield_intel::history;
-use fluxion_remote::yield_intel::provider::{YieldProvider, now};
-use fluxion_remote::yield_intel::score::build_snapshot;
+use eollo_protocol::position::PositionAnalyzeRequest;
+use eollo_protocol::yield_capability::YieldHistoryRequest;
+use eollo_remote::rpc::RpcClient;
+use eollo_remote::yield_intel::Registry;
+use eollo_remote::yield_intel::history;
+use eollo_remote::yield_intel::provider::{YieldProvider, now};
+use eollo_remote::yield_intel::score::build_snapshot;
 
 #[tokio::test]
 #[ignore]
@@ -105,7 +105,7 @@ async fn live_position_analyze_reads_a_pinned_block() {
         data.warnings,
     );
     let rpc = RpcClient::new("https://ethereum-rpc.publicnode.com".to_string());
-    let response = fluxion_remote::position_intel::analyze(
+    let response = eollo_remote::position_intel::analyze(
         &registry,
         &snapshot,
         &rpc,
@@ -116,7 +116,7 @@ async fn live_position_analyze_reads_a_pinned_block() {
             chain: "ethereum".to_string(),
             opportunity_ids: vec!["lido-steth".to_string()],
             include_zero: false,
-            cost_basis: vec![fluxion_protocol::position::PositionCostBasis {
+            cost_basis: vec![eollo_protocol::position::PositionCostBasis {
                 opportunity_id: "lido-steth".to_string(),
                 amount: "10000".to_string(),
             }],

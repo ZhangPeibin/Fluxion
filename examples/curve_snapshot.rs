@@ -1,6 +1,6 @@
 //! Capture verified Curve deployment state/get_dy vectors, including reverts.
 use alloy_primitives::{U256, keccak256};
-use fluxion::{
+use eollo::{
     curve_local::CurveProfile, curve_plain::PlainProfile, rpc::RpcClient, state::multicall,
 };
 use serde_json::json;

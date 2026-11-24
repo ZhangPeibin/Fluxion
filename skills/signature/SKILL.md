@@ -30,10 +30,10 @@ Exactly one input:
 ## CLI
 
 ```bash
-fluxion signature inspect --typed-data permit.json --json
-fluxion signature inspect --authorization-list auth.json --json
-fluxion signature inspect --user-operation userop.json --json
-fluxion signature inspect --typed-data permit.json --policy policy.json --json
+eollo signature inspect --typed-data permit.json --json
+eollo signature inspect --authorization-list auth.json --json
+eollo signature inspect --user-operation userop.json --json
+eollo signature inspect --typed-data permit.json --policy policy.json --json
 ```
 
 ## Reading the result

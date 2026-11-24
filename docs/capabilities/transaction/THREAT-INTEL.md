@@ -1,7 +1,7 @@
 # Threat-intel feed
 
 `transaction.inspect` can load an optional local address registry through
-`FLUXION_THREAT_INTEL_FILE`. Matches produce `ADDR-007` with the configured label and source.
+`EOLLO_THREAT_INTEL_FILE`. Matches produce `ADDR-007` with the configured label and source.
 
 ## File format
 
@@ -27,7 +27,7 @@
 
 ## Signed feeds
 
-Set `FLUXION_THREAT_INTEL_PUBKEY` to a 32-byte Ed25519 public key in hex. When a public key is
+Set `EOLLO_THREAT_INTEL_PUBKEY` to a 32-byte Ed25519 public key in hex. When a public key is
 configured:
 
 1. The file must include a 64-byte Ed25519 `signature` in hex.
@@ -45,8 +45,8 @@ explicit.
 
 ## Boundaries
 
-- The registry is operator-provided; Fluxion does not ship a universal malicious-address list.
-- Address labels and sources are not independently verified by Fluxion.
+- The registry is operator-provided; Eollo does not ship a universal malicious-address list.
+- Address labels and sources are not independently verified by Eollo.
 - A miss is not proof of safety; the feed may be incomplete or stale.
 - Threat intel is an additional signal, not a replacement for simulation, trace, source verification,
   or wallet confirmation.

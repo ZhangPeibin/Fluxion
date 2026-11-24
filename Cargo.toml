@@ -2,17 +2,17 @@
 members = ["crates/protocol", "crates/remote", "crates/client"]
 
 [package]
-name = "fluxion"
+name = "eollo"
 version = "0.1.0"
 edition = "2024"
 description = "The open capability layer between AI agents and Web3. First capability: exact-in swap quotes over MCP."
-repository = "https://github.com/ZhangPeibin/Fluxion"
+repository = "https://github.com/ZhangPeibin/eollo"
 readme = "README.md"
 
 [dependencies]
-fluxion-protocol = { path = "crates/protocol" }
-fluxion-remote = { path = "crates/remote" }
-fluxion-client = { path = "crates/client" }
+eollo-protocol = { path = "crates/protocol" }
+eollo-remote = { path = "crates/remote" }
+eollo-client = { path = "crates/client" }
 
 [dev-dependencies]
 alloy-primitives = { version = "1.7.3", features = ["serde"] }

@@ -30,7 +30,7 @@ call with its own contract and envelope.
 1. Capabilities are called in the declared order.
 2. Simulation and inspection happen before signing or broadcasting.
 3. Policy is checked before the wallet request.
-4. User confirmation happens in the wallet; Fluxion never signs silently.
+4. User confirmation happens in the wallet; Eollo never signs silently.
 5. A failed step stops the workflow unless the workflow explicitly says otherwise.
 6. A workflow must not hide approvals or extra transactions.
 7. A workflow with gaps or planned steps is `experimental`.

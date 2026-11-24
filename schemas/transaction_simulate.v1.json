@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/transaction_simulate.v1.json",
-  "title": "Fluxion transaction.simulate v1",
+  "$id": "https://eollo.xyz/schemas/transaction_simulate.v1.json",
+  "title": "Eollo transaction.simulate v1",
   "type": "object",
   "additionalProperties": false,
   "required": [

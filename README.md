@@ -1,535 +1,569 @@
-# Fluxion
+# Eollo
 
-Fluxion 是面向 AI Agent 的 Web3 能力层。它把报价、账户读取、钱包连接、交易检查和签名授权
-封装成稳定的 MCP 能力，让 Agent 能读链、报价、准备交易，并在用户签名前给出可审计的风险报告。
+> Renamed from Fluxion. This is a pre-1.0 clean break: binary `eollo`, env `EOLLO_*`, local state
+> `~/.eollo`. See [ADR 0006](docs/adr/0006-rename-to-eollo.md).
 
-它解决两类问题：
+Eollo is a Web3 capability layer for AI agents. It packages quoting, account reads, wallet
+linking, transaction inspection, and signature authorization into stable MCP capabilities, so an
+agent can read chains, quote, prepare transactions, and show an auditable risk report before the user
+signs.
 
-- **链上接口碎片化**：把分散的 RPC、DEX、钱包和数据结构整理成固定输入输出。
-- **签名前缺少可验证的检查**：在签名前解码 calldata、模拟状态变化、检查内部调用和源码，并
-  明确哪些结论没有覆盖。
+It addresses three problems:
 
-[English](README.en.md) · 中文
+- **Every protocol is a new integration**: RPCs, DEXes, wallets, and data models become fixed inputs
+  and outputs, so agents stop rewriting glue code per protocol.
+- **Every agent action is a trust decision**: decode calldata, simulate state changes, inspect
+  internal calls and source, and state clearly what was not covered.
+- **Autonomy needs a handoff**: the agent prepares the transaction, but keys stay on the phone and
+  every send is confirmed in the user's wallet.
 
-产品官网：<https://zhangpeibin.github.io/Fluxion/> · 源码：[`site/`](site/)
+English · [中文](README.zh.md)
 
-[![CI](https://github.com/ZhangPeibin/Fluxion/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ZhangPeibin/Fluxion/actions/workflows/ci.yml)
+Website: <https://eollo.xyz/en.html> · source: [`site/`](site/)
+
+[![CI](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml)
 ![status](https://img.shields.io/badge/status-pre--1.0-orange)
 ![MCP](https://img.shields.io/badge/MCP-stdio-blueviolet)
 ![Rust](https://img.shields.io/badge/Rust-2024-orange)
 ![Ethereum](https://img.shields.io/badge/Ethereum-mainnet-627eea)
 ![BSC](https://img.shields.io/badge/BSC-mainnet-f3ba2f)
 
-## 安装
+## Install
 
 ```bash
 cargo install --path crates/client
 ```
 
-`swap.quote` 需要连接 remote 服务：
+`swap.quote` needs a remote service:
 
 ```bash
-FLUXION_REMOTE_URL=http://127.0.0.1:8080 fluxion swap ldo-eth 100
+EOLLO_REMOTE_URL=http://127.0.0.1:8080 eollo swap ldo-eth 100
 ```
 
-本地 wallet、交易检查和模拟默认使用 BSC；Ethereum 通过 `--chain ethereum` 显式选择。
+Local wallet, transaction inspection, and simulation default to BSC; use `--chain ethereum` for
+Ethereum.
 
-## 快速开始
+## Quick start
 
 ### MCP
 
 ```bash
-fluxion mcp
+eollo mcp
 ```
 
-`fluxion mcp` 通过 stdio 暴露能力，不启动 remote 服务。客户端注册和完整配置见
-[docs/MCP.md](docs/MCP.md)。
+`eollo mcp` exposes capabilities over stdio and does not start the remote service. Client
+registration and full setup live in [docs/MCP.md](docs/MCP.md).
 
 ### Skills
 
-Skills 告诉 Agent 何时调用哪个能力，以及如何解释结果。把仓库的 `skills/` 加入客户端配置：
+Skills tell the agent when to call a capability and how to read the result. Add the repository
+`skills/` directory to your client config:
 
 ```json
 {
   "skills": {
-    "paths": ["/path/to/Fluxion/skills"]
+    "paths": ["/path/to/Eollo/skills"]
   }
 }
 ```
 
-然后可以直接对 Agent 说：
+Then ask the agent normally:
 
 ```text
-把 100 LDO 换成 ETH，给我最佳报价
-查一下 0x... 的 BNB 和 USDT
-签名前检查这笔 calldata
-检查这个 Permit2 typed data
+Quote 100 LDO to ETH and show the best route
+Show the BNB and USDT balances for 0x...
+Inspect this calldata before I sign
+Inspect this Permit2 typed data
 ```
 
-每个能力下面的“对 Agent 说”示例都可以直接使用。
+The “Ask the agent” examples under each capability are ready to use.
 
-## 能力
+## Capabilities
 
-所有能力都有固定执行位置。Agent 和用户不选择 remote/local；这是 Fluxion 的内部路由。
+Every capability has one fixed execution location. Agents and users do not choose remote/local;
+that is internal Eollo routing.
 
-能力元数据以 [`capabilities/catalog.yaml`](capabilities/catalog.yaml) 为唯一来源，
-[`docs/capabilities/README.md`](docs/capabilities/README.md) 的表格由它生成。所有能力返回
-capability envelope v2（`meta`、`chain`、`block`、`as_of`、`provenance`、`coverage`、
-`warnings`、`unknowns`、`data`）；见 [ADR 0003](docs/adr/0003-capability-envelope-v2.md) 和
-[ADR 0005](docs/adr/0005-capability-catalog.md)。
+Capability metadata lives in [`capabilities/catalog.yaml`](capabilities/catalog.yaml) as the single
+source of truth, and [`docs/capabilities/README.md`](docs/capabilities/README.md) is generated from
+it. Every capability returns capability envelope v2 (`meta`, `chain`, `block`, `as_of`,
+`provenance`, `coverage`, `warnings`, `unknowns`, `data`); see
+[ADR 0003](docs/adr/0003-capability-envelope-v2.md) and
+[ADR 0005](docs/adr/0005-capability-catalog.md).
 
-### 能力总览
+### Capability overview
 
-#### 1. 报价
+#### 1. Quotes
 
-| Capability | Status | CLI | 说明 |
+| Capability | Status | CLI | Description |
 |---|---|---|---|
-| `swap.quote` | stable | `fluxion swap ldo-eth 100` | Ethereum 主网 exact-in 报价、多跳、拆单 |
-| `swap.build` | stable | `fluxion swap build --quote quote.json --recipient 0x...` | 从报价构建 V2 swap calldata |
+| `swap.quote` | stable | `eollo swap ldo-eth 100` | Ethereum mainnet exact-in quotes, multi-hop, split allocation |
+| `swap.build` | stable | `eollo swap build --quote quote.json --recipient 0x...` | Build V2 swap calldata from a quote |
 
-#### 2. 钱包
+#### 2. Wallet
 
-| Capability | Status | CLI | 说明 |
+| Capability | Status | CLI | Description |
 |---|---|---|---|
-| `wallet.balance` | stable | `fluxion wallet balance 0x... --tokens BNB,USDT` | 固定区块余额 |
-| `wallet.assets` | stable | `fluxion wallet assets 0x...` | 资产发现 + 本地核对 |
-| `wallet.allowance` | stable | `fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT` | 授权额度 |
-| `wallet.collectibles` | stable | `fluxion wallet collectibles 0x...` | NFT 持仓 |
-| `wallet.connect` | stable | `fluxion wallet connect` | WalletConnect 连接 |
-| `wallet.status` | stable | `fluxion wallet status` | 查看本地会话 |
-| `wallet.disconnect` | stable | `fluxion wallet disconnect` | 删除本地会话 |
-| `wallet.agent-id` | stable | `fluxion wallet agent-id alice.ai` | BSC `.ai` Agent ID |
-| `wallet.sign` | stable | `fluxion wallet sign --typed-data typed-data.json` | 消息 / EIP-712 签名 |
-| `wallet.send` | stable | `fluxion wallet send --to 0x... --token BNB --amount 0.01` | 原生 / 代币转账 |
+| `wallet.balance` | stable | `eollo wallet balance 0x... --tokens BNB,USDT` | Pinned-block balances |
+| `wallet.assets` | stable | `eollo wallet assets 0x...` | Asset discovery + local verification |
+| `wallet.allowance` | stable | `eollo wallet allowance 0xowner --spender 0xspender --tokens USDT` | Allowances |
+| `wallet.collectibles` | stable | `eollo wallet collectibles 0x...` | NFT holdings |
+| `wallet.connect` | stable | `eollo wallet connect` | WalletConnect session |
+| `wallet.status` | stable | `eollo wallet status` | Inspect local session |
+| `wallet.disconnect` | stable | `eollo wallet disconnect` | Remove local session |
+| `wallet.agent-id` | stable | `eollo wallet agent-id alice.ai` | BSC `.ai` Agent ID |
+| `wallet.sign` | stable | `eollo wallet sign --typed-data typed-data.json` | Message / EIP-712 signing |
+| `wallet.send` | stable | `eollo wallet send --to 0x... --token BNB --amount 0.01` | Native / token transfer |
 
-#### 3. 交易安全
+#### 3. Transaction safety
 
-| Capability | Status | CLI | 说明 |
+| Capability | Status | CLI | Description |
 |---|---|---|---|
-| `transaction.inspect` | stable | `fluxion transaction inspect --to 0x... --data 0x...` | 签名前 calldata 检查、effects、trace、源码、policy |
-| `transaction.simulate` | stable | `fluxion transaction simulate --to 0x... --data 0x...` | 固定区块 `eth_call` + gas |
-| `transaction.send` | stable | `fluxion transaction send --to 0x... --data 0x... --policy policy.json` | 模拟 + inspect + policy + 手机确认 + 广播 |
-| `transaction.verify` | experimental | `fluxion transaction verify --hash 0x...` | 回执状态、确认数、实际 effects，可选对照 inspect 报告 |
+| `transaction.inspect` | stable | `eollo transaction inspect --to 0x... --data 0x...` | Pre-sign calldata, effects, trace, source, policy |
+| `transaction.simulate` | stable | `eollo transaction simulate --to 0x... --data 0x...` | Pinned `eth_call` + gas |
+| `transaction.send` | stable | `eollo transaction send --to 0x... --data 0x... --policy policy.json` | Simulate + inspect + policy + phone + broadcast |
+| `transaction.verify` | experimental | `eollo transaction verify --hash 0x...` | Receipt status, confirmations and effects, optionally compared with an inspect report |
 
-#### 4. 签名授权
+#### 4. Signature authorization
 
-| Capability | Status | CLI | 说明 |
+| Capability | Status | CLI | Description |
 |---|---|---|---|
-| `signature.inspect` | stable | `fluxion signature inspect --typed-data typed-data.json` | EIP-712、Permit2、7702、4337 |
+| `signature.inspect` | stable | `eollo signature inspect --typed-data typed-data.json` | EIP-712, Permit2, 7702, 4337 |
 
 #### 5. Four.meme
 
-| Capability | Status | CLI | 说明 |
+| Capability | Status | CLI | Description |
 |---|---|---|---|
-| `fourmeme.agent-tokens` | experimental | `fluxion fourmeme agent-tokens --wallet 0x... --before-block N` | 发现 Binance Agent ID Exclusive token，支持按区块向前翻页、查询钱包资格 |
-| `fourmeme.token` | experimental | `fluxion fourmeme token 0x... --wallet 0x...` | 单币详情：阶段、市场/动量、社交、持有人、交易限制与 1% 额度、安全信号、资格 |
+| `fourmeme.agent-tokens` | experimental | `eollo fourmeme agent-tokens --wallet 0x... --before-block N` | Discover Binance Agent ID Exclusive tokens with block continuation and wallet eligibility |
+| `fourmeme.token` | experimental | `eollo fourmeme token 0x... --wallet 0x...` | Detail: phase, market/momentum, socials, holders, tradability and 1% cap, safety signals, eligibility |
 
-#### 6. 收益发现
+#### 6. Yield discovery
 
-| Capability | Status | CLI | 说明 |
+| Capability | Status | CLI | Description |
 |---|---|---|---|
-| `yield.discover` | experimental | `fluxion yield discover --asset ETH --amount 10` | Ethereum ETH 质押/借贷机会：安全层级、APY、TVL、提现条件、推荐 |
-| `yield.build` | experimental | `fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x...` | 本地构造 stake/supply/deposit calldata 与授权步骤 |
-| `yield.history` | experimental | `fluxion yield history --opportunity lido-steth --days 30` | 历史 APY、base/reward 拆分、TVL 与稳定性摘要 |
-| `yield.withdraw` | experimental | `fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x...` | 本地构造 withdraw/redeem/burn 退出 calldata |
+| `yield.discover` | experimental | `eollo yield discover --asset ETH --amount 10` | Ethereum ETH staking/lending: safety tier, APY, TVL, withdrawal conditions, recommendation |
+| `yield.build` | experimental | `eollo yield build --opportunity lido-steth --amount 10 --recipient 0x...` | Local stake/supply/deposit calldata and approval steps |
+| `yield.history` | experimental | `eollo yield history --opportunity lido-steth --days 30` | Historical APY, base/reward split, TVL and stability summary |
+| `yield.withdraw` | experimental | `eollo yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x...` | Local withdraw/redeem/burn exit calldata |
 
-#### 7. 仓位分析
+#### 7. Position analysis
 
-| Capability | Status | CLI | 说明 |
+| Capability | Status | CLI | Description |
 |---|---|---|---|
-| `position.analyze` | experimental | `fluxion position analyze --owner 0x...` | 跨 curated 市场的 ETH 仓位、估值、APY、提现条件、风险与可选 PnL |
+| `position.analyze` | experimental | `eollo position analyze --owner 0x...` | Cross-market ETH positions, valuation, APY, withdrawal conditions, risk and optional PnL |
 
-完整用法和“对 Agent 说”的示例见下面各能力小节。
+Full usage and "ask the agent" examples are below in each capability section.
 
-### 报价
+Local surfaces such as `fourmeme.ui` (`eollo fourmeme ui --open`) are read-only local tools, not
+capabilities; they are listed under `surfaces` in the catalog.
+
+### Quotes
 
 #### `swap.quote`
 
-Ethereum 主网 exact-in 报价，支持多跳和拆单。返回 `amountOut`、价格影响、路径和每个 hop 的
-分配；不构造 calldata，也不执行 swap。
+Exact-in quotes on Ethereum mainnet, with multi-hop routing and split allocation. Returns
+`amountOut`, price impact, path, and per-hop allocation. It does not build calldata or execute a
+swap.
 
 ```bash
-fluxion swap ldo-eth 100
-fluxion swap quote --in LDO --out WETH --amount 100 --json
+eollo swap ldo-eth 100
+eollo swap quote --in LDO --out WETH --amount 100 --json
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-把 100 LDO 换成 ETH，给我最佳报价和路径。
+Quote 100 LDO to ETH and show the best route.
 ```
 
-Skill：[swap](skills/swap/SKILL.md) · 文档：[swap.quote](docs/capabilities/swap/README.md)
+Skill: [swap](skills/swap/SKILL.md) · Docs: [swap.quote](docs/capabilities/swap/README.md)
 
-### 收益发现
+### Yield discovery
 
 #### `yield.discover`
 
-Ethereum 主网 ETH 本位的质押和借贷机会发现。它返回 curated safety tier、APY 拆分、TVL、
-提现条件、风险因子和证据，并给出一个推荐和取舍理由；不构造、不签名、不执行。
+Read-only discovery of ETH-denominated staking and lending opportunities on Ethereum. It returns
+a curated safety tier, APY components, TVL, withdrawal conditions, risk factors and evidence, plus
+one recommendation with explicit tradeoffs. It never builds, signs or executes a transaction.
 
 ```bash
-fluxion yield discover --asset ETH --amount 10 --json
-fluxion yield discover --asset ETH --amount 10 --risk balanced --json
-fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x... --json
-fluxion yield history --opportunity lido-steth --days 30 --json
-fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x... --json
+eollo yield discover --asset ETH --amount 10 --json
+eollo yield discover --asset ETH --amount 10 --risk balanced --json
+eollo yield build --opportunity lido-steth --amount 10 --recipient 0x... --json
+eollo yield history --opportunity lido-steth --days 30 --json
+eollo yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x... --json
 ```
 
-`yield.build` / `yield.withdraw` 只构造 calldata 和授权步骤，不签名、不广播；`yield.history`
-读取历史 APY，历史值不是当前值，也不构成保证。
+`yield.build` / `yield.withdraw` only return calldata and approval steps; they never sign or
+broadcast. `yield.history` returns historical APY, which is not current APY and not a guarantee.
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-我有 10 ETH，想找最安全且 APY 合理的机会；先按 conservative 给我推荐，并说明放弃了什么。
+I have 10 ETH. Find the safest opportunity with a reasonable APY, give me the conservative
+recommendation, and explain what I am giving up.
 ```
 
-Skill：[yield](skills/yield/SKILL.md) · 文档：[yield](docs/capabilities/yield/README.md)
+Skill: [yield](skills/yield/SKILL.md) · Docs: [yield](docs/capabilities/yield/README.md)
 
-### 仓位分析
+### Position analysis
 
 #### `position.analyze`
 
-读取地址在 Lido/Rocket Pool/Aave/SparkLend/Morpho 等 curated 市场中的仓位。余额固定在同一
-Ethereum 区块，APY 和风险上下文来自 `yield.discover` 快照；可选提供 cost basis 计算 PnL。
+Read a wallet's positions across curated Lido/Rocket Pool/Aave/SparkLend/Morpho markets. Balances
+are pinned to one Ethereum block; APY and risk context come from the `yield.discover` snapshot.
+Optional cost basis enables PnL.
 
 ```bash
-fluxion position analyze --owner 0x... --json
-fluxion position analyze --owner 0x... --cost-basis lido-steth=10 --json
+eollo position analyze --owner 0x... --json
+eollo position analyze --owner 0x... --cost-basis lido-steth=10 --json
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-看看这个地址在哪些 ETH 收益市场有仓位，值多少 ETH，年化收益和提现条件是什么。
+Show my ETH yield positions, what they are worth, the APY, and the withdrawal conditions.
 ```
 
-Skill：[position](skills/position/SKILL.md) · 文档：[position.analyze](docs/capabilities/position/README.md)
+Skill: [position](skills/position/SKILL.md) · Docs: [position.analyze](docs/capabilities/position/README.md)
 
-### 账户读取
+### Account reads
 
-Skill：[wallet](skills/wallet/SKILL.md) · 文档：[wallet](docs/capabilities/wallet/README.md)
+Skill: [wallet](skills/wallet/SKILL.md) · Docs: [wallet](docs/capabilities/wallet/README.md)
 
 #### `wallet.balance`
 
-在固定区块读取原生币和指定代币余额。默认 BSC，Ethereum 显式指定。
+Read native and token balances at a pinned block. BSC is the default; Ethereum is explicit.
 
 ```bash
-fluxion wallet balance 0x... --tokens BNB,USDT
-fluxion wallet balance 0x... --tokens ETH,USDC --chain ethereum
+eollo wallet balance 0x... --tokens BNB,USDT
+eollo wallet balance 0x... --tokens ETH,USDC --chain ethereum
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-查一下 0x... 的 BNB 和 USDT 余额，固定在最新区块。
+Show the BNB and USDT balances for 0x... at the latest block.
 ```
 
 #### `wallet.assets`
 
-发现地址持有的代币，并在本地逐个核对余额。没有 provider 时回退到内置 registry，并通过
-`coverage` / `warnings` 说明完整性。
+Discover token holdings and verify each balance locally. Without a provider it falls back to the
+built-in registry and explains completeness through `coverage` / `warnings`.
 
 ```bash
-fluxion wallet assets 0x...
-fluxion wallet assets 0x... --include-unknown
+eollo wallet assets 0x...
+eollo wallet assets 0x... --include-unknown
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-看看这个地址持有哪些代币，并标出未知代币。
+Show which tokens this address holds and flag unknown tokens.
 ```
 
 #### `wallet.allowance`
 
-读取 ERC20/BEP-20 授权额度。零授权也会返回，方便判断是否存在 approve 风险。
+Read ERC20/BEP-20 allowances. Zero allowances are returned so approval risk is unambiguous.
 
 ```bash
-fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT,CAKE
+eollo wallet allowance 0xowner --spender 0xspender --tokens USDT,CAKE
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-查一下 owner 给 spender 的 USDT 授权还有多少。
+Check the remaining USDT allowance from owner to spender.
 ```
 
 #### `wallet.collectibles`
 
-读取 ERC721 / ERC1155 持仓。没有 NFT indexer 时只查显式 collections 或内置 registry。
+Read ERC721 / ERC1155 holdings. Without an NFT indexer it checks explicit collections or the
+built-in registry only.
 
 ```bash
-fluxion wallet collectibles 0x...
-fluxion wallet collectibles 0x... --collections 0xcollection
+eollo wallet collectibles 0x...
+eollo wallet collectibles 0x... --collections 0xcollection
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-看看这个地址有哪些 NFT；没有 indexer 就只查我给的这个 collection。
+Show this address's NFTs; if there is no indexer, only check the collection I gave you.
 ```
 
-### 钱包会话与转账
+### Wallet sessions and transfers
 
-Skill：[wallet](skills/wallet/SKILL.md) · 文档：[wallet](docs/capabilities/wallet/README.md)
+Skill: [wallet](skills/wallet/SKILL.md) · Docs: [wallet](docs/capabilities/wallet/README.md)
 
 #### `wallet.connect`
 
-建立 WalletConnect v2 会话，返回 URI 和终端 QR。默认 BSC，Ethereum 用 `--chain ethereum`。
-私钥始终留在手机钱包。
+Start a WalletConnect v2 session and return a URI plus terminal QR. Defaults to BSC; use
+`--chain ethereum` for Ethereum. Private keys stay in the phone wallet.
 
 ```bash
-fluxion wallet connect
-fluxion wallet connect --chain ethereum
+eollo wallet connect
+eollo wallet connect --chain ethereum
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-连接我的钱包，用 BSC；先展示二维码，再轮询连接状态。
+Link my wallet on BSC; show the QR first, then poll the session status.
 ```
 
 #### `wallet.status`
 
-读取本地 WalletConnect 会话，不访问钱包。
+Read the local WalletConnect session without contacting the wallet.
 
 ```bash
-fluxion wallet status
-fluxion wallet status --wait 90
+eollo wallet status
+eollo wallet status --wait 90
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-我的钱包连上了吗？没连上就继续等 90 秒。
+Is my wallet connected? If not, keep waiting for up to 90 seconds.
 ```
 
 #### `wallet.disconnect`
 
-删除本地会话并中止 pending pairing。
+Remove the local session and abort any pending pairing.
 
 ```bash
-fluxion wallet disconnect
+eollo wallet disconnect
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-断开当前钱包会话。
+Disconnect the current wallet session.
 ```
 
 #### `wallet.agent-id`
 
-解析 BSC 上的 SPACE ID `.ai` Agent ID，可选做链上 registry 校验。只做身份解析，不是
-Binance Agentic Wallet 登录。
+Resolve a SPACE ID `.ai` Agent ID on BSC, with optional on-chain registry verification. This is
+identity resolution only; it is not Binance Agentic Wallet login.
 
 ```bash
-fluxion wallet agent-id alice.ai
-fluxion wallet agent-id 0xA506... --json
+eollo wallet agent-id alice.ai
+eollo wallet agent-id 0xA506... --json
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-解析 alice.ai 对应的 BSC 地址和 Agent ID。
+Resolve alice.ai to its BSC address and Agent ID.
 ```
 
 #### `wallet.sign`
 
-通过 WalletConnect 签名消息或 EIP-712 typed data。手机确认后返回签名；用户拒绝返回
-`USER_REJECTED`。
+Sign a message or EIP-712 typed data through WalletConnect. The user confirms on their phone; a
+rejection returns `USER_REJECTED`.
 
 ```bash
-fluxion wallet sign --message "hello"
-fluxion wallet sign --typed-data typed-data.json
+eollo wallet sign --message "hello"
+eollo wallet sign --typed-data typed-data.json
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-用我连接的钱包签这条消息：hello。
+Sign this message with my connected wallet: hello.
 ```
 
 #### `wallet.send`
 
-构造原生币或 ERC20/BEP-20 transfer，本地模拟通过后再让手机确认。失败不会发到手机。
+Build a native or ERC20/BEP-20 transfer, simulate it locally, then ask the phone to confirm.
+Simulation failure never reaches the phone.
 
 ```bash
-fluxion wallet send --to 0x... --token BNB --amount 0.01
-fluxion wallet send --to 0x... --token USDT --amount 10
+eollo wallet send --to 0x... --token BNB --amount 0.01
+eollo wallet send --to 0x... --token USDT --amount 10
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-发送 0.01 BNB 到 0x...，先模拟，失败就不要发。
+Send 0.01 BNB to 0x...; simulate first and do not send if it fails.
 ```
 
-### 交易安全
+### Transaction safety
 
-Skill：[transaction](skills/transaction/SKILL.md) · 文档：[transaction](docs/capabilities/transaction/README.md)
+Skill: [transaction](skills/transaction/SKILL.md) · Docs: [transaction](docs/capabilities/transaction/README.md)
 
 #### `transaction.inspect`
 
-签名前的确定性检查。返回交易意图、资产/授权变化、风险 findings、覆盖范围和未知项。
-它是 advisory，不是安全保证，也不签名或广播。
+Deterministic pre-sign inspection. Returns intent, asset/allowance changes, findings, coverage, and
+unknowns. It is advisory, not a safety guarantee, and never signs or broadcasts.
 
 ```bash
-fluxion transaction inspect --to 0x... --data 0x...
-fluxion transaction inspect --to 0x... --data 0x... --policy policy.json
+eollo transaction inspect --to 0x... --data 0x...
+eollo transaction inspect --to 0x... --data 0x... --policy policy.json
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-签名前检查这笔 calldata：告诉我它在做什么、会动哪些资产、有没有授权或 delegatecall 风险。
+Inspect this calldata before I sign: tell me what it does, which assets move, and whether there is
+an approval or delegatecall risk.
 ```
 
 #### `transaction.simulate`
 
-固定区块执行 `eth_call` 和 `eth_estimateGas`，返回 success/revert、return data 和 gas。
+Run `eth_call` and `eth_estimateGas` at a pinned block and return success/revert, return data, and
+gas.
 
 ```bash
-fluxion transaction simulate --to 0x... --data 0x...
-fluxion transaction simulate --to 0x... --data 0x... --from 0x...
+eollo transaction simulate --to 0x... --data 0x...
+eollo transaction simulate --to 0x... --data 0x... --from 0x...
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-模拟这笔交易，看看会不会 revert，以及大概要多少 gas。
+Simulate this transaction, tell me if it reverts, and estimate gas.
 ```
 
 #### `transaction.verify`
 
-读取已发送交易的 receipt，返回状态、确认数、gas/手续费和从日志解码的 effects；可选对照
-`transaction.inspect` 报告并返回 `match` / `mismatch`。只读，不签名、不广播。
+Read a sent transaction's receipt and return status, confirmations, gas/fee, and effects decoded
+from logs; optionally compare against a `transaction.inspect` report and return `match` or
+`mismatch`. Read-only; never signs or broadcasts.
 
 ```bash
-fluxion transaction verify --hash 0x... --json
-fluxion transaction verify --hash 0x... --chain ethereum --confirmations 3 --json
-fluxion transaction verify --hash 0x... --expect inspect.json --json
+eollo transaction verify --hash 0x... --json
+eollo transaction verify --hash 0x... --chain ethereum --confirmations 3 --json
+eollo transaction verify --hash 0x... --expect inspect.json --json
 ```
 
-状态为 `success`、`reverted`、`pending` 或 `not_found`；`pending` / `not_found` 是正常结果，
-不是错误。没有 receipt 时 effects 标记为 `not_run`。
+Status is `success`, `reverted`, `pending`, or `not_found`; `pending` and `not_found` are normal
+results, not errors. Without a receipt, effects are marked `not_run`.
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-这笔交易 0x... 成功了吗？实际转了什么？如果和我签名前的检查不一致，告诉我差异。
+Did transaction 0x... succeed? What did it actually move? If it differs from the report I
+inspected before signing, show me the differences.
 ```
 
-### 签名与授权检查
+### Signature authorization
 
-Skill：[signature](skills/signature/SKILL.md) · 文档：[signature](docs/capabilities/signature/README.md)
+Skill: [signature](skills/signature/SKILL.md) · Docs: [signature](docs/capabilities/signature/README.md)
 
 #### `signature.inspect`
 
-检查非 calldata 的授权内容：EIP-712 typed data、Permit2、EIP-7702 authorization list 和
-ERC-4337 user operation。
+Inspect authorization that is not ordinary calldata: EIP-712 typed data, Permit2, EIP-7702
+authorization lists, and ERC-4337 user operations.
 
 ```bash
-fluxion signature inspect --typed-data permit.json
-fluxion signature inspect --authorization-list auth.json
-fluxion signature inspect --user-operation userop.json
+eollo signature inspect --typed-data permit.json
+eollo signature inspect --authorization-list auth.json
+eollo signature inspect --user-operation userop.json
 ```
 
-对 Agent 说：
+Ask the agent:
 
 ```text
-检查这个 Permit2 typed data：金额、过期时间、spender 和链 ID 有没有问题。
+Inspect this Permit2 typed data: check the amount, expiration, spender, and chain ID.
 ```
 
 ### Four.meme Agent ID Exclusive
 
-Skill：[fourmeme](skills/fourmeme/SKILL.md) · 文档：[fourmeme](docs/capabilities/fourmeme/README.md)
+Skill: [fourmeme](skills/fourmeme/SKILL.md) · Docs: [fourmeme](docs/capabilities/fourmeme/README.md)
 
-发现 Four.meme 上使用 `Binance Agent ID Exclusive` 模板（`presetId=1778027615735`）的近期
-token，并可检查钱包是否持有 Agent ID。`aiCreator` 或 `.ai` 标签不等于该模板。
+Discover Four.meme tokens using the `Binance Agent ID Exclusive` template
+(`presetId=1778027615735`) and optionally check Agent ID eligibility. An `aiCreator` label or
+`.ai` tag is not sufficient.
 
 ```bash
-fluxion fourmeme agent-tokens --json
-fluxion fourmeme agent-tokens --wallet 0x... --limit 20 --json
-fluxion fourmeme agent-tokens --lookback-blocks 100000 --json
-fluxion fourmeme agent-tokens --lookback-blocks 100000 --before-block 26350000 --json
-fluxion fourmeme token 0x... --wallet 0x... --json
-fluxion fourmeme ui --open
+eollo fourmeme agent-tokens --json
+eollo fourmeme agent-tokens --wallet 0x... --limit 20 --json
+eollo fourmeme agent-tokens --lookback-blocks 100000 --json
+eollo fourmeme agent-tokens --lookback-blocks 100000 --before-block 26350000 --json
+eollo fourmeme token 0x... --wallet 0x... --json
+eollo fourmeme ui --open
 ```
 
-`fourmeme.agent-tokens` 扫描 OpenFour Core `TokenCreated` 日志并按模板过滤；`--before-block`
-可以从更早的区块继续向前翻页，响应里的 `next_before_block` 就是下一次的游标。
+`fourmeme.agent-tokens` scans OpenFour Core `TokenCreated` logs and filters by template.
+`--before-block` continues backwards from an older block; `next_before_block` in the response is the
+cursor for the next page.
 
-`fourmeme.token` 返回图标、描述、阶段、模板、市场/动量（价格、max price、市值、流动性、
-24h 成交量/涨跌幅）、社交链接、持有人数、交易限制（内盘转账锁定、创建时 maxSupply、1% 钱包
-额度）、安全信号（原始买卖税、min/max buy、可选 BscScan 合约验证）和钱包资格。API 不可用时
-回退到 OpenFour Core `tokens`、vault phase 和 BSC ERC20 只读字段；Core 也不可用时才标记
-`phase: unknown`。缺失字段会省略并给出 warning，不会当成 0。
+`fourmeme.token` returns image, description, phase, template, market/momentum (price, max price,
+market cap, liquidity, 24h volume/change), social links, holder count, tradability (inner transfer
+lock, creation-time maxSupply, 1% wallet cap), safety signals (raw buy/sell tax, min/max buy,
+optional BscScan verification) and wallet eligibility. If the detail API is unavailable it falls
+back to OpenFour Core `tokens`, vault phase and BSC ERC20 fields; only when Core is also unavailable
+does it report `phase: unknown`. Missing fields are omitted with a warning, never reported as zero.
 
-`fourmeme.ui` 启动本地只读网页（默认 `127.0.0.1:8787`），列表卡片可点击进入
-`#/token/<address>` 详情页，并支持“加载更早”继续翻页。页面不连接钱包、不签名、不买不卖。
+`fourmeme.ui` starts a local read-only page on `127.0.0.1:8787` by default. List cards link to
+`#/token/<address>` detail pages, and "load earlier" continues paging. It never connects a wallet,
+signs, buys or sells.
 
-内盘阶段只有 Binance Agentic Wallet + Agent ID 可交易，单地址最多持有创建时 `maxSupply`
-的 1%，且内盘转账被锁定；毕业后开放交易。`fourmeme.token` 会返回 `wallet_cap`（余额、1%
-上限、剩余额度、是否触顶）。该能力只发现和检查，不买、不卖、不签名。
+During the bonding phase only a Binance Agentic Wallet with an Agent ID can trade, each address
+is capped at 1% of creation-time `maxSupply`, and inner-market transfers are locked. Trading opens
+after graduation. `fourmeme.token` reports `wallet_cap` (balance, 1% cap, remaining, reached).
+This capability only discovers and checks; it never buys, sells, or signs.
 
-## 安全模型
+## Security model
 
-`transaction.inspect` / `signature.inspect` 只做**签名前检查**：不持有私钥、不签名、不广播，
-也不构成审计或安全保证。检查结果用于辅助调用方和用户决定是否进入钱包确认流程。
+`transaction.inspect` / `signature.inspect` are **pre-sign inspection** only: they do not hold
+private keys, sign, or broadcast, and they are not an audit or a safety guarantee. Their output
+helps the caller and the user decide whether to enter the wallet confirmation flow.
 
-- **风险语义**：有 finding 时 `risk` 取最高 severity；没有 finding 时是 `unknown`，不是
-  `low` 或 `safe`；关键覆盖缺失时保持 `unknown`。
-- **覆盖**：`decode`、`metadata`、`simulation`、`trace`、`policy` 五个独立维度；
-  `unknowns` 是结果的一部分，不是附注。
-- **强制执行**：`wallet.send --policy` 和 `wallet.sign --policy` 只在 Fluxion 自己的发送和
-  typed-data 签名路径上执行 enforce gate，命中高风险返回 `POLICY_BLOCKED`；这不是通用
-  signer 边界。
-- **确定性**：同一请求、同一区块、同一代码版本产生相同 finding；LLM 不参与 detector、
-  risk 或 coverage 计算。
+- **Risk semantics**: with findings, `risk` is the highest severity; without findings it is
+  `unknown`, never `low` or `safe`; missing critical coverage keeps `unknown`.
+- **Coverage**: five independent dimensions — `decode`, `metadata`, `simulation`, `trace`, and
+  `policy`; `unknowns` is part of the result, not an appendix.
+- **Enforcement**: `wallet.send --policy` and `wallet.sign --policy` enforce policy only on
+  Eollo's own send and typed-data signing paths, returning `POLICY_BLOCKED` on high risk; this is
+  not a general signer boundary.
+- **Determinism**: the same request, block, and code version produce the same finding set; LLMs do
+  not participate in detectors, risk, or coverage.
 
-规则目录、信任边界、威胁模型、检查管线、覆盖率语义和红队边界见
-[`docs/capabilities/transaction/ASSURANCE.md`](docs/capabilities/transaction/ASSURANCE.md)；
-威胁情报配置见 [`docs/capabilities/transaction/THREAT-INTEL.md`](docs/capabilities/transaction/THREAT-INTEL.md)；
-红队方法和原始数据见 [red-team](docs/benchmarks/redteam-2026-11-11.md)、
-[historical calldata](docs/benchmarks/historical-calddata-2026-11-11.md) 与
-[security benchmark](docs/benchmarks/security-inspection-2026-11-11.md)。
+The rule catalog, trust boundaries, threat model, inspection pipeline, coverage semantics, and
+red-team boundary are in
+[`docs/capabilities/transaction/ASSURANCE.md`](docs/capabilities/transaction/ASSURANCE.md);
+threat-intel configuration is in
+[`docs/capabilities/transaction/THREAT-INTEL.md`](docs/capabilities/transaction/THREAT-INTEL.md);
+method and raw data are in [red-team](docs/benchmarks/redteam-2026-11-11.md),
+[historical calldata](docs/benchmarks/historical-calddata-2026-11-11.md), and
+[security benchmark](docs/benchmarks/security-inspection-2026-11-11.md).
 
-## 执行模型
+## Execution model
 
-每个 capability 的执行位置固定，调用方不能选择 remote/local。`fluxion` 只做路由。
+Every capability has a fixed execution location; the caller cannot choose remote/local. `eollo`
+only routes.
 
-| Capability | 执行位置 | 数据路径 | 失败语义 |
+| Capability | Location | Data path | Failure semantics |
 |---|---|---|---|
-| `swap.quote` | remote | remote snapshot -> 本地路由计算 | remote 不可用 -> `RPC_ERROR` |
-| `swap.build` | local | 读取 quote JSON -> 本地 ABI 编码 | 非 V2/拆单/非 Ethereum -> `UNSUPPORTED` |
-| `yield.discover` | remote | curated registry + DefiLlama + Ethereum RPC 后台快照 | provider/RPC 失败 -> `RPC_ERROR`；数据过期 -> `STALE_STATE` |
-| `yield.build` | local | curated registry -> ABI 编码 -> steps/approvals | 不支持的市场 -> `UNSUPPORTED` |
-| `yield.history` | remote | DefiLlama chart + 进程内缓存 | provider 失败 -> `RPC_ERROR`；数据过期 -> `STALE_STATE` |
-| `yield.withdraw` | local | curated registry -> withdraw/redeem/burn ABI 编码 | 不支持的市场/数量 -> `UNSUPPORTED`/`INVALID_ARGUMENT` |
-| `position.analyze` | remote | Ethereum RPC pinned block + yield snapshot | RPC 失败 -> `RPC_ERROR`（`PositionUnavailable`）；快照未就绪 -> `STALE_STATE` |
-| `wallet.balance` / `assets` / `allowance` / `collectibles` | local | 本地 RPC，固定区块 | RPC 失败 -> `RPC_ERROR` |
-| `wallet.connect` / `status` / `disconnect` | local | 本地 session + WalletConnect relay | 无 session、配对失败或过期 -> 明确错误 |
-| `wallet.agent-id` | local | SPACE ID API + BSC RPC 校验 | API 失败时按配置回退链上或返回 unknown |
-| `wallet.sign` / `wallet.send` | local | 本地 session -> relay -> 手机钱包确认 | 拒绝 -> `USER_REJECTED`；超时 -> `TIMEOUT`；policy block -> `POLICY_BLOCKED` |
-| `transaction.inspect` | local | 本地 RPC：block、code、simulate、trace、source | 缺失维度写入 `coverage` / `unknowns` |
-| `transaction.simulate` | local | 本地 RPC：`eth_call` + `eth_estimateGas` | RPC/revert 按 capability error 或 `success=false` 返回 |
-| `transaction.send` | local | RPC simulate/inspect -> WalletConnect -> 手机确认 | 模拟失败、policy block、拒绝或超时均不广播 |
-| `transaction.verify` | local | 本地 RPC：tx + receipt + receipt logs | 未找到/未确认 -> `pending`/`not_found`；RPC 失败 -> `RPC_ERROR` |
-| `signature.inspect` | local | 调用方提供的 typed data / authorization / userOp JSON | 无法解码 -> `SIG-006` 或 invalid argument |
-| `fourmeme.agent-tokens` | local | BSC `TokenCreated` logs + Four.meme API + BSC `AgentIdentifier` | API/RPC 失败 -> 明确 warning/coverage |
-| `fourmeme.token` | local | Four.meme API + BSC ERC20 fallback + `AgentIdentifier` | API 不可用 -> 链上基础字段 + warning |
+| `swap.quote` | remote | remote snapshot -> local route computation | Remote unavailable -> `RPC_ERROR` |
+| `swap.build` | local | quote JSON -> local ABI encoding | Non-V2/split/non-Ethereum -> `UNSUPPORTED` |
+| `yield.discover` | remote | curated registry + DefiLlama + Ethereum RPC snapshot | Provider/RPC failure -> `RPC_ERROR`; stale data -> `STALE_STATE` |
+| `yield.build` | local | curated registry -> ABI encoding -> steps/approvals | Unsupported market -> `UNSUPPORTED` |
+| `yield.history` | remote | DefiLlama chart + in-process cache | Provider failure -> `RPC_ERROR`; stale data -> `STALE_STATE` |
+| `yield.withdraw` | local | curated registry -> withdraw/redeem/burn ABI encoding | Unsupported market/amount -> `UNSUPPORTED`/`INVALID_ARGUMENT` |
+| `position.analyze` | remote | Ethereum RPC pinned block + yield snapshot | RPC failure -> `RPC_ERROR` (`PositionUnavailable`); snapshot not ready -> `STALE_STATE` |
+| `wallet.balance` / `assets` / `allowance` / `collectibles` | local | local RPC at a pinned block | RPC failure -> `RPC_ERROR` |
+| `wallet.connect` / `status` / `disconnect` | local | local session + WalletConnect relay | No session, pairing failure, or expiry -> explicit error |
+| `wallet.agent-id` | local | SPACE ID API + BSC RPC verification | API failure -> configured on-chain fallback or unknown |
+| `wallet.sign` / `wallet.send` | local | local session -> relay -> phone confirmation | Rejection -> `USER_REJECTED`; timeout -> `TIMEOUT`; policy block -> `POLICY_BLOCKED` |
+| `transaction.inspect` | local | local RPC: block, code, simulate, trace, source | Missing dimensions -> `coverage` / `unknowns` |
+| `transaction.simulate` | local | local RPC: `eth_call` + `eth_estimateGas` | RPC/revert -> capability error or `success=false` |
+| `transaction.send` | local | RPC simulate/inspect -> WalletConnect -> phone | Simulation failure, policy block, rejection or timeout never broadcast |
+| `transaction.verify` | local | local RPC: tx + receipt + receipt logs | Missing/unconfirmed -> `pending`/`not_found`; RPC failure -> `RPC_ERROR` |
+| `signature.inspect` | local | caller-provided typed data / authorization / userOp JSON | Undecodable -> `SIG-006` or invalid argument |
+| `fourmeme.agent-tokens` | local | BSC `TokenCreated` logs + Four.meme API + BSC `AgentIdentifier` | API/RPC failure -> explicit warning/coverage |
+| `fourmeme.token` | local | Four.meme API + BSC ERC20 fallback + `AgentIdentifier` | API unavailable -> on-chain basics + warning |
 
-### 请求流
+### Request flows
 
 ```text
 Quote:
-CLI/MCP -> fluxion client -> FLUXION_REMOTE_URL -> snapshot -> quote response
+CLI/MCP -> eollo client -> EOLLO_REMOTE_URL -> snapshot -> quote response
 
 Local read:
-CLI/MCP -> fluxion client -> chain RPC -> pinned block -> response
+CLI/MCP -> eollo client -> chain RPC -> pinned block -> response
 
 Wallet:
 CLI/MCP -> local session file -> WalletConnect relay -> phone -> response
@@ -538,64 +572,69 @@ Pre-sign inspection:
 CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 ```
 
-### 运行时和配置
+### Runtime and configuration
 
-- `FLUXION_REMOTE_URL`：remote quote 服务地址；没有配置时 `swap.quote` 返回明确错误。
-- `FLUXION_RPC_URL` / `RPC_URL`：Ethereum RPC。
-- `FLUXION_BSC_RPC_URL`：BSC RPC，本地能力默认链。
-- `WALLETCONNECT_PROJECT_ID`、`WALLETCONNECT_RELAY_URL`：钱包会话。
-- `FOURMEME_API_URL`：Four.meme REST API，默认 `https://four.meme/meme-api/v1`。
-- `FOURMEME_BSC_RPC_URL`：支持 `eth_getLogs` 的 BSC RPC，也用于 ERC20 fallback；默认 `https://bsc-rpc.publicnode.com`。
-- `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`：可选源码验证。
-- `FLUXION_VERIFY_RPC_URL`：可选第二 RPC，用于 block hash 和 target code 交叉校验。
-- `FLUXION_THREAT_INTEL_FILE`：可选本地 threat-intel JSON，命中地址输出 `ADDR-007`；
-  `FLUXION_THREAT_INTEL_PUBKEY` 可启用 Ed25519 签名校验。registry 由运营方提供，可能不完整或过期。
-- `FLUXION_BSCSCAN_API_URL` / `FLUXION_ETHERSCAN_API_URL`：可替换验证端点。
-- 私钥不进入 runtime；WalletConnect session 只保存在本地 `~/.fluxion/walletconnect/session.json`。
+- `EOLLO_REMOTE_URL`: remote quote service. Without it, `swap.quote` returns an explicit error.
+- `EOLLO_RPC_URL` / `RPC_URL`: Ethereum RPC.
+- `EOLLO_BSC_RPC_URL`: BSC RPC; default chain for local capabilities.
+- `FOURMEME_API_URL`: Four.meme REST API; defaults to `https://four.meme/meme-api/v1`.
+- `FOURMEME_BSC_RPC_URL`: BSC RPC with `eth_getLogs`, also used for ERC20 fallback; defaults to `https://bsc-rpc.publicnode.com`.
+- `WALLETCONNECT_PROJECT_ID`, `WALLETCONNECT_RELAY_URL`: wallet session.
+- `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`: optional source verification.
+- `EOLLO_VERIFY_RPC_URL`: optional secondary RPC for block-hash and target-code cross-check.
+- `EOLLO_THREAT_INTEL_FILE`: optional local threat-intel JSON; matches emit `ADDR-007`.
+  `EOLLO_THREAT_INTEL_PUBKEY` enables Ed25519 signature verification. The registry is
+  operator-provided and may be incomplete or stale.
+- `EOLLO_BSCSCAN_API_URL` / `EOLLO_ETHERSCAN_API_URL`: replaceable verification endpoints.
+- Private keys never enter the runtime; the WalletConnect session is stored only at
+  `~/.eollo/walletconnect/session.json`.
 
-### 状态和失败
+### State and failure behavior
 
-- Quote 只读已发布 snapshot；不会把 snapshot 写回链。
-- 本地读取和模拟固定在同一区块；跨区块一致性不在单个响应内保证。
-- `transaction.inspect` 的 `effects`、`trace`、`source` 是可选增强：缺失时报告明确降级，不阻塞
-  decode 和确定性 findings。
-- 所有 capability 使用稳定错误码；调用方不应从 HTTP/CLI 文本猜测错误类型。
+- Quotes read a published immutable snapshot; the snapshot is never written back on-chain.
+- Local reads and simulations use one pinned block; cross-block consistency is not guaranteed by a
+  single response.
+- `effects`, `trace`, and `source` are optional enhancements in `transaction.inspect`. Missing data
+  is reported explicitly and does not block decode or deterministic findings.
+- All capabilities use stable error codes; callers should not infer error types from HTTP/CLI text.
 
-## 文档
+## Documentation
 
-- 接入：[MCP](docs/MCP.md)
-- 能力：[swap.quote](docs/capabilities/swap/README.md) · [wallet](docs/capabilities/wallet/README.md) · [transaction](docs/capabilities/transaction/README.md) · [signature](docs/capabilities/signature/README.md)
-- 架构：[产品架构](docs/PRODUCT-ARCHITECTURE.md) · [引擎架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
-- 运维：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
-- 安全：[规则目录](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
-- 契约：[能力目录](capabilities/catalog.yaml) · [catalog schema](schemas/capability_catalog.v2.json) · [能力文档索引](docs/capabilities/README.md)
-- 研究：[benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
-- Skills：[swap](skills/swap/SKILL.md) · [yield](skills/yield/SKILL.md) · [position](skills/position/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
+- Integration: [MCP](docs/MCP.md)
+- Capabilities: [swap.quote](docs/capabilities/swap/README.md) · [wallet](docs/capabilities/wallet/README.md) · [transaction](docs/capabilities/transaction/README.md) · [signature](docs/capabilities/signature/README.md)
+- Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
+- Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
+- Security: [rule catalog](docs/capabilities/transaction/ASSURANCE.md) · [red-team](docs/benchmarks/redteam-2026-11-11.md)
+- Contracts: [capability catalog](capabilities/catalog.yaml) · [catalog schema](schemas/capability_catalog.v2.json) · [capability docs index](docs/capabilities/README.md)
+- Research: [benchmarks](docs/benchmarks/README.md) · [multi-pool](docs/MULTI-POOL.md) · [split routing](docs/SPLIT-ROUTING.md) · [quote quality](docs/QUOTE-QUALITY.md)
+- Skills: [swap](skills/swap/SKILL.md) · [yield](skills/yield/SKILL.md) · [position](skills/position/SKILL.md) · [wallet](skills/wallet/SKILL.md) · [transaction](skills/transaction/SKILL.md) · [signature](skills/signature/SKILL.md) · [fourmeme](skills/fourmeme/SKILL.md)
 
-## 状态与边界
+## Status and boundaries
 
-Pre-1.0。本地 wallet / transaction / signature 支持 BSC（默认）和 Ethereum；`swap.quote` 仍是
-Ethereum 主网。
+Pre-1.0. Local wallet, transaction, and signature capabilities support BSC (default) and Ethereum;
+`swap.quote` remains Ethereum mainnet.
 
-- `wallet.sign` 只签名消息和 EIP-712；`wallet.send` 只发送原生/ERC20/BEP-20 transfer。
-- `transaction.inspect` / `signature.inspect` 是 advisory，不构成安全保证。
-- `wallet.connect` 只建立 WalletConnect 会话，私钥留在手机钱包。
-- `wallet.agent-id` 只解析 BSC 身份，不是 Binance Agentic Wallet 登录。
-- `wallet.assets` / `wallet.collectibles` 的完整发现依赖可选 provider；回退时通过
-  `coverage` 和 `warnings` 说明。
-- 非 Enumerable ERC721 只返回数量；ERC1155 枚举依赖 indexer。
-- 不提供 USD 估值。
-- `swap.quote` 需要单独部署 remote 服务。
+- `wallet.sign` signs messages and EIP-712 only; `wallet.send` sends native/ERC20/BEP-20 transfers
+  only.
+- `transaction.inspect` / `signature.inspect` are advisory and not a safety guarantee.
+- `wallet.connect` only establishes a WalletConnect session; keys stay in the phone wallet.
+- `wallet.agent-id` only resolves BSC identity; it is not Binance Agentic Wallet login.
+- Full `wallet.assets` / `wallet.collectibles` discovery depends on optional providers. Fallbacks
+  report coverage and warnings.
+- Non-enumerable ERC721 collections return a count but no token ids; ERC1155 enumeration needs an
+  indexer.
+- There is no USD valuation.
+- `swap.quote` needs a separately deployed remote service.
 
-下一步：`swap.execute`。
+Next: `swap.execute`.
 
-## 开发
+## Development
 
 ```bash
 cargo test --workspace
 cargo clippy --workspace --all-targets
 cargo fmt
 
-# Foundry 安全红队
+# Foundry security red-team
 python3 bench/security/redteam.py
 ```

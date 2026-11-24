@@ -3,12 +3,12 @@
 use std::collections::HashMap;
 
 use alloy_primitives::{Address, U256};
-use fluxion_protocol::capability::Amount;
-use fluxion_protocol::position::{
+use eollo_protocol::capability::Amount;
+use eollo_protocol::position::{
     PositionAnalyzeRequest, PositionAnalyzeResponse, PositionEntry, PositionTotals, SignedAmount,
 };
-use fluxion_protocol::wallet::AssetSource;
-use fluxion_protocol::yield_capability::{Registry, RegistryEntry};
+use eollo_protocol::wallet::AssetSource;
+use eollo_protocol::yield_capability::{Registry, RegistryEntry};
 use thiserror::Error;
 
 use crate::rpc::RpcClient;
@@ -130,7 +130,7 @@ pub async fn analyze(
         ));
     }
     Ok(PositionAnalyzeResponse {
-        schema_version: fluxion_protocol::capability::SCHEMA_VERSION,
+        schema_version: eollo_protocol::capability::SCHEMA_VERSION,
         capability: "position.analyze".to_string(),
         request_id: request_id(),
         chain: "ethereum".to_string(),
@@ -419,7 +419,7 @@ fn request_id() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    format!("fluxion-{}-{nanos}", std::process::id())
+    format!("eollo-{}-{nanos}", std::process::id())
 }
 
 #[cfg(test)]

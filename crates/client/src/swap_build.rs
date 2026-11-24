@@ -6,7 +6,7 @@
 use alloy_primitives::{Address, U256, address};
 
 use crate::capability::{Amount, CapabilityError, CapabilityErrorCode};
-use fluxion_protocol::swap::{QuoteResponse, SwapBuildHop, SwapBuildResponse};
+use eollo_protocol::swap::{QuoteResponse, SwapBuildHop, SwapBuildResponse};
 
 const UNISWAP_V2_ROUTER: Address = address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D");
 
@@ -187,8 +187,8 @@ fn unsupported(message: impl Into<String>) -> CapabilityError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fluxion_protocol::capability::{CapabilityMeta, Provenance, TokenRef};
-    use fluxion_protocol::swap::{AllocationResponse, HopResponse, PlanKind};
+    use eollo_protocol::capability::{CapabilityMeta, Provenance, TokenRef};
+    use eollo_protocol::swap::{AllocationResponse, HopResponse, PlanKind};
 
     fn quote() -> QuoteResponse {
         QuoteResponse {

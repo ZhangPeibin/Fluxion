@@ -5,7 +5,7 @@
 
 ## 1. Purpose
 
-This spec defines how a capability enters, matures, and leaves Fluxion. It prevents ad hoc growth
+This spec defines how a capability enters, matures, and leaves Eollo. It prevents ad hoc growth
 while preserving the layer's breadth.
 
 ## 2. Status model
@@ -100,7 +100,7 @@ Metrics are not a substitute for tests or docs.
 
 ## 10. References
 
-- [ADR-0001](../../../adr/0001-fluxion-capability-runtime.md)
+- [ADR-0001](../../../adr/0001-eollo-capability-runtime.md)
 - [Catalog spec](catalog.md)
 - [Registry spec](registry.md)
 - [Workflows spec](workflows.md)

@@ -1,7 +1,7 @@
 ## Product and documentation layering
 
-Fluxion is the project. A capability is one action-level contract inside it. Execution location
-is fixed per capability and is an internal Fluxion decision; agents and users do not choose an
+Eollo is the project. A capability is one action-level contract inside it. Execution location
+is fixed per capability and is an internal Eollo decision; agents and users do not choose an
 execution location. `swap.quote` uses the remote service; `wallet` / `execute` use the local runtime.
 
 | Layer | Location | Owns |
@@ -53,15 +53,15 @@ Rust project (edition 2024). Async runtime: tokio (`#[tokio::main]`); the app ow
 
 Commands (from repo root):
 - Build: `cargo build --workspace`
-- Remote server: `cargo run -p fluxion-remote -- serve --config configs/runtime.yaml`
+- Remote server: `cargo run -p eollo-remote -- serve --config configs/runtime.yaml`
   (needs `GRAPH_API_KEY` for real discovery)
-- Client CLI: `cargo run -p fluxion-client --bin fluxion -- swap ldo-eth 100`
-- MCP bridge: `cargo run -p fluxion-client --bin fluxion -- mcp`
+- Client CLI: `cargo run -p eollo-client --bin eollo -- swap ldo-eth 100`
+- MCP bridge: `cargo run -p eollo-client --bin eollo -- mcp`
 - Unit tests: `cargo test --workspace`
 - Mainnet integration tests (network, read-only): `cargo test --workspace -- --ignored`
 - Lint: `cargo clippy --workspace --all-targets`
 - Format: `cargo fmt`
-- Run an example: `cargo run -p fluxion --example <name>` (e.g. `quote_mainnet`)
+- Run an example: `cargo run -p eollo --example <name>` (e.g. `quote_mainnet`)
 
 Architecture and docs (source of truth, link rather than duplicate):
 - `README.md` — landing page: positioning, capabilities, install, links.
@@ -77,20 +77,18 @@ Architecture and docs (source of truth, link rather than duplicate):
 - `docs/ARCHITECTURE.md`, `docs/LOCAL-STATE.md`, `docs/MULTI-POOL.md`,
   `docs/SPLIT-ROUTING.md`, `docs/QUOTE-QUALITY.md` — engine internals.
 - `docs/benchmarks/` — methodology and results.
-- `docs/PLAN.md` — learning-oriented milestones; `docs/0X-*.md` — learning notes.
 
 Workspace crates:
 - `crates/protocol` — transport-independent capability contract and `swap.quote` DTOs.
-- `crates/remote` — discovery, snapshots, routing, HTTP API, `fluxion-remote` server and
+- `crates/remote` — discovery, snapshots, routing, HTTP API, `eollo-remote` server and
   benchmark/graph tools.
-- `crates/client` — CLI, MCP bridge, remote client, token registry, `fluxion` binary.
+- `crates/client` — CLI, MCP bridge, remote client, token registry, `eollo` binary.
 - Root `src/lib.rs` is a test/compatibility facade; production binaries live in the crates.
 
 Other surfaces:
-- `ui/` — internal React + Vite routing-graph viewer (dev server only).
 - `site/` — public product landing page (React + Vite, GitHub Pages). Capability cards are generated
   from `capabilities/catalog.yaml` via
-  `cargo run -p fluxion-protocol --bin catalog-json > site/src/data/capabilities.json`; a catalog
+  `cargo run -p eollo-protocol --bin catalog-json > site/src/data/capabilities.json`; a catalog
   test fails when the checked-in JSON is stale.
 
 Project-specific constraints:

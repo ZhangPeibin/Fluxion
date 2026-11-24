@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/signature_inspect.v1.json",
-  "title": "Fluxion signature.inspect v1",
+  "$id": "https://eollo.xyz/schemas/signature_inspect.v1.json",
+  "title": "Eollo signature.inspect v1",
   "type": "object",
   "additionalProperties": false,
   "required": [

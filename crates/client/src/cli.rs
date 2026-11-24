@@ -23,12 +23,12 @@ use crate::wallet::{
 };
 use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
-use fluxion_protocol::position::{
+use eollo_protocol::position::{
     PositionAnalyzeRequest, PositionAnalyzeResponse, PositionCostBasis,
 };
-use fluxion_protocol::swap::QuoteResponse;
-use fluxion_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
-use fluxion_protocol::yield_capability::{
+use eollo_protocol::swap::QuoteResponse;
+use eollo_protocol::wallet::{WalletConnectResponse, WalletStatusResponse};
+use eollo_protocol::yield_capability::{
     RiskProfile, YieldBuildRequest, YieldBuildResponse, YieldDiscoverRequest,
     YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse, YieldWithdrawRequest,
     YieldWithdrawResponse,
@@ -41,9 +41,7 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
     };
     match first {
         "serve" | "--config" => {
-            eprintln!(
-                "serve is provided by fluxion-remote; run `fluxion-remote serve --config PATH`"
-            );
+            eprintln!("serve is provided by eollo-remote; run `eollo-remote serve --config PATH`");
             (args, Some(2))
         }
         "help" | "--help" | "-h" => {
@@ -113,44 +111,44 @@ pub async fn dispatch(args: Vec<String>) -> (Vec<String>, Option<i32>) {
 
 fn print_help() {
     println!(
-        "Fluxion — Web3 agent capabilities\n\n\
+        "Eollo — Web3 agent capabilities\n\n\
 Usage:\n  \
-fluxion swap ldo-eth 100                Shorthand quote\n  \
-fluxion ldo-eth 100                     Top-level shorthand alias\n  \
-fluxion capability list                  List capabilities\n  \
-fluxion capability describe NAME        Show capability and execution details\n  \
-fluxion swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
-fluxion swap build --quote FILE --recipient ADDRESS [--slippage-bps N]\n  \
-fluxion wallet balance ADDRESS [--tokens LIST] [--chain bsc|ethereum]\n  \
-fluxion wallet assets ADDRESS [--include-unknown] [--chain bsc|ethereum]\n  \
-fluxion wallet allowance ADDRESS --spender ADDRESS [--tokens LIST] [--chain]\n  \
-fluxion wallet collectibles ADDRESS [--collections LIST] [--chain]\n  \
-fluxion wallet connect [--chain bsc|ethereum]  Link a wallet with WalletConnect\n  \
-fluxion wallet status [--wait N]          Show the linked wallet session\n  \
-fluxion wallet disconnect                 Remove the linked wallet session\n  \
-fluxion wallet agent-id HANDLE|ADDRESS    Resolve a BSC .ai Agent ID\n  \
-fluxion wallet sign --message TEXT        Sign a message with WalletConnect\n  \
-fluxion wallet sign --typed-data FILE [--policy FILE]  Sign EIP-712 typed data\n  \
-fluxion wallet send --to ADDR --token T --amount A [--policy FILE]  Send ETH/ERC20\n  \
-fluxion transaction inspect --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
-fluxion transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
-fluxion transaction send --to ADDRESS --data HEX [--value BNB] [--policy FILE]\n  \
-fluxion transaction verify --hash HASH [--chain bsc|ethereum] [--confirmations N] [--expect FILE]\n  \
-fluxion signature inspect --typed-data FILE | --authorization-list FILE | --user-operation FILE [--policy FILE]\n  \
-fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N]\n  \
-fluxion fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  \
-fluxion fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]\n  \
-fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n  \
-fluxion yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH]\n  \
-fluxion yield history --opportunity ID [--days 30] [--max-points 500]\n  \
-fluxion yield withdraw --opportunity ID --amount 10|max --recipient ADDRESS [--owner ADDRESS]\n  \
-fluxion position analyze --owner ADDRESS [--opportunities lido-steth,aave-v3-weth] [--include-zero]\n  \
-fluxion mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
-fluxion tokens                          List built-in token symbols\n  \
-fluxion --help\n\n\
+eollo swap ldo-eth 100                Shorthand quote\n  \
+eollo ldo-eth 100                     Top-level shorthand alias\n  \
+eollo capability list                  List capabilities\n  \
+eollo capability describe NAME        Show capability and execution details\n  \
+eollo swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
+eollo swap build --quote FILE --recipient ADDRESS [--slippage-bps N]\n  \
+eollo wallet balance ADDRESS [--tokens LIST] [--chain bsc|ethereum]\n  \
+eollo wallet assets ADDRESS [--include-unknown] [--chain bsc|ethereum]\n  \
+eollo wallet allowance ADDRESS --spender ADDRESS [--tokens LIST] [--chain]\n  \
+eollo wallet collectibles ADDRESS [--collections LIST] [--chain]\n  \
+eollo wallet connect [--chain bsc|ethereum]  Link a wallet with WalletConnect\n  \
+eollo wallet status [--wait N]          Show the linked wallet session\n  \
+eollo wallet disconnect                 Remove the linked wallet session\n  \
+eollo wallet agent-id HANDLE|ADDRESS    Resolve a BSC .ai Agent ID\n  \
+eollo wallet sign --message TEXT        Sign a message with WalletConnect\n  \
+eollo wallet sign --typed-data FILE [--policy FILE]  Sign EIP-712 typed data\n  \
+eollo wallet send --to ADDR --token T --amount A [--policy FILE]  Send ETH/ERC20\n  \
+eollo transaction inspect --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
+eollo transaction simulate --to ADDRESS --data HEX [--chain bsc|ethereum]\n  \
+eollo transaction send --to ADDRESS --data HEX [--value BNB] [--policy FILE]\n  \
+eollo transaction verify --hash HASH [--chain bsc|ethereum] [--confirmations N] [--expect FILE]\n  \
+eollo signature inspect --typed-data FILE | --authorization-list FILE | --user-operation FILE [--policy FILE]\n  \
+eollo fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N]\n  \
+eollo fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  \
+eollo fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]\n  \
+eollo yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n  \
+eollo yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH]\n  \
+eollo yield history --opportunity ID [--days 30] [--max-points 500]\n  \
+eollo yield withdraw --opportunity ID --amount 10|max --recipient ADDRESS [--owner ADDRESS]\n  \
+eollo position analyze --owner ADDRESS [--opportunities lido-steth,aave-v3-weth] [--include-zero]\n  \
+eollo mcp [--url URL]                 Expose capabilities over MCP stdio\n  \
+eollo tokens                          List built-in token symbols\n  \
+eollo --help\n\n\
 Quote options:\n  \
 --json                    Print the swap.quote JSON response\n  \
---url URL                 Remote service override (default FLUXION_REMOTE_URL)\n  \
+--url URL                 Remote service override (default EOLLO_REMOTE_URL)\n  \
 --no-split                Disable split allocation\n  \
 --max-hops N              Maximum hops\n  \
 --split-max-branches N    Maximum split branches\n  \
@@ -315,7 +313,7 @@ async fn run_swap_build(raw: &[String]) -> i32 {
         || raw.first().map(String::as_str) == Some("-h")
     {
         println!(
-            "Usage:\n  fluxion swap build --quote FILE --recipient ADDRESS [--slippage-bps N] [--deadline UNIX_SECONDS] [--json]"
+            "Usage:\n  eollo swap build --quote FILE --recipient ADDRESS [--slippage-bps N] [--deadline UNIX_SECONDS] [--json]"
         );
         return 0;
     }
@@ -593,7 +591,7 @@ async fn run_wallet(raw: &[String]) -> i32 {
         Ok(args) => args,
         Err(error) if error.message == "help requested" => {
             println!(
-                "Usage:\n  fluxion wallet balance ADDRESS [--tokens BNB,USDT] [--no-native] [--chain bsc|ethereum]\n  fluxion wallet assets ADDRESS [--include-unknown] [--no-native] [--chain bsc|ethereum]\n  fluxion wallet connect [--chain bsc|ethereum]\n  fluxion wallet status\n  fluxion wallet disconnect\n  fluxion wallet agent-id HANDLE|ADDRESS\n  fluxion wallet sign --message TEXT | --typed-data FILE [--policy FILE]\n  fluxion wallet send --to ADDR --token T --amount A [--policy FILE]\n\nOptions:\n  --rpc-url URL   override the selected chain RPC\n  --block N       pin a block\n  --json          print the structured response"
+                "Usage:\n  eollo wallet balance ADDRESS [--tokens BNB,USDT] [--no-native] [--chain bsc|ethereum]\n  eollo wallet assets ADDRESS [--include-unknown] [--no-native] [--chain bsc|ethereum]\n  eollo wallet connect [--chain bsc|ethereum]\n  eollo wallet status\n  eollo wallet disconnect\n  eollo wallet agent-id HANDLE|ADDRESS\n  eollo wallet sign --message TEXT | --typed-data FILE [--policy FILE]\n  eollo wallet send --to ADDR --token T --amount A [--policy FILE]\n\nOptions:\n  --rpc-url URL   override the selected chain RPC\n  --block N       pin a block\n  --json          print the structured response"
             );
             return 0;
         }
@@ -1693,7 +1691,7 @@ async fn run_transaction(raw: &[String]) -> i32 {
         || raw.first().map(String::as_str) == Some("-h")
     {
         println!(
-            "Usage:\n  fluxion transaction inspect --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--policy FILE] [--json]\n  fluxion transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]\n  fluxion transaction send --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--policy FILE] [--timeout N] [--json]\n  fluxion transaction verify --hash HASH [--chain bsc|ethereum] [--confirmations N] [--expect FILE] [--rpc-url URL] [--json]"
+            "Usage:\n  eollo transaction inspect --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--policy FILE] [--json]\n  eollo transaction simulate --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--chain bsc|ethereum] [--block N] [--json]\n  eollo transaction send --to ADDRESS --data 0x... [--from ADDRESS] [--value BNB] [--policy FILE] [--timeout N] [--json]\n  eollo transaction verify --hash HASH [--chain bsc|ethereum] [--confirmations N] [--expect FILE] [--rpc-url URL] [--json]"
         );
         return 0;
     }
@@ -1915,7 +1913,7 @@ struct FourMemeArgs {
     json: bool,
 }
 
-const FOURMEME_USAGE: &str = "Usage:\n  fluxion fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N] [--before-block N] [--json]\n  fluxion fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  fluxion fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]";
+const FOURMEME_USAGE: &str = "Usage:\n  eollo fourmeme agent-tokens [--wallet ADDRESS] [--limit N] [--lookback-blocks N] [--before-block N] [--json]\n  eollo fourmeme token ADDRESS [--wallet ADDRESS] [--json]\n  eollo fourmeme ui [--port N] [--lookback-blocks N] [--wallet ADDRESS] [--open]";
 
 async fn run_fourmeme(raw: &[String]) -> i32 {
     let Some(command) = raw.first().map(String::as_str) else {
@@ -2323,7 +2321,7 @@ async fn run_signature(raw: &[String]) -> i32 {
         || raw.is_empty()
     {
         println!(
-            "Usage:\n  fluxion signature inspect --typed-data FILE [--chain bsc|ethereum] [--policy FILE] [--json]\n  fluxion signature inspect --authorization-list FILE [--chain bsc|ethereum] [--policy FILE] [--json]\n  fluxion signature inspect --user-operation FILE [--chain bsc|ethereum] [--policy FILE] [--json]"
+            "Usage:\n  eollo signature inspect --typed-data FILE [--chain bsc|ethereum] [--policy FILE] [--json]\n  eollo signature inspect --authorization-list FILE [--chain bsc|ethereum] [--policy FILE] [--json]\n  eollo signature inspect --user-operation FILE [--chain bsc|ethereum] [--policy FILE] [--json]"
         );
         return 0;
     }
@@ -2858,7 +2856,7 @@ async fn run_transaction_verify(raw: &[String]) -> i32 {
 }
 
 fn print_transaction_verify_human(
-    response: &fluxion_protocol::transaction::TransactionVerifyResponse,
+    response: &eollo_protocol::transaction::TransactionVerifyResponse,
 ) {
     println!("Tx:       {}", response.tx_hash);
     println!(
@@ -3107,7 +3105,7 @@ struct YieldArgs {
     json: bool,
 }
 
-const YIELD_USAGE: &str = "Usage:\n  fluxion yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n    [--min-tvl-usd N] [--max-lockup-days N] [--include-reward-apy]\n    [--protocols lido,aave-v3] [--limit N] [--url URL] [--json]\n  fluxion yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH] [--json]\n  fluxion yield history --opportunity ID [--days 30] [--max-points 500] [--url URL] [--json]\n  fluxion yield withdraw --opportunity ID --amount 10|max --recipient ADDRESS [--owner ADDRESS] [--json]";
+const YIELD_USAGE: &str = "Usage:\n  eollo yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n    [--min-tvl-usd N] [--max-lockup-days N] [--include-reward-apy]\n    [--protocols lido,aave-v3] [--limit N] [--url URL] [--json]\n  eollo yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH] [--json]\n  eollo yield history --opportunity ID [--days 30] [--max-points 500] [--url URL] [--json]\n  eollo yield withdraw --opportunity ID --amount 10|max --recipient ADDRESS [--owner ADDRESS] [--json]";
 
 async fn run_yield(raw: &[String]) -> i32 {
     let Some(command) = raw.first().map(String::as_str) else {
@@ -3618,7 +3616,7 @@ fn print_yield_human(response: &YieldDiscoverResponse) {
     }
 }
 
-const POSITION_USAGE: &str = "Usage:\n  fluxion position analyze --owner ADDRESS [--opportunities lido-steth,aave-v3-weth]\n    [--include-zero] [--cost-basis lido-steth=10,aave-v3-weth=5] [--url URL] [--json]";
+const POSITION_USAGE: &str = "Usage:\n  eollo position analyze --owner ADDRESS [--opportunities lido-steth,aave-v3-weth]\n    [--include-zero] [--cost-basis lido-steth=10,aave-v3-weth=5] [--url URL] [--json]";
 
 async fn run_position(raw: &[String]) -> i32 {
     let Some(command) = raw.first().map(String::as_str) else {
@@ -3852,7 +3850,7 @@ async fn run_capability(raw: &[String]) -> i32 {
         }
         Some("describe") => {
             let Some(name) = raw.get(1).filter(|value| !value.starts_with('-')) else {
-                eprintln!("usage: fluxion capability describe NAME [--json]");
+                eprintln!("usage: eollo capability describe NAME [--json]");
                 return 2;
             };
             let json = raw.iter().any(|arg| arg == "--json");

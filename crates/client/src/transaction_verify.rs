@@ -14,7 +14,7 @@ use crate::chain::Chain;
 use crate::transaction::Rpc;
 use crate::transaction_inspect::decode_log;
 use crate::wallet::WalletConfig;
-use fluxion_protocol::transaction::{
+use eollo_protocol::transaction::{
     TransactionInspectEffects, TransactionInspectSource, TransactionVerifyExpectation,
     TransactionVerifyMismatch, TransactionVerifyResponse,
 };
@@ -136,7 +136,7 @@ pub async fn verify(
         if !value.is_zero() {
             if let Some(from) = from {
                 effects.native.push(
-                    fluxion_protocol::transaction::TransactionInspectNativeEffect {
+                    eollo_protocol::transaction::TransactionInspectNativeEffect {
                         account: from,
                         delta: format!("-{value}"),
                     },
@@ -150,7 +150,7 @@ pub async fn verify(
             });
             if let Some(recipient) = recipient {
                 effects.native.push(
-                    fluxion_protocol::transaction::TransactionInspectNativeEffect {
+                    eollo_protocol::transaction::TransactionInspectNativeEffect {
                         account: recipient,
                         delta: value.to_string(),
                     },
@@ -508,11 +508,11 @@ mod tests {
     fn native_effects() -> TransactionInspectEffects {
         TransactionInspectEffects {
             native: vec![
-                fluxion_protocol::transaction::TransactionInspectNativeEffect {
+                eollo_protocol::transaction::TransactionInspectNativeEffect {
                     account: FROM.parse().unwrap(),
                     delta: "-100000000000000000".to_string(),
                 },
-                fluxion_protocol::transaction::TransactionInspectNativeEffect {
+                eollo_protocol::transaction::TransactionInspectNativeEffect {
                     account: TO.parse().unwrap(),
                     delta: "100000000000000000".to_string(),
                 },

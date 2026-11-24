@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/yield_withdraw.v2.json",
-  "title": "Fluxion yield.withdraw v2",
+  "$id": "https://eollo.xyz/schemas/yield_withdraw.v2.json",
+  "title": "Eollo yield.withdraw v2",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -1,16 +1,16 @@
-# Fluxion capability runtime - Master Spec
+# Eollo capability runtime - Master Spec
 
 **Status:** draft  
 **Release:** v3  
 **Scope:** capability catalog, registry, envelope v2, chain matrix, workflows, migration  
-**Owners:** Fluxion maintainers
+**Owners:** Eollo maintainers
 
 ## 1. Purpose
 
-Fluxion is a composable Web3 capability runtime for AI agents. This spec defines how the current
+Eollo is a composable Web3 capability runtime for AI agents. This spec defines how the current
 collection of capabilities becomes one layer:
 
-- an agent can discover what Fluxion can do;
+- an agent can discover what Eollo can do;
 - every capability declares its chains, execution location, side effects, and contract;
 - every capability returns the same envelope;
 - agents can compose capabilities into workflows;

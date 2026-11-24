@@ -8,9 +8,9 @@ effects, findings, coverage and explicit unknowns. It is advisory only and never
 Capability fields are under `data`; coverage is under `coverage.dimensions`.
 
 ```bash
-fluxion transaction inspect --to 0x... --data 0x... --json
-fluxion transaction inspect --to 0x... --data 0x... --chain ethereum --json
-fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
+eollo transaction inspect --to 0x... --data 0x... --json
+eollo transaction inspect --to 0x... --data 0x... --chain ethereum --json
+eollo transaction inspect --to 0x... --data 0x... --policy policy.json --json
 ```
 
 - Default chain is BSC; use `--chain ethereum` for Ethereum.
@@ -23,7 +23,7 @@ fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
   proxies, and EIP-1967 beacon proxies. `proxy_kind` reports the detected pattern.
 - Source verification uses `BSCSCAN_API_KEY` / `ETHERSCAN_API_KEY`. Without a key it stays
   `verified: null`; explicit `false` produces `CONTRACT-001`.
-- `FLUXION_THREAT_INTEL_FILE` optionally loads a local address registry; matches produce `ADDR-007`
+- `EOLLO_THREAT_INTEL_FILE` optionally loads a local address registry; matches produce `ADDR-007`
   with label/source evidence. See [threat-intel feed](THREAT-INTEL.md) for signing and expiry.
   The registry is operator-provided and may be stale.
 - Effects come from `eth_simulateV1` logs plus balance/allowance verification. They are `partial`,
@@ -89,8 +89,8 @@ It returns capability envelope v2; `from`, `to`, `value`, `data`, `tx_hash`, `si
 `inspection` are under `data`.
 
 ```bash
-fluxion transaction send --to 0x... --data 0x... --value 0 --json
-fluxion transaction send --to 0x... --data 0x... --policy policy.json --json
+eollo transaction send --to 0x... --data 0x... --value 0 --json
+eollo transaction send --to 0x... --data 0x... --policy policy.json --json
 ```
 
 Flow:
@@ -111,9 +111,9 @@ head, decodes receipt logs into effects, and optionally compares them with a pri
 `transaction.inspect` report. It is read-only and never signs or broadcasts.
 
 ```bash
-fluxion transaction verify --hash 0x... --json
-fluxion transaction verify --hash 0x... --chain ethereum --confirmations 3 --json
-fluxion transaction verify --hash 0x... --expect inspect.json --json
+eollo transaction verify --hash 0x... --json
+eollo transaction verify --hash 0x... --chain ethereum --confirmations 3 --json
+eollo transaction verify --hash 0x... --expect inspect.json --json
 ```
 
 - `--hash` is required; default chain is BSC.
@@ -141,12 +141,12 @@ fluxion transaction verify --hash 0x... --expect inspect.json --json
 Local read-only EVM transaction simulation on BSC (default) or Ethereum.
 
 ```bash
-fluxion transaction simulate \
+eollo transaction simulate \
   --to 0x... --data 0x... \
   --from 0x... --value 0.1 --block 26356654 --json
 
-fluxion transaction simulate --to 0x... --data 0x... --chain ethereum --json
-fluxion transaction send --to 0x... --data 0x... --policy policy.json --json
+eollo transaction simulate --to 0x... --data 0x... --chain ethereum --json
+eollo transaction send --to 0x... --data 0x... --policy policy.json --json
 ```
 
 - Default chain is BSC; use `--chain ethereum` for Ethereum.

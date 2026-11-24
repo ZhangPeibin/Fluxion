@@ -1,5 +1,5 @@
 use alloy_primitives::U256;
-use fluxion::tricrypto2_local::{Tricrypto2Parameters, Tricrypto2State};
+use eollo::tricrypto2_local::{Tricrypto2Parameters, Tricrypto2State};
 use serde_json::Value;
 
 fn number(v: &Value) -> U256 {
@@ -85,7 +85,7 @@ fn fees_are_amount_dependent_and_stored_d_is_not_refitted() {
 
 #[test]
 fn bounds_empty_state_and_overflow_fail_without_fabricated_outputs() {
-    use fluxion::error::QuoteError;
+    use eollo::error::QuoteError;
     let f: Value = serde_json::from_str(include_str!("fixtures/tricrypto2-26331640.json")).unwrap();
     let model = state(&f);
     assert_eq!(

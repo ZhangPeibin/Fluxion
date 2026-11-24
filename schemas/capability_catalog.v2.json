@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/capability_catalog.v2.json",
-  "title": "Fluxion capability catalog v2",
+  "$id": "https://eollo.xyz/schemas/capability_catalog.v2.json",
+  "title": "Eollo capability catalog v2",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "updated", "envelope", "capabilities"],

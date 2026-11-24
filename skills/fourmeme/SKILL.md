@@ -22,10 +22,10 @@ Exclusive** tokens on BSC.
 ## CLI
 
 ```bash
-fluxion fourmeme agent-tokens --json
-fluxion fourmeme agent-tokens --wallet 0x... --limit 20 --json
-fluxion fourmeme token 0x... --wallet 0x... --json
-fluxion fourmeme ui --open
+eollo fourmeme agent-tokens --json
+eollo fourmeme agent-tokens --wallet 0x... --limit 20 --json
+eollo fourmeme token 0x... --wallet 0x... --json
+eollo fourmeme ui --open
 ```
 
 ## Reading the result

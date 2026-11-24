@@ -4,7 +4,7 @@
 
 **Project Whitepaper · Version 1.0 · November 2026**
 
-> **Repository context.** This repository implements **Fluxion**, the capability runtime for this
+> **Repository context.** This repository implements **Eollo**, the capability runtime for this
 > vision. Its first capability is `swap.quote`: pool discovery, exact-in routing, split allocation,
 > and local snapshot freshness on Ethereum mainnet. The Local Runtime, wallet/execution
 > capabilities, Skills, and hosted Remote Intelligence described here are the broader platform

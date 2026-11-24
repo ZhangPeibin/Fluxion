@@ -14,11 +14,11 @@ use crate::capability::{Amount, CapabilityError, CapabilityErrorCode};
 use crate::chain::Chain;
 use crate::transaction::Rpc;
 use crate::transaction_inspect::SourceVerifier;
-use fluxion_protocol::fourmeme::{
+use eollo_protocol::fourmeme::{
     FourMemeAgentTokensResponse, FourMemeMarket, FourMemeSafety, FourMemeSocials, FourMemeToken,
     FourMemeTokenDetail, FourMemeTradability, FourMemeWalletCap,
 };
-use fluxion_protocol::wallet::AssetSource;
+use eollo_protocol::wallet::AssetSource;
 
 const DEFAULT_API_URL: &str = "https://four.meme/meme-api/v1";
 const DEFAULT_BSC_RPC_URL: &str = "https://bsc-rpc.publicnode.com";

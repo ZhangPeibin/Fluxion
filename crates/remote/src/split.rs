@@ -46,7 +46,7 @@ impl Default for SplitConfig {
     }
 }
 
-pub use fluxion_protocol::swap::PlanKind;
+pub use eollo_protocol::swap::PlanKind;
 
 impl SplitConfig {
     pub fn multi_pool() -> Self {

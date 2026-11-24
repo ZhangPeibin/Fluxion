@@ -20,8 +20,8 @@ use crate::rpc::RpcClient;
 use crate::source::QuoteSource;
 use crate::split::{Allocation, PlanKind, SearchStats, SplitConfig, SplitOptimizer, SplitResult};
 use crate::yield_intel::{YieldError, YieldStore};
-use fluxion_protocol::position::{PositionAnalyzeRequest, PositionAnalyzeResponse};
-use fluxion_protocol::yield_capability::{
+use eollo_protocol::position::{PositionAnalyzeRequest, PositionAnalyzeResponse};
+use eollo_protocol::yield_capability::{
     YieldDiscoverRequest, YieldDiscoverResponse, YieldHistoryRequest, YieldHistoryResponse,
 };
 

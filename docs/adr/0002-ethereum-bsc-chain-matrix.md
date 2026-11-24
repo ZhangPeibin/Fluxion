@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-20
-- **Deciders:** Fluxion maintainers
+- **Deciders:** Eollo maintainers
 
 ## Context
 

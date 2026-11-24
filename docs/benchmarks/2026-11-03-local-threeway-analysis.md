@@ -3,14 +3,14 @@
 ## 结论
 
 显式排除旧 Tricrypto 后，其余 209 条池/转换记录全部进入本地快照。三方均 **90/90 成功**，
-每行 Fluxion 的 `baseline_rpc_requests` 和 `additional_rpc_requests` 均为 **0**。
+每行 Eollo 的 `baseline_rpc_requests` 和 `additional_rpc_requests` 均为 **0**。
 
-| 指标 | Fluxion local_snapshot | ParaSwap | 1inch |
+| 指标 | Eollo local_snapshot | ParaSwap | 1inch |
 |---|---:|---:|---:|
 | 成功 | 90/90 | 90/90 | 90/90 |
 | HTTP p50 / p95 | **31 / 3501 ms** | 390 / 864 ms | 467 / 1058 ms |
 
-| Fluxion 相对 API 返回金额 | ParaSwap | 1inch |
+| Eollo 相对 API 返回金额 | ParaSwap | 1inch |
 |---|---:|---:|
 | 中位差距 | −0.000094% | +0.098762% |
 | 等权均值差距 | −0.028838% | −0.034276% |
@@ -66,7 +66,7 @@ CPU 采样和同进程停止同步对照已确认，主要干扰来自后台 V3 
 
 ## 全部超过 ±0.5% 的输出差距
 
-差距定义为 `(Fluxion 输出 / 对手输出 − 1) × 100%`。三方均成功，因此每列分母都是 90。
+差距定义为 `(Eollo 输出 / 对手输出 − 1) × 100%`。三方均成功，因此每列分母都是 90。
 
 | 对手 | 方向与输入 | 差距 |
 |---|---|---:|

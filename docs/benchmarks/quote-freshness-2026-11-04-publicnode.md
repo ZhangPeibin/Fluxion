@@ -1,4 +1,4 @@
-# Fluxion quote benchmark
+# Eollo quote benchmark
 
 | field | value |
 |---|---|
@@ -101,7 +101,7 @@ Service mode, graph size and effective public configuration:
 }
 ```
 
-| pair | amount_in | fluxion_out | fluxion_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | fluxion ms | paraswap ms | 1inch ms | 0x ms |
+| pair | amount_in | eollo_out | eollo_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | eollo ms | paraswap ms | 1inch ms | 0x ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | WETH → USDC | 333333333333333333 | 751857035 | 1 | 751283485 | 7.6 | 749127306 | 36.4 | skipped | - | 36 | 1476 | 1814 | - |
 | WETH → USDC | 3333333333333333333 | 7517498653 | 1 | 7510150303 | 9.8 | 7491164511 | 35.2 | skipped | - | 56 | 351 | 591 | - |
@@ -292,16 +292,16 @@ Service mode, graph size and effective public configuration:
 ## Summary
 
 - rows: 90
-- paraswap: both success 90, Fluxion only 0, aggregator only 0, both failed 0
-- 1inch: both success 90, Fluxion only 0, aggregator only 0, both failed 0
-- 0x: both success 0, Fluxion only 0, aggregator only 0, both failed 0
-- success: fluxion 90, paraswap 90, 1inch 90, 0x 0
+- paraswap: both success 90, Eollo only 0, aggregator only 0, both failed 0
+- 1inch: both success 90, Eollo only 0, aggregator only 0, both failed 0
+- 0x: both success 0, Eollo only 0, aggregator only 0, both failed 0
+- success: eollo 90, paraswap 90, 1inch 90, 0x 0
 - paraswap deltas (n=90): median -0.1 bps, mean -11.4 bps, within ±50 bps 86
 - 1inch deltas (n=90): median 9.5 bps, mean -13.8 bps, within ±50 bps 82
 - 0x deltas (n=0): median - bps, mean - bps, within ±50 bps 0
-- latency p50/p95 (ms): fluxion 24/107, paraswap 353/630, 1inch 474/859, 0x -/-
+- latency p50/p95 (ms): eollo 24/107, paraswap 353/630, 1inch 474/859, 0x -/-
 - freshness: measured 90, unavailable 0; lag blocks p50/p95/max 5/7/7; lag seconds p50/p95/max 60/84/84
 
-Freshness lag is bracketed by latest-chain headers read immediately before and after each Fluxion quote; the after value is the conservative observed bound, not an atomic chain-head sample. Seconds use Ethereum block timestamps. Negative values indicate the quote block/time is ahead of the observed head and should be treated as provider skew. Missing quote metadata or RPC reads are excluded from freshness percentiles and shown per row. This measures snapshot age, not amount_out deviation from a quote recomputed on latest state.
+Freshness lag is bracketed by latest-chain headers read immediately before and after each Eollo quote; the after value is the conservative observed bound, not an atomic chain-head sample. Seconds use Ethereum block timestamps. Negative values indicate the quote block/time is ahead of the observed head and should be treated as provider skew. Missing quote metadata or RPC reads are excluded from freshness percentiles and shown per row. This measures snapshot age, not amount_out deviation from a quote recomputed on latest state.
 
-Δ bps = (fluxion - aggregator) / aggregator × 10000; negative means Fluxion returned less. Quotes use live state, not a pinned block. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations.
+Δ bps = (eollo - aggregator) / aggregator × 10000; negative means Eollo returned less. Quotes use live state, not a pinned block. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations.

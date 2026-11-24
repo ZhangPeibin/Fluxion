@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/wallet_assets.v2.json",
-  "title": "Fluxion wallet assets v2",
+  "$id": "https://eollo.xyz/schemas/wallet_assets.v2.json",
+  "title": "Eollo wallet assets v2",
   "type": "object",
   "additionalProperties": false,
   "required": [

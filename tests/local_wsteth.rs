@@ -1,5 +1,5 @@
 use alloy_primitives::U256;
-use fluxion::{error::QuoteError, wsteth_local::WstEthState};
+use eollo::{error::QuoteError, wsteth_local::WstEthState};
 
 #[test]
 fn lido_v4_uses_internal_ratio_and_protocol_rounding_not_total_ratio() {

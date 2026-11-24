@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/swap_quote.v2.json",
-  "title": "Fluxion swap.quote v2",
+  "$id": "https://eollo.xyz/schemas/swap_quote.v2.json",
+  "title": "Eollo swap.quote v2",
   "type": "object",
   "additionalProperties": false,
   "required": [

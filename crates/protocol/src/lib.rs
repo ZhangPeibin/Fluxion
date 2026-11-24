@@ -1,4 +1,4 @@
-//! Transport-independent Fluxion capability contract.
+//! Transport-independent Eollo capability contract.
 
 pub mod capability;
 pub mod fourmeme;

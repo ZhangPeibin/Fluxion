@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use alloy_primitives::{Address, U256};
 use axum::{Json, Router, routing::post};
-use fluxion::{
+use eollo::{
     api::{self, AppState, RateLimiter},
     graph::Graph,
     local_state::{LocalStateConfig, SnapshotStore, StateSynchronizer},
@@ -218,7 +218,7 @@ async fn a_fork_change_during_loading_is_never_published() {
     let sync = StateSynchronizer::new(rpc, store.clone());
     assert_eq!(
         sync.sync_once().await.unwrap_err(),
-        fluxion::local_state::StateError::Reorg
+        eollo::local_state::StateError::Reorg
     );
     assert!(!store.status().ready);
     assert_eq!(store.status().published_versions, 0);
@@ -248,7 +248,7 @@ async fn sync_deadline_cancels_an_incomplete_load_and_can_retry() {
     let sync = StateSynchronizer::new(rpc, store.clone());
     assert_eq!(
         sync.sync_once().await.unwrap_err(),
-        fluxion::local_state::StateError::SyncFailed
+        eollo::local_state::StateError::SyncFailed
     );
     assert!(!store.status().ready);
     assert_eq!(store.status().published_versions, 0);
@@ -258,8 +258,8 @@ async fn sync_deadline_cancels_an_incomplete_load_and_can_retry() {
     server.abort();
 }
 
-fn quote_request() -> fluxion::model::QuoteRequest {
-    fluxion::model::QuoteRequest {
+fn quote_request() -> eollo::model::QuoteRequest {
+    eollo::model::QuoteRequest {
         token_in: Address::with_last_byte(1),
         token_out: Address::with_last_byte(2),
         amount_in: U256::from(1001),
@@ -334,7 +334,7 @@ async fn failed_or_incomplete_updates_keep_the_complete_version_and_enforce_lag(
     }
     assert_eq!(
         sync.sync_once().await.unwrap_err(),
-        fluxion::local_state::StateError::Incomplete
+        eollo::local_state::StateError::Incomplete
     );
     assert_eq!(
         store
@@ -357,7 +357,7 @@ async fn failed_or_incomplete_updates_keep_the_complete_version_and_enforce_lag(
     assert!(sync.sync_once().await.is_err());
     assert!(matches!(
         store.acquire(),
-        Err(fluxion::local_state::StateError::Lagging)
+        Err(eollo::local_state::StateError::Lagging)
     ));
     assert!(!store.status().ready);
     {

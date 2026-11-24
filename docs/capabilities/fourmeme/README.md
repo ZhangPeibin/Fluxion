@@ -13,10 +13,10 @@ trading to Binance Agentic Wallets with an Agent ID; after graduation trading is
 ### Usage
 
 ```bash
-fluxion fourmeme agent-tokens --json
-fluxion fourmeme agent-tokens --wallet 0x... --limit 20 --json
-fluxion fourmeme agent-tokens --lookback-blocks 100000 --json
-fluxion fourmeme agent-tokens --lookback-blocks 100000 --before-block 26350000 --json
+eollo fourmeme agent-tokens --json
+eollo fourmeme agent-tokens --wallet 0x... --limit 20 --json
+eollo fourmeme agent-tokens --lookback-blocks 100000 --json
+eollo fourmeme agent-tokens --lookback-blocks 100000 --before-block 26350000 --json
 ```
 
 - `limit`: maximum returned tokens (1–50, default 20).
@@ -35,13 +35,13 @@ available, `agent_id_exclusive`, optional `wallet_eligible` / `eligibility_reaso
 ## `fourmeme.token`
 
 ```bash
-fluxion fourmeme token 0x... --wallet 0x... --json
+eollo fourmeme token 0x... --wallet 0x... --json
 ```
 
 Returns envelope v2 with one token's image, description, phase, template, raised, market cap,
 price, supply, creator, timestamps, and optional wallet eligibility under `data`; warnings and
 sources are in the envelope. If the Four.meme detail API is
-unavailable (rate limit, region restriction, outage), Fluxion reads OpenFour Core
+unavailable (rate limit, region restriction, outage), Eollo reads OpenFour Core
 `tokens(address)`, the vault phase and ERC20 `name` / `symbol` / `totalSupply` on BSC. It then
 reports the on-chain phase/template/creator/supply with an explicit warning. If Core state is also
 unavailable, only ERC20 basics are returned with `phase: unknown`.
@@ -99,8 +99,8 @@ reported as zero.
 ## Local web page
 
 ```bash
-fluxion fourmeme ui --open
-fluxion fourmeme ui --port 8787 --lookback-blocks 100000 --wallet 0x...
+eollo fourmeme ui --open
+eollo fourmeme ui --port 8787 --lookback-blocks 100000 --wallet 0x...
 ```
 
 - Binds only `127.0.0.1`; GET-only read routes.

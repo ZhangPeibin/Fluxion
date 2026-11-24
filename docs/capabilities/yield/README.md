@@ -5,7 +5,7 @@ ETH yield discovery, local entry/exit calldata and historical APY on Ethereum ma
 `yield.build` returns deposit calldata; `yield.withdraw` returns exit calldata; `yield.history`
 returns a historical APY series.
 
-`yield.discover` and `yield.history` run on the remote Fluxion service; `yield.build` and
+`yield.discover` and `yield.history` run on the remote Eollo service; `yield.build` and
 `yield.withdraw` run locally.
 Agents and users do not choose local or remote. None of them deposits, approves, signs or
 broadcasts.
@@ -18,10 +18,10 @@ Schemas: [`discover`](../../../schemas/yield_discover.v2.json) · [`build`](../.
 ## Usage
 
 ```bash
-fluxion yield discover --asset ETH --amount 10 --json
-fluxion yield discover --asset ETH --amount 10 --risk balanced --json
-fluxion yield discover --asset ETH --amount 10 --min-tvl-usd 1000000000 --json
-fluxion yield discover --asset ETH --amount 10 --protocols lido,aave-v3 --json
+eollo yield discover --asset ETH --amount 10 --json
+eollo yield discover --asset ETH --amount 10 --risk balanced --json
+eollo yield discover --asset ETH --amount 10 --min-tvl-usd 1000000000 --json
+eollo yield discover --asset ETH --amount 10 --protocols lido,aave-v3 --json
 ```
 
 MCP tool: `yield_discover`.
@@ -97,9 +97,9 @@ returned as evidence; the tier itself is not a provider field.
 
 Environment overrides:
 
-- `FLUXION_YIELD_POOLS_URL`
-- `FLUXION_YIELD_PROTOCOLS_URL`
-- `FLUXION_YIELD_HACKS_URL`
+- `EOLLO_YIELD_POOLS_URL`
+- `EOLLO_YIELD_PROTOCOLS_URL`
+- `EOLLO_YIELD_HACKS_URL`
 
 ## Freshness
 
@@ -109,7 +109,7 @@ The remote service refreshes a background snapshot. Requests never call DefiLlam
 - `max_age_secs < age_secs <= hard_max_age_secs`: last snapshot is returned with `stale=true`.
 - Beyond the hard limit, or before the first snapshot: `STALE_STATE`.
 
-Provider failures keep the last successful snapshot and add a warning. Fluxion never invents an
+Provider failures keep the last successful snapshot and add a warning. Eollo never invents an
 APY or a tier when data is missing.
 
 ## Errors
@@ -135,8 +135,8 @@ APY or a tier when data is missing.
 Local calldata construction for a curated opportunity returned by `yield.discover`.
 
 ```bash
-fluxion yield build --opportunity lido-steth --amount 10 --recipient 0x... --json
-fluxion yield build --opportunity aave-v3-weth --amount 10 --recipient 0x... --funding-asset WETH --json
+eollo yield build --opportunity lido-steth --amount 10 --recipient 0x... --json
+eollo yield build --opportunity aave-v3-weth --amount 10 --recipient 0x... --funding-asset WETH --json
 ```
 
 - Returns `steps`: `wrap`, `approve`, `stake`, `supply`, or `deposit`.
@@ -157,8 +157,8 @@ Schema: [`schemas/yield_build.v2.json`](../../../schemas/yield_build.v2.json).
 Remote historical APY series for a curated opportunity.
 
 ```bash
-fluxion yield history --opportunity lido-steth --days 30 --json
-fluxion yield history --opportunity aave-v3-weth --days 90 --max-points 200 --json
+eollo yield history --opportunity lido-steth --days 30 --json
+eollo yield history --opportunity aave-v3-weth --days 90 --max-points 200 --json
 ```
 
 - `days`: 1–365, default 30.
@@ -175,9 +175,9 @@ Schema: [`schemas/yield_history.v2.json`](../../../schemas/yield_history.v2.json
 Local exit calldata for a curated position.
 
 ```bash
-fluxion yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x... --json
-fluxion yield withdraw --opportunity aave-v3-weth --amount max --recipient 0x... --json
-fluxion yield withdraw --opportunity morpho-steakhouse-eth --amount 5 --recipient 0x... --owner 0x... --json
+eollo yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x... --json
+eollo yield withdraw --opportunity aave-v3-weth --amount max --recipient 0x... --json
+eollo yield withdraw --opportunity morpho-steakhouse-eth --amount 5 --recipient 0x... --owner 0x... --json
 ```
 
 - One `steps` entry: `withdraw` for Aave/Spark, `redeem` for Morpho, `burn` for Rocket Pool.

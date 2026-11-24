@@ -1,6 +1,6 @@
 //! Read-only Curve deployment inventory. No Graph credentials or server needed.
 use alloy_primitives::{U256, keccak256};
-use fluxion::{config::Config, discovery::discover_curve, rpc::RpcClient};
+use eollo::{config::Config, discovery::discover_curve, rpc::RpcClient};
 use serde_json::{Map, json};
 
 #[tokio::main]
