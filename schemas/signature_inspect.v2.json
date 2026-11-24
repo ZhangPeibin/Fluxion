@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://eollo.xyz/schemas/signature_inspect.v2.json",
+  "$id": "https://zhangpeibin.github.io/eollo/schemas/signature_inspect.v2.json",
   "title": "Eollo signature.inspect v2",
   "type": "object",
   "additionalProperties": false,

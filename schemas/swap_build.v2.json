@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://eollo.xyz/schemas/swap_build.v2.json",
+  "$id": "https://zhangpeibin.github.io/eollo/schemas/swap_build.v2.json",
   "title": "Eollo swap.build v2",
   "type": "object",
   "additionalProperties": false,

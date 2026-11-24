@@ -1,8 +1,5 @@
 # Eollo
 
-> 由 Fluxion 改名。pre-1.0 直接断：二进制 `eollo`、环境变量 `EOLLO_*`、本地状态 `~/.eollo`。
-> 见 [ADR 0006](docs/adr/0006-rename-to-eollo.md)。
-
 Eollo 是面向 AI Agent 的 Web3 能力层。它把报价、账户读取、钱包连接、交易检查和签名授权
 封装成稳定的 MCP 能力，让 Agent 能读链、报价、准备交易，并在用户签名前给出可审计的风险报告。
 
@@ -16,7 +13,7 @@ Eollo 是面向 AI Agent 的 Web3 能力层。它把报价、账户读取、钱�
 
 [English](README.md) · 中文
 
-产品官网：<https://eollo.xyz/> · 源码：[`site/`](site/)
+产品官网：<https://zhangpeibin.github.io/eollo/> · 源码：[`site/`](site/)
 
 [![CI](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml)
 ![status](https://img.shields.io/badge/status-pre--1.0-orange)

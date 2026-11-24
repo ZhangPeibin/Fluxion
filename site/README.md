@@ -28,12 +28,12 @@ npm run build      # writes site/dist and copies schemas/ into dist/schemas
 npm run preview
 ```
 
-`site/public/CNAME` and the `postbuild` schema copy make the deployed site serve
-`https://eollo.xyz/schemas/...`, matching the `$id` values in `schemas/`.
+The `postbuild` step copies `schemas/` into `dist/schemas`, so the deployed site serves
+`https://zhangpeibin.github.io/eollo/schemas/...`, matching the `$id` values in `schemas/`.
 
 `base: "./"` keeps every asset link relative, so the same build works locally, under the GitHub
-Pages project path (`/eollo/`), and on the custom domain. Do not add root-absolute URLs
-(`/assets/...`).
+Pages project path (`/eollo/`), and on a custom domain once one is configured. Do not add
+root-absolute URLs (`/assets/...`).
 
 ## Capability data
 
@@ -79,17 +79,12 @@ One-time repository setup:
 
 Expected URLs:
 
-- Chinese: <https://eollo.xyz/>
-- English: <https://eollo.xyz/en.html>
+- Chinese: <https://zhangpeibin.github.io/eollo/>
+- English: <https://zhangpeibin.github.io/eollo/en.html>
 
-`site/public/CNAME` contains `eollo.xyz`, so the build publishes the custom domain. Point DNS at
-GitHub Pages:
-
-- Apex `eollo.xyz`: `A` records to `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
-  `185.199.111.153`, plus the matching `AAAA` records if you want IPv6.
-- `www`: `CNAME` to `zhangpeibin.github.io`.
-
-Keep the absolute `hreflang` links in `index.html` and `en.html` on `https://eollo.xyz`.
+No custom domain is configured yet. The site is served from the GitHub Pages project path. When a
+product domain is purchased, add `site/public/CNAME`, point DNS at GitHub Pages, and update the
+absolute `hreflang` links in `index.html` and `en.html` plus the schema `$id` values.
 
 ## Structure
 
@@ -103,7 +98,6 @@ site/
   src/i18n.js           # all zh/en copy, snippets and links
   src/styles.css        # dark theme, responsive layout, motion
   src/data/capabilities.json
-  public/CNAME          # eollo.xyz custom domain for GitHub Pages
   src/components/
     Nav.jsx             # sticky nav, mobile drawer, language switch
     Hero.jsx            # full-bleed layer stack: map behind copy, scrim, scroll cue

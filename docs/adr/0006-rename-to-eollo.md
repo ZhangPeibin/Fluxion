@@ -10,9 +10,9 @@ The project was named Fluxion. In the same category there are already at least t
 name: Fluxion Network on Mantle and Fluxion on Robinhood Chain. Sharing the name with a swap venue
 harms search, trust, and trademark position for a capability layer that agents and wallets embed.
 
-`eollo.com` was registered and listed as a premium domain, so it was not a viable purchase. The
-available brand TLDs were not a good fit; `eollo.xyz` is available and matches the Web3 audience the
-project targets.
+`eollo.com` was registered and listed as a premium domain, so it was not a viable purchase. No
+product domain has been purchased yet. Until one is acquired, the public site uses the GitHub Pages
+project URL.
 
 The project is pre-1.0 and has no production users. A clean break is cheaper now than maintaining
 aliases forever.
@@ -22,7 +22,7 @@ aliases forever.
 Rename the product to **Eollo** with one canonical spelling for every surface:
 
 - Product and prose: `Eollo`
-- Domain: `https://eollo.xyz`
+- Public site: `https://zhangpeibin.github.io/eollo/` until a product domain is acquired
 - CLI and binary: `eollo`
 - Crates: `eollo`, `eollo-protocol`, `eollo-remote`, `eollo-client`
 - Environment variables: `EOLLO_*`
@@ -34,7 +34,7 @@ This is a deliberate clean break:
 
 - No `fluxion` binary alias and no `FLUXION_*` fallback.
 - No compatibility shim for `~/.fluxion`.
-- Schema `$id` values move to `https://eollo.xyz/schemas/...`.
+- Schema `$id` values move to `https://zhangpeibin.github.io/eollo/schemas/...`.
 - Git history is not rewritten; old commits keep the old name.
 - ADR content is updated for the current brand only; historical decisions are unchanged.
 
@@ -43,7 +43,8 @@ This is a deliberate clean break:
 - Pre-1.0 users must update the binary name, environment variables, MCP config, and local state
   directory.
 - README, capability docs, skills, site copy, schemas, badges, and Pages URLs change together.
-- The GitHub Pages site uses `eollo.xyz` as a custom domain.
+- The site and schema `$id` values use the GitHub Pages project URL until a product domain is
+  purchased; switching later is a small follow-up.
 - Search results and external links for the old name are intentionally not preserved.
 
 ## Alternatives considered

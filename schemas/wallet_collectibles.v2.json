@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://eollo.xyz/schemas/wallet_collectibles.v2.json",
+  "$id": "https://zhangpeibin.github.io/eollo/schemas/wallet_collectibles.v2.json",
   "title": "Eollo wallet collectibles v2",
   "type": "object",
   "additionalProperties": false,

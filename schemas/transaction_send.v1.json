@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://eollo.xyz/schemas/transaction_send.v1.json",
+  "$id": "https://zhangpeibin.github.io/eollo/schemas/transaction_send.v1.json",
   "title": "Eollo transaction.send v1",
   "type": "object",
   "additionalProperties": false,

@@ -1,8 +1,5 @@
 # Eollo
 
-> Renamed from Fluxion. This is a pre-1.0 clean break: binary `eollo`, env `EOLLO_*`, local state
-> `~/.eollo`. See [ADR 0006](docs/adr/0006-rename-to-eollo.md).
-
 Eollo is a Web3 capability layer for AI agents. It packages quoting, account reads, wallet
 linking, transaction inspection, and signature authorization into stable MCP capabilities, so an
 agent can read chains, quote, prepare transactions, and show an auditable risk report before the user
@@ -19,7 +16,7 @@ It addresses three problems:
 
 English · [中文](README.zh.md)
 
-Website: <https://eollo.xyz/en.html> · source: [`site/`](site/)
+Website: <https://zhangpeibin.github.io/eollo/en.html> · source: [`site/`](site/)
 
 [![CI](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml)
 ![status](https://img.shields.io/badge/status-pre--1.0-orange)
