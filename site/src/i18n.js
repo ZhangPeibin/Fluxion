@@ -107,17 +107,22 @@ export const copy = {
     },
     problems: {
       eyebrow: "为什么需要它",
-      title: "它解决两类问题",
+      title: "3 个问题，一层解决",
       items: [
         {
-          title: "链上接口碎片化",
-          body: "RPC、DEX、钱包和数据结构各说各话。Fluxion 把它们整理成固定输入输出的能力，Agent 不需要为每个协议重写一遍胶水代码。",
-          points: ["统一的能力 envelope", "固定的错误码", "明确的链与执行位置"],
+          title: "每个协议都是一次新集成",
+          body: "DeFi 的碎片化落到 Agent 身上，就是 N 个协议 × M 条链 × K 个钱包。每接一个，都要重写一套胶水代码。",
+          points: ["一个 capability envelope", "固定的链与执行规则", "稳定的错误码"],
         },
         {
-          title: "签名前缺少可验证的检查",
-          body: "在签名前解码 calldata、模拟状态变化、检查内部调用与源码，并明确哪些结论没有覆盖。结论是确定性的，不是 LLM 猜测。",
-          points: ["decode / simulate / trace", "coverage 与 unknowns", "advisory，不冒充保证"],
+          title: "每个 Agent 动作都是一次信任判断",
+          body: "用户看不懂 calldata，也无法预判资产变化。签名前必须能回答：它在做什么、会动哪些资产、哪些没有检查到。",
+          points: ["decode / simulate / inspect", "coverage 与 unknowns", "advisory，不冒充保证"],
+        },
+        {
+          title: "自主需要一次交接",
+          body: "让 Agent 直接持有私钥不可接受。Fluxion 让 Agent 准备交易，把最后一步交给手机钱包确认；私钥始终不进入运行时。",
+          points: ["私钥留在手机", "WalletConnect 会话", "每次发送都显式确认"],
         },
       ],
     },
@@ -348,17 +353,22 @@ export const copy = {
     },
     problems: {
       eyebrow: "Why it exists",
-      title: "Two problems, one contract",
+      title: "3 problems, one layer",
       items: [
         {
-          title: "Fragmented on-chain interfaces",
-          body: "RPCs, DEXs, wallets and data shapes all disagree. Fluxion turns them into capabilities with fixed inputs and outputs, so agents stop rewriting glue code per protocol.",
-          points: ["One capability envelope", "Stable error codes", "Explicit chains and execution"],
+          title: "Every protocol is a new integration",
+          body: "DeFi fragmentation lands on the agent as N protocols × M chains × K wallets. Every connection starts with another bespoke integration.",
+          points: ["One capability envelope", "Explicit chain and execution rules", "Stable error codes"],
         },
         {
-          title: "No verifiable check before signing",
-          body: "Decode calldata, simulate state changes, inspect internal calls and source, and state what was not covered. The conclusions are deterministic, not LLM guesses.",
-          points: ["decode / simulate / trace", "coverage and unknowns", "advisory, not a guarantee"],
+          title: "Every agent action is a trust decision",
+          body: "Users can't read calldata or predict asset changes. Before signing, they need to know what it does, what moves, and what was not checked.",
+          points: ["decode / simulate / inspect", "coverage and unknowns", "advisory, not a guarantee"],
+        },
+        {
+          title: "Autonomy needs a handoff",
+          body: "Giving an agent the keys is not acceptable. Fluxion prepares the transaction, then hands the final step to the phone wallet; keys never enter the runtime.",
+          points: ["Keys stay on the phone", "WalletConnect session", "Explicit confirmation on every send"],
         },
       ],
     },

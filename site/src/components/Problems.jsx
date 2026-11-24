@@ -11,6 +11,11 @@ const ICONS = [
     <path d="M12 3.5 19 6v5.4c0 4.3-2.9 7.4-7 9.1-4.1-1.7-7-4.8-7-9.1V6l7-2.5Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
     <path d="M9.2 12.2 11.4 14.4 15 10.6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
   </svg>,
+  <svg key="handoff" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+    <rect x="8" y="3.5" width="8" height="17" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M10.5 18h3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    <path d="M4 9h4.5M4 9l2-2M4 9l2 2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>,
 ];
 
 export default function Problems({ t }) {
