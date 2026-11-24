@@ -143,6 +143,7 @@ impl Catalog {
                     "chains": entry.chains,
                     "sideEffects": entry.side_effects,
                     "transports": entry.transports,
+                    "requires": entry.requires,
                     "docs": entry.docs,
                     "skill": entry.skill,
                 })

@@ -1,11 +1,13 @@
+import CapabilityMap from "./CapabilityMap.jsx";
 import CopyButton from "./CopyButton.jsx";
-import RouteField from "./RouteField.jsx";
-import { GITHUB_URL, INSTALL_COMMAND } from "../i18n.js";
+import { INSTALL_COMMAND } from "../i18n.js";
 
-export default function Hero({ t, capabilityCount, domainCount }) {
+export default function Hero({ t, data, onSelectDomain }) {
   const stats = t.hero.stats.map((stat) => {
-    if (stat.key === "capabilities") return { ...stat, value: String(capabilityCount) };
-    if (stat.key === "domains") return { ...stat, value: String(domainCount) };
+    if (stat.key === "capabilities") return { ...stat, value: String(data.capabilities.length) };
+    if (stat.key === "domains") {
+      return { ...stat, value: String(new Set(data.capabilities.map((capability) => capability.domain)).size) };
+    }
     return stat;
   });
 
@@ -22,15 +24,31 @@ export default function Hero({ t, capabilityCount, domainCount }) {
           </p>
 
           <h1 className="hero-title intro" style={{ "--intro-delay": "110ms" }}>
-            <span>{t.hero.title[0]}</span>{" "}
-            <span className="gradient-text">{t.hero.title[1]}</span>
+            <span className="title-line">
+              {t.hero.title.before}
+              {!t.hero.title.breakAfterHighlight && (
+                <br className="title-break" aria-hidden="true" />
+              )}
+              <span className="gradient-text">{t.hero.title.highlight}</span>
+              {t.hero.title.breakAfterHighlight && (
+                <br className="title-break" aria-hidden="true" />
+              )}
+              {t.hero.title.after}
+            </span>
           </h1>
 
-          <p className="hero-lead intro" style={{ "--intro-delay": "190ms" }}>
-            {t.hero.lead}
+          <p className="hero-tagline">
+            <span className="tagline-line intro" style={{ "--intro-delay": "190ms" }}>
+              {t.hero.tagline.line1}
+            </span>
+            <span className="tagline-line intro" style={{ "--intro-delay": "420ms" }}>
+              {t.hero.tagline.line2Before}
+              <span className="gradient-text">{t.hero.tagline.highlight}</span>
+              {t.hero.tagline.line2After}
+            </span>
           </p>
 
-          <div className="hero-command intro" style={{ "--intro-delay": "260ms" }}>
+          <div className="hero-command intro" style={{ "--intro-delay": "560ms" }}>
             <span className="hero-command-label">{t.hero.installLabel}</span>
             <div className="command-pill">
               <code>
@@ -45,19 +63,14 @@ export default function Hero({ t, capabilityCount, domainCount }) {
             </div>
           </div>
 
-          <div className="hero-ctas intro" style={{ "--intro-delay": "330ms" }}>
-            <a className="button" href="#install">
-              {t.hero.primary}
-              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </a>
-            <a className="button button-ghost" href={GITHUB_URL} target="_blank" rel="noreferrer">
-              {t.hero.secondary}
-            </a>
-          </div>
+          <a className="hero-install-link intro" style={{ "--intro-delay": "600ms" }} href="#install">
+            {t.hero.installCta}
+            <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+              <path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </a>
 
-          <dl className="hero-stats intro" style={{ "--intro-delay": "400ms" }}>
+          <dl className="hero-stats intro" style={{ "--intro-delay": "660ms" }}>
             {stats.map((stat) => (
               <div key={stat.label}>
                 <dt>{stat.value}</dt>
@@ -66,11 +79,15 @@ export default function Hero({ t, capabilityCount, domainCount }) {
             ))}
           </dl>
         </div>
-
-        <div className="hero-visual intro" style={{ "--intro-delay": "240ms" }}>
-          <RouteField hint={t.hero.canvasHint} />
-        </div>
       </div>
+
+      <CapabilityMap t={t} data={data} onSelectDomain={onSelectDomain} />
+      <div className="hero-scrim" aria-hidden="true" />
+
+      <a className="hero-scroll" href="#problems">
+        <span>{t.hero.scrollCue}</span>
+        <span className="scroll-line" aria-hidden="true" />
+      </a>
     </section>
   );
 }

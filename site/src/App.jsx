@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import Capabilities from "./components/Capabilities.jsx";
 import CursorGlow from "./components/CursorGlow.jsx";
@@ -15,21 +15,27 @@ import { copy } from "./i18n.js";
 
 const TITLES = {
   zh: "Fluxion — 给 Agent 的 Web3 能力层",
-  en: "Fluxion — a Web3 capability layer for agents",
+  en: "Fluxion — A Web3 Layer for agents",
 };
 
 export default function App({ lang }) {
   const t = copy[lang];
+  const [domainFilter, setDomainFilter] = useState("all");
 
   useEffect(() => {
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
     document.title = TITLES[lang];
   }, [lang]);
 
-  const domainCount = useMemo(
-    () => new Set(catalog.capabilities.map((capability) => capability.domain)).size,
-    [],
-  );
+  const showDomain = useCallback((domain) => {
+    setDomainFilter(domain);
+    requestAnimationFrame(() => {
+      const section = document.getElementById("capabilities");
+      if (!section) return;
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      section.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    });
+  }, []);
 
   return (
     <>
@@ -39,10 +45,10 @@ export default function App({ lang }) {
       </a>
       <Nav t={t} lang={lang} />
       <main id="main">
-        <Hero t={t} capabilityCount={catalog.capabilities.length} domainCount={domainCount} />
+        <Hero t={t} data={catalog} onSelectDomain={showDomain} />
         <Problems t={t} />
         <Flow t={t} />
-        <Capabilities t={t} data={catalog} />
+        <Capabilities t={t} data={catalog} filter={domainFilter} onFilter={setDomainFilter} />
         <Install t={t} />
         <Skills t={t} />
         <Safety t={t} />

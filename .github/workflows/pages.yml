@@ -34,6 +34,8 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+        env:
+          VITE_MANAGED_REMOTE_URL: ${{ vars.MANAGED_REMOTE_URL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

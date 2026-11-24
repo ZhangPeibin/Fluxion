@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import Reveal from "./Reveal.jsx";
+import RouteField from "./RouteField.jsx";
 import SectionHeading from "./SectionHeading.jsx";
 import { GITHUB_URL } from "../i18n.js";
 
@@ -76,6 +77,16 @@ export default function Flow({ t }) {
             </Reveal>
           ))}
         </ol>
+      </div>
+
+      <div className="container">
+        <Reveal className="route-preview" delay={80}>
+          <div className="route-preview-head">
+            <h3>{t.flow.routeTitle}</h3>
+            <p>{t.flow.routeNote}</p>
+          </div>
+          <RouteField hint={t.hero.canvasHint} />
+        </Reveal>
       </div>
     </section>
   );

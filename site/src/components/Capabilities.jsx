@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import Reveal from "./Reveal.jsx";
 import SectionHeading from "./SectionHeading.jsx";
@@ -13,8 +13,7 @@ function spotlight(event) {
   card.style.setProperty("--my", `${event.clientY - rect.top}px`);
 }
 
-export default function Capabilities({ t, data }) {
-  const [filter, setFilter] = useState("all");
+export default function Capabilities({ t, data, filter, onFilter }) {
   const capabilities = data.capabilities;
 
   const counts = useMemo(() => {
@@ -42,7 +41,7 @@ export default function Capabilities({ t, data }) {
           <button
             type="button"
             className={`filter-chip${filter === "all" ? " is-active" : ""}`}
-            onClick={() => setFilter("all")}
+            onClick={() => onFilter("all")}
             aria-pressed={filter === "all"}
           >
             {t.captions.all}
@@ -53,7 +52,7 @@ export default function Capabilities({ t, data }) {
               key={domain}
               type="button"
               className={`filter-chip${filter === domain ? " is-active" : ""}`}
-              onClick={() => setFilter(domain)}
+              onClick={() => onFilter(domain)}
               aria-pressed={filter === domain}
             >
               {t.domains[domain].label}

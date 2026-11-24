@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 
 import CodeBlock from "./CodeBlock.jsx";
 import CopyButton from "./CopyButton.jsx";
+import RemoteCard from "./RemoteCard.jsx";
 import Reveal from "./Reveal.jsx";
 import SectionHeading from "./SectionHeading.jsx";
 import { INSTALL_COMMAND, MCP_COMMAND, MCP_CONFIGS } from "../i18n.js";
@@ -63,10 +64,6 @@ export default function Install({ t }) {
           ))}
         </div>
 
-        <Reveal as="p" className="callout callout-wide" delay={120}>
-          {t.install.note}
-        </Reveal>
-
         <div className="mcp-block" id="mcp">
           <Reveal className="mcp-intro">
             <h3>{t.install.mcpTitle}</h3>
@@ -110,19 +107,8 @@ export default function Install({ t }) {
           </Reveal>
         </div>
 
-        <Reveal className="remote-card" delay={120}>
-          <div>
-            <h3>{t.install.remoteLabel}</h3>
-          </div>
-          <div className="mini-command mini-command-wide">
-            <code>{t.install.remoteCommand}</code>
-            <CopyButton
-              text={t.install.remoteCommand}
-              label={t.captions.copy}
-              copiedLabel={t.captions.copied}
-              className="copy-button-inline"
-            />
-          </div>
+        <Reveal className="remote-wrap" delay={120}>
+          <RemoteCard t={t} />
         </Reveal>
       </div>
     </section>

@@ -27,9 +27,9 @@ const EDGES = [
 ];
 
 const PLATFORM_COLOR = {
-  "uniswap-v3": "#58a6ff",
-  "uniswap-v2": "#7c5cff",
-  curve: "#3fb950",
+  "uniswap-v3": "#4d9dff",
+  "uniswap-v2": "#22d3ee",
+  curve: "#34d399",
 };
 
 const PACKET_COUNT = 22;
