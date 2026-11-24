@@ -3,12 +3,12 @@ use std::time::Duration;
 
 use alloy_primitives::{Address, U256};
 
-use fluxion::adapters::{Curve, Dispatcher, UniswapV2, UniswapV3};
-use fluxion::graph::Graph;
-use fluxion::model::{Pool, PoolKind, QuoteRequest};
-use fluxion::router::{Router, RouterConfig};
-use fluxion::rpc::RpcClient;
-use fluxion::state::StateCache;
+use eollo::adapters::{Curve, Dispatcher, UniswapV2, UniswapV3};
+use eollo::graph::Graph;
+use eollo::model::{Pool, PoolKind, QuoteRequest};
+use eollo::router::{Router, RouterConfig};
+use eollo::rpc::RpcClient;
+use eollo::state::StateCache;
 
 fn addr(s: &str) -> Address {
     s.parse().unwrap()

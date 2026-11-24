@@ -11,22 +11,22 @@ use alloy_primitives::{Address, U256};
 use axum::extract::Path as AxumPath;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use fluxion_client::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
-use fluxion_client::capability::CapabilityRegistry;
-use fluxion_client::chain::Chain;
-use fluxion_client::client::RuntimeClient;
-use fluxion_client::fourmeme::{self, FourMemeConfig, ListRequest};
-use fluxion_client::swap::quote::QuoteRequest;
-use fluxion_client::swap_build::{self, BuildRequest};
-use fluxion_client::transaction::{self, SimulateRequest};
-use fluxion_client::transaction_inspect::{self, InspectRequest};
-use fluxion_client::transaction_verify::{self, VerifyRequest};
-use fluxion_client::wallet::{
+use eollo_client::agent_id::{self, AgentIdConfig, AgentIdLookup, AgentIdRequest};
+use eollo_client::capability::CapabilityRegistry;
+use eollo_client::chain::Chain;
+use eollo_client::client::RuntimeClient;
+use eollo_client::fourmeme::{self, FourMemeConfig, ListRequest};
+use eollo_client::swap::quote::QuoteRequest;
+use eollo_client::swap_build::{self, BuildRequest};
+use eollo_client::transaction::{self, SimulateRequest};
+use eollo_client::transaction_inspect::{self, InspectRequest};
+use eollo_client::transaction_verify::{self, VerifyRequest};
+use eollo_client::wallet::{
     self, AllowanceRequest, AssetsRequest, BalanceRequest, CollectiblesRequest, WalletConfig,
 };
-use fluxion_client::yield_build;
-use fluxion_protocol::position::PositionAnalyzeRequest;
-use fluxion_protocol::yield_capability::{RiskProfile, YieldBuildRequest, YieldDiscoverRequest};
+use eollo_client::yield_build;
+use eollo_protocol::position::PositionAnalyzeRequest;
+use eollo_protocol::yield_capability::{RiskProfile, YieldBuildRequest, YieldDiscoverRequest};
 use serde_json::{Value, json};
 
 const RPC_BLOCK_HASH: &str = "0x0000000000000000000000000000000000000000000000000000000000000064";
@@ -321,7 +321,7 @@ async fn fourmeme_detail_api() -> Json<Value> {
     }))
 }
 
-fn catalog_workflows() -> BTreeMap<String, fluxion_client::capability::WorkflowEntry> {
+fn catalog_workflows() -> BTreeMap<String, eollo_client::capability::WorkflowEntry> {
     CapabilityRegistry::global()
         .catalog()
         .workflows
@@ -454,12 +454,12 @@ async fn swap_workflow_reaches_verify() {
                 split: false,
                 split_max_branches: None,
             },
-            fluxion_client::capability::TokenRef::new(
+            eollo_client::capability::TokenRef::new(
                 Some("TIN".to_string()),
                 TOKEN_IN.parse().unwrap(),
                 18,
             ),
-            fluxion_client::capability::TokenRef::new(
+            eollo_client::capability::TokenRef::new(
                 Some("TOUT".to_string()),
                 TOKEN_OUT.parse().unwrap(),
                 18,
@@ -559,12 +559,12 @@ async fn swap_workflow_stops_when_quote_fails() {
                 split: false,
                 split_max_branches: None,
             },
-            fluxion_client::capability::TokenRef::new(
+            eollo_client::capability::TokenRef::new(
                 Some("TIN".to_string()),
                 TOKEN_IN.parse().unwrap(),
                 18,
             ),
-            fluxion_client::capability::TokenRef::new(
+            eollo_client::capability::TokenRef::new(
                 Some("TOUT".to_string()),
                 TOKEN_OUT.parse().unwrap(),
                 18,
@@ -576,7 +576,7 @@ async fn swap_workflow_stops_when_quote_fails() {
         .unwrap_err();
     assert_eq!(
         error.code,
-        fluxion_client::capability::CapabilityErrorCode::RpcError
+        eollo_client::capability::CapabilityErrorCode::RpcError
     );
 }
 
@@ -686,7 +686,7 @@ async fn yield_workflow_stops_on_unknown_opportunity() {
     .unwrap_err();
     assert_eq!(
         error.code,
-        fluxion_client::capability::CapabilityErrorCode::InvalidArgument
+        eollo_client::capability::CapabilityErrorCode::InvalidArgument
     );
 }
 
@@ -781,7 +781,7 @@ async fn portfolio_workflow_reports_position_failure() {
         .unwrap_err();
     assert_eq!(
         error.code,
-        fluxion_client::capability::CapabilityErrorCode::StaleState
+        eollo_client::capability::CapabilityErrorCode::StaleState
     );
 }
 
@@ -904,6 +904,6 @@ async fn fourmeme_workflow_reports_rpc_failure() {
     .unwrap_err();
     assert_eq!(
         error.code,
-        fluxion_client::capability::CapabilityErrorCode::RpcError
+        eollo_client::capability::CapabilityErrorCode::RpcError
     );
 }

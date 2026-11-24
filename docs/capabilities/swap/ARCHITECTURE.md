@@ -2,7 +2,7 @@
 
 English · [中文](ARCHITECTURE.zh.md)
 
-This page is the detailed view of `swap.quote`: how a request enters Fluxion, how the remote quote
+This page is the detailed view of `swap.quote`: how a request enters Eollo, how the remote quote
 engine computes an exact-in amount, and how the background state pipeline keeps pricing data fresh.
 
 The diagram is one vertical technical map with five colored phases. Follow the solid request arrows
@@ -18,7 +18,7 @@ flowchart TB
   classDef error fill:#ffebee,stroke:#c62828,color:#111
   classDef output fill:#f3e5f5,stroke:#6a1b9a,color:#111
 
-  A["1 Client: Agent / CLI"] -->|MCP stdio| B["1 fluxion mcp<br/>tool: swap_quote"] -->|tool call| CR["1 Capability router<br/>swap.quote = remote"]
+  A["1 Client: Agent / CLI"] -->|MCP stdio| B["1 eollo mcp<br/>tool: swap_quote"] -->|tool call| CR["1 Capability router<br/>swap.quote = remote"]
   CR -->|HTTPS POST /quote| H["2 POST /quote<br/>parse · validate · rate limit · compute slot"]
   H --> L["2 lease snapshot<br/>one immutable version"]
   H -. invalid / over limit .-> ERR1["2 4xx / 429<br/>stable error code"]
@@ -61,7 +61,7 @@ flowchart TB
 
 | Color | Phase | What it answers |
 |---|---|---|
-| Indigo | 1. Client | How does an agent reach Fluxion? |
+| Indigo | 1. Client | How does an agent reach Eollo? |
 | Orange | 2. API | What is validated, limited and leased before compute? |
 | Green | 3. Engine | How is the route searched and split? |
 | Blue | 4. Background | How is the immutable pricing snapshot built and published? |
@@ -75,8 +75,8 @@ read-only notes.
 
 | Step | Detail |
 |---|---|
-| Agent entry | An agent calls the MCP tool `swap_quote`; the CLI uses `fluxion swap ...`. |
-| MCP tool | `fluxion mcp` is a stdio bridge. The tool arguments are `token_in`, `token_out`, `amount`, `max_hops`, `split`, `split_max_branches`, `decimals_in`, `decimals_out`. |
+| Agent entry | An agent calls the MCP tool `swap_quote`; the CLI uses `eollo swap ...`. |
+| MCP tool | `eollo mcp` is a stdio bridge. The tool arguments are `token_in`, `token_out`, `amount`, `max_hops`, `split`, `split_max_branches`, `decimals_in`, `decimals_out`. |
 | Capability routing | `swap.quote` is fixed to the remote service. The agent does not choose local/remote and does not send a provider or mode. |
 | Transport | The client sends `POST /quote`. Authentication, installation tokens and MCP registration are transport concerns: [docs/MCP.md](../../MCP.md). |
 

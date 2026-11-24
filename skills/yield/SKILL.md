@@ -1,6 +1,6 @@
 ---
 name: yield
-description: Use when the user asks where to earn yield on ETH safely, wants the safest or highest-APY ETH staking or lending opportunity, wants to compare Lido/Rocket Pool/Aave/SparkLend yields, or uses the Fluxion yield_discover, yield_build, yield_history or yield_withdraw tools. Never deposits, signs or broadcasts.
+description: Use when the user asks where to earn yield on ETH safely, wants the safest or highest-APY ETH staking or lending opportunity, wants to compare Lido/Rocket Pool/Aave/SparkLend yields, or uses the Eollo yield_discover, yield_build, yield_history or yield_withdraw tools. Never deposits, signs or broadcasts.
 ---
 
 # yield.discover
@@ -22,8 +22,8 @@ Human-facing capability documentation is in
 ## CLI
 
 ```bash
-fluxion yield discover --asset ETH --amount 10 --json
-fluxion yield discover --asset ETH --amount 10 --risk balanced --json
+eollo yield discover --asset ETH --amount 10 --json
+eollo yield discover --asset ETH --amount 10 --risk balanced --json
 ```
 
 ## Reading the result

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/fourmeme_token.v2.json",
-  "title": "Fluxion fourmeme.token v2",
+  "$id": "https://eollo.xyz/schemas/fourmeme_token.v2.json",
+  "title": "Eollo fourmeme.token v2",
   "type": "object",
   "additionalProperties": false,
   "required": [

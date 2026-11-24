@@ -1,4 +1,4 @@
-# Fluxion quote benchmark — initial integration, before candidate-diversity fix
+# Eollo quote benchmark — initial integration, before candidate-diversity fix
 
 | field | value |
 |---|---|
@@ -119,7 +119,7 @@ Feature-disabled control: http://127.0.0.1:8082
 }
 ```
 
-| pair | amount_in | fluxion_out | fluxion_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | fluxion ms | paraswap ms | 1inch ms | 0x ms |
+| pair | amount_in | eollo_out | eollo_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | eollo ms | paraswap ms | 1inch ms | 0x ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | WETH → USDC | 333333333333333333 | 768499525 | 1 | 768499525 | 0.0 | skipped | - | skipped | - | 1087 | 1385 | - | - |
 | WETH → USDC | 3333333333333333333 | 7684123436 | 1 | 7684555374 | -0.6 | skipped | - | skipped | - | 1109 | 343 | - | - |
@@ -316,15 +316,15 @@ Feature-disabled control: http://127.0.0.1:8082
 | SHIB → WETH | 800000000000000000000000000 | 1609167549896476619 | 1625584858734219730 | 102.0 | 1176 | 767 |
 | SHIB → WETH | 8000000000000000000000000000 | 14330945745877496739 | 15846369352581394307 | 1057.4 | 1375 | 749 |
 - rows: 90
-- paraswap: both success 90, Fluxion only 0, aggregator only 0, both failed 0
-- 1inch: both success 0, Fluxion only 0, aggregator only 0, both failed 0
-- 0x: both success 0, Fluxion only 0, aggregator only 0, both failed 0
-- success: fluxion 90, paraswap 90, 1inch 0, 0x 0
+- paraswap: both success 90, Eollo only 0, aggregator only 0, both failed 0
+- 1inch: both success 0, Eollo only 0, aggregator only 0, both failed 0
+- 0x: both success 0, Eollo only 0, aggregator only 0, both failed 0
+- success: eollo 90, paraswap 90, 1inch 0, 0x 0
 - paraswap deltas (n=90): median -1.1 bps, mean -105.9 bps, within ±50 bps 75
 - 1inch deltas (n=0): median - bps, mean - bps, within ±50 bps 0
 - 0x deltas (n=0): median - bps, mean - bps, within ±50 bps 0
-- latency p50/p95 (ms): fluxion 945/1538, paraswap 353/490, 1inch -/-, 0x -/-
+- latency p50/p95 (ms): eollo 945/1538, paraswap 353/490, 1inch -/-, 0x -/-
 
-Δ bps = (fluxion - aggregator) / aggregator × 10000; negative means Fluxion returned less.
+Δ bps = (eollo - aggregator) / aggregator × 10000; negative means Eollo returned less.
 
 Quotes use live state, not a pinned block. Block range and row timestamps describe skew, not deterministic replay. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations.

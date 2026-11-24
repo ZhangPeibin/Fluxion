@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use alloy_primitives::{Address, U256};
 
-use fluxion::graph::Graph;
-use fluxion::model::{Pool, PoolKind, QuoteRequest};
-use fluxion::router;
-use fluxion::source::MockV2;
+use eollo::graph::Graph;
+use eollo::model::{Pool, PoolKind, QuoteRequest};
+use eollo::router;
+use eollo::source::MockV2;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {

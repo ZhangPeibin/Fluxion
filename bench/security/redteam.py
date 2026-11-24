@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Local adversarial corpus for Fluxion security inspection.
+"""Local adversarial corpus for Eollo security inspection.
 
-Starts anvil, deploys test/malicious contracts with forge, runs the installed fluxion CLI, and
+Starts anvil, deploys test/malicious contracts with forge, runs the installed eollo CLI, and
 writes a detection matrix. This is a red-team regression corpus, not a certification.
 """
 
@@ -531,7 +531,7 @@ def start_verifier(benign: str) -> tuple[ThreadingHTTPServer, threading.Thread]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--bin", default="fluxion")
+    parser.add_argument("--bin", default="eollo")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--json-out", type=Path)
     args = parser.parse_args()
@@ -575,7 +575,7 @@ def main() -> int:
         global VERIFIER_ENV
         VERIFIER_ENV = {
             "BSCSCAN_API_KEY": "test",
-            "FLUXION_BSCSCAN_API_URL": f"http://127.0.0.1:{verifier.server_port}/api",
+            "EOLLO_BSCSCAN_API_URL": f"http://127.0.0.1:{verifier.server_port}/api",
         }
         # Warm the local node/process path once before recording per-case latency.
         run(inspect_command(args.bin, deployments["token"], transfer_data(RECIPIENT, 1)))
@@ -612,7 +612,7 @@ class tempfile_dir:
     def __enter__(self) -> Path:
         import tempfile
 
-        self._temp = tempfile.TemporaryDirectory(prefix="fluxion-redteam-")
+        self._temp = tempfile.TemporaryDirectory(prefix="eollo-redteam-")
         return Path(self._temp.name)
 
     def __exit__(self, *args: object) -> None:

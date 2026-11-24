@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, U256};
-use fluxion::{
+use eollo::{
     graph::Graph,
     local_state::{LocalStateConfig, SnapshotStore, StateSynchronizer},
     model::{Pool, PoolKind, QuoteRequest},
@@ -7,7 +7,7 @@ use fluxion::{
     rpc::RpcClient,
 };
 
-async fn independent_hop(rpc: &RpcClient, hop: &fluxion::model::Hop) -> U256 {
+async fn independent_hop(rpc: &RpcClient, hop: &eollo::model::Hop) -> U256 {
     let input = U256::from_be_slice(hop.token_in.as_slice());
     let output = U256::from_be_slice(hop.token_out.as_slice());
     let amount = hop.amount_in;
@@ -47,7 +47,7 @@ async fn independent_hop(rpc: &RpcClient, hop: &fluxion::model::Hop) -> U256 {
 #[tokio::test]
 #[ignore]
 async fn full_range_v2_v3_splits_and_multi_hop_match_independent_mainnet_calls() {
-    use fluxion::split::{SplitConfig, SplitOptimizer};
+    use eollo::split::{SplitConfig, SplitOptimizer};
     let weth: Address = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
         .parse()
         .unwrap();

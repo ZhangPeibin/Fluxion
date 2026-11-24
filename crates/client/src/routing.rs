@@ -1,7 +1,7 @@
-//! Internal execution routing. `swap.quote` always uses the remote Fluxion
+//! Internal execution routing. `swap.quote` always uses the remote Eollo
 //! service; agents and users do not choose an execution location.
 //!
-//! Development and tests may point `FLUXION_REMOTE_URL` (or `--url`) at a mock
+//! Development and tests may point `EOLLO_REMOTE_URL` (or `--url`) at a mock
 //! or locally running server. That is an endpoint override, not a mode.
 
 use std::env;
@@ -24,7 +24,7 @@ pub fn resolve(
         .ok_or_else(|| {
             CapabilityError::new(
                 CapabilityErrorCode::RpcError,
-                "Fluxion remote service is not configured; set FLUXION_REMOTE_URL",
+                "Eollo remote service is not configured; set EOLLO_REMOTE_URL",
                 false,
             )
         })?;
@@ -38,8 +38,8 @@ pub fn resolve(
 }
 
 pub fn from_env(remote_url: Option<&str>) -> Result<RemoteBackend, CapabilityError> {
-    let env_url = env::var("FLUXION_REMOTE_URL").ok();
-    let api_key = env::var("FLUXION_API_KEY").ok();
+    let env_url = env::var("EOLLO_REMOTE_URL").ok();
+    let api_key = env::var("EOLLO_API_KEY").ok();
     resolve(remote_url.or(env_url.as_deref()), api_key.as_deref())
 }
 
@@ -51,7 +51,7 @@ mod tests {
     fn requires_a_remote_endpoint() {
         let error = resolve(None, None).unwrap_err();
         assert_eq!(error.code, CapabilityErrorCode::RpcError);
-        assert!(error.message.contains("FLUXION_REMOTE_URL"));
+        assert!(error.message.contains("EOLLO_REMOTE_URL"));
     }
 
     #[test]

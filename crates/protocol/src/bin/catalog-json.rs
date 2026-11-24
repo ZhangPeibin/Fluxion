@@ -1,10 +1,10 @@
 //! Print the `site/` capability dataset derived from `capabilities/catalog.yaml`.
 //!
 //! ```text
-//! cargo run -p fluxion-protocol --bin catalog-json > site/src/data/capabilities.json
+//! cargo run -p eollo-protocol --bin catalog-json > site/src/data/capabilities.json
 //! ```
 
-use fluxion_protocol::capability::catalog::load_embedded;
+use eollo_protocol::capability::catalog::load_embedded;
 
 fn main() {
     let catalog = load_embedded();

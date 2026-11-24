@@ -3,12 +3,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use alloy_primitives::{Address, U256};
 use async_trait::async_trait;
-use fluxion::error::QuoteError;
-use fluxion::graph::Graph;
-use fluxion::model::{Pool, PoolKind, QuoteRequest};
-use fluxion::router::Router;
-use fluxion::source::{FixedRate, MockV2, QuoteSource};
-use fluxion::split::{PlanKind, SplitConfig, SplitOptimizer, StopReason};
+use eollo::error::QuoteError;
+use eollo::graph::Graph;
+use eollo::model::{Pool, PoolKind, QuoteRequest};
+use eollo::router::Router;
+use eollo::source::{FixedRate, MockV2, QuoteSource};
+use eollo::split::{PlanKind, SplitConfig, SplitOptimizer, StopReason};
 
 fn addr(n: u8) -> Address {
     Address::with_last_byte(n)

@@ -12,8 +12,8 @@ All wallet capabilities return capability envelope v2: `meta`, `chain`, `as_of`,
 Exact balances for an explicit token set, queried locally at one pinned block.
 
 ```bash
-fluxion wallet balance 0xabc... --tokens USDT,CAKE --json
-fluxion wallet balance 0xabc... --tokens ETH,USDC --chain ethereum --json
+eollo wallet balance 0xabc... --tokens USDT,CAKE --json
+eollo wallet balance 0xabc... --tokens ETH,USDC --chain ethereum --json
 ```
 
 - Default chain is BSC; use `--chain ethereum` for Ethereum.
@@ -30,8 +30,8 @@ fluxion wallet balance 0xabc... --tokens ETH,USDC --chain ethereum --json
 Discover a wallet's ERC20 positions, then verify every returned balance locally.
 
 ```bash
-fluxion wallet assets 0xabc... --json
-fluxion wallet assets 0xabc... --chain ethereum --include-unknown --json
+eollo wallet assets 0xabc... --json
+eollo wallet assets 0xabc... --chain ethereum --include-unknown --json
 ```
 
 Flow:
@@ -59,8 +59,8 @@ Defaults:
 Exact ERC20 allowances for one owner/spender pair at a pinned block.
 
 ```bash
-fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT,CAKE --json
-fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC --chain ethereum --json
+eollo wallet allowance 0xowner --spender 0xspender --tokens USDT,CAKE --json
+eollo wallet allowance 0xowner --spender 0xspender --tokens USDC --chain ethereum --json
 ```
 
 - Default chain is BSC; use `--chain ethereum` for Ethereum.
@@ -73,9 +73,9 @@ fluxion wallet allowance 0xowner --spender 0xspender --tokens USDC --chain ether
 Read ERC721/ERC1155 holdings.
 
 ```bash
-fluxion wallet collectibles 0xowner --json
-fluxion wallet collectibles 0xowner --chain ethereum --json
-fluxion wallet collectibles 0xowner --collections 0xcollection1,0xcollection2 --json
+eollo wallet collectibles 0xowner --json
+eollo wallet collectibles 0xowner --chain ethereum --json
+eollo wallet collectibles 0xowner --collections 0xcollection1,0xcollection2 --json
 ```
 
 - Default chain is BSC; use `--chain ethereum` for Ethereum.
@@ -94,8 +94,8 @@ handle that points at a BSC wallet address. The result is returned in envelope v
 resolved fields are under `data`.
 
 ```bash
-fluxion wallet agent-id alice.ai
-fluxion wallet agent-id 0xA506ac7069937571DC56C5f8FDa53c4A729456c6 --json
+eollo wallet agent-id alice.ai
+eollo wallet agent-id 0xA506ac7069937571DC56C5f8FDa53c4A729456c6 --json
 ```
 
 - Exactly one of a handle or address is required.
@@ -113,9 +113,9 @@ Sign a message or EIP-712 typed data through the connected WalletConnect session
 confirm on their phone.
 
 ```bash
-fluxion wallet sign --message "hello"
-fluxion wallet sign --typed-data typed-data.json --json
-fluxion wallet sign --typed-data typed-data.json --policy policy.json --json
+eollo wallet sign --message "hello"
+eollo wallet sign --typed-data typed-data.json --json
+eollo wallet sign --typed-data typed-data.json --policy policy.json --json
 ```
 
 - Requires an active `wallet.connect` session.
@@ -135,9 +135,9 @@ Send a native or ERC20/BEP-20 transfer through the connected WalletConnect sessi
 is simulated locally before the phone confirmation.
 
 ```bash
-fluxion wallet send --to 0x... --token BNB --amount 0.01
-fluxion wallet send --to 0x... --token USDT --amount 10 --json
-fluxion wallet send --to 0x... --token USDT --amount 10 --policy policy.json
+eollo wallet send --to 0x... --token BNB --amount 0.01
+eollo wallet send --to 0x... --token USDT --amount 10 --json
+eollo wallet send --to 0x... --token USDT --amount 10 --policy policy.json
 ```
 
 - Only native transfers and ERC20/BEP-20 `transfer` are supported.
@@ -155,12 +155,12 @@ fluxion wallet send --to 0x... --token USDT --amount 10 --policy policy.json
 ## `wallet.connect`
 
 Start a WalletConnect v2 pairing and return a URI plus an ASCII QR code. The wallet
-approves on the user's phone; private keys never enter Fluxion.
+approves on the user's phone; private keys never enter Eollo.
 
 ```bash
-fluxion wallet connect                 # BSC by default
-fluxion wallet connect --chain ethereum
-fluxion wallet connect --json
+eollo wallet connect                 # BSC by default
+eollo wallet connect --chain ethereum
+eollo wallet connect --json
 ```
 
 - Requires `WALLETCONNECT_PROJECT_ID`.
@@ -174,16 +174,16 @@ fluxion wallet connect --json
 - The envelope `data` contains either the MCP connect response (`uri`, `qr_ascii`, `accounts`) or
   the settled CLI status response.
 - If a valid session already exists, `wallet.connect` returns `connected` without a new pairing.
-- The session is stored at `~/.fluxion/walletconnect/session.json` with mode `0600`.
+- The session is stored at `~/.eollo/walletconnect/session.json` with mode `0600`.
 
 ## `wallet.status`
 
 Read the stored WalletConnect session.
 
 ```bash
-fluxion wallet status
-fluxion wallet status --json
-fluxion wallet status --wait 90
+eollo wallet status
+eollo wallet status --json
+eollo wallet status --wait 90
 ```
 
 - MCP `wait_seconds` (`0..110`) long-polls a pending pairing; CLI `--wait N` waits for a session
@@ -200,7 +200,7 @@ fluxion wallet status --wait 90
 Remove the local session and abort any pending pairing.
 
 ```bash
-fluxion wallet disconnect --json
+eollo wallet disconnect --json
 ```
 
 ## MCP tools
@@ -220,15 +220,15 @@ fluxion wallet disconnect --json
 
 ## Configuration
 
-- `FLUXION_RPC_URL` (or `RPC_URL`): local Ethereum RPC; defaults to `https://eth.drpc.org`
-- `FLUXION_BSC_RPC_URL`: local BSC RPC; defaults to `https://bsc-dataseed.bnbchain.org`
+- `EOLLO_RPC_URL` (or `RPC_URL`): local Ethereum RPC; defaults to `https://eth.drpc.org`
+- `EOLLO_BSC_RPC_URL`: local BSC RPC; defaults to `https://bsc-dataseed.bnbchain.org`
 - `ONEINCH_API_KEY`: optional; enables full `wallet.assets` discovery
-- `FLUXION_ONEINCH_BALANCE_URL`: optional provider override
+- `EOLLO_ONEINCH_BALANCE_URL`: optional provider override
 - `ALCHEMY_API_KEY`: optional; enables full `wallet.collectibles` discovery
-- `FLUXION_ALCHEMY_NFT_URL`: optional Alchemy NFT endpoint override (defaults to the selected chain network)
+- `EOLLO_ALCHEMY_NFT_URL`: optional Alchemy NFT endpoint override (defaults to the selected chain network)
 - `WALLETCONNECT_PROJECT_ID`: required for `wallet.connect`; create one at https://cloud.reown.com
 - `WALLETCONNECT_RELAY_URL`: optional relay override; defaults to `wss://relay.walletconnect.com`
-- `FLUXION_AGENT_ID_API_URL`: optional SPACE ID Agent ID API override
+- `EOLLO_AGENT_ID_API_URL`: optional SPACE ID Agent ID API override
 
 ## Output
 

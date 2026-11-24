@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/yield_history.v2.json",
-  "title": "Fluxion yield.history v2",
+  "$id": "https://eollo.xyz/schemas/yield_history.v2.json",
+  "title": "Eollo yield.history v2",
   "type": "object",
   "additionalProperties": false,
   "required": [

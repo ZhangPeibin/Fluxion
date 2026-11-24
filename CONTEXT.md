@@ -1,6 +1,6 @@
-# Fluxion Context
+# Eollo Context
 
-Fluxion is a **composable Web3 capability runtime for AI agents**. It exposes action-level
+Eollo is a **composable Web3 capability runtime for AI agents**. It exposes action-level
 capabilities over MCP and CLI, routes each capability to a fixed internal execution location, and
 returns structured results that agents can compose into workflows.
 
@@ -11,7 +11,7 @@ must use these terms consistently.
 
 | Term | Meaning |
 |---|---|
-| **Fluxion** | The project and runtime. It is not a wallet, an agent, or a single DEX product. |
+| **Eollo** | The project and runtime. It is not a wallet, an agent, or a single DEX product. |
 | **Capability** | One action-level contract such as `swap.quote` or `transaction.inspect`. A capability has an id, input/output schema, chain support, execution location, side effects, errors, and docs. |
 | **Capability ID** | Stable `domain.action` identifier, for example `wallet.balance` or `yield.discover`. |
 | **Domain** | A group of related Web3 actions: `swap`, `wallet`, `transaction`, `signature`, `yield`, `position`, `fourmeme`. |
@@ -19,7 +19,7 @@ must use these terms consistently.
 | **Capability catalog** | The machine-readable source of truth for capabilities, surfaces, and workflows. See `capabilities/catalog.yaml`. |
 | **Capability registry** | The runtime dispatch table that maps a capability id to its metadata and handler. |
 | **Capability envelope** | The common response shape: `meta`, `chain`, `block`, `as_of`, `provenance`, `coverage`, `warnings`, `unknowns`, `data` or `error`. |
-| **Execution location** | Where a capability runs: `local` or `remote`. It is fixed per capability and is an internal Fluxion decision. Agents and users never choose it. |
+| **Execution location** | Where a capability runs: `local` or `remote`. It is fixed per capability and is an internal Eollo decision. Agents and users never choose it. |
 | **Transport** | How an agent reaches a capability: MCP stdio, CLI, or HTTP. Transport is not a capability. |
 | **Side effect** | What a capability does: `read_only`, `local_session`, `prepares_calldata`, `signs`, or `broadcasts`. |
 | **Chain matrix** | The declared Ethereum/BSC support for each capability. Unsupported chains fail explicitly instead of falling back. |
@@ -45,7 +45,7 @@ must use these terms consistently.
 
 ## Decision records
 
-- [ADR-0001](docs/adr/0001-fluxion-capability-runtime.md): Fluxion is a composable multi-domain runtime.
+- [ADR-0001](docs/adr/0001-eollo-capability-runtime.md): Eollo is a composable multi-domain runtime.
 - [ADR-0002](docs/adr/0002-ethereum-bsc-chain-matrix.md): Ethereum and BSC are declared, first-class chains.
 - [ADR-0003](docs/adr/0003-capability-envelope-v2.md): every capability uses envelope v2.
 - [ADR-0004](docs/adr/0004-composable-workflows.md): workflows are first-class compositions.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/wallet_disconnect.v1.json",
-  "title": "Fluxion wallet disconnect v1",
+  "$id": "https://eollo.xyz/schemas/wallet_disconnect.v1.json",
+  "title": "Eollo wallet disconnect v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["disconnected"],

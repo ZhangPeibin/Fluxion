@@ -1,8 +1,8 @@
-# Fluxion Architecture Design
+# Eollo Architecture Design
 
 English | [中文](ARCHITECTURE.md)
 
-> This document explains **how Fluxion works**: startup, pool discovery, building the
+> This document explains **how Eollo works**: startup, pool discovery, building the
 > multigraph, warming a price snapshot, and the full data flow of a `/quote` request —
 > including how caches, RPC, and concurrency are organized.
 >
@@ -15,7 +15,7 @@ English | [中文](ARCHITECTURE.md)
 
 ## 1. In one sentence
 
-Fluxion is an **Ethereum mainnet multi-hop routing quote (RFQ) service**: given
+Eollo is an **Ethereum mainnet multi-hop routing quote (RFQ) service**: given
 `token_in` / `token_out` / `amount_in`, it searches a **directed multigraph** of Uniswap V2/V3
 and Curve pools for the **single best path** and returns an exact `amount_out` (exact-in).
 It is **open-source**: one YAML config plus your own RPC / Graph key, runnable locally for

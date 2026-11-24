@@ -2,14 +2,14 @@ use alloy_primitives::{Address, U256, keccak256};
 use axum::Json;
 use serde_json::{Value, json};
 
-use fluxion::adapters::Dispatcher;
-use fluxion::config::Config;
-use fluxion::conversion::ProtocolConversions;
-use fluxion::graph::Graph;
-use fluxion::model::{ConversionKind, Pool, PoolKind, QuoteRequest};
-use fluxion::router::Router;
-use fluxion::rpc::RpcClient;
-use fluxion::source::{MockV2, QuoteSource};
+use eollo::adapters::Dispatcher;
+use eollo::config::Config;
+use eollo::conversion::ProtocolConversions;
+use eollo::graph::Graph;
+use eollo::model::{ConversionKind, Pool, PoolKind, QuoteRequest};
+use eollo::router::Router;
+use eollo::rpc::RpcClient;
+use eollo::source::{MockV2, QuoteSource};
 
 fn selector(signature: &str) -> String {
     keccak256(signature.as_bytes())[..4]
@@ -142,13 +142,13 @@ async fn router_composes_conversion_with_existing_wsteth_pool() {
     use tower::ServiceExt;
     let router = Router::default();
     router.set_snapshot(std::sync::Arc::new(
-        fluxion::router::PriceSnapshot::build(&graph, &source).await,
+        eollo::router::PriceSnapshot::build(&graph, &source).await,
     ));
-    let app = fluxion::api::app(std::sync::Arc::new(fluxion::api::AppState {
+    let app = eollo::api::app(std::sync::Arc::new(eollo::api::AppState {
         graph,
         source: std::sync::Arc::new(source),
         router,
-        limiter: fluxion::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
+        limiter: eollo::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
         rpc: None,
         request_timeout: std::time::Duration::from_secs(3),
     }));
@@ -197,7 +197,7 @@ fn config_rejects_unknown_interfaces_and_inconsistent_wrapper_tokens() {
 
 #[tokio::test]
 async fn conversion_path_survives_spot_better_but_thin_amm_paths() {
-    use fluxion::router::RouterConfig;
+    use eollo::router::RouterConfig;
     let (rpc, server) = conversion_rpc().await;
     let conversion = wrapper();
     let mut graph = Graph::new();
@@ -246,7 +246,7 @@ async fn conversion_path_survives_spot_better_but_thin_amm_paths() {
 
 #[tokio::test]
 async fn adding_a_thin_shibaswap_pool_cannot_crowd_out_the_original_route() {
-    use fluxion::router::RouterConfig;
+    use eollo::router::RouterConfig;
     let mut graph = Graph::new();
     let mut reserves = std::collections::HashMap::new();
     for (id, from, to, r0, r1, kind) in [
@@ -286,7 +286,7 @@ async fn adding_a_thin_shibaswap_pool_cannot_crowd_out_the_original_route() {
 #[tokio::test]
 #[ignore]
 async fn mainnet_wsteth_round_trip_and_shibaswap_router_agree() {
-    use fluxion::adapters::UniswapV2;
+    use eollo::adapters::UniswapV2;
     let rpc = RpcClient::new("https://eth.drpc.org".into());
     let block = rpc.block_number().await.unwrap();
     let rpc = rpc.at_block(block);
@@ -304,7 +304,7 @@ async fn mainnet_wsteth_round_trip_and_shibaswap_router_agree() {
     let shib: Address = "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce"
         .parse()
         .unwrap();
-    let discovered = fluxion::discovery::discover_shibaswap_v2(
+    let discovered = eollo::discovery::discover_shibaswap_v2(
         &Config {
             token_allowlist: vec![format!("{weth:#x}"), format!("{shib:#x}")],
             ..Default::default()
@@ -315,7 +315,7 @@ async fn mainnet_wsteth_round_trip_and_shibaswap_router_agree() {
     .unwrap();
     assert_eq!(discovered.len(), 1);
     let pool = &discovered[0];
-    let source = UniswapV2::new(std::sync::Arc::new(fluxion::adapters::RpcV2Reserves::new(
+    let source = UniswapV2::new(std::sync::Arc::new(eollo::adapters::RpcV2Reserves::new(
         rpc.clone(),
     )));
     let i = pool.coins.iter().position(|coin| *coin == weth).unwrap();

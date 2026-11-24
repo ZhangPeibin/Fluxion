@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, U256};
-use fluxion::{
+use eollo::{
     graph::Graph,
     model::{Pool, PoolKind, QuoteRequest},
     router::Router,
@@ -109,11 +109,11 @@ async fn multi_ties_and_tiny_or_maximum_inputs_keep_valid_baseline() {
 async fn api_quote(body: serde_json::Value) -> (axum::http::StatusCode, serde_json::Value) {
     use tower::ServiceExt;
     let (graph, source, _) = fixture();
-    let app = fluxion::api::app(std::sync::Arc::new(fluxion::api::AppState {
+    let app = eollo::api::app(std::sync::Arc::new(eollo::api::AppState {
         graph,
         source: std::sync::Arc::new(source),
         router: Router::default(),
-        limiter: fluxion::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
+        limiter: eollo::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
         rpc: None,
         request_timeout: std::time::Duration::from_secs(3),
     }));
@@ -179,16 +179,16 @@ async fn http_opt_in_exposes_allocations_without_faking_sequential_path() {
     );
 }
 
-struct SlowFractions(fluxion::source::MockV2);
+struct SlowFractions(eollo::source::MockV2);
 #[async_trait::async_trait]
-impl fluxion::source::QuoteSource for SlowFractions {
+impl eollo::source::QuoteSource for SlowFractions {
     async fn amount_out(
         &self,
         pool: &Pool,
         i: usize,
         j: usize,
         amount: U256,
-    ) -> Result<U256, fluxion::error::QuoteError> {
+    ) -> Result<U256, eollo::error::QuoteError> {
         if amount != U256::from(1001) {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
@@ -199,10 +199,10 @@ impl fluxion::source::QuoteSource for SlowFractions {
         pool: &Pool,
         i: usize,
         j: usize,
-    ) -> Result<f64, fluxion::error::QuoteError> {
+    ) -> Result<f64, eollo::error::QuoteError> {
         self.0.mid_price(pool, i, j).await
     }
-    async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, fluxion::error::QuoteError> {
+    async fn reserve_in(&self, pool: &Pool, i: usize) -> Result<U256, eollo::error::QuoteError> {
         self.0.reserve_in(pool, i).await
     }
 }
@@ -212,12 +212,12 @@ async fn http_deadline_retains_baseline_instead_of_timing_out_during_extra_searc
     use serde_json::json;
     use tower::ServiceExt;
     let (graph, source, request) = fixture();
-    let app = fluxion::api::app(std::sync::Arc::new(fluxion::api::AppState {
+    let app = eollo::api::app(std::sync::Arc::new(eollo::api::AppState {
         graph,
         source: std::sync::Arc::new(SlowFractions(source)),
         router: Router::default(),
         rpc: None,
-        limiter: fluxion::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
+        limiter: eollo::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
         request_timeout: std::time::Duration::from_millis(200),
     }));
     let response=app.oneshot(axum::http::Request::builder().method("POST").uri("/quote").header("content-type","application/json").body(axum::body::Body::from(json!({"token_in":request.token_in.to_string(),"token_out":request.token_out.to_string(),"amount_in":"1001","split":true}).to_string())).unwrap()).await.unwrap();
@@ -252,17 +252,17 @@ async fn http_split_prices_all_allocations_at_one_returned_block() {
         }),
     );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let rpc = fluxion::rpc::RpcClient::new(format!("http://{}", listener.local_addr().unwrap()));
+    let rpc = eollo::rpc::RpcClient::new(format!("http://{}", listener.local_addr().unwrap()));
     let server = tokio::spawn(async move {
         axum::serve(listener, rpc_app).await.unwrap();
     });
     let (graph, _, request) = fixture();
-    let app = fluxion::api::app(std::sync::Arc::new(fluxion::api::AppState {
+    let app = eollo::api::app(std::sync::Arc::new(eollo::api::AppState {
         graph,
         source: std::sync::Arc::new(FixedRate::new(U256::from(1))),
         router: Router::default(),
         rpc: Some(rpc),
-        limiter: fluxion::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
+        limiter: eollo::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
         request_timeout: std::time::Duration::from_secs(3),
     }));
     let response=app.oneshot(axum::http::Request::builder().method("POST").uri("/quote").header("content-type","application/json").body(axum::body::Body::from(json!({"token_in":request.token_in.to_string(),"token_out":request.token_out.to_string(),"amount_in":"1001","split":true}).to_string())).unwrap()).await.unwrap();
@@ -287,14 +287,14 @@ async fn mock_split_does_not_use_the_readiness_rpc_for_pricing() {
     use serde_json::json;
     use tower::ServiceExt;
     let (graph, source, request) = fixture();
-    let rpc = fluxion::rpc::RpcClient::new("http://127.0.0.1:1".into());
-    let app = fluxion::api::app_with_split(
-        std::sync::Arc::new(fluxion::api::AppState {
+    let rpc = eollo::rpc::RpcClient::new("http://127.0.0.1:1".into());
+    let app = eollo::api::app_with_split(
+        std::sync::Arc::new(eollo::api::AppState {
             graph,
             source: std::sync::Arc::new(source),
             router: Router::default(),
             rpc: Some(rpc.clone()),
-            limiter: fluxion::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
+            limiter: eollo::api::RateLimiter::new(100, std::time::Duration::from_secs(1)),
             request_timeout: std::time::Duration::from_secs(3),
         }),
         SplitOptimizer::new(SplitConfig::multi_pool()).unwrap(),

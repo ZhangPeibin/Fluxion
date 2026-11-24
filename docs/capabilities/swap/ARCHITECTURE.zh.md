@@ -2,7 +2,7 @@
 
 [English](ARCHITECTURE.md) · 中文
 
-本页详细说明 `swap.quote`：一个请求如何进入 Fluxion，远程报价引擎如何计算 exact-in 金额，
+本页详细说明 `swap.quote`：一个请求如何进入 Eollo，远程报价引擎如何计算 exact-in 金额，
 以及后台状态流水线如何保持价格数据新鲜。
 
 下图是一张纵向技术地图，分成 5 个颜色分区。沿着实线请求箭头从上往下读；后台流水线负责发布
@@ -17,7 +17,7 @@ flowchart TB
   classDef error fill:#ffebee,stroke:#c62828,color:#111
   classDef output fill:#f3e5f5,stroke:#6a1b9a,color:#111
 
-  A["1 客户端：Agent / CLI"] -->|MCP stdio| B["1 fluxion mcp<br/>tool: swap_quote"] -->|工具调用| CR["1 Capability router<br/>swap.quote 固定 remote"]
+  A["1 客户端：Agent / CLI"] -->|MCP stdio| B["1 eollo mcp<br/>tool: swap_quote"] -->|工具调用| CR["1 Capability router<br/>swap.quote 固定 remote"]
   CR -->|HTTPS POST /quote| H["2 POST /quote<br/>解析 · 校验 · 限流 · 计算槽位"]
   H --> L["2 租用快照<br/>一个不可变版本"]
   H -. 参数错误 / 超限 .-> ERR1["2 4xx / 429<br/>稳定错误码"]
@@ -60,7 +60,7 @@ flowchart TB
 
 | 颜色 | 阶段 | 回答的问题 |
 |---|---|---|
-| 靛蓝 | 1. 客户端 | Agent 如何进入 Fluxion？ |
+| 靛蓝 | 1. 客户端 | Agent 如何进入 Eollo？ |
 | 橙色 | 2. API | 计算前校验、限流和租用快照做了什么？ |
 | 绿色 | 3. 引擎 | 路由如何搜索和拆单？ |
 | 蓝色 | 4. 后台 | 不可变价格快照如何构建和发布？ |
@@ -73,8 +73,8 @@ flowchart TB
 
 | 步骤 | 细节 |
 |---|---|
-| Agent 入口 | Agent 调用 MCP tool `swap_quote`；CLI 使用 `fluxion swap ...`。 |
-| MCP tool | `fluxion mcp` 是 stdio bridge。参数包括 `token_in`、`token_out`、`amount`、`max_hops`、`split`、`split_max_branches`、`decimals_in`、`decimals_out`。 |
+| Agent 入口 | Agent 调用 MCP tool `swap_quote`；CLI 使用 `eollo swap ...`。 |
+| MCP tool | `eollo mcp` 是 stdio bridge。参数包括 `token_in`、`token_out`、`amount`、`max_hops`、`split`、`split_max_branches`、`decimals_in`、`decimals_out`。 |
 | Capability 路由 | `swap.quote` 固定使用 remote 服务。Agent 不选择 local/remote，也不发送 provider 或 mode。 |
 | 传输 | 客户端发送 `POST /quote`。认证、安装 token 和 MCP 注册属于传输层：[docs/MCP.md](../../MCP.md)。 |
 

@@ -1,12 +1,12 @@
 use alloy_primitives::{Address, U256};
-use fluxion::config::Config;
-use fluxion::graph::Graph;
-use fluxion::model::{Pool, PoolKind, QuoteRequest};
-use fluxion::router::{PriceSnapshot, Router};
-use fluxion::rpc::RpcClient;
-use fluxion::source::QuoteSource;
-use fluxion::split::{PlanKind, SplitConfig, SplitOptimizer};
-use fluxion::universe::{pricing_source, warm_coarse_prices};
+use eollo::config::Config;
+use eollo::graph::Graph;
+use eollo::model::{Pool, PoolKind, QuoteRequest};
+use eollo::router::{PriceSnapshot, Router};
+use eollo::rpc::RpcClient;
+use eollo::source::QuoteSource;
+use eollo::split::{PlanKind, SplitConfig, SplitOptimizer};
+use eollo::universe::{pricing_source, warm_coarse_prices};
 use std::sync::Arc;
 
 #[tokio::test]

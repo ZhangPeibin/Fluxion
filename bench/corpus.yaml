@@ -1,7 +1,7 @@
 # Benchmark corpus: directed token pairs and raw-unit input amounts.
 #
 # Amount tiers are chosen to approximate $1k / $10k / $100k at authoring time.
-# Both Fluxion and aggregators receive the same raw amount for each row.
+# Both Eollo and aggregators receive the same raw amount for each row.
 
 symbols:
   "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": WETH

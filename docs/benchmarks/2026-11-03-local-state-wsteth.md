@@ -1,7 +1,7 @@
 # #32：wstETH 本地整数转换与 stETH 多跳（2026-11-03）
 
-这是 [#31](https://github.com/ZhangPeibin/Fluxion/issues/31) 的
-[#32 实施切片](https://github.com/ZhangPeibin/Fluxion/issues/32)。受限示例明确排除 Curve，
+这是 [#31](https://github.com/ZhangPeibin/eollo/issues/31) 的
+[#32 实施切片](https://github.com/ZhangPeibin/eollo/issues/32)。受限示例明确排除 Curve，
 不是全平台 90 行或默认模式切换的验收，也不与旧 4–6 秒大图实验直接计算提速倍数。
 
 ## 协议核实与整数一致性

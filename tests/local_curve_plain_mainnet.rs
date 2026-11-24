@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, U256, keccak256};
-use fluxion::{
+use eollo::{
     adapters::Curve,
     curve_plain::PlainProfile,
     graph::Graph,

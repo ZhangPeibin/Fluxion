@@ -1,6 +1,6 @@
 use alloy_primitives::{Address, U256, keccak256};
 use axum::{Json, Router, routing::post};
-use fluxion::{
+use eollo::{
     api::{self, AppState, RateLimiter},
     curve_local::{COINS, THREE_POOL},
     graph::Graph,

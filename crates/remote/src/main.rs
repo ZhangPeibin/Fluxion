@@ -4,23 +4,23 @@ use std::time::Duration;
 
 use alloy_primitives::{Address, U256};
 
-use fluxion_remote::adapters::CachingSource;
-use fluxion_remote::api::{self, AppState, RateLimiter};
-use fluxion_remote::auth::{AuthStore, register, require_auth};
-use fluxion_remote::config::Config;
-use fluxion_remote::graph::Graph;
-use fluxion_remote::local_state::{PricingMode, SnapshotStore, StateSynchronizer};
-use fluxion_remote::model::{Pool, PoolKind};
-use fluxion_remote::router::{PriceSnapshot, Router, RouterConfig};
-use fluxion_remote::rpc::RpcClient;
-use fluxion_remote::source::MockV2;
-use fluxion_remote::split::SplitOptimizer;
-use fluxion_remote::state::StateCache;
-use fluxion_remote::universe::{
+use eollo_remote::adapters::CachingSource;
+use eollo_remote::api::{self, AppState, RateLimiter};
+use eollo_remote::auth::{AuthStore, register, require_auth};
+use eollo_remote::config::Config;
+use eollo_remote::graph::Graph;
+use eollo_remote::local_state::{PricingMode, SnapshotStore, StateSynchronizer};
+use eollo_remote::model::{Pool, PoolKind};
+use eollo_remote::router::{PriceSnapshot, Router, RouterConfig};
+use eollo_remote::rpc::RpcClient;
+use eollo_remote::source::MockV2;
+use eollo_remote::split::SplitOptimizer;
+use eollo_remote::state::StateCache;
+use eollo_remote::universe::{
     discover_pools, platform_enabled, pricing_source, warm_coarse_prices,
 };
-use fluxion_remote::yield_intel::provider::YieldProvider;
-use fluxion_remote::yield_intel::{Registry, YieldOptions, YieldStore};
+use eollo_remote::yield_intel::provider::YieldProvider;
+use eollo_remote::yield_intel::{Registry, YieldOptions, YieldStore};
 
 #[tokio::main]
 async fn main() {
@@ -45,7 +45,7 @@ async fn main() {
                 .expect("--config needs a YAML path")
         }
         Some("--help" | "-h") => {
-            println!("Usage: fluxion-remote [serve] [--config PATH]");
+            println!("Usage: eollo-remote [serve] [--config PATH]");
             return;
         }
         Some(other) => panic!("unknown argument: {other}"),
@@ -250,7 +250,7 @@ async fn run_server(config_path: String) {
     } else {
         app
     };
-    let app = if std::env::var("FLUXION_REQUIRE_AUTH").as_deref() == Ok("1") {
+    let app = if std::env::var("EOLLO_REQUIRE_AUTH").as_deref() == Ok("1") {
         let auth = Arc::new(AuthStore::new());
         tracing::info!(
             "installation-token auth enabled for /quote, /yield/discover, /yield/history and /position/analyze"
@@ -261,7 +261,7 @@ async fn run_server(config_path: String) {
     } else {
         app
     };
-    let app = if std::env::var_os("FLUXION_DIAG").is_some() {
+    let app = if std::env::var_os("EOLLO_DIAG").is_some() {
         tracing::info!(threads=?std::thread::available_parallelism(), "diag_runtime");
         tokio::spawn(async {
             loop {

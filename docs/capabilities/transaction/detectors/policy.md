@@ -51,7 +51,7 @@ Advisory is the default. Policy never signs or blocks by itself; enforcement sti
 ## Modes
 
 - `advisory` (default): findings only.
-- `enforce`: return a policy decision that the caller must honor. Fluxion does not sign, so
+- `enforce`: return a policy decision that the caller must honor. Eollo does not sign, so
   enforcement still depends on the signer integration.
 
 ## Failure and Unknown Behaviour

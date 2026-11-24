@@ -1,6 +1,6 @@
 ---
 name: wallet
-description: Use when the user asks for an account's native or token balances, wants to know which tokens or NFTs an address holds, needs allowances, wants to resolve a BSC .ai Agent ID, wants to link a mobile wallet with WalletConnect, wants to sign a message or EIP-712 typed data, or wants to send native/ERC20 funds. Local wallet tools default to BSC and accept Ethereum via chain. Covers the Fluxion wallet_balance, wallet_assets, wallet_allowance, wallet_collectibles, wallet_agent_id, wallet_connect, wallet_status, wallet_sign, wallet_send and wallet_disconnect MCP tools. Account data is read-only; linking, signing and sending never ask for private keys.
+description: Use when the user asks for an account's native or token balances, wants to know which tokens or NFTs an address holds, needs allowances, wants to resolve a BSC .ai Agent ID, wants to link a mobile wallet with WalletConnect, wants to sign a message or EIP-712 typed data, or wants to send native/ERC20 funds. Local wallet tools default to BSC and accept Ethereum via chain. Covers the Eollo wallet_balance, wallet_assets, wallet_allowance, wallet_collectibles, wallet_agent_id, wallet_connect, wallet_status, wallet_sign, wallet_send and wallet_disconnect MCP tools. Account data is read-only; linking, signing and sending never ask for private keys.
 ---
 
 # wallet capabilities
@@ -40,8 +40,8 @@ Do not choose local/remote. Execution is fixed per capability:
 | `wallet.status` | local |
 | `wallet.disconnect` | local |
 
-The agent does not start or manage a server. `FLUXION_BSC_RPC_URL` selects the local BSC RPC
-(default chain); `FLUXION_RPC_URL` selects Ethereum. `ONEINCH_API_KEY` enables full
+The agent does not start or manage a server. `EOLLO_BSC_RPC_URL` selects the local BSC RPC
+(default chain); `EOLLO_RPC_URL` selects Ethereum. `ONEINCH_API_KEY` enables full
 `wallet.assets` discovery.
 
 ## `wallet_balance`
@@ -234,7 +234,7 @@ OKX, or another WalletConnect wallet.
 }
 ```
 
-- Requires `WALLETCONNECT_PROJECT_ID` in the environment that starts `fluxion mcp`.
+- Requires `WALLETCONNECT_PROJECT_ID` in the environment that starts `eollo mcp`.
 - Pass `chain: "bsc"` (default) or `chain: "ethereum"`.
 - Returns `status: "pending"`, `uri`, `qr_ascii`, and `expires_at` immediately.
 - The first text content block of the MCP result contains the 53-column fenced QR. Reproduce that
@@ -276,21 +276,21 @@ Remove the local session and abort a pending pairing.
 ## CLI
 
 ```bash
-fluxion wallet balance 0xabc... --tokens BNB,USDT,CAKE --json
-fluxion wallet balance 0xabc... --chain ethereum --tokens ETH,USDC --json
-fluxion wallet assets 0xabc... --json
-fluxion wallet assets 0xabc... --chain ethereum --include-unknown --json
-fluxion wallet allowance 0xowner --spender 0xspender --tokens USDT,CAKE --json
-fluxion wallet collectibles 0xowner --json
-fluxion wallet collectibles 0xowner --collections 0xcollection --json
-fluxion wallet agent-id alice.ai --json
-fluxion wallet sign --message "hello" --json
-fluxion wallet sign --typed-data typed-data.json --policy policy.json --json
-fluxion wallet send --to 0x... --token BNB --amount 0.01 --json
-fluxion wallet send --to 0x... --token USDT --amount 10 --policy policy.json
-fluxion wallet connect --chain bsc
-fluxion wallet status
-fluxion wallet disconnect
+eollo wallet balance 0xabc... --tokens BNB,USDT,CAKE --json
+eollo wallet balance 0xabc... --chain ethereum --tokens ETH,USDC --json
+eollo wallet assets 0xabc... --json
+eollo wallet assets 0xabc... --chain ethereum --include-unknown --json
+eollo wallet allowance 0xowner --spender 0xspender --tokens USDT,CAKE --json
+eollo wallet collectibles 0xowner --json
+eollo wallet collectibles 0xowner --collections 0xcollection --json
+eollo wallet agent-id alice.ai --json
+eollo wallet sign --message "hello" --json
+eollo wallet sign --typed-data typed-data.json --policy policy.json --json
+eollo wallet send --to 0x... --token BNB --amount 0.01 --json
+eollo wallet send --to 0x... --token USDT --amount 10 --policy policy.json
+eollo wallet connect --chain bsc
+eollo wallet status
+eollo wallet disconnect
 ```
 
 Common options: `--chain bsc|ethereum`, `--rpc-url URL`, `--block N`, `--no-native` (balance/assets),

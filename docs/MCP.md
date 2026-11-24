@@ -1,6 +1,6 @@
 # MCP
 
-Fluxion exposes its capabilities to agents over **MCP stdio**. MCP is the project-level
+Eollo exposes its capabilities to agents over **MCP stdio**. MCP is the project-level
 transport: it is not a capability, and client registration is not capability-specific.
 
 Capability contracts live in [docs/capabilities/](capabilities/README.md). This page covers
@@ -12,46 +12,46 @@ installation, registration, the remote service, lifecycle and troubleshooting.
 cargo install --path crates/client
 ```
 
-`fluxion` must be on `PATH`. If it is not, use an absolute path in the client config instead.
+`eollo` must be on `PATH`. If it is not, use an absolute path in the client config instead.
 
 ## Run
 
 ```bash
-fluxion mcp
+eollo mcp
 ```
 
-`fluxion mcp` starts a stdio MCP server. It exposes the installed capabilities and routes each
+`eollo mcp` starts a stdio MCP server. It exposes the installed capabilities and routes each
 call internally; the agent does not choose local or remote execution.
 
 ## Remote service
 
 `swap.quote`, `yield.discover`, `yield.history` and `position.analyze` always call the remote
-Fluxion service.
-`yield.build` and `yield.withdraw` run locally and only return calldata. Set `FLUXION_REMOTE_URL` to the remote service endpoint;
+Eollo service.
+`yield.build` and `yield.withdraw` run locally and only return calldata. Set `EOLLO_REMOTE_URL` to the remote service endpoint;
 development and tests use the same variable:
 
 ```bash
-FLUXION_REMOTE_URL=https://api.example.com FLUXION_API_KEY=... fluxion mcp
+EOLLO_REMOTE_URL=https://api.example.com EOLLO_API_KEY=... eollo mcp
 ```
 
-`FLUXION_REMOTE_URL` is an endpoint override, not a local/remote mode.
+`EOLLO_REMOTE_URL` is an endpoint override, not a local/remote mode.
 `GRAPH_API_KEY` is not required for normal users.
 
 ### Installation token
 
-With `FLUXION_REQUIRE_AUTH=1`, `/quote`, `/yield/discover`, `/yield/history` and `/position/analyze`
+With `EOLLO_REQUIRE_AUTH=1`, `/quote`, `/yield/discover`, `/yield/history` and `/position/analyze`
 require a bearer token. The local client handles this
 automatically:
 
 1. first `/quote` returns `401`
 2. client calls `POST /register` with a local `install_id`
-3. token is stored in `~/.fluxion/auth.json` (0600)
+3. token is stored in `~/.eollo/auth.json` (0600)
 4. the quote is retried
 
 The remote keeps tokens in memory in this minimal version. If the remote restarts, the client
 re-registers on the next `401`.
 
-The remote service is started separately. `fluxion mcp` does not start or wait for it; MCP
+The remote service is started separately. `eollo mcp` does not start or wait for it; MCP
 initialize and `tools/list` always succeed. If the remote endpoint is unavailable, `swap_quote`
 returns a structured retryable error.
 
@@ -59,11 +59,11 @@ Build/install and start the remote server separately:
 
 ```bash
 cargo install --path crates/remote
-FLUXION_REQUIRE_AUTH=1 fluxion-remote serve --config configs/runtime.yaml
+EOLLO_REQUIRE_AUTH=1 eollo-remote serve --config configs/runtime.yaml
 ```
 
 For local development without installing, use
-`cargo run -p fluxion-remote -- serve --config configs/runtime.yaml`.
+`cargo run -p eollo-remote -- serve --config configs/runtime.yaml`.
 
 ## Client registration
 
@@ -72,8 +72,8 @@ Claude Code (`.mcp.json`):
 ```json
 {
   "mcpServers": {
-    "fluxion": {
-      "command": "fluxion",
+    "eollo": {
+      "command": "eollo",
       "args": ["mcp"]
     }
   }
@@ -83,8 +83,8 @@ Claude Code (`.mcp.json`):
 Codex (`~/.codex/config.toml`):
 
 ```toml
-[mcp_servers.fluxion]
-command = "fluxion"
+[mcp_servers.eollo]
+command = "eollo"
 args = ["mcp"]
 ```
 
@@ -94,23 +94,23 @@ OpenCode (`opencode.json` or `~/.config/opencode/opencode.json`):
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "fluxion": {
+    "eollo": {
       "type": "local",
-      "command": ["fluxion", "mcp"],
+      "command": ["eollo", "mcp"],
       "enabled": true
     }
   }
 }
 ```
 
-Set `FLUXION_REMOTE_URL` / `FLUXION_API_KEY` in the environment that launches the agent when you
+Set `EOLLO_REMOTE_URL` / `EOLLO_API_KEY` in the environment that launches the agent when you
 need a non-default remote endpoint. For wallet linking, set `WALLETCONNECT_PROJECT_ID` in the same
 environment. Exact config keys vary by client version; check the client's
 MCP documentation if a snippet is rejected.
 
 ## Lifecycle
 
-- `fluxion mcp` keeps the MCP process alive and reuses one remote client.
+- `eollo mcp` keeps the MCP process alive and reuses one remote client.
 - `swap.quote`, `yield.discover`, `yield.history` and `position.analyze` use the remote service; the
   remote server owns discovery and snapshot warmup. `yield.build` and `yield.withdraw` are local.
 - Local wallet and transaction tools default to BSC; pass `chain: "ethereum"` for Ethereum.
@@ -121,12 +121,12 @@ MCP documentation if a snippet is rejected.
   open a window by default. Reproduce the QR before polling. Keep the process alive and call
   `wallet_status` with `wait_seconds` (up to 110) while the user scans; repeat if it returns
   `pending`. `wallet_disconnect` aborts a pending pairing.
-- `fluxion mcp` is otherwise stateless and never starts the remote server.
+- `eollo mcp` is otherwise stateless and never starts the remote server.
 - Start the remote server separately (for local testing or deployment).
 
 ## Skills
 
-Skills are agent instructions, not an execution path. Fluxion's swap skill lives in
+Skills are agent instructions, not an execution path. Eollo's swap skill lives in
 `skills/swap/SKILL.md` with required frontmatter.
 
 For opencode, add the repository skills directory to your config:
@@ -184,7 +184,7 @@ envelope v2; read each catalog entry for its schema and chain support.
 
 | Symptom | Check |
 |---|---|
-| `fluxion` not found | `cargo install --path crates/client`; verify `PATH`; or use an absolute path |
+| `eollo` not found | `cargo install --path crates/client`; verify `PATH`; or use an absolute path |
 | `INVALID_ARGUMENT` from a tool | Token symbol/address, amount format and optional decimals |
-| `RPC_ERROR` | `FLUXION_REMOTE_URL` and `FLUXION_API_KEY` |
+| `RPC_ERROR` | `EOLLO_REMOTE_URL` and `EOLLO_API_KEY` |
 | First call times out | Check the remote service; raise `experimental.mcp_timeout` |

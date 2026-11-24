@@ -1,6 +1,6 @@
 ---
 name: transaction
-description: Use when the user wants to inspect, simulate, send or verify BSC or Ethereum transactions, or uses the Fluxion transaction_inspect, transaction_simulate, transaction_send or transaction_verify MCP tools. Inspect/simulate/verify are read-only; send requires the connected wallet and explicit phone confirmation.
+description: Use when the user wants to inspect, simulate, send or verify BSC or Ethereum transactions, or uses the Eollo transaction_inspect, transaction_simulate, transaction_send or transaction_verify MCP tools. Inspect/simulate/verify are read-only; send requires the connected wallet and explicit phone confirmation.
 ---
 
 # transaction capabilities
@@ -66,7 +66,7 @@ Send already-built calldata through the connected WalletConnect session. It retu
 the transaction fields and the full inspection report are under `data`.
 
 ```bash
-fluxion transaction send --to 0x... --data 0x... --policy policy.json --json
+eollo transaction send --to 0x... --data 0x... --policy policy.json --json
 ```
 
 - Mandatory local simulation; revert -> `SIMULATION_FAILED`.
@@ -119,7 +119,7 @@ Verify what a sent transaction actually did. Read-only; it never signs or broadc
 ## Execution model
 
 `transaction.simulate` is fixed to the local runtime. The agent does not start or manage a server.
-It defaults to BSC (`FLUXION_BSC_RPC_URL`); pass `chain: "ethereum"` to use `FLUXION_RPC_URL`.
+It defaults to BSC (`EOLLO_BSC_RPC_URL`); pass `chain: "ethereum"` to use `EOLLO_RPC_URL`.
 
 ## MCP tool
 
@@ -147,9 +147,9 @@ It defaults to BSC (`FLUXION_BSC_RPC_URL`); pass `chain: "ethereum"` to use `FLU
 ## CLI
 
 ```bash
-fluxion transaction inspect --to 0x... --data 0x... --json
-fluxion transaction inspect --to 0x... --data 0x... --policy policy.json --json
-fluxion transaction simulate \
+eollo transaction inspect --to 0x... --data 0x... --json
+eollo transaction inspect --to 0x... --data 0x... --policy policy.json --json
+eollo transaction simulate \
   --to 0x... --data 0x... \
   --from 0x... --value 0.1 --block 26356654 --json
 ```

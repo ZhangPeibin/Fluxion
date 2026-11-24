@@ -578,7 +578,7 @@ mod tests {
     #[test]
     fn cache_round_trips() {
         let dir = std::env::temp_dir();
-        let path = dir.join(format!("fluxion-pools-{}.json", std::process::id()));
+        let path = dir.join(format!("eollo-pools-{}.json", std::process::id()));
         let path = path.to_str().unwrap();
         save_cache(path, &pools()).unwrap();
         let loaded = load_cache(path).unwrap();

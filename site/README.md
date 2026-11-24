@@ -1,10 +1,10 @@
-# Fluxion product site
+# Eollo product site
 
-Static product landing page for Fluxion: positioning, capability catalog, install steps, MCP client
+Static product landing page for Eollo: positioning, capability catalog, install steps, MCP client
 registration, skills and the security model. Built with React + Vite and deployed to GitHub Pages.
 
 This is separate from `ui/` (the internal routing-graph viewer). The site has no backend and never
-calls the Fluxion runtime; every number and capability card is derived from the repository.
+calls the Eollo runtime; every number and capability card is derived from the repository.
 
 ## Develop
 
@@ -24,12 +24,16 @@ Each entry mounts the same `src/App.jsx` with a `lang` prop; copy lives in `src/
 ## Build
 
 ```bash
-npm run build      # writes site/dist
+npm run build      # writes site/dist and copies schemas/ into dist/schemas
 npm run preview
 ```
 
-`base: "./"` keeps every asset link relative, so the same build works locally and under the GitHub
-Pages project path (`/Fluxion/`). Do not add root-absolute URLs (`/assets/...`).
+`site/public/CNAME` and the `postbuild` schema copy make the deployed site serve
+`https://eollo.xyz/schemas/...`, matching the `$id` values in `schemas/`.
+
+`base: "./"` keeps every asset link relative, so the same build works locally, under the GitHub
+Pages project path (`/eollo/`), and on the custom domain. Do not add root-absolute URLs
+(`/assets/...`).
 
 ## Capability data
 
@@ -38,10 +42,10 @@ identity, status, chains, execution, `requires` prerequisites and workflow step 
 after editing `capabilities/catalog.yaml`:
 
 ```bash
-cargo run -q -p fluxion-protocol --bin catalog-json > site/src/data/capabilities.json
+cargo run -q -p eollo-protocol --bin catalog-json > site/src/data/capabilities.json
 ```
 
-`cargo test -p fluxion-protocol site_catalog_matches_catalog` fails when the file is stale. The site
+`cargo test -p eollo-protocol site_catalog_matches_catalog` fails when the file is stale. The site
 renders cards from this file, so `capabilities/catalog.yaml` stays the single source of truth.
 
 Chinese summaries are display copy in `src/i18n.js`; English summaries come straight from the
@@ -52,7 +56,7 @@ catalog. Add a translation when adding a capability.
 `src/config.js` exports `MANAGED_REMOTE_URL`, read from `VITE_MANAGED_REMOTE_URL` at build time. Leave
 it empty until the hosted service is live: the Managed endpoint tab then shows a "soon" state and
 self-host is the default. Set it at build time and the tab renders
-`FLUXION_REMOTE_URL=<url> fluxion mcp` automatically.
+`EOLLO_REMOTE_URL=<url> eollo mcp` automatically.
 
 For GitHub Pages, add a repository **variable** (Settings → Secrets and variables → Actions →
 Variables):
@@ -75,10 +79,17 @@ One-time repository setup:
 
 Expected URLs:
 
-- Chinese: <https://zhangpeibin.github.io/Fluxion/>
-- English: <https://zhangpeibin.github.io/Fluxion/en.html>
+- Chinese: <https://eollo.xyz/>
+- English: <https://eollo.xyz/en.html>
 
-If you add a custom domain, update the absolute `hreflang` links in `index.html` and `en.html`.
+`site/public/CNAME` contains `eollo.xyz`, so the build publishes the custom domain. Point DNS at
+GitHub Pages:
+
+- Apex `eollo.xyz`: `A` records to `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
+  `185.199.111.153`, plus the matching `AAAA` records if you want IPv6.
+- `www`: `CNAME` to `zhangpeibin.github.io`.
+
+Keep the absolute `hreflang` links in `index.html` and `en.html` on `https://eollo.xyz`.
 
 ## Structure
 
@@ -92,6 +103,7 @@ site/
   src/i18n.js           # all zh/en copy, snippets and links
   src/styles.css        # dark theme, responsive layout, motion
   src/data/capabilities.json
+  public/CNAME          # eollo.xyz custom domain for GitHub Pages
   src/components/
     Nav.jsx             # sticky nav, mobile drawer, language switch
     Hero.jsx            # full-bleed layer stack: map behind copy, scrim, scroll cue
@@ -126,5 +138,5 @@ site/
 
 ## Content freshness
 
-Sources: `README.md`, `README.en.md`, `docs/MCP.md`, `skills/*/SKILL.md` and
+Sources: `README.md`, `README.zh.md`, `docs/MCP.md`, `skills/*/SKILL.md` and
 `capabilities/catalog.yaml`. When those change, update `src/i18n.js` and regenerate the catalog JSON.

@@ -20,7 +20,7 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Catalog parity
-        run: cargo test -p fluxion-protocol capability::catalog
+        run: cargo test -p eollo-protocol capability::catalog
       - name: Unit tests
         run: cargo test --workspace
 

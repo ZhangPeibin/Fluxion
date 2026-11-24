@@ -1,6 +1,6 @@
 ---
 name: swap
-description: Use when the user asks for an exact-in swap quote on Ethereum (for example LDO to ETH), needs amount_out, route allocations, price impact or quote freshness, wants to build V2 swap calldata from a quote, or uses the Fluxion swap_quote or swap_build MCP tools. Do not use for signing, wallet or transaction execution.
+description: Use when the user asks for an exact-in swap quote on Ethereum (for example LDO to ETH), needs amount_out, route allocations, price impact or quote freshness, wants to build V2 swap calldata from a quote, or uses the Eollo swap_quote or swap_build MCP tools. Do not use for signing, wallet or transaction execution.
 ---
 
 # swap.quote
@@ -33,7 +33,7 @@ Inputs:
 
 ## Execution model
 
-Do not choose local/remote. `swap.quote` always uses the remote Fluxion service. `wallet.*` and
+Do not choose local/remote. `swap.quote` always uses the remote Eollo service. `wallet.*` and
 `transaction.simulate` use the local runtime. The agent does not start or manage any server
 process.
 
@@ -42,7 +42,7 @@ process.
 Build local Uniswap V2 calldata from a saved quote:
 
 ```bash
-fluxion swap build --quote quote.json --recipient 0x... --slippage-bps 50 --json
+eollo swap build --quote quote.json --recipient 0x... --slippage-bps 50 --json
 ```
 
 - Ethereum only; one `uniswap-v2` allocation; no split/nested/V3/Curve routes.
@@ -75,11 +75,11 @@ block, or user rejection stops the workflow. Never skip a failed step or sign si
 ## CLI
 
 ```bash
-fluxion capability describe swap.quote --json
-fluxion capability describe swap.build --json
-fluxion swap quote --in LDO --out ETH --amount 100 --json
-fluxion swap build --quote quote.json --recipient 0x... --json
-fluxion ldo-eth 100 --json
+eollo capability describe swap.quote --json
+eollo capability describe swap.build --json
+eollo swap quote --in LDO --out ETH --amount 100 --json
+eollo swap build --quote quote.json --recipient 0x... --json
+eollo ldo-eth 100 --json
 ```
 
 ## MCP

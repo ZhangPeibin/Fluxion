@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/transaction_verify.v2.json",
-  "title": "Fluxion transaction.verify v2",
+  "$id": "https://eollo.xyz/schemas/transaction_verify.v2.json",
+  "title": "Eollo transaction.verify v2",
   "type": "object",
   "additionalProperties": false,
   "required": [

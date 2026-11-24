@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, U256};
-use fluxion::{
+use eollo::{
     adapters::Curve,
     conversion::ProtocolConversions,
     curve_local::{COINS, THREE_POOL},

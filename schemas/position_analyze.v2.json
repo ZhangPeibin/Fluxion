@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/position_analyze.v2.json",
-  "title": "Fluxion position.analyze v2",
+  "$id": "https://eollo.xyz/schemas/position_analyze.v2.json",
+  "title": "Eollo position.analyze v2",
   "type": "object",
   "additionalProperties": false,
   "required": [

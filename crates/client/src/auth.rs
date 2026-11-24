@@ -1,4 +1,4 @@
-//! Installation identity and token storage for the remote Fluxion service.
+//! Installation identity and token storage for the remote Eollo service.
 
 use std::collections::HashMap;
 use std::env;
@@ -10,20 +10,20 @@ use serde_json::{Value, json};
 
 use crate::capability::{CapabilityError, CapabilityErrorCode};
 
-fn fluxion_dir() -> PathBuf {
-    let home = env::var_os("FLUXION_HOME")
+fn eollo_dir() -> PathBuf {
+    let home = env::var_os("EOLLO_HOME")
         .map(PathBuf::from)
         .or_else(|| env::var_os("HOME").map(PathBuf::from))
         .unwrap_or_else(env::temp_dir);
-    home.join(".fluxion")
+    home.join(".eollo")
 }
 
 fn install_id_path() -> PathBuf {
-    fluxion_dir().join("install-id")
+    eollo_dir().join("install-id")
 }
 
 fn token_path() -> PathBuf {
-    fluxion_dir().join("auth.json")
+    eollo_dir().join("auth.json")
 }
 
 fn write_private(path: &PathBuf, contents: &str) -> Result<(), CapabilityError> {

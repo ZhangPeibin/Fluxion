@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use alloy_primitives::{Address, U256};
 
-use fluxion::adapters::V2Reserves;
-use fluxion::rpc::RpcClient;
-use fluxion::state::StateCache;
+use eollo::adapters::V2Reserves;
+use eollo::rpc::RpcClient;
+use eollo::state::StateCache;
 
 fn addr(s: &str) -> Address {
     s.parse().unwrap()

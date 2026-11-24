@@ -481,7 +481,7 @@ mod tests {
         let path = repo_root().join("site/src/data/capabilities.json");
         let document = std::fs::read_to_string(&path).unwrap_or_else(|_| {
             panic!(
-                "missing {}; generate it with `cargo run -p fluxion-protocol --bin catalog-json > site/src/data/capabilities.json`",
+                "missing {}; generate it with `cargo run -p eollo-protocol --bin catalog-json > site/src/data/capabilities.json`",
                 path.display()
             )
         });

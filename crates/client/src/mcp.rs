@@ -1,6 +1,6 @@
 //! Minimal MCP stdio server exposing the `swap_quote` tool.
 //!
-//! The MCP adapter is the agent-facing transport. It forwards to Fluxion's
+//! The MCP adapter is the agent-facing transport. It forwards to Eollo's
 //! internal execution backend (hosted service or local runtime), so repeated
 //! tool calls do not pay discovery or snapshot warmup.
 
@@ -27,9 +27,9 @@ use crate::wallet::{
 };
 use crate::wallet_send::{self, SendRequest};
 use crate::walletconnect::{self, Manager, SignPayload, SignRequest};
-use fluxion_protocol::position::{PositionAnalyzeRequest, PositionCostBasis};
-use fluxion_protocol::swap::QuoteResponse;
-use fluxion_protocol::yield_capability::{
+use eollo_protocol::position::{PositionAnalyzeRequest, PositionCostBasis};
+use eollo_protocol::swap::QuoteResponse;
+use eollo_protocol::yield_capability::{
     RiskProfile, YieldBuildRequest, YieldDiscoverRequest, YieldHistoryRequest, YieldWithdrawRequest,
 };
 
@@ -105,7 +105,7 @@ async fn handle_request(
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
             "serverInfo": {
-                "name": "fluxion",
+                "name": "eollo",
                 "version": env!("CARGO_PKG_VERSION"),
             }
         })),
@@ -127,7 +127,7 @@ fn tools_list() -> Value {
         "tools": [
             {
                 "name": "swap_quote",
-                "description": "Get an exact-in swap quote from the warm local Fluxion runtime. \
+                "description": "Get an exact-in swap quote from the warm local Eollo runtime. \
                                 Token inputs may be built-in symbols (LDO, ETH, USDC) or 0x addresses. \
                                 Amounts are human units such as 100 or 0.5. \
                                 Split results may nest shared nodes under allocations[].sources and \

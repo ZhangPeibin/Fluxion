@@ -12,10 +12,10 @@ use crate::capability::CapabilityError;
 use crate::chain::Chain;
 use crate::transaction_inspect::{self, InspectPolicy};
 
-pub use fluxion_protocol::signature::{
+pub use eollo_protocol::signature::{
     SignatureCall, SignatureInspectAssurance, SignatureInspectDomain, SignatureInspectResponse,
 };
-use fluxion_protocol::transaction::{
+use eollo_protocol::transaction::{
     TransactionInspectExplanation, TransactionInspectFinding, TransactionInspectPolicyResult,
     TransactionInspectSource,
 };
@@ -618,7 +618,7 @@ fn decode_user_operation_call(
 ) -> Result<
     (
         SignatureCall,
-        Vec<fluxion_protocol::transaction::TransactionInspectFinding>,
+        Vec<eollo_protocol::transaction::TransactionInspectFinding>,
     ),
     String,
 > {

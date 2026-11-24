@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/wallet_send.v1.json",
-  "title": "Fluxion wallet send v1",
+  "$id": "https://eollo.xyz/schemas/wallet_send.v1.json",
+  "title": "Eollo wallet send v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["from", "recipient", "token", "amount", "chain_id", "tx_hash", "simulation", "chain"],

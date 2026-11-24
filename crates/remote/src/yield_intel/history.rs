@@ -1,7 +1,7 @@
 //! Historical APY series for a curated yield opportunity.
 
-use fluxion_protocol::capability::SCHEMA_VERSION;
-use fluxion_protocol::yield_capability::{
+use eollo_protocol::capability::SCHEMA_VERSION;
+use eollo_protocol::yield_capability::{
     YieldHistoryPoint, YieldHistoryRequest, YieldHistoryResponse, YieldHistorySummary, YieldSource,
 };
 
@@ -152,7 +152,7 @@ fn request_id() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    format!("fluxion-{}-{nanos}", std::process::id())
+    format!("eollo-{}-{nanos}", std::process::id())
 }
 
 #[cfg(test)]

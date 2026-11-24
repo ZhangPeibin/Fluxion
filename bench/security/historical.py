@@ -60,7 +60,7 @@ def inspect(binary: str, tx: dict, threat_intel: Path | None) -> dict:
     ]
     env = None
     if threat_intel is not None:
-        env = {**os.environ, "FLUXION_THREAT_INTEL_FILE": str(threat_intel)}
+        env = {**os.environ, "EOLLO_THREAT_INTEL_FILE": str(threat_intel)}
     completed = subprocess.run(
         command,
         capture_output=True,
@@ -115,7 +115,7 @@ def markdown(results: list[dict]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--bin", default="fluxion")
+    parser.add_argument("--bin", default="eollo")
     parser.add_argument("--corpus", type=Path, default=CORPUS)
     parser.add_argument("--threat-intel", type=Path, default=THREAT_INTEL)
     parser.add_argument("--out", type=Path)

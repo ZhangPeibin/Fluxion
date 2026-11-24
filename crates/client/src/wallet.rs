@@ -13,7 +13,7 @@ use crate::capability::{Amount, CapabilityError, TokenRef};
 use crate::chain::Chain;
 use crate::token;
 
-pub use fluxion_protocol::wallet::{
+pub use eollo_protocol::wallet::{
     AssetSource, CollectibleItem, WalletAllowance, WalletAllowancesResponse,
     WalletBalancesResponse, WalletCollectible, WalletCollectiblesResponse, WalletSendResponse,
     WalletTokenBalance,
@@ -50,24 +50,24 @@ impl WalletConfig {
     pub fn new(rpc_url: impl Into<String>) -> Self {
         Self {
             rpc_url: rpc_url.into(),
-            bsc_rpc_url: std::env::var("FLUXION_BSC_RPC_URL")
+            bsc_rpc_url: std::env::var("EOLLO_BSC_RPC_URL")
                 .unwrap_or_else(|_| DEFAULT_BSC_RPC.to_string()),
             oneinch_api_key: std::env::var("ONEINCH_API_KEY")
                 .ok()
                 .filter(|key| !key.trim().is_empty()),
-            oneinch_balance_url: std::env::var("FLUXION_ONEINCH_BALANCE_URL")
+            oneinch_balance_url: std::env::var("EOLLO_ONEINCH_BALANCE_URL")
                 .unwrap_or_else(|_| DEFAULT_ONEINCH_BALANCE.to_string()),
             alchemy_api_key: std::env::var("ALCHEMY_API_KEY")
                 .ok()
                 .filter(|key| !key.trim().is_empty()),
-            alchemy_nft_url: std::env::var("FLUXION_ALCHEMY_NFT_URL")
+            alchemy_nft_url: std::env::var("EOLLO_ALCHEMY_NFT_URL")
                 .unwrap_or_else(|_| "https://eth-mainnet.g.alchemy.com/nft/v3".to_string()),
         }
     }
 
     pub fn from_env() -> Self {
         Self::new(
-            std::env::var("FLUXION_RPC_URL")
+            std::env::var("EOLLO_RPC_URL")
                 .or_else(|_| std::env::var("RPC_URL"))
                 .unwrap_or_else(|_| DEFAULT_RPC.to_string()),
         )

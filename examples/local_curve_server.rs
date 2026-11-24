@@ -1,5 +1,5 @@
 //! Explicit verified-deployment HTTP demo; does not filter production discovery.
-use fluxion::{
+use eollo::{
     api::{self, AppState, RateLimiter},
     config::Config,
     curve_local::CurveProfile,

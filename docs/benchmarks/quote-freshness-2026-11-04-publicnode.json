@@ -8,7 +8,7 @@
     "end_block": 26338486,
     "paraswap_enabled": true,
     "oneinch_enabled": true,
-    "fluxion_split": true,
+    "eollo_split": true,
     "zerox_enabled": false,
     "working_tree_dirty": true,
     "service_info": {
@@ -322,7 +322,7 @@
   },
   "summary": {
     "rows": 90,
-    "fluxion_ok": 90,
+    "eollo_ok": 90,
     "paraswap_ok": 90,
     "oneinch_ok": 90,
     "zerox_ok": 0,
@@ -338,8 +338,8 @@
     "zerox_median_delta_bps": null,
     "zerox_mean_delta_bps": null,
     "zerox_within_50_bps": 0,
-    "fluxion_latency_p50_ms": 24,
-    "fluxion_latency_p95_ms": 107,
+    "eollo_latency_p50_ms": 24,
+    "eollo_latency_p95_ms": 107,
     "paraswap_latency_p50_ms": 353,
     "paraswap_latency_p95_ms": 630,
     "oneinch_latency_p50_ms": 474,
@@ -357,19 +357,19 @@
     "comparisons": {
       "0x": {
         "both_ok": 0,
-        "fluxion_only": 0,
+        "eollo_only": 0,
         "aggregator_only": 0,
         "both_failed": 0
       },
       "1inch": {
         "both_ok": 90,
-        "fluxion_only": 0,
+        "eollo_only": 0,
         "aggregator_only": 0,
         "both_failed": 0
       },
       "paraswap": {
         "both_ok": 90,
-        "fluxion_only": 0,
+        "eollo_only": 0,
         "aggregator_only": 0,
         "both_failed": 0
       }
@@ -480,7 +480,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759475049849000",
         "amount_out": "751857035",
         "latency_ms": 36,
@@ -2118,7 +2118,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759478907663000",
         "amount_out": "7517498653",
         "latency_ms": 56,
@@ -3655,7 +3655,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759480440813000",
         "amount_out": "75121167455",
         "latency_ms": 32,
@@ -5401,7 +5401,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "1000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759482152338000",
         "amount_out": "443241673471824412",
         "latency_ms": 18,
@@ -6705,7 +6705,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "10000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759483603712000",
         "amount_out": "4431902858972074884",
         "latency_ms": 46,
@@ -8156,7 +8156,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "100000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759485483432000",
         "amount_out": "44294939794875951678",
         "latency_ms": 23,
@@ -9712,7 +9712,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759487223084000",
         "amount_out": "752817057",
         "latency_ms": 19,
@@ -11059,7 +11059,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759488997807000",
         "amount_out": "7526679537",
         "latency_ms": 24,
@@ -12488,7 +12488,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759491095941000",
         "amount_out": "75177238144",
         "latency_ms": 32,
@@ -14268,7 +14268,7 @@
       "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "1000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759492859508000",
         "amount_out": "442573401176285837",
         "latency_ms": 21,
@@ -15651,7 +15651,7 @@
       "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "10000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759494773544000",
         "amount_out": "4422951249688166576",
         "latency_ms": 19,
@@ -17095,7 +17095,7 @@
       "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "100000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759496429258000",
         "amount_out": "44154673856888056813",
         "latency_ms": 29,
@@ -18748,7 +18748,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759498049376000",
         "amount_out": "751832218507387506720",
         "latency_ms": 19,
@@ -20157,7 +20157,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759499390389000",
         "amount_out": "7516935204711996622258",
         "latency_ms": 60,
@@ -21874,7 +21874,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759500802232000",
         "amount_out": "75073202500469400233076",
         "latency_ms": 50,
@@ -23604,7 +23604,7 @@
       "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "1000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759502186027000",
         "amount_out": "442589539180673198",
         "latency_ms": 46,
@@ -24925,7 +24925,7 @@
       "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "10000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759503654230000",
         "amount_out": "4409047400497017084",
         "latency_ms": 60,
@@ -26421,7 +26421,7 @@
       "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "100000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759505397951000",
         "amount_out": "43683009726729255225",
         "latency_ms": 71,
@@ -27955,7 +27955,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759506974588000",
         "amount_out": "980905",
         "latency_ms": 22,
@@ -29276,7 +29276,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759508340162000",
         "amount_out": "9806886",
         "latency_ms": 45,
@@ -30706,7 +30706,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759509999570000",
         "amount_out": "98032811",
         "latency_ms": 50,
@@ -32202,7 +32202,7 @@
       "token_in": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "1670000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759511372109000",
         "amount_out": "567276688578427690",
         "latency_ms": 14,
@@ -33530,7 +33530,7 @@
       "token_in": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "16700000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759512946157000",
         "amount_out": "5670692747268451189",
         "latency_ms": 28,
@@ -35003,7 +35003,7 @@
       "token_in": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "167000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759514398234000",
         "amount_out": "56671587784544327884",
         "latency_ms": 19,
@@ -36649,7 +36649,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "amount_in": "1000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759516006526000",
         "amount_out": "1001100503",
         "latency_ms": 59,
@@ -37975,7 +37975,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "amount_in": "10000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759517470234000",
         "amount_out": "10010989483",
         "latency_ms": 39,
@@ -39322,7 +39322,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "amount_in": "100000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759518896486000",
         "amount_out": "100108364522",
         "latency_ms": 68,
@@ -40747,7 +40747,7 @@
       "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "1000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759520312823000",
         "amount_out": "998739175",
         "latency_ms": 37,
@@ -42096,7 +42096,7 @@
       "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "10000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759522469290000",
         "amount_out": "9987237392",
         "latency_ms": 27,
@@ -43515,7 +43515,7 @@
       "token_in": "0xdac17f958d2ee523a2206206994597c13d831ec7",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "100000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759523944273000",
         "amount_out": "99871918013",
         "latency_ms": 35,
@@ -44903,7 +44903,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "amount_in": "1000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759525409108000",
         "amount_out": "999858643731568019341",
         "latency_ms": 22,
@@ -46273,7 +46273,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "amount_in": "10000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759526979892000",
         "amount_out": "9998581037556160131045",
         "latency_ms": 36,
@@ -47670,7 +47670,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "amount_in": "100000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759528628975000",
         "amount_out": "99985270420084453249667",
         "latency_ms": 39,
@@ -49130,7 +49130,7 @@
       "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "1000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759530148715000",
         "amount_out": "999954021",
         "latency_ms": 46,
@@ -50434,7 +50434,7 @@
       "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "10000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759531584448000",
         "amount_out": "9999523999",
         "latency_ms": 32,
@@ -51738,7 +51738,7 @@
       "token_in": "0x6b175474e89094c44da98b954eedeac495271d0f",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "100000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759533313910000",
         "amount_out": "99993618722",
         "latency_ms": 16,
@@ -53042,7 +53042,7 @@
       "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759534884389000",
         "amount_out": "333239713216810748",
         "latency_ms": 6,
@@ -54401,7 +54401,7 @@
       "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759536256113000",
         "amount_out": "3332395800613517057",
         "latency_ms": 9,
@@ -55760,7 +55760,7 @@
       "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759537493968000",
         "amount_out": "33323824851261390675",
         "latency_ms": 12,
@@ -57119,7 +57119,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759538743266000",
         "amount_out": "333360268086243737",
         "latency_ms": 12,
@@ -58478,7 +58478,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759540268426000",
         "amount_out": "3333601348585214508",
         "latency_ms": 38,
@@ -59837,7 +59837,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759541545403000",
         "amount_out": "33335880258715544823",
         "latency_ms": 41,
@@ -61196,7 +61196,7 @@
       "token_in": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "285714285714285714",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759543060152000",
         "amount_out": "356569186135309394",
         "latency_ms": 33,
@@ -62509,7 +62509,7 @@
       "token_in": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "2857142857142857142",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759544977367000",
         "amount_out": "3565690336833258177",
         "latency_ms": 107,
@@ -63822,7 +63822,7 @@
       "token_in": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "28571428571428571428",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759546396453000",
         "amount_out": "35656750917065994208",
         "latency_ms": 157,
@@ -65135,7 +65135,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759547941297000",
         "amount_out": "267042255815031249",
         "latency_ms": 164,
@@ -66439,7 +66439,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759549375899000",
         "amount_out": "2670421490913604869",
         "latency_ms": 214,
@@ -67752,7 +67752,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759551007386000",
         "amount_out": "26704108185934457348",
         "latency_ms": 264,
@@ -69065,7 +69065,7 @@
       "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759552554281000",
         "amount_out": "750744185",
         "latency_ms": 9,
@@ -70459,7 +70459,7 @@
       "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759553882889000",
         "amount_out": "7506369625",
         "latency_ms": 15,
@@ -72057,7 +72057,7 @@
       "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759555140571000",
         "amount_out": "75021046734",
         "latency_ms": 19,
@@ -73860,7 +73860,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "amount_in": "1000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759556444623000",
         "amount_out": "443809882042785712",
         "latency_ms": 20,
@@ -75369,7 +75369,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "amount_in": "10000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759557996830000",
         "amount_out": "4437254655875137590",
         "latency_ms": 28,
@@ -76897,7 +76897,7 @@
       "token_in": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "token_out": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "amount_in": "100000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759559272040000",
         "amount_out": "44314996137145233314",
         "latency_ms": 30,
@@ -78532,7 +78532,7 @@
       "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "token_out": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759560710889000",
         "amount_out": "2294084498751253123179",
         "latency_ms": 10,
@@ -79996,7 +79996,7 @@
       "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "token_out": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759561904461000",
         "amount_out": "22756315587063280184137",
         "latency_ms": 15,
@@ -81476,7 +81476,7 @@
       "token_in": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
       "token_out": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759563285048000",
         "amount_out": "211661682606415107628882",
         "latency_ms": 46,
@@ -83246,7 +83246,7 @@
       "token_in": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "1600000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759564703018000",
         "amount_out": "230801797678519367",
         "latency_ms": 13,
@@ -84602,7 +84602,7 @@
       "token_in": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "16000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759565994115000",
         "amount_out": "2296177557426995901",
         "latency_ms": 12,
@@ -86085,7 +86085,7 @@
       "token_in": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "160000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759567329041000",
         "amount_out": "21826917411131463961",
         "latency_ms": 62,
@@ -87718,7 +87718,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759568661474000",
         "amount_out": "156942524551202431651580901",
         "latency_ms": 20,
@@ -89037,7 +89037,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759569943429000",
         "amount_out": "1568747348561585395588629668",
         "latency_ms": 23,
@@ -90363,7 +90363,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759571409470000",
         "amount_out": "15620130672662821161546339766",
         "latency_ms": 42,
@@ -91724,7 +91724,7 @@
       "token_in": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "125000000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759572963372000",
         "amount_out": "263877714983691851",
         "latency_ms": 15,
@@ -93059,7 +93059,7 @@
       "token_in": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "1250000000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759574173476000",
         "amount_out": "2637869323663335446",
         "latency_ms": 14,
@@ -94430,7 +94430,7 @@
       "token_in": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "12500000000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759575486707000",
         "amount_out": "26288696147668509953",
         "latency_ms": 44,
@@ -95796,7 +95796,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x514910771af9ca656af840dff83e8264ecf986ca",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759577050006000",
         "amount_out": "69438379512173141705",
         "latency_ms": 24,
@@ -97100,7 +97100,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x514910771af9ca656af840dff83e8264ecf986ca",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759578464280000",
         "amount_out": "693661414915749081245",
         "latency_ms": 17,
@@ -98472,7 +98472,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x514910771af9ca656af840dff83e8264ecf986ca",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759580074288000",
         "amount_out": "6928095964631745942015",
         "latency_ms": 25,
@@ -99885,7 +99885,7 @@
       "token_in": "0x514910771af9ca656af840dff83e8264ecf986ca",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "66000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759581524459000",
         "amount_out": "712529218",
         "latency_ms": 18,
@@ -101275,7 +101275,7 @@
       "token_in": "0x514910771af9ca656af840dff83e8264ecf986ca",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "666000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759582820329000",
         "amount_out": "7166079443",
         "latency_ms": 11,
@@ -102885,7 +102885,7 @@
       "token_in": "0x514910771af9ca656af840dff83e8264ecf986ca",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "6666000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759584060471000",
         "amount_out": "67756622583",
         "latency_ms": 14,
@@ -104493,7 +104493,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759585430703000",
         "amount_out": "106182459084728275183",
         "latency_ms": 16,
@@ -105916,7 +105916,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759586787704000",
         "amount_out": "1059422664557770350414",
         "latency_ms": 35,
@@ -107511,7 +107511,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759588647898000",
         "amount_out": "10567042785306141148070",
         "latency_ms": 47,
@@ -109068,7 +109068,7 @@
       "token_in": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "140000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759590027758000",
         "amount_out": "987584789",
         "latency_ms": 33,
@@ -110504,7 +110504,7 @@
       "token_in": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "1400000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759591369458000",
         "amount_out": "9870646102",
         "latency_ms": 25,
@@ -112039,7 +112039,7 @@
       "token_in": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "14000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759592684189000",
         "amount_out": "98247543857",
         "latency_ms": 16,
@@ -113765,7 +113765,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759593946043000",
         "amount_out": "6013796041378350485",
         "latency_ms": 16,
@@ -115148,7 +115148,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759595478408000",
         "amount_out": "60094794177760414479",
         "latency_ms": 20,
@@ -116621,7 +116621,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759596843756000",
         "amount_out": "599021888575792700785",
         "latency_ms": 24,
@@ -118125,7 +118125,7 @@
       "token_in": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "4000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759598138355000",
         "amount_out": "499443014",
         "latency_ms": 9,
@@ -119469,7 +119469,7 @@
       "token_in": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "40000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759599547740000",
         "amount_out": "4986155296",
         "latency_ms": 10,
@@ -120966,7 +120966,7 @@
       "token_in": "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
       "token_out": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
       "amount_in": "400000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759600849389000",
         "amount_out": "49039318276",
         "latency_ms": 11,
@@ -122564,7 +122564,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
       "amount_in": "333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759602145917000",
         "amount_out": "164902842279630464098080337",
         "latency_ms": 13,
@@ -123968,7 +123968,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
       "amount_in": "3333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759603379165000",
         "amount_out": "1642595039447822244528410824",
         "latency_ms": 20,
@@ -125427,7 +125427,7 @@
       "token_in": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "token_out": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
       "amount_in": "33333333333333333333",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759604806565000",
         "amount_out": "15844818969298411967609100262",
         "latency_ms": 43,
@@ -126955,7 +126955,7 @@
       "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "80000000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759606454982000",
         "amount_out": "160638805581953330",
         "latency_ms": 18,
@@ -128530,7 +128530,7 @@
       "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "800000000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759608015991000",
         "amount_out": "1603351331609888203",
         "latency_ms": 14,
@@ -130150,7 +130150,7 @@
       "token_in": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
       "token_out": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
       "amount_in": "8000000000000000000000000000",
-      "fluxion": {
+      "eollo": {
         "request_id": "bench-36409-1793759609229883000",
         "amount_out": "15726758928402505222",
         "latency_ms": 23,

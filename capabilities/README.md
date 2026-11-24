@@ -1,6 +1,6 @@
 # Capabilities
 
-`catalog.yaml` is the machine-readable source of truth for Fluxion capabilities, non-capability
+`catalog.yaml` is the machine-readable source of truth for Eollo capabilities, non-capability
 surfaces, and workflows.
 
 - [Capability catalog](catalog.yaml)

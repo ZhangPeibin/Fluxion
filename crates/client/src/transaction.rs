@@ -7,7 +7,7 @@ use crate::capability::{Amount, CapabilityError};
 use crate::chain::Chain;
 use crate::wallet::WalletConfig;
 
-pub use fluxion_protocol::transaction::TransactionSimulateResponse;
+pub use eollo_protocol::transaction::TransactionSimulateResponse;
 
 #[derive(Debug, Clone)]
 pub struct SimulateRequest {

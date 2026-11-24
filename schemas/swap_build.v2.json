@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://fluxion.dev/schemas/swap_build.v2.json",
-  "title": "Fluxion swap.build v2",
+  "$id": "https://eollo.xyz/schemas/swap_build.v2.json",
+  "title": "Eollo swap.build v2",
   "type": "object",
   "additionalProperties": false,
   "required": [

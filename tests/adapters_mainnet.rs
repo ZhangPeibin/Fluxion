@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
 
-use fluxion::adapters::{Curve, Dispatcher, RpcV2Reserves, UniswapV2, UniswapV3, V3Quoter};
-use fluxion::graph::Graph;
-use fluxion::model::{Pool, PoolKind, QuoteRequest, V3Deployment, V3Deployments, V3Venue};
-use fluxion::router::Router;
-use fluxion::rpc::RpcClient;
-use fluxion::source::QuoteSource;
+use eollo::adapters::{Curve, Dispatcher, RpcV2Reserves, UniswapV2, UniswapV3, V3Quoter};
+use eollo::graph::Graph;
+use eollo::model::{Pool, PoolKind, QuoteRequest, V3Deployment, V3Deployments, V3Venue};
+use eollo::router::Router;
+use eollo::rpc::RpcClient;
+use eollo::source::QuoteSource;
 
 fn addr(s: &str) -> Address {
     s.parse().unwrap()

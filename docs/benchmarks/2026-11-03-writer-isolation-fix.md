@@ -34,18 +34,18 @@ Tokio runtime handle，但构造、位图处理、校验与回收不占用 I/O w
 ## 修复后完整三方结果
 
 后台持续运行，209 条池/转换记录、48 个 token、426 条边全部保留；三方 **90/90 成功**。
-所有 Fluxion 行的两项计算 RPC 计数均为 0。
+所有 Eollo 行的两项计算 RPC 计数均为 0。
 
-| 指标 | Fluxion | ParaSwap | 1inch |
+| 指标 | Eollo | ParaSwap | 1inch |
 |---|---:|---:|---:|
 | HTTP p50 | **27 ms** | 438 ms | 530 ms |
 | HTTP p95 | **124 ms** | 883 ms | 1059 ms |
-| Fluxion HTTP 最大值 | **238 ms** | — | — |
+| Eollo HTTP 最大值 | **238 ms** | — | — |
 
-此前缺陷轮 Fluxion p50/p95 为 31/3501 ms；本轮没有与同步校验对齐的秒级 HTTP 入口停顿。
+此前缺陷轮 Eollo p50/p95 为 31/3501 ms；本轮没有与同步校验对齐的秒级 HTTP 入口停顿。
 不同运行时点的输出不可作为同状态配对路由改进证明；本轮额外保持健康检查并发观测。
 
-| Fluxion 相对 API 返回输出 | ParaSwap | 1inch |
+| Eollo 相对 API 返回输出 | ParaSwap | 1inch |
 |---|---:|---:|
 | 中位差距 | −0.000943% | +0.096974% |
 | 等权均值 | −0.029784% | −0.042308% |
@@ -81,7 +81,7 @@ Tokio runtime handle，但构造、位图处理、校验与回收不占用 I/O w
 | 短锁发布 | 原观测 0–13 ms（含旧值释放） | **0 / 0 / 0 ms**（旧值改由写侧回收） |
 
 [监测摘要](2026-11-03-writer-isolation-monitor.json) 保留统计与关键原始观测。完整客户端监测
-JSONL 和服务端分段计时保留在本机临时目录，前缀 `fluxion-writer-fix-`。
+JSONL 和服务端分段计时保留在本机临时目录，前缀 `eollo-writer-fix-`。
 
 ## 尚未解决的独立目标
 

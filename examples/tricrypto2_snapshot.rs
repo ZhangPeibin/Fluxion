@@ -1,6 +1,6 @@
 //! Capture deployed Tricrypto2 view inputs and independent raw get_dy vectors.
 use alloy_primitives::{Address, U256, keccak256};
-use fluxion::{rpc::RpcClient, state::multicall};
+use eollo::{rpc::RpcClient, state::multicall};
 use serde_json::json;
 use std::collections::BTreeSet;
 

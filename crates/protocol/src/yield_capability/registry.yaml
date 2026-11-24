@@ -1,6 +1,6 @@
 version: 1
 reviewed_at: "2026-11-18"
-reviewer: "fluxion-risk"
+reviewer: "eollo-risk"
 entries:
   - id: lido-steth
     protocol_slug: lido
@@ -35,7 +35,7 @@ entries:
         level: low
         evidence: Yield and withdrawals depend on the curated validator set.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Core liquid staking market with direct ETH entry.
 
   - id: rocket-pool-reth
@@ -71,7 +71,7 @@ entries:
         level: low
         evidence: Direct exits depend on deposit pool liquidity and the withdrawal queue.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Core decentralized liquid staking market.
 
   - id: aave-v3-weth
@@ -107,7 +107,7 @@ entries:
         level: low
         evidence: Large utilization can temporarily limit withdrawals.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Core ETH lending market; ETH must be wrapped to WETH first.
 
   - id: sparklend-weth
@@ -143,7 +143,7 @@ entries:
         level: low
         evidence: Large utilization can temporarily limit withdrawals.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Established lending market; ETH must be wrapped to WETH first.
 
   - id: cbeth
@@ -182,7 +182,7 @@ entries:
         level: medium
         evidence: cbETH can trade below ETH in the secondary market.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Centralized liquid staking; included for coverage but kept experimental.
 
   - id: etherfi-weeth
@@ -221,7 +221,7 @@ entries:
         level: low
         evidence: ETH is deposited for eETH and then wrapped into weETH.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Large liquid restaking market; higher risk than core liquid staking.
 
   - id: kelp-rseth
@@ -260,7 +260,7 @@ entries:
         level: medium
         evidence: Direct exits depend on protocol and restaking withdrawal queues.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Established liquid restaking market; higher risk than core staking.
 
   - id: renzo-ezeth
@@ -296,7 +296,7 @@ entries:
         level: high
         evidence: Direct exits depend on protocol and restaking withdrawal queues.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Smaller liquid restaking market; kept experimental.
 
   - id: morpho-steakhouse-eth
@@ -332,7 +332,7 @@ entries:
         level: low
         evidence: Morpho Blue has public audits and a long production history.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Small curated Morpho vault; experimental despite the underlying protocol's maturity.
 
   - id: morpho-gauntlet-weth
@@ -368,5 +368,5 @@ entries:
         level: low
         evidence: Morpho Blue has public audits and a long production history.
     reviewed_at: "2026-11-18"
-    reviewer: "fluxion-risk"
+    reviewer: "eollo-risk"
     notes: Small curated Morpho vault; experimental despite the underlying protocol's maturity.

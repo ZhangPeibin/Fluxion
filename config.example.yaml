@@ -1,4 +1,4 @@
-# Fluxion configuration example. Copy to `config.yaml` and adjust.
+# Eollo configuration example. Copy to `config.yaml` and adjust.
 # Missing keys fall back to the defaults shown here. Unknown keys are rejected.
 
 # HTTP server bind address.

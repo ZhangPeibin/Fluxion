@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use alloy_primitives::{Address, U256};
 
-use fluxion::adapters::{RpcV2Reserves, UniswapV2};
-use fluxion::graph::Graph;
-use fluxion::model::{Pool, PoolKind, QuoteRequest};
-use fluxion::router::Router;
-use fluxion::rpc::RpcClient;
+use eollo::adapters::{RpcV2Reserves, UniswapV2};
+use eollo::graph::Graph;
+use eollo::model::{Pool, PoolKind, QuoteRequest};
+use eollo::router::Router;
+use eollo::rpc::RpcClient;
 
 fn addr(s: &str) -> Address {
     s.parse().unwrap()
@@ -55,12 +55,10 @@ async fn real_v2_quote_against_mainnet() {
 async fn discover_v2_against_mainnet() {
     dotenvy::dotenv().ok();
     let key = std::env::var("GRAPH_API_KEY").expect("GRAPH_API_KEY not set");
-    let config = fluxion::config::Config {
+    let config = eollo::config::Config {
         min_liquidity: 10_000_000, // limit result size
         ..Default::default()
     };
-    let pools = fluxion::discovery::discover_v2(&config, &key)
-        .await
-        .unwrap();
+    let pools = eollo::discovery::discover_v2(&config, &key).await.unwrap();
     assert!(!pools.is_empty());
 }

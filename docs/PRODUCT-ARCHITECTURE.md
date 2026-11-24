@@ -1,7 +1,7 @@
-# Fluxion 产品架构
+# Eollo 产品架构
 
-Fluxion 是 **Web3 Agent Capability Infrastructure 的 runtime**。Agent 只通过 MCP 调用
-capability；执行位置由 Fluxion 内部固定路由，Agent 和用户都不选择 local/remote。
+Eollo 是 **Web3 Agent Capability Infrastructure 的 runtime**。Agent 只通过 MCP 调用
+capability；执行位置由 Eollo 内部固定路由，Agent 和用户都不选择 local/remote。
 
 ## 总体架构
 
@@ -12,7 +12,7 @@ capability；执行位置由 Fluxion 内部固定路由，Agent 和用户都不�
                          └──────────────┬───────────────┘
                                         │ MCP stdio
 ┌───────────────────────────────────────▼─────────────────────────────────────┐
-│                    Fluxion (installed on user machine)                     │
+│                    Eollo (installed on user machine)                     │
 │                                                                             │
 │   ┌──────────────┐        ┌──────────────────────────────────────────────┐  │
 │   │  MCP Server  │───────▶│            Capability Router                 │  │
@@ -35,7 +35,7 @@ capability；执行位置由 Fluxion 内部固定路由，Agent 和用户都不�
                     │ WalletConnect / OS wallet                     │ HTTPS
                     ▼                                               ▼
           ┌─────────────────────┐                     ┌──────────────────────────┐
-          │ User / Wallet UI    │                     │ Fluxion Remote Service   │
+          │ User / Wallet UI    │                     │ Eollo Remote Service   │
           │ approve · sign      │                     │  swap.quote engine       │
           └─────────────────────┘                     │  discovery / snapshot    │
                                                       │  market / risk / intel   │
@@ -52,8 +52,8 @@ capability；执行位置由 Fluxion 内部固定路由，Agent 和用户都不�
 | 层 | 位置 | 职责 |
 |---|---|---|
 | Agent | 用户环境 | 理解意图、规划任务、调用 capability |
-| Fluxion local | 用户机器 | MCP 接入、capability 路由、wallet、授权、签名、执行 |
-| Fluxion remote | 我们的服务端 | quote 引擎、discovery、市场/风险/情报数据 |
+| Eollo local | 用户机器 | MCP 接入、capability 路由、wallet、授权、签名、执行 |
+| Eollo remote | 我们的服务端 | quote 引擎、discovery、市场/风险/情报数据 |
 | Chain / data | 外部 | Ethereum RPC、subgraph、协议数据源 |
 
 ## Capability 路由
@@ -69,7 +69,7 @@ capability；执行位置由 Fluxion 内部固定路由，Agent 和用户都不�
 
 规则：
 
-- Agent 不选择 provider，也不传 `provider` / `FLUXION_MODE`
+- Agent 不选择 provider，也不传 `provider` / `EOLLO_MODE`
 - `swap.quote` 固定使用 remote 服务
 - `wallet` / `execute` 固定使用 local runtime
 - remote 永远不接触私钥，也不签名
@@ -86,7 +86,7 @@ capability；执行位置由 Fluxion 内部固定路由，Agent 和用户都不�
 
 用户只做两件事：
 
-1. 安装 Fluxion
+1. 安装 Eollo
 2. 在 Agent 中配置一次 MCP / Skills
 
 之后：
@@ -112,15 +112,15 @@ capability；执行位置由 Fluxion 内部固定路由，Agent 和用户都不�
 ```text
 crates/protocol   共享 capability 契约、swap DTO、错误码
 crates/remote     remote server、discovery、snapshot、routing、bench/graph
-crates/client     fluxion CLI、MCP bridge、remote client、token
+crates/client     eollo CLI、MCP bridge、remote client、token
 ```
 
 `remote` 不依赖 `client`；`client` 不依赖 `remote`；两者只共享 `protocol`。
 生产二进制：
 
 ```text
-fluxion-remote serve   # 服务器
-fluxion mcp            # 用户机器上的 MCP bridge
+eollo-remote serve   # 服务器
+eollo mcp            # 用户机器上的 MCP bridge
 ```
 
 ## 当前范围

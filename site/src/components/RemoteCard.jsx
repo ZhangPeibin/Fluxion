@@ -69,7 +69,7 @@ export default function RemoteCard({ t }) {
           {active === "managed" && HAS_MANAGED && (
             <>
               <CodeBlock
-                code={`FLUXION_REMOTE_URL=${MANAGED_REMOTE_URL} fluxion mcp`}
+                code={`EOLLO_REMOTE_URL=${MANAGED_REMOTE_URL} eollo mcp`}
                 path="shell"
                 copyLabel={t.captions.copy}
                 copiedLabel={t.captions.copied}

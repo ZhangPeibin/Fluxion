@@ -103,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let nodes = serde_json::to_string(&nodes)?.replace('<', "\\u003c");
     let links = serde_json::to_string(&links)?.replace('<', "\\u003c");
     let html = format!(
-        r#"<!doctype html><html><head><meta charset="utf-8"><title>Fluxion graph</title>
+        r#"<!doctype html><html><head><meta charset="utf-8"><title>Eollo graph</title>
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>body{{margin:0}}#net{{width:100vw;height:100vh}}</style></head><body><div id="net"></div>
 <script>const nodes=new vis.DataSet({nodes});const edges=new vis.DataSet({links});

@@ -63,5 +63,5 @@ No LLM is called. The host agent can paraphrase this object. The summary never s
 
 ## Recommendation
 
-Prefer host-agent explanation in v1. Add a Fluxion explanation service only if users need a stable,
+Prefer host-agent explanation in v1. Add a Eollo explanation service only if users need a stable,
 localized format and privacy requirements are satisfied.

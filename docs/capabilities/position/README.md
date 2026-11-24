@@ -4,7 +4,7 @@ Read-only analysis of a wallet's curated ETH yield positions on Ethereum mainnet
 token balances at a pinned block, estimates ETH value, attaches the current `yield.discover` APY and
 risk context, and optionally computes PnL from a supplied cost basis.
 
-`position.analyze` runs on the remote Fluxion service; agents and users do not choose local or
+`position.analyze` runs on the remote Eollo service; agents and users do not choose local or
 remote. It never signs, approves or broadcasts.
 
 Returns capability envelope v2: `meta`, `chain`, `block`, `as_of`, `provenance`, `coverage`,
@@ -15,10 +15,10 @@ Schema: [`schemas/position_analyze.v2.json`](../../../schemas/position_analyze.v
 ## Usage
 
 ```bash
-fluxion position analyze --owner 0x... --json
-fluxion position analyze --owner 0x... --opportunities lido-steth,aave-v3-weth --json
-fluxion position analyze --owner 0x... --include-zero --json
-fluxion position analyze --owner 0x... --cost-basis lido-steth=10,aave-v3-weth=5 --json
+eollo position analyze --owner 0x... --json
+eollo position analyze --owner 0x... --opportunities lido-steth,aave-v3-weth --json
+eollo position analyze --owner 0x... --include-zero --json
+eollo position analyze --owner 0x... --cost-basis lido-steth=10,aave-v3-weth=5 --json
 ```
 
 MCP tool: `position_analyze`.

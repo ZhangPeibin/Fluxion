@@ -1,4 +1,4 @@
-# Fluxion quote benchmark
+# Eollo quote benchmark
 
 | field | value |
 |---|---|
@@ -119,7 +119,7 @@ Feature-disabled control: http://127.0.0.1:8082
 }
 ```
 
-| pair | amount_in | fluxion_out | fluxion_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | fluxion ms | paraswap ms | 1inch ms | 0x ms |
+| pair | amount_in | eollo_out | eollo_hops | paraswap_out | Δ paraswap bps | 1inch_out | Δ 1inch bps | 0x_out | Δ 0x bps | eollo ms | paraswap ms | 1inch ms | 0x ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | WETH → USDC | 333333333333333333 | 768986425 | 1 | 769030289 | -0.6 | skipped | - | skipped | - | 1886 | 1854 | - | - |
 | WETH → USDC | 3333333333333333333 | 7688691490 | 1 | 7688857881 | -0.2 | skipped | - | skipped | - | 1666 | 405 | - | - |
@@ -316,15 +316,15 @@ Feature-disabled control: http://127.0.0.1:8082
 | SHIB → WETH | 800000000000000000000000000 | 1606559493262701973 | 1623586374798525644 | 106.0 | 1029 | 1789 |
 | SHIB → WETH | 8000000000000000000000000000 | 14308981381209398220 | 15827133100050921226 | 1061.0 | 930 | 1276 |
 - rows: 90
-- paraswap: both success 90, Fluxion only 0, aggregator only 0, both failed 0
-- 1inch: both success 0, Fluxion only 0, aggregator only 0, both failed 0
-- 0x: both success 0, Fluxion only 0, aggregator only 0, both failed 0
-- success: fluxion 90, paraswap 90, 1inch 0, 0x 0
+- paraswap: both success 90, Eollo only 0, aggregator only 0, both failed 0
+- 1inch: both success 0, Eollo only 0, aggregator only 0, both failed 0
+- 0x: both success 0, Eollo only 0, aggregator only 0, both failed 0
+- success: eollo 90, paraswap 90, 1inch 0, 0x 0
 - paraswap deltas (n=90): median -0.7 bps, mean -10.2 bps, within ±50 bps 84
 - 1inch deltas (n=0): median - bps, mean - bps, within ±50 bps 0
 - 0x deltas (n=0): median - bps, mean - bps, within ±50 bps 0
-- latency p50/p95 (ms): fluxion 1246/1871, paraswap 351/436, 1inch -/-, 0x -/-
+- latency p50/p95 (ms): eollo 1246/1871, paraswap 351/436, 1inch -/-, 0x -/-
 
-Δ bps = (fluxion - aggregator) / aggregator × 10000; negative means Fluxion returned less.
+Δ bps = (eollo - aggregator) / aggregator × 10000; negative means Eollo returned less.
 
 Quotes use live state, not a pinned block. Block range and row timestamps describe skew, not deterministic replay. Raw JSON embeds the corpus, routes, and public service configuration. With --control-service, candidate/control order alternates by row; RPC state and discovery may still differ. A paired live control reduces timing differences but is not a pinned-state experiment. Latencies include failed requests; output deltas only use successful pairs. Gas, MEV and execution are excluded; ParaSwap may use more venues and split routes. Amount tiers are fixed raw inputs, not current USD valuations.

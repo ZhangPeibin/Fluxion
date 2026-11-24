@@ -1,8 +1,8 @@
-# Fluxion 架构设计文档
+# Eollo 架构设计文档
 
 [English](ARCHITECTURE.en.md) | 中文
 
-> 本文讲清楚 Fluxion **怎么运转**：从启动、发现池子、构建多重图、预热价格快照，到处理
+> 本文讲清楚 Eollo **怎么运转**：从启动、发现池子、构建多重图、预热价格快照，到处理
 > 一次 `/quote` 请求的完整数据流，以及缓存/RPC/并发的组织方式。
 >
 > 逐函数调用栈见 [`REQUEST-TRACE.md`](REQUEST-TRACE.md)。
@@ -13,7 +13,7 @@
 
 ## 1. 一句话概括
 
-Fluxion 是一个 **Ethereum 主网多跳路由询价服务**：给定 `token_in/token_out/amount_in`，
+Eollo 是一个 **Ethereum 主网多跳路由询价服务**：给定 `token_in/token_out/amount_in`，
 在 Uniswap V2/V3/Curve 构成的**有向多重图**上找到**单条最优路径**，返回精确
 `amount_out`（exact-in）。它是**开源**的：一份 YAML 配置 + 你自己的 RPC/Graph key，可本地运行用于开发/运维；产品默认通过 remote 服务调用 `swap.quote`。
 
