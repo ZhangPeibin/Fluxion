@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Dusk avatar">
+  <defs>
+    <linearGradient id="duskA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#080D26"/>
+      <stop offset="0.55" stop-color="#1B2452"/>
+      <stop offset="0.78" stop-color="#6A3A5C"/>
+      <stop offset="1" stop-color="#C4562F"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" fill="url(#duskA)"/>
+  <circle cx="62" cy="58" r="1.6" fill="#F2EFE6" opacity="0.75"/>
+  <circle cx="186" cy="44" r="1.4" fill="#F2EFE6" opacity="0.6"/>
+  <circle cx="150" cy="86" r="1.2" fill="#F2EFE6" opacity="0.5"/>
+  <circle cx="128" cy="166" r="50" fill="#FFB27A"/>
+  <rect x="0" y="166" width="256" height="90" fill="#060A1A"/>
+  <rect x="0" y="166" width="256" height="2" fill="#FFB27A" opacity="0.55"/>
+</svg>

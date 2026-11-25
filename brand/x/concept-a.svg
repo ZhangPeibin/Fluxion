@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Eollo keyhole mark">
+  <rect width="256" height="256" fill="#0C0E11"/>
+  <rect x="30" y="30" width="196" height="196" rx="52" fill="#F2EFE6"/>
+  <rect x="62" y="62" width="132" height="132" rx="26" fill="#0C0E11"/>
+  <circle cx="128" cy="102" r="27" fill="#FF6A2B"/>
+  <path d="M114 121 H142 L149 181 Q150 187 144 187 H112 Q106 187 107 181 Z" fill="#FF6A2B"/>
+</svg>

@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Loading avatar">
+  <rect width="256" height="256" fill="#ECE4D4"/>
+  <circle cx="128" cy="128" r="74" fill="none" stroke="#14110E" stroke-width="28" stroke-linecap="round" stroke-dasharray="348 117" transform="rotate(-90 128 128)"/>
+</svg>

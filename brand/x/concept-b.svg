@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Eollo routing mark">
+  <rect width="256" height="256" fill="#0C0E11"/>
+  <g stroke="#F2EFE6" stroke-width="26" stroke-linecap="round" fill="none">
+    <path d="M50 128 H138"/>
+    <path d="M138 128 L210 86"/>
+    <path d="M138 128 L210 170"/>
+  </g>
+  <circle cx="138" cy="128" r="21" fill="#FF6A2B"/>
+</svg>

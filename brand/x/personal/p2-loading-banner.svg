@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 500" width="1500" height="500" role="img" aria-label="Loading banner">
+  <rect width="1500" height="500" fill="#ECE4D4"/>
+  <circle cx="340" cy="250" r="118" fill="none" stroke="#14110E" stroke-width="46" stroke-linecap="round" stroke-dasharray="556 186" transform="rotate(-90 340 250)"/>
+  <text x="560" y="274" font-family="SFMono-Regular, Menlo, Consolas, monospace" font-size="54" font-weight="700" letter-spacing="3" fill="#14110E">LESS BIO, MORE BUILD.</text>
+  <rect x="1316" y="232" width="28" height="52" fill="#FF6A2B"/>
+</svg>

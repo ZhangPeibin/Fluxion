@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 500" width="1500" height="500" role="img" aria-label="Eollo banner">
+  <rect width="1500" height="500" fill="#0C0E11"/>
+  <g transform="translate(180 135) scale(0.9)">
+    <rect x="30" y="30" width="196" height="196" rx="52" fill="#F2EFE6"/>
+    <rect x="62" y="62" width="132" height="132" rx="26" fill="#0C0E11"/>
+    <circle cx="128" cy="102" r="27" fill="#FF6A2B"/>
+    <path d="M114 121 H142 L149 181 Q150 187 144 187 H112 Q106 187 107 181 Z" fill="#FF6A2B"/>
+  </g>
+  <text x="470" y="292" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="168" font-weight="700" letter-spacing="-7" fill="#F2EFE6">eollo</text>
+  <rect x="474" y="324" width="72" height="6" fill="#FF6A2B"/>
+  <text x="474" y="386" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="30" font-weight="500" letter-spacing="4" fill="#8E949D">AGENTS GET HANDS. YOU KEEP THE KEYS.</text>
+</svg>

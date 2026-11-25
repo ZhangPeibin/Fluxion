@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 500" width="1500" height="500" role="img" aria-label="Dusk banner">
+  <defs>
+    <linearGradient id="duskB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#080D26"/>
+      <stop offset="0.5" stop-color="#1B2452"/>
+      <stop offset="0.76" stop-color="#6A3A5C"/>
+      <stop offset="1" stop-color="#C4562F"/>
+    </linearGradient>
+  </defs>
+  <rect width="1500" height="500" fill="url(#duskB)"/>
+  <circle cx="330" cy="120" r="2.2" fill="#F2EFE6" opacity="0.75"/>
+  <circle cx="1180" cy="92" r="2" fill="#F2EFE6" opacity="0.6"/>
+  <circle cx="980" cy="160" r="1.6" fill="#F2EFE6" opacity="0.5"/>
+  <circle cx="1350" cy="190" r="1.6" fill="#F2EFE6" opacity="0.45"/>
+  <circle cx="780" cy="320" r="150" fill="#FFB27A"/>
+  <rect x="0" y="320" width="1500" height="180" fill="#060A1A"/>
+  <rect x="0" y="320" width="1500" height="2" fill="#FFB27A" opacity="0.5"/>
+</svg>

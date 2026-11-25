@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Bauhaus avatar">
+  <rect width="256" height="256" fill="#F2EDE3"/>
+  <circle cx="86" cy="92" r="56" fill="#141210"/>
+  <path d="M256 124 A132 132 0 0 0 124 256 L256 256 Z" fill="#2440E8"/>
+  <rect x="156" y="58" width="72" height="32" rx="16" fill="#F25C2A"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 500" width="1500" height="500" role="img" aria-label="Bauhaus banner">
+  <rect width="1500" height="500" fill="#F2EDE3"/>
+  <circle cx="380" cy="250" r="150" fill="#141210"/>
+  <path d="M1500 200 A300 300 0 0 0 1200 500 L1500 500 Z" fill="#2440E8"/>
+  <rect x="1080" y="96" width="196" height="76" rx="38" fill="#F25C2A"/>
+</svg>
