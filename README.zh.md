@@ -592,7 +592,7 @@ Ethereum 主网。
 - 不提供 USD 估值。
 - `swap.quote` 需要单独部署 remote 服务。
 
-下一步：`swap.execute`。
+下一步：统一的授权步骤与工作流稳定化。
 
 ## 开发
 

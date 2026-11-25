@@ -623,7 +623,7 @@ Pre-1.0. Local wallet, transaction, and signature capabilities support BSC (defa
 - There is no USD valuation.
 - `swap.quote` needs a separately deployed remote service.
 
-Next: `swap.execute`.
+Next: shared approval handling and workflow stabilization.
 
 ## Development
 
