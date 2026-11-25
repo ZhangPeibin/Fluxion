@@ -266,7 +266,6 @@ export const copy = {
           links: [
             { label: "能力目录", href: `${REPO}/capabilities/catalog.yaml` },
             { label: "Skills", href: `${REPO}/skills` },
-            { label: "路线与边界", href: `${REPO}/README.zh.md#状态与边界` },
           ],
         },
         {
@@ -280,11 +279,7 @@ export const copy = {
         },
         {
           title: "项目",
-          links: [
-            { label: "GitHub", href: GITHUB_URL },
-            { label: "英文 README", href: `${REPO}/README.md` },
-            { label: "CI", href: `${GITHUB_URL}/actions/workflows/ci.yml` },
-          ],
+          links: [{ label: "GitHub", href: GITHUB_URL }],
         },
       ],
       copyright: "Eollo · Pre-1.0",
@@ -486,7 +481,6 @@ export const copy = {
           links: [
             { label: "Catalog", href: `${REPO}/capabilities/catalog.yaml` },
             { label: "Skills", href: `${REPO}/skills` },
-            { label: "Roadmap and limits", href: `${REPO}/README.md#status-and-boundaries` },
           ],
         },
         {
@@ -500,11 +494,7 @@ export const copy = {
         },
         {
           title: "Project",
-          links: [
-            { label: "GitHub", href: GITHUB_URL },
-            { label: "Chinese README", href: `${REPO}/README.zh.md` },
-            { label: "CI", href: `${GITHUB_URL}/actions/workflows/ci.yml` },
-          ],
+          links: [{ label: "GitHub", href: GITHUB_URL }],
         },
       ],
       copyright: "Eollo · Pre-1.0",
