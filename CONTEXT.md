@@ -50,6 +50,8 @@ must use these terms consistently.
 - [ADR-0003](docs/adr/0003-capability-envelope-v2.md): every capability uses envelope v2.
 - [ADR-0004](docs/adr/0004-composable-workflows.md): workflows are first-class compositions.
 - [ADR-0005](docs/adr/0005-capability-catalog.md): the catalog is the single source of truth.
+- [ADR-0006](docs/adr/0006-rename-to-eollo.md): the product, CLI, crates, and domain are renamed to Eollo.
+- [ADR-0007](docs/adr/0007-eollo-xyz-domain.md): `eollo.xyz` is the canonical product and schema host.
 
 ## Specification map
 

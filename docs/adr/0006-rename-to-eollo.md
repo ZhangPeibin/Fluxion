@@ -3,6 +3,8 @@
 - **Status:** Accepted
 - **Date:** 2026-11-24
 - **Deciders:** Eollo maintainers
+- **Domain note:** the GitHub Pages domain choice is superseded by
+  [ADR-0007](0007-eollo-xyz-domain.md) (2026-11-25).
 
 ## Context
 

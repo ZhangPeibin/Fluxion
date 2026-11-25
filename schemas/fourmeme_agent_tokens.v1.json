@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://zhangpeibin.github.io/eollo/schemas/fourmeme_agent_tokens.v1.json",
+  "$id": "https://eollo.xyz/schemas/fourmeme_agent_tokens.v1.json",
   "title": "Eollo fourmeme.agent-tokens v1",
   "type": "object",
   "additionalProperties": false,

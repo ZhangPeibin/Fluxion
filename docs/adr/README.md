@@ -11,5 +11,6 @@ implemented.
 | [0004](0004-composable-workflows.md) | Workflows are first-class compositions. |
 | [0005](0005-capability-catalog.md) | The capability catalog is the single source of truth. |
 | [0006](0006-rename-to-eollo.md) | The product, CLI, crates, and domain are renamed to Eollo. |
+| [0007](0007-eollo-xyz-domain.md) | `eollo.xyz` is the canonical product and schema host. |
 
 See [CONTEXT.md](../../CONTEXT.md) for terminology.

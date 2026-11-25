@@ -13,7 +13,7 @@ Eollo 是面向 AI Agent 的 Web3 能力层。它把报价、账户读取、钱�
 
 [English](README.md) · 中文
 
-产品官网：<https://zhangpeibin.github.io/eollo/> · 源码：[`site/`](site/)
+产品官网：<https://eollo.xyz/zh.html> · English: <https://eollo.xyz/> · 源码：[`site/`](site/)
 
 [![CI](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml)
 ![status](https://img.shields.io/badge/status-pre--1.0-orange)

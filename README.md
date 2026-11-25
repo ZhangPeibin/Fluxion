@@ -16,7 +16,7 @@ It addresses three problems:
 
 English · [中文](README.zh.md)
 
-Website: <https://zhangpeibin.github.io/eollo/en.html> · source: [`site/`](site/)
+Website: <https://eollo.xyz/> · 中文: <https://eollo.xyz/zh.html> · source: [`site/`](site/)
 
 [![CI](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ZhangPeibin/eollo/actions/workflows/ci.yml)
 ![status](https://img.shields.io/badge/status-pre--1.0-orange)

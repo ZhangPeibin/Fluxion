@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://zhangpeibin.github.io/eollo/schemas/yield_withdraw.v2.json",
+  "$id": "https://eollo.xyz/schemas/yield_withdraw.v2.json",
   "title": "Eollo yield.withdraw v2",
   "type": "object",
   "additionalProperties": false,
