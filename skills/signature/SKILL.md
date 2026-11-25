@@ -8,8 +8,8 @@ description: Use when the user wants to inspect EIP-712 typed data, a Permit2 si
 Inspect non-calldata authorization before the user signs. Default chain is BSC; pass
 `chain: "ethereum"` for Ethereum.
 
-- Human docs: [`docs/capabilities/signature`](../../docs/capabilities/signature/README.md)
-- Schema: [`signature_inspect`](../../schemas/signature_inspect.v2.json)
+- Human docs: [`docs/capabilities/signature`](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/signature/README.md)
+- Schema: [`signature_inspect`](https://eollo.xyz/schemas/signature_inspect.v2.json)
 
 ## MCP tool
 

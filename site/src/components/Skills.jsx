@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import CodeBlock from "./CodeBlock.jsx";
 import Reveal from "./Reveal.jsx";
 import SectionHeading from "./SectionHeading.jsx";
-import { GITHUB_URL, SKILLS_CONFIG } from "../i18n.js";
+import { GITHUB_URL, SKILLS_COMMAND } from "../i18n.js";
 
 function PromptRotator({ prompts, hint, copyLabel, copiedLabel }) {
   const [index, setIndex] = useState(0);
@@ -99,8 +99,8 @@ export default function Skills({ t }) {
           <Reveal className="skills-config">
             <h3>{t.skills.configLabel}</h3>
             <CodeBlock
-              code={SKILLS_CONFIG}
-              path="opencode.json"
+              code={SKILLS_COMMAND}
+              path="Terminal"
               copyLabel={t.captions.copy}
               copiedLabel={t.captions.copied}
             />

@@ -37,11 +37,7 @@ args = ["mcp"]`,
 
 export const INSTALL_COMMAND = "cargo install --path crates/client";
 export const MCP_COMMAND = "eollo mcp";
-export const SKILLS_CONFIG = `{
-  "skills": {
-    "paths": ["/absolute/path/to/eollo/skills"]
-  }
-}`;
+export const SKILLS_COMMAND = "npx skills add ZhangPeibin/eollo -g -a opencode";
 
 export const copy = {
   zh: {
@@ -223,7 +219,7 @@ export const copy = {
       eyebrow: "Agent 使用说明",
       title: "Skills 告诉 Agent 何时调用",
       lead: "Skills 不是执行路径，而是给 Agent 的指令：何时用哪个能力、如何解释结果、哪些边界不能越过。",
-      configLabel: "把仓库的 skills/ 加入客户端配置",
+      configLabel: "用 skills CLI 安装（推荐）",
       listTitle: "七个 Skill",
       promptTitle: "直接对 Agent 说",
       promptHint: "点击任意一句复制",
@@ -437,7 +433,7 @@ export const copy = {
       eyebrow: "Agent instructions",
       title: "Skills tell the agent when to call",
       lead: "Skills are not an execution path. They are instructions for the agent: when to use a capability, how to read the result, and which boundaries not to cross.",
-      configLabel: "Add the repository skills/ directory to your client config",
+      configLabel: "Install with the skills CLI (recommended)",
       listTitle: "Seven skills",
       promptTitle: "Say this to your agent",
       promptHint: "Click a line to copy it",

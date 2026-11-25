@@ -10,8 +10,8 @@ opportunities on Ethereum. It returns a safety tier, APY components, TVL, withdr
 evidence and one recommendation with tradeoffs.
 
 Human-facing capability documentation is in
-[docs/capabilities/yield/README.md](../../docs/capabilities/yield/README.md); the JSON contract is
-[schemas/yield_discover.v2.json](../../schemas/yield_discover.v2.json).
+[docs/capabilities/yield/README.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/yield/README.md); the JSON contract is
+[schemas/yield_discover.v2.json](https://eollo.xyz/schemas/yield_discover.v2.json).
 
 ## MCP
 

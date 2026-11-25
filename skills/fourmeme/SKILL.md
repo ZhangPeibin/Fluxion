@@ -8,9 +8,9 @@ description: Use when the user asks which Four.meme tokens are in Binance Agent 
 Read-only discovery, detail and optional wallet eligibility for Four.meme **Binance Agent ID
 Exclusive** tokens on BSC.
 
-- Human docs: [`docs/capabilities/fourmeme`](../../docs/capabilities/fourmeme/README.md)
-- Schemas: [`agent-tokens`](../../schemas/fourmeme_agent_tokens.v2.json) ·
-  [`token`](../../schemas/fourmeme_token.v2.json)
+- Human docs: [`docs/capabilities/fourmeme`](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/fourmeme/README.md)
+- Schemas: [`agent-tokens`](https://eollo.xyz/schemas/fourmeme_agent_tokens.v2.json) ·
+  [`token`](https://eollo.xyz/schemas/fourmeme_token.v2.json)
 
 ## MCP
 

@@ -49,17 +49,26 @@ eollo mcp
 
 ### Skills
 
-Skills 告诉 Agent 何时调用哪个能力，以及如何解释结果。把仓库的 `skills/` 加入客户端配置：
+Skills 告诉 Agent 何时调用哪个能力，以及如何解释结果。用
+[`skills` CLI](https://github.com/vercel-labs/skills) 安装（需要 Node.js 22.20+）：
+
+```bash
+npx skills add ZhangPeibin/eollo -g -a opencode
+```
+
+用 `--list` 预览七个 skill；去掉 `-g` 安装到当前项目；用 `--skill swap --skill wallet` 只装部分。
+GitHub CLI 用户可以改用
+`gh skill install ZhangPeibin/eollo swap --agent opencode --scope user`。
+
+如果已经克隆了仓库，离线回退方案是把 `skills/` 的绝对路径加入客户端配置：
 
 ```json
 {
-  "skills": {
-    "paths": ["/path/to/Eollo/skills"]
-  }
+  "skills": ["/absolute/path/to/eollo/skills"]
 }
 ```
 
-然后可以直接对 Agent 说：
+skill 列表和版本固定见 [`skills/README.md`](skills/README.md)。然后可以直接对 Agent 说：
 
 ```text
 把 100 LDO 换成 ETH，给我最佳报价
@@ -604,3 +613,7 @@ cargo fmt
 # Foundry 安全红队
 python3 bench/security/redteam.py
 ```
+
+## 许可
+
+MIT，见 [LICENSE](LICENSE)。

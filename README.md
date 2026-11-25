@@ -53,18 +53,28 @@ registration and full setup live in [docs/MCP.md](docs/MCP.md).
 
 ### Skills
 
-Skills tell the agent when to call a capability and how to read the result. Add the repository
-`skills/` directory to your client config:
+Skills tell the agent when to call a capability and how to read the result. Install them with the
+[`skills` CLI](https://github.com/vercel-labs/skills) (Node.js 22.20+):
+
+```bash
+npx skills add ZhangPeibin/eollo -g -a opencode
+```
+
+Use `--list` to preview the seven skills, drop `-g` to install into the current project, or install a
+subset with `--skill swap --skill wallet`. GitHub CLI users can run
+`gh skill install ZhangPeibin/eollo swap --agent opencode --scope user` instead.
+
+If the repository is already checked out, the offline fallback is to add its absolute `skills/` path
+to your client config:
 
 ```json
 {
-  "skills": {
-    "paths": ["/path/to/Eollo/skills"]
-  }
+  "skills": ["/absolute/path/to/eollo/skills"]
 }
 ```
 
-Then ask the agent normally:
+See [`skills/README.md`](skills/README.md) for the skill list and release pinning. Then ask the agent
+normally:
 
 ```text
 Quote 100 LDO to ETH and show the best route
@@ -635,3 +645,7 @@ cargo fmt
 # Foundry security red-team
 python3 bench/security/redteam.py
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

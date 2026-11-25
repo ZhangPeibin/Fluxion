@@ -9,8 +9,8 @@ Use this capability to inspect a wallet's curated ETH yield positions at a pinne
 It combines on-chain receipt-token balances with the current `yield.discover` APY and risk context.
 
 Human-facing documentation is in
-[docs/capabilities/position/README.md](../../docs/capabilities/position/README.md); the JSON contract
-is [schemas/position_analyze.v2.json](../../schemas/position_analyze.v2.json).
+[docs/capabilities/position/README.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/position/README.md); the JSON contract
+is [schemas/position_analyze.v2.json](https://eollo.xyz/schemas/position_analyze.v2.json).
 
 ## MCP
 

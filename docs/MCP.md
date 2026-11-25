@@ -126,20 +126,28 @@ MCP documentation if a snippet is rejected.
 
 ## Skills
 
-Skills are agent instructions, not an execution path. Eollo's swap skill lives in
-`skills/swap/SKILL.md` with required frontmatter.
+Skills are agent instructions, not an execution path. The seven skills live under `skills/` with the
+required frontmatter; see [`skills/README.md`](../skills/README.md) for the list.
 
-For opencode, add the repository skills directory to your config:
+Install them with the `skills` CLI (Node.js 22.20+) or GitHub CLI:
+
+```bash
+npx skills add ZhangPeibin/eollo -g -a opencode
+# or
+gh skill install ZhangPeibin/eollo swap --agent opencode --scope user
+```
+
+Use `npx skills add ZhangPeibin/eollo --list` to preview them, or
+`--skill swap --skill wallet` to install a subset. The offline fallback for a local clone is the
+OpenCode config path:
 
 ```json
 {
-  "skills": {
-    "paths": ["/Users/peibin/code/quoter/skills"]
-  }
+  "skills": ["/absolute/path/to/eollo/skills"]
 }
 ```
 
-Restart the agent after changing MCP or Skills config.
+Restart the agent after changing MCP or skills.
 
 ## Tools
 

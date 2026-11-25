@@ -10,8 +10,8 @@ whether to build or execute a transaction. It is read-only: it returns amounts, 
 provenance, and never signs, approves, or broadcasts.
 
 Human-facing capability documentation is in
-[docs/capabilities/swap/README.md](../../docs/capabilities/swap/README.md); the JSON contract is
-[schemas/swap_quote.v2.json](../../schemas/swap_quote.v2.json).
+[docs/capabilities/swap/README.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/swap/README.md); the JSON contract is
+[schemas/swap_quote.v2.json](https://eollo.xyz/schemas/swap_quote.v2.json).
 
 ## Capability
 
@@ -154,4 +154,4 @@ gas and user authorization before building or executing a transaction.
 - `transaction.simulate` is available for read-only calldata simulation before signing.
 - `swap.build` is a separate local capability; `swap.execute` remains a future convenience wrapper
   and is not part of this skill.
-- Related skills: [wallet](../wallet/SKILL.md) · [transaction](../transaction/SKILL.md).
+- Related skills: [wallet](https://github.com/ZhangPeibin/eollo/blob/master/skills/wallet/SKILL.md) · [transaction](https://github.com/ZhangPeibin/eollo/blob/master/skills/transaction/SKILL.md).

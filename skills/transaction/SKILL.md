@@ -57,8 +57,8 @@ description: Use when the user wants to inspect, simulate, send or verify BSC or
   `coverage.dimensions.policy = not_configured`.
 - `explanation` contains a deterministic `summary`, `key_changes` and `unknowns`; use it for the
   user-facing explanation, never as a safety guarantee.
-- Read [`transaction_inspect`](../../schemas/transaction_inspect.v2.json) for the full shape.
-- Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
+- Read [`transaction_inspect`](https://eollo.xyz/schemas/transaction_inspect.v2.json) for the full shape.
+- Human docs: [`docs/capabilities/transaction`](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/transaction/README.md)
 
 # transaction.send
 
@@ -72,7 +72,7 @@ eollo transaction send --to 0x... --data 0x... --policy policy.json --json
 - Mandatory local simulation; revert -> `SIMULATION_FAILED`.
 - Mandatory `transaction.inspect`; enforce policy can return `POLICY_BLOCKED`.
 - The user confirms on the phone; rejection -> `USER_REJECTED`.
-- Schema: [`transaction_send`](../../schemas/transaction_send.v2.json)
+- Schema: [`transaction_send`](https://eollo.xyz/schemas/transaction_send.v2.json)
 - Returns `tx_hash`, `simulation`, and the full inspection report under `data`.
 - This is generic calldata execution; `wallet.send` remains the simpler native/token transfer path.
 
@@ -81,8 +81,8 @@ eollo transaction send --to 0x... --data 0x... --policy policy.json --json
 Simulate an EVM call with `eth_call` at one pinned block and return success/revert, return data and
 an estimated gas limit.
 
-- Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
-- Schema: [`transaction_simulate`](../../schemas/transaction_simulate.v2.json)
+- Human docs: [`docs/capabilities/transaction`](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/transaction/README.md)
+- Schema: [`transaction_simulate`](https://eollo.xyz/schemas/transaction_simulate.v2.json)
 
 # transaction.verify
 
@@ -113,8 +113,8 @@ Verify what a sent transaction actually did. Read-only; it never signs or broadc
   expected/actual entries; surface it to the user and do not call the transaction successful.
 - `coverage.dimensions.effects` is `partial`; a missing receipt leaves it `not_run`.
 - A mined receipt is not a safety guarantee.
-- Human docs: [`docs/capabilities/transaction`](../../docs/capabilities/transaction/README.md)
-- Schema: [`transaction_verify`](../../schemas/transaction_verify.v2.json)
+- Human docs: [`docs/capabilities/transaction`](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/transaction/README.md)
+- Schema: [`transaction_verify`](https://eollo.xyz/schemas/transaction_verify.v2.json)
 
 ## Execution model
 

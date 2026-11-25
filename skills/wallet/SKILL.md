@@ -10,18 +10,18 @@ message/EIP-712 signing, and native/ERC20/BEP-20 transfers. Local wallet tools d
 pass `chain: "ethereum"` for Ethereum. These capabilities never ask for or handle
 private keys, and a balance or allowance response is never authorization to transact.
 
-- Human docs: [`docs/capabilities/wallet`](../../docs/capabilities/wallet/README.md)
+- Human docs: [`docs/capabilities/wallet`](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/wallet/README.md)
 - Schemas:
-  [`wallet_balance v2`](../../schemas/wallet_balances.v2.json),
-  [`wallet_assets v2`](../../schemas/wallet_assets.v2.json),
-  [`wallet_allowances v2`](../../schemas/wallet_allowances.v2.json),
-  [`wallet_collectibles v2`](../../schemas/wallet_collectibles.v2.json),
-  [`wallet_connect`](../../schemas/wallet_connect.v2.json),
-  [`wallet_status`](../../schemas/wallet_status.v2.json),
-  [`wallet_disconnect`](../../schemas/wallet_disconnect.v2.json),
-  [`wallet_agent_id`](../../schemas/wallet_agent_id.v2.json),
-  [`wallet_sign`](../../schemas/wallet_sign.v2.json),
-  [`wallet_send`](../../schemas/wallet_send.v2.json)
+  [`wallet_balance v2`](https://eollo.xyz/schemas/wallet_balances.v2.json),
+  [`wallet_assets v2`](https://eollo.xyz/schemas/wallet_assets.v2.json),
+  [`wallet_allowances v2`](https://eollo.xyz/schemas/wallet_allowances.v2.json),
+  [`wallet_collectibles v2`](https://eollo.xyz/schemas/wallet_collectibles.v2.json),
+  [`wallet_connect`](https://eollo.xyz/schemas/wallet_connect.v2.json),
+  [`wallet_status`](https://eollo.xyz/schemas/wallet_status.v2.json),
+  [`wallet_disconnect`](https://eollo.xyz/schemas/wallet_disconnect.v2.json),
+  [`wallet_agent_id`](https://eollo.xyz/schemas/wallet_agent_id.v2.json),
+  [`wallet_sign`](https://eollo.xyz/schemas/wallet_sign.v2.json),
+  [`wallet_send`](https://eollo.xyz/schemas/wallet_send.v2.json)
 
 ## Execution model
 
