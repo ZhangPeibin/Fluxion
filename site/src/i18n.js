@@ -102,7 +102,6 @@ export const copy = {
       viewInCatalog: "在能力目录查看",
       close: "关闭",
       session: "wallet.session",
-      hint: "悬停查看能力名，点击打开详情",
       staticHint: "共 24 个能力，按领域分布",
     },
     problems: {
@@ -343,7 +342,6 @@ export const copy = {
       viewInCatalog: "View in catalog",
       close: "Close",
       session: "wallet.session",
-      hint: "Hover for names, click for details",
       staticHint: "24 capabilities grouped by domain",
     },
     problems: {

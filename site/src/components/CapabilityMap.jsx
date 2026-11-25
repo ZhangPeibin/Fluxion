@@ -516,7 +516,6 @@ export default function CapabilityMap({ t, data, onSelectDomain }) {
         </div>
       )}
 
-      {!compact && <p className="map-hint">{t.map.hint}</p>}
 
       {selectedCapability && (
         <CapabilityDetail

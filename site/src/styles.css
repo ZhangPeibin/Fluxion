@@ -2873,12 +2873,6 @@ main,
   color: #a5d8ff;
 }
 
-.map-hint {
-  color: var(--muted-2);
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  text-align: right;
-}
 
 /* theme refresh: graphite + electric blue / cyan, flatter surfaces */
 :root {
@@ -2951,24 +2945,7 @@ body::before {
   background: rgba(8, 12, 18, 0.7);
 }
 
-.map-hint {
-  position: absolute;
-  left: max(22px, calc((100vw - var(--max)) / 2));
-  bottom: 96px;
-  z-index: 4;
-  color: var(--muted-2);
-  font-family: var(--mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.02em;
-  text-align: left;
-  pointer-events: none;
-}
 
-@media (max-width: 1024px) {
-  .map-hint {
-    display: none;
-  }
-}
 
 body::before {
   background:
@@ -2984,11 +2961,6 @@ body::before {
   filter: blur(20px);
 }
 
-.map-hint {
-  left: auto;
-  right: max(22px, calc((100vw - var(--max)) / 2));
-  text-align: right;
-}
 
 .map-node-dot {
   filter: drop-shadow(0 0 3px currentColor);
