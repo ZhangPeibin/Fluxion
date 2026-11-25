@@ -47,7 +47,7 @@ export const copy = {
   zh: {
     captions: {
       langSwitch: "EN",
-      langHref: "en.html",
+      langHref: "./",
       openMenu: "打开菜单",
       copy: "复制",
       copied: "已复制",
@@ -287,7 +287,7 @@ export const copy = {
   en: {
     captions: {
       langSwitch: "中文",
-      langHref: "index.html",
+      langHref: "zh.html",
       openMenu: "Open menu",
       copy: "Copy",
       copied: "Copied",

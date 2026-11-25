@@ -5,7 +5,7 @@ import App from "./App.jsx";
 import "./styles.css";
 
 const root = document.getElementById("root");
-const lang = root?.dataset.lang === "en" ? "en" : "zh";
+const lang = root?.dataset.lang === "zh" ? "zh" : "en";
 
 createRoot(root).render(
   <StrictMode>

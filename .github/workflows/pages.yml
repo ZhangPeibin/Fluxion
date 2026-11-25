@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - "site/**"
+      - "schemas/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 

@@ -14,10 +14,11 @@ npm install
 npm run dev        # http://localhost:5174
 ```
 
-Two entries exist:
+English is the default at `/`; Chinese lives at `/zh.html`.
 
-- `index.html` — 中文 (`lang="zh-CN"`)
-- `en.html` — English (`lang="en"`)
+- `index.html` — English (`lang="en"`), served at `/`
+- `zh.html` — Chinese (`lang="zh-CN"`), served at `/zh.html`
+- `en.html` — legacy redirect to `/`
 
 Each entry mounts the same `src/App.jsx` with a `lang` prop; copy lives in `src/i18n.js`.
 
@@ -29,10 +30,10 @@ npm run preview
 ```
 
 The `postbuild` step copies `schemas/` into `dist/schemas`, so the deployed site serves
-`https://zhangpeibin.github.io/eollo/schemas/...`, matching the `$id` values in `schemas/`.
+`https://eollo.xyz/schemas/...`, matching the `$id` values in `schemas/`.
 
 `base: "./"` keeps every asset link relative, so the same build works locally, under the GitHub
-Pages project path (`/eollo/`), and on a custom domain once one is configured. Do not add
+Pages project path (`/eollo/`), and at the apex domain (`https://eollo.xyz/`). Do not add
 root-absolute URLs (`/assets/...`).
 
 ## Capability data
@@ -75,23 +76,37 @@ One-time repository setup:
 
 1. Open **Settings → Pages**.
 2. Set **Source** to **GitHub Actions**.
-3. Run the workflow (push to `master` or **Actions → Pages → Run workflow**).
+3. Set **Custom domain** to `eollo.xyz`.
+4. After the certificate is ready, enable **Enforce HTTPS**.
+5. Run the workflow (push to `master` or **Actions → Pages → Run workflow**).
+
+The custom domain is a repository setting. Because Pages is published from a GitHub Actions
+workflow, a `CNAME` file is ignored and is not required.
+
+DNS at the registrar:
+
+- Apex `@` — A records to `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
+  `185.199.111.153`.
+- Optional AAAA `@` — `2606:50c0:8000::153`, `2606:50c0:8001::153`, `2606:50c0:8002::153`,
+  `2606:50c0:8003::153`.
+- `www` — CNAME to `zhangpeibin.github.io`.
+
+With `eollo.xyz` as the custom domain, `www.eollo.xyz` redirects to the apex and the old
+`zhangpeibin.github.io/eollo/` path redirects to the new host.
 
 Expected URLs:
 
-- Chinese: <https://zhangpeibin.github.io/eollo/>
-- English: <https://zhangpeibin.github.io/eollo/en.html>
-
-No custom domain is configured yet. The site is served from the GitHub Pages project path. When a
-product domain is purchased, add `site/public/CNAME`, point DNS at GitHub Pages, and update the
-absolute `hreflang` links in `index.html` and `en.html` plus the schema `$id` values.
+- English: <https://eollo.xyz/>
+- Chinese: <https://eollo.xyz/zh.html>
+- Schemas: <https://eollo.xyz/schemas/...>
 
 ## Structure
 
 ```text
 site/
-  index.html            # 中文 entry
-  en.html               # English entry
+  index.html            # English entry (default, served at /)
+  zh.html               # 中文 entry (served at /zh.html)
+  en.html               # legacy redirect to /
   src/main.jsx          # mounts App with the entry language
   src/App.jsx           # section composition
   src/config.js         # MANAGED_REMOTE_URL switch for the hosted endpoint
