@@ -102,7 +102,7 @@ export const copy = {
       viewInCatalog: "在能力目录查看",
       close: "关闭",
       session: "wallet.session",
-      hint: "悬停查看能力名，点击打开详情",
+      hint: "圆环 = 领域 · 圆点 = 能力 · 悬停查看名称",
       staticHint: "共 24 个能力，按领域分布",
     },
     problems: {
@@ -266,7 +266,6 @@ export const copy = {
           links: [
             { label: "能力目录", href: `${REPO}/capabilities/catalog.yaml` },
             { label: "Skills", href: `${REPO}/skills` },
-            { label: "路线与边界", href: `${REPO}/README.zh.md#状态与边界` },
           ],
         },
         {
@@ -280,11 +279,7 @@ export const copy = {
         },
         {
           title: "项目",
-          links: [
-            { label: "GitHub", href: GITHUB_URL },
-            { label: "英文 README", href: `${REPO}/README.md` },
-            { label: "CI", href: `${GITHUB_URL}/actions/workflows/ci.yml` },
-          ],
+          links: [{ label: "GitHub", href: GITHUB_URL }],
         },
       ],
       copyright: "Eollo · Pre-1.0",
@@ -348,7 +343,7 @@ export const copy = {
       viewInCatalog: "View in catalog",
       close: "Close",
       session: "wallet.session",
-      hint: "Hover for names, click for details",
+      hint: "Ring = domain · dot = capability · hover for names",
       staticHint: "24 capabilities grouped by domain",
     },
     problems: {
@@ -486,7 +481,6 @@ export const copy = {
           links: [
             { label: "Catalog", href: `${REPO}/capabilities/catalog.yaml` },
             { label: "Skills", href: `${REPO}/skills` },
-            { label: "Roadmap and limits", href: `${REPO}/README.md#status-and-boundaries` },
           ],
         },
         {
@@ -500,11 +494,7 @@ export const copy = {
         },
         {
           title: "Project",
-          links: [
-            { label: "GitHub", href: GITHUB_URL },
-            { label: "Chinese README", href: `${REPO}/README.zh.md` },
-            { label: "CI", href: `${GITHUB_URL}/actions/workflows/ci.yml` },
-          ],
+          links: [{ label: "GitHub", href: GITHUB_URL }],
         },
       ],
       copyright: "Eollo · Pre-1.0",

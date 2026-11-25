@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
 import Capabilities from "./components/Capabilities.jsx";
-import CursorGlow from "./components/CursorGlow.jsx";
 import Flow from "./components/Flow.jsx";
 import Footer from "./components/Footer.jsx";
 import Hero from "./components/Hero.jsx";
@@ -39,7 +38,6 @@ export default function App({ lang }) {
 
   return (
     <>
-      <CursorGlow />
       <a className="skip-link" href="#main">
         {lang === "zh" ? "跳到主要内容" : "Skip to content"}
       </a>

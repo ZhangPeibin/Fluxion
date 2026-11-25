@@ -5,13 +5,13 @@ import { GITHUB_URL } from "../i18n.js";
 const DOMAIN_ORDER = ["swap", "wallet", "transaction", "signature", "fourmeme", "yield", "position"];
 
 const DOMAIN_COLOR = {
-  swap: "#4d9dff",
-  wallet: "#22d3ee",
-  transaction: "#34d399",
-  signature: "#f5c451",
-  fourmeme: "#f472b6",
-  yield: "#2dd4bf",
-  position: "#fb923c",
+  swap: "#8ea7d8",
+  wallet: "#7cc7c7",
+  transaction: "#8fbb9a",
+  signature: "#c9b28a",
+  fourmeme: "#c39ab6",
+  yield: "#86b8b0",
+  position: "#c9a089",
 };
 
 const DESKTOP = { w: 1200, h: 760 };
@@ -73,12 +73,15 @@ function buildLayout(capabilities, compact) {
       y = COMPACT.cy + Math.sin(angle) * COMPACT.ry * scale;
     } else {
       const angle = -Math.PI / 2 + index * ((Math.PI * 2) / DOMAIN_ORDER.length);
-      x = 600 + Math.cos(angle) * 470;
-      y = 300 + Math.sin(angle) * 180;
+      x = 600 + Math.cos(angle) * 500;
+      y = 370 + Math.sin(angle) * 240;
+      if (domain === "wallet") y += 60;
+      if (domain === "swap") y -= 20;
+      if (domain === "fourmeme") y -= 2;
     }
 
     const list = byDomain.get(domain) ?? [];
-    const ring = compact ? 0 : list.length <= 1 ? 20 : Math.max(36, 16 + list.length * 4.4);
+    const ring = compact ? 0 : list.length <= 1 ? 16 : Math.max(30, 12 + list.length * 3.2);
     hubs[domain] = { x, y, count: list.length, ring };
 
     if (compact) return;
@@ -375,7 +378,7 @@ export default function CapabilityMap({ t, data, onSelectDomain }) {
             const label = t.domains[domain]?.label ?? domain;
             const color = DOMAIN_COLOR[domain];
             const interactive = true;
-            const behindText = !compact && hub.x > 280 && hub.x < 920 && hub.y > 100 && hub.y < 620;
+            const behindText = !compact && hub.x > 320 && hub.x < 880 && hub.y > 140 && hub.y < 500;
             return (
               <g
                 key={domain}
@@ -398,22 +401,27 @@ export default function CapabilityMap({ t, data, onSelectDomain }) {
               >
                 {!behindText && (
                   <>
-                    <circle className="map-hub-ring" r={compact ? 17 : 13} stroke={color} />
-                    <circle className="map-hub-core" r={compact ? 4.5 : 3.4} fill={color} />
+                    <circle className="map-hub-ring" r={compact ? 14 : 10} stroke={color} />
+                    <circle className="map-hub-core" r={compact ? 3.4 : 2.6} fill={color} />
                   </>
                 )}
-                {!compact &&
-                  focusedDomain !== domain &&
-                  ((hub.x < 270 && hub.y - hub.ring - 14 > 60) ||
-                    (hub.x > 930 && hub.y - hub.ring - 14 > 200)) && (
+                {!compact && focusedDomain !== domain && (() => {
+                  const onLeft = hub.x > 640;
+                  const onRight = hub.x < 560;
+                  const dx = onRight ? hub.ring + 22 : onLeft ? -(hub.ring + 22) : 0;
+                  const dy = onRight || onLeft ? 4 : (hub.y < 330 ? -(hub.ring + 22) : hub.ring + 22);
+                  const anchor = onRight ? "start" : onLeft ? "end" : "middle";
+                  return (
                     <text
                       className="map-hub-label"
-                      y={-(hub.ring + 14)}
-                      textAnchor="middle"
+                      x={dx}
+                      y={dy}
+                      textAnchor={anchor}
                     >
                       {label} {hub.count}
                     </text>
-                  )}
+                  );
+                })()}
               </g>
             );
           })}
@@ -428,7 +436,7 @@ export default function CapabilityMap({ t, data, onSelectDomain }) {
             const isActive = activeNodes.has(capability.id);
             const dimmed = mode === "workflows" && activeWorkflows.length > 0 && !isActive && !isFocused;
             const hub = layout.hubs[capability.domain];
-            const isCentral = !compact && hub && hub.x > 280 && hub.x < 920 && hub.y > 100 && hub.y < 620;
+            const isCentral = !compact && hub && hub.x > 320 && hub.x < 880 && hub.y > 140 && hub.y < 500;
             return (
               <g
                 key={capability.id}
@@ -449,9 +457,9 @@ export default function CapabilityMap({ t, data, onSelectDomain }) {
                   }
                 }}
               >
-                <circle className="map-node-hit" r={16} fill="transparent" />
-                <circle className="map-node-glow" r={isFocused ? 12 : 8} fill={color} />
-                <circle className="map-node-dot" r={isFocused ? 5.8 : 4.6} fill={color} />
+                <circle className="map-node-hit" r={14} fill="transparent" />
+                <circle className="map-node-glow" r={isFocused ? 9 : 6} fill={color} />
+                <circle className="map-node-dot" r={isFocused ? 4.8 : 3.6} fill={color} />
                 {isFocused && (
                   <text className="map-node-label" y={-14} textAnchor="middle">
                     {capability.id}
@@ -463,8 +471,8 @@ export default function CapabilityMap({ t, data, onSelectDomain }) {
 
         {!compact && mode === "requires" && layout.ghost && (
           <g className="map-node is-ghost" transform={`translate(${layout.ghost.x} ${layout.ghost.y})`}>
-            <circle className="map-node-hit" r={15} fill="transparent" />
-            <circle className="map-node-dot" r={4} />
+            <circle className="map-node-hit" r={13} fill="transparent" />
+            <circle className="map-node-dot" r={3.4} />
             <text className="map-node-label" x={-10} y={4} textAnchor="end">
               {t.map.session}
             </text>

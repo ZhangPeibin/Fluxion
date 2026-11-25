@@ -13,9 +13,6 @@ export default function Hero({ t, data, onSelectDomain }) {
 
   return (
     <section className="hero" id="top">
-      <div className="hero-aurora" aria-hidden="true" />
-      <div className="hero-grid" aria-hidden="true" />
-
       <div className="hero-inner">
         <div className="hero-copy">
           <p className="eyebrow intro" style={{ "--intro-delay": "40ms" }}>

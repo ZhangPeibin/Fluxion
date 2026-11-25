@@ -1,5 +1,3 @@
-import { GITHUB_URL } from "../i18n.js";
-
 export default function Footer({ t, lang }) {
   return (
     <footer className="footer">
@@ -12,10 +10,6 @@ export default function Footer({ t, lang }) {
           <div className="footer-meta">
             <a href={t.captions.langHref} hrefLang={lang === "zh" ? "en" : "zh-CN"}>
               {t.captions.langSwitch}
-            </a>
-            <span aria-hidden="true">·</span>
-            <a href={GITHUB_URL} target="_blank" rel="noreferrer">
-              GitHub
             </a>
           </div>
         </div>

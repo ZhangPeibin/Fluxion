@@ -13,13 +13,13 @@ function Mark() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="16" cy="8" r="3" fill="#22d3ee" />
-      <circle cx="7" cy="23" r="2.2" fill="#4d9dff" />
-      <circle cx="25" cy="23" r="2.2" fill="#3fb950" />
+      <circle cx="16" cy="8" r="3" fill="#fafafa" />
+      <circle cx="7" cy="23" r="2.2" fill="#8d9bc4" />
+      <circle cx="25" cy="23" r="2.2" fill="#c9b28a" />
       <defs>
         <linearGradient id="brandGradient" x1="7" y1="23" x2="25" y2="8" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#4d9dff" />
-          <stop offset="1" stopColor="#22d3ee" />
+          <stop stopColor="#8d9bc4" />
+          <stop offset="1" stopColor="#c9b28a" />
         </linearGradient>
       </defs>
     </svg>

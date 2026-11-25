@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
 
 const TOKENS = [
-  { symbol: "ETH", x: 0.5, y: 0.13, color: "#7c5cff" },
-  { symbol: "USDC", x: 0.87, y: 0.28, color: "#3fb950" },
-  { symbol: "WBTC", x: 0.9, y: 0.7, color: "#f7931a" },
-  { symbol: "LDO", x: 0.66, y: 0.88, color: "#58a6ff" },
-  { symbol: "DAI", x: 0.33, y: 0.86, color: "#e3b341" },
-  { symbol: "wstETH", x: 0.13, y: 0.6, color: "#a371f7" },
-  { symbol: "USDT", x: 0.16, y: 0.27, color: "#2ea043" },
+  { symbol: "ETH", x: 0.5, y: 0.13, color: "#8d9bc4" },
+  { symbol: "USDC", x: 0.87, y: 0.28, color: "#8fbb9a" },
+  { symbol: "WBTC", x: 0.9, y: 0.7, color: "#c0a08c" },
+  { symbol: "LDO", x: 0.66, y: 0.88, color: "#a3b2cf" },
+  { symbol: "DAI", x: 0.33, y: 0.86, color: "#c9b28a" },
+  { symbol: "wstETH", x: 0.13, y: 0.6, color: "#b59bb0" },
+  { symbol: "USDT", x: 0.16, y: 0.27, color: "#93b6b0" },
 ];
 
 const EDGES = [
@@ -27,9 +27,9 @@ const EDGES = [
 ];
 
 const PLATFORM_COLOR = {
-  "uniswap-v3": "#4d9dff",
-  "uniswap-v2": "#22d3ee",
-  curve: "#34d399",
+  "uniswap-v3": "#8d9bc4",
+  "uniswap-v2": "#a3b2cf",
+  curve: "#8fbb9a",
 };
 
 const PACKET_COUNT = 22;
@@ -137,7 +137,7 @@ export default function RouteField({ hint }) {
 
       EDGES.forEach((edge, index) => {
         const geo = geometries[index];
-        const color = PLATFORM_COLOR[edge[2]] ?? "#58a6ff";
+        const color = PLATFORM_COLOR[edge[2]] ?? "#a3b2cf";
         const touchesHover = hovered === edge[0] || hovered === edge[1];
         ctx.beginPath();
         ctx.moveTo(geo.a.x, geo.a.y);
@@ -150,7 +150,7 @@ export default function RouteField({ hint }) {
       for (const packet of packets) {
         const geo = geometries[packet.edge];
         const edge = EDGES[packet.edge];
-        const color = PLATFORM_COLOR[edge[2]] ?? "#58a6ff";
+        const color = PLATFORM_COLOR[edge[2]] ?? "#a3b2cf";
         const head = quadPoint(geo.a, geo.c, geo.b, packet.t);
         const tail = quadPoint(geo.a, geo.c, geo.b, Math.max(0, packet.t - 0.06));
         const gradient = ctx.createLinearGradient(tail.x, tail.y, head.x, head.y);
@@ -195,7 +195,7 @@ export default function RouteField({ hint }) {
         ctx.shadowBlur = 0;
 
         ctx.font = `${isHovered ? "600 12px" : "500 11px"} ui-monospace, SFMono-Regular, Menlo, monospace`;
-        ctx.fillStyle = isHovered ? "#f2f5f9" : "#8b98a9";
+        ctx.fillStyle = isHovered ? "#fafafa" : "#8f8f8f";
         ctx.textAlign = "center";
         ctx.fillText(token.symbol, point.x, point.y + 22);
       }
