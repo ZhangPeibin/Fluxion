@@ -5,7 +5,7 @@ import Reveal from "./Reveal.jsx";
 import SectionHeading from "./SectionHeading.jsx";
 import { GITHUB_URL, SKILLS_COMMAND } from "../i18n.js";
 
-function PromptRotator({ prompts, hint, copyLabel, copiedLabel }) {
+function PromptRotator({ prompts, label, copyLabel, copiedLabel }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [copied, setCopied] = useState(-1);
@@ -47,7 +47,6 @@ function PromptRotator({ prompts, hint, copyLabel, copiedLabel }) {
           <i />
           <i />
         </span>
-        <span className="prompt-hint">{hint}</span>
       </div>
 
       <div className="prompt-stage" aria-live="polite">
@@ -64,7 +63,7 @@ function PromptRotator({ prompts, hint, copyLabel, copiedLabel }) {
       </div>
 
       <div className="prompt-foot">
-        <div className="prompt-indicators" role="tablist" aria-label={hint}>
+        <div className="prompt-indicators" role="tablist" aria-label={label}>
           {prompts.map((prompt, position) => (
             <button
               key={prompt}
@@ -110,7 +109,7 @@ export default function Skills({ t }) {
             <h3>{t.skills.promptTitle}</h3>
             <PromptRotator
               prompts={t.skills.prompts}
-              hint={t.skills.promptHint}
+              label={t.skills.promptTitle}
               copyLabel={t.captions.copy}
               copiedLabel={t.captions.copied}
             />

@@ -222,7 +222,6 @@ export const copy = {
       configLabel: "用 skills CLI 安装（推荐）",
       listTitle: "七个 Skill",
       promptTitle: "直接对 Agent 说",
-      promptHint: "点击任意一句复制",
       examplesLink: "查看完整示例",
       prompts: [
         "把 100 LDO 换成 ETH，给我最佳报价和路径。",
@@ -442,7 +441,6 @@ export const copy = {
       configLabel: "Install with the skills CLI (recommended)",
       listTitle: "Seven skills",
       promptTitle: "Say this to your agent",
-      promptHint: "Click a line to copy it",
       examplesLink: "See all examples",
       prompts: [
         "Swap 100 LDO to ETH and give me the best quote and route.",
