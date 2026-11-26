@@ -56,7 +56,7 @@ pub fn build_response(
         schema_version: SCHEMA_VERSION,
         capability: "yield.history".to_string(),
         request_id: request_id(),
-        chain: "ethereum".to_string(),
+        chain: entry.chain.clone(),
         opportunity_id: entry.id.clone(),
         days: request.days,
         series,

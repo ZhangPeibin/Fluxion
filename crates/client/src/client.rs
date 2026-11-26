@@ -211,6 +211,8 @@ struct HttpHop {
     pool: String,
     i: usize,
     j: usize,
+    #[serde(default)]
+    fee: Option<u32>,
     token_in: String,
     token_out: String,
     amount_in: String,
@@ -248,6 +250,7 @@ fn map_hop(hop: HttpHop, token_in_decimals: u8, token_out_decimals: u8) -> HopRe
         pool: hop.pool,
         i: hop.i,
         j: hop.j,
+        fee: hop.fee,
         token_in: hop.token_in,
         token_out: hop.token_out,
         amount_in: Amount::from_raw(

@@ -1,12 +1,12 @@
 ---
 name: yield
-description: Use when the user asks where to earn yield on ETH safely, wants the safest or highest-APY ETH staking or lending opportunity, wants to compare Lido/Rocket Pool/Aave/SparkLend yields, or uses the Eollo yield_discover, yield_build, yield_history or yield_withdraw tools. Never deposits, signs or broadcasts.
+description: Use when the user asks where to earn yield on ETH or BNB safely, wants the safest or highest-APY native-asset staking or lending opportunity, wants to compare Ethereum protocols or Venus on BSC, or uses the Eollo yield_discover, yield_build, yield_history or yield_withdraw tools. Never deposits, signs or broadcasts.
 ---
 
 # yield.discover
 
-Use this capability when an agent needs to compare **ETH-denominated staking and lending**
-opportunities on Ethereum. It returns a safety tier, APY components, TVL, withdrawal conditions,
+Use this capability when an agent needs to compare **native-asset staking and lending**
+opportunities. Use ETH on Ethereum and BNB on BSC. It returns a safety tier, APY components, TVL, withdrawal conditions,
 evidence and one recommendation with tradeoffs.
 
 Human-facing capability documentation is in
@@ -17,6 +17,7 @@ Human-facing capability documentation is in
 
 ```json
 {"name": "yield_discover", "arguments": {"asset": "ETH", "amount": "10", "risk_profile": "conservative"}}
+{"name": "yield_discover", "arguments": {"asset": "BNB", "chain": "bsc", "amount": "10", "risk_profile": "aggressive"}}
 ```
 
 ## CLI
@@ -24,6 +25,7 @@ Human-facing capability documentation is in
 ```bash
 eollo yield discover --asset ETH --amount 10 --json
 eollo yield discover --asset ETH --amount 10 --risk balanced --json
+eollo yield discover --asset BNB --chain bsc --amount 10 --risk aggressive --json
 ```
 
 ## Reading the result
@@ -40,7 +42,7 @@ eollo yield discover --asset ETH --amount 10 --risk balanced --json
   `apy_mean_30d_percent`, and `ranking_apy_percent`. Ranking uses the 30-day mean of base APY;
   reward APY is excluded unless `include_reward_apy` is true.
 - `opportunities[].market`: `deposit_asset`, `receipt_asset`, `requires_wrap`, and withdrawal
-  conditions. Aave/SparkLend require WETH, so ETH must be wrapped.
+  conditions. Aave/SparkLend require WETH, so ETH must be wrapped. Venus vBNB takes BNB directly; Venus vUSDT takes USDT.
 - `opportunities[].risk_factors` and `evidence`: cite these when explaining a choice.
 - `excluded`: curated entries filtered by the profile or data quality.
 - `stale`, `age_secs`: in `data`; freshness, sources and warnings are on the envelope.
@@ -71,7 +73,7 @@ Build local calldata for a chosen opportunity:
 ```
 
 - Returns `steps` (`wrap`, `approve`, `stake`, `supply`, `deposit`) and `approvals`.
-- `funding_asset` defaults to `ETH`; pass `WETH` only when the sender already holds WETH.
+- `funding_asset` defaults to the chain native asset (`ETH` or `BNB`); pass the wrapped symbol only when the sender already holds it.
 - The recipient must be the transaction sender for Lido and Rocket Pool.
 - Supported: Lido, Rocket Pool, Aave V3, SparkLend and curated Morpho vaults.
 - LRT/cbETH markets return `UNSUPPORTED` from build until their deposit contracts are implemented.
@@ -96,9 +98,9 @@ Build local exit calldata:
 ```
 
 - One `steps` entry: `withdraw` for Aave/Spark, `redeem` for Morpho, `burn` for Rocket Pool.
-- `amount=max` is supported for Aave/Spark only; Morpho needs an exact vault-share amount and Rocket Pool an exact rETH amount.
+- `amount=max` is supported for Aave/Spark only. Morpho needs an exact vault-share amount, Rocket Pool an exact rETH amount, and Venus an exact vToken amount.
 - `owner` defaults to `recipient`; Rocket Pool burn uses the transaction sender and may require a delay.
-- Lido stETH and LRT/cbETH exits return `UNSUPPORTED` for now.
+- Lido stETH and LRT/cbETH exits return `UNSUPPORTED` for now. Venus exits use `redeem(uint256)`.
 - Never sign or broadcast from this skill. Simulate and inspect the step, then let the user approve.
 
 ## Workflow recipe: yield-deposit
@@ -107,8 +109,8 @@ Use this when the user wants to discover, deposit into, and confirm a curated ET
 workflow is `yield.discover → yield.build → wallet.allowance → transaction.inspect →
 transaction.simulate → transaction.send → transaction.verify → position.analyze`.
 
-Required inputs: asset (`ETH`), amount, opportunity id (or a profile for discovery), recipient, and
-an optional policy. The chain is Ethereum.
+Required inputs: asset (`ETH` on Ethereum, `BNB` on BSC), amount, opportunity id (or a profile
+for discovery), recipient, and an optional policy. Pass `chain: "bsc"` for BSC.
 
 Checkpoints:
 

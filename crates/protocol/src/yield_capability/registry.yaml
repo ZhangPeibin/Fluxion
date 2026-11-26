@@ -370,3 +370,77 @@ entries:
     reviewed_at: "2026-11-18"
     reviewer: "eollo-risk"
     notes: Small curated Morpho vault; experimental despite the underlying protocol's maturity.
+
+  - id: venus-vbnb
+    chain: bsc
+    protocol_slug: venus-core-pool
+    protocol_name: Venus Core Pool
+    category: Lending
+    action: lend
+    safety_tier: established
+    contract: "0xA07c5b74C9B40447a954e1466938b865b6BBea36"
+    market_name: vBNB
+    deposit_asset_symbol: BNB
+    deposit_asset_address: native
+    deposit_decimals: 18
+    receipt_asset_symbol: vBNB
+    receipt_asset_address: "0xA07c5b74C9B40447a954e1466938b865b6BBea36"
+    receipt_decimals: 8
+    requires_wrap: false
+    defillama_project: venus-core-pool
+    defillama_symbol: WBNB
+    defillama_pool: 747b58ab-aefd-42e1-a312-01ad5a0ab7f5
+    withdrawal:
+      mode: instant
+      lockup_days: 0
+      notes: Redeem vBNB for BNB from the Venus pool; utilization can limit immediate exits.
+    risk_notes:
+      - code: SMART_CONTRACT
+        level: low
+        evidence: Venus Core Pool is a long-running Compound v2 fork on BSC.
+      - code: LIQUIDITY
+        level: medium
+        evidence: Withdrawals depend on available BNB liquidity in the pool.
+      - code: ORACLE
+        level: medium
+        evidence: Market safety depends on the Venus price oracle configuration.
+    reviewed_at: "2026-11-26"
+    reviewer: "eollo-risk"
+    notes: Core BNB lending market; APY is the supply rate reported by DefiLlama.
+
+  - id: venus-vusdt
+    chain: bsc
+    protocol_slug: venus-core-pool
+    protocol_name: Venus Core Pool
+    category: Lending
+    action: lend
+    safety_tier: established
+    contract: "0xfD5840Cd36d94D7229439859C0112a4185BC0255"
+    market_name: vUSDT
+    deposit_asset_symbol: USDT
+    deposit_asset_address: "0x55d398326f99059fF775485246999027B3197955"
+    deposit_decimals: 18
+    receipt_asset_symbol: vUSDT
+    receipt_asset_address: "0xfD5840Cd36d94D7229439859C0112a4185BC0255"
+    receipt_decimals: 8
+    requires_wrap: false
+    defillama_project: venus-core-pool
+    defillama_symbol: USDT
+    defillama_pool: 9f3a6015-5045-4471-ba65-ad3dc7c38269
+    withdrawal:
+      mode: instant
+      lockup_days: 0
+      notes: Redeem vUSDT for USDT from the Venus pool; utilization can limit immediate exits.
+    risk_notes:
+      - code: SMART_CONTRACT
+        level: low
+        evidence: Venus Core Pool is a long-running Compound v2 fork on BSC.
+      - code: LIQUIDITY
+        level: medium
+        evidence: Withdrawals depend on available USDT liquidity in the pool.
+      - code: ORACLE
+        level: medium
+        evidence: Market safety depends on the Venus price oracle configuration.
+    reviewed_at: "2026-11-26"
+    reviewer: "eollo-risk"
+    notes: Core USDT lending market; APY is the supply rate reported by DefiLlama.

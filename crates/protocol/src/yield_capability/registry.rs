@@ -13,9 +13,16 @@ use serde::Deserialize;
 
 pub const DEFAULT_REGISTRY: &str = include_str!("registry.yaml");
 
+fn default_chain() -> String {
+    "ethereum".to_string()
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct RegistryEntry {
     pub id: String,
+    /// Chain this market lives on: `ethereum` or `bsc`.
+    #[serde(default = "default_chain")]
+    pub chain: String,
     pub protocol_slug: String,
     pub protocol_name: String,
     pub category: String,
@@ -107,6 +114,12 @@ impl Registry {
             }
             if !ids.insert(entry.id.as_str()) {
                 return Err(format!("duplicate yield registry id: {}", entry.id));
+            }
+            if !matches!(entry.chain.as_str(), "ethereum" | "bsc") {
+                return Err(format!(
+                    "yield registry entry {} has unsupported chain: {}",
+                    entry.id, entry.chain
+                ));
             }
             if entry.contract == Address::ZERO || entry.receipt_asset_address == Address::ZERO {
                 return Err(format!(

@@ -47,6 +47,8 @@ pub struct HopDto {
     pub pool: String,
     pub i: usize,
     pub j: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fee: Option<u32>,
     pub token_in: String,
     pub token_out: String,
     pub amount_in: String,
@@ -198,6 +200,7 @@ struct SplitService {
     pin_pricing: bool,
     local: Option<Arc<SnapshotStore>>,
     compute_slots: Arc<tokio::sync::Semaphore>,
+    v3_deployments: crate::model::V3Deployments,
 }
 
 pub enum ApiError {
@@ -330,6 +333,7 @@ fn hop_to_dto(hop: &Hop) -> HopDto {
         pool: hop.pool.address.to_string(),
         i: hop.i,
         j: hop.j,
+        fee: hop.pool.kind.v3_fee(),
         token_in: hop.token_in.to_string(),
         token_out: hop.token_out.to_string(),
         amount_in: hop.amount_in.to_string(),
@@ -493,9 +497,10 @@ async fn quote(
                 // This assembly only selects adapter/cache implementations;
                 // the server's existing filtered graph and Router are retained.
                 // Fresh request-local caches cannot carry a different block.
-                let (source, _) = crate::universe::pricing_source(
+                let (source, _) = crate::universe::pricing_source_with_deployments(
                     &crate::config::Config::default(),
                     rpc.clone().at_block(block),
+                    &service.v3_deployments,
                 );
                 optimizer
                     .quote_until(
@@ -710,7 +715,24 @@ pub fn app_with_split(
     optimizer: SplitOptimizer,
     pin_pricing: bool,
 ) -> AxumRouter {
-    build_app(state, optimizer, pin_pricing, None)
+    build_app(
+        state,
+        optimizer,
+        pin_pricing,
+        None,
+        crate::model::V3Deployments::default(),
+    )
+}
+
+/// Same as `app_with_split`, but request-local pinned sources keep the
+/// configured V3 venues such as Pancake V3.
+pub fn app_with_split_venues(
+    state: Arc<AppState>,
+    optimizer: SplitOptimizer,
+    pin_pricing: bool,
+    v3_deployments: crate::model::V3Deployments,
+) -> AxumRouter {
+    build_app(state, optimizer, pin_pricing, None, v3_deployments)
 }
 
 pub fn app_with_local_state(
@@ -718,7 +740,13 @@ pub fn app_with_local_state(
     optimizer: SplitOptimizer,
     store: Arc<SnapshotStore>,
 ) -> AxumRouter {
-    build_app(state, optimizer, false, Some(store))
+    build_app(
+        state,
+        optimizer,
+        false,
+        Some(store),
+        crate::model::V3Deployments::default(),
+    )
 }
 
 async fn state_status(Extension(service): Extension<Arc<SplitService>>) -> Json<serde_json::Value> {
@@ -733,6 +761,7 @@ fn build_app(
     optimizer: SplitOptimizer,
     pin_pricing: bool,
     local: Option<Arc<SnapshotStore>>,
+    v3_deployments: crate::model::V3Deployments,
 ) -> AxumRouter {
     let compute_slots = Arc::new(tokio::sync::Semaphore::new(
         local
@@ -753,6 +782,7 @@ fn build_app(
             pin_pricing,
             local,
             compute_slots,
+            v3_deployments,
         })))
         .with_state(state)
 }

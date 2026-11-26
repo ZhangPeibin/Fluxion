@@ -142,6 +142,40 @@ fn parse_address(s: &str) -> Result<Address, DiscoveryError> {
         .map_err(|_| DiscoveryError::Address(s.to_string()))
 }
 
+/// Gateway indexers fail transiently. Retry once before giving up.
+async fn graph_request(
+    client: &reqwest::Client,
+    url: &str,
+    query: &str,
+) -> Result<serde_json::Value, DiscoveryError> {
+    let mut last_error = String::new();
+    for attempt in 0..2 {
+        let result = client
+            .post(url)
+            .json(&json!({ "query": query }))
+            .send()
+            .await;
+        match result {
+            Ok(response) => match response.error_for_status() {
+                Ok(response) => match response.json::<serde_json::Value>().await {
+                    Ok(value) => return Ok(value),
+                    Err(error) => last_error = error.to_string(),
+                },
+                Err(error) => last_error = error.without_url().to_string(),
+            },
+            Err(error) => last_error = error.without_url().to_string(),
+        }
+        if attempt == 0 {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    }
+    Err(DiscoveryError::Request(if last_error.is_empty() {
+        "subgraph request failed".to_string()
+    } else {
+        last_error
+    }))
+}
+
 /// Build the GraphQL `where` filter: liquidity floor plus optional volume and
 /// pool-age floors. `volumeUSD` is all-time volume, used as an activity proxy.
 fn discovery_where(config: &Config, tvl_field: &str) -> String {
@@ -178,7 +212,7 @@ pub async fn discover_v2_subgraph(
         return Ok(Vec::new());
     }
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(90))
         .build()
         .map_err(|e| DiscoveryError::Request(e.to_string()))?;
     let url =
@@ -187,23 +221,18 @@ pub async fn discover_v2_subgraph(
     let allow = allowlist(config);
     let where_clause = discovery_where(config, "reserveUSD");
     let mut skip = 0usize;
+    let mut pages = 0usize;
     let mut pools: Vec<Pool> = Vec::new();
 
     loop {
+        if pages >= config.discovery_max_pages {
+            break;
+        }
+        pages += 1;
         let query = format!(
             r#"{{ pairs(first: 1000, skip: {skip}, orderBy: reserveUSD, orderDirection: desc, where: {{ {where_clause} }}) {{ id token0 {{ id }} token1 {{ id }} }} }}"#
         );
-        let resp: serde_json::Value = client
-            .post(&url)
-            .json(&json!({ "query": query }))
-            .send()
-            .await
-            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?
-            .error_for_status()
-            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?
-            .json()
-            .await
-            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?;
+        let resp = graph_request(&client, &url, &query).await?;
 
         if let Some(errors) = resp.get("errors") {
             return Err(DiscoveryError::Request(errors.to_string()));
@@ -321,7 +350,7 @@ pub async fn discover_v3_deployment(
         return Ok(Vec::new());
     }
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(90))
         .build()
         .map_err(|e| DiscoveryError::Request(e.to_string()))?;
     let url = v3_discovery_url(graph_api_key, deployment)?;
@@ -329,23 +358,18 @@ pub async fn discover_v3_deployment(
     let allow = allowlist(config);
     let where_clause = discovery_where(config, "totalValueLockedUSD");
     let mut skip = 0usize;
+    let mut pages = 0usize;
     let mut pools: Vec<Pool> = Vec::new();
 
     loop {
+        if pages >= config.discovery_max_pages {
+            break;
+        }
+        pages += 1;
         let query = format!(
             r#"{{ pools(first: 1000, skip: {skip}, orderBy: volumeUSD, orderDirection: desc, where: {{ {where_clause} }}) {{ id token0 {{ id }} token1 {{ id }} feeTier }} }}"#
         );
-        let resp: serde_json::Value = client
-            .post(&url)
-            .json(&json!({ "query": query }))
-            .send()
-            .await
-            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?
-            .error_for_status()
-            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?
-            .json()
-            .await
-            .map_err(|e| DiscoveryError::Request(e.without_url().to_string()))?;
+        let resp = graph_request(&client, &url, &query).await?;
 
         if let Some(errors) = resp.get("errors") {
             return Err(DiscoveryError::Request(errors.to_string()));

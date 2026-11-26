@@ -16,6 +16,7 @@ use super::score::{YieldSnapshot, build_snapshot, discover};
 
 #[derive(Debug, Clone)]
 pub struct YieldOptions {
+    pub chain: String,
     pub refresh_secs: u64,
     pub max_age_secs: u64,
     pub hard_max_age_secs: u64,
@@ -24,6 +25,7 @@ pub struct YieldOptions {
 impl Default for YieldOptions {
     fn default() -> Self {
         Self {
+            chain: "ethereum".to_string(),
             refresh_secs: 300,
             max_age_secs: 900,
             hard_max_age_secs: 3600,
@@ -86,9 +88,15 @@ impl YieldStore {
 
     pub async fn refresh(&self) -> Result<(), YieldError> {
         let data = self.provider.fetch().await?;
+        let entries = self
+            .registry
+            .entries()
+            .iter()
+            .filter(|entry| entry.chain.eq_ignore_ascii_case(&self.options.chain))
+            .cloned()
+            .collect::<Vec<_>>();
         let checks = futures::future::join_all(
-            self.registry
-                .entries()
+            entries
                 .iter()
                 .map(|entry| async move { (entry.id.clone(), self.provider.verify(entry).await) }),
         )
@@ -96,7 +104,7 @@ impl YieldStore {
         .into_iter()
         .collect::<std::collections::HashMap<_, _>>();
         let snapshot = build_snapshot(
-            self.registry.entries(),
+            &entries,
             &data.pools,
             &data.protocol_meta,
             &checks,

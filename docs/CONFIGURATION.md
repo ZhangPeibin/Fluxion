@@ -5,7 +5,8 @@
 | 文件 | 用途 |
 |---|---|
 | `config.example.yaml` | 通用模板，复制为 `config.yaml` 后使用 |
-| `configs/runtime.yaml` | CLI/MCP 默认暖 runtime（local snapshot + incremental） |
+| `configs/runtime.yaml` | CLI/MCP 默认 Ethereum 暖 runtime（local snapshot + incremental） |
+| `configs/bsc.yaml` | BSC swap + yield profile：PancakeSwap V2/V3、Venus、RPC 计价（:8081） |
 | `bench/configs/threeway.yaml` | 三方 benchmark 主配置（:8081） |
 | `bench/configs/control.yaml` | 关闭转换/ShibaSwap 的对照配置（:8082） |
 | `bench/configs/local.yaml` | local snapshot benchmark（:8089） |
@@ -25,6 +26,8 @@
 | `curve_registry_ids` | 枚举的 Curve 注册表 id（0=主 stableswap，5=crypto，7=MetaRegistry 全部） | `[0, 5]` |
 | `enabled_platforms` | 启用的 AMM 平台；与转换列表独立 | `uniswap-v2` / `uniswap-v3` / `sushi-v3` / `pancake-v3` / `curve` / `shibaswap-v2`（示例配置） |
 | `v3_deployments` | V3 兼容部署（venue / factory / quoter / `subgraph_id` 或 `deployment_id`）；内置 Uniswap V3 | 见示例 |
+| `v2_forks` | 通过工厂地址发现的 V2 兼容部署（name / factory）；BSC 用它发现 PancakeSwap V2 | 空 |
+| `discovery_max_pages` | 每个 subgraph 部署最多扫描的分页数，避免窄白名单启动时扫完整个 subgraph | 20 |
 | `shibaswap_v2_factory` | ShibaSwap V2 工厂地址 | 见示例 |
 | `protocol_conversions` | 已支持接口类型的部署实例；`[]` 关闭转换 | Lido stETH↔wstETH，双向开启 |
 | `max_hops` / `top_k` / `max_pools` | 最大边数 / 每状态每能力组保留数 / 发现上限 | 3 / 8 / 10000 |
@@ -39,11 +42,12 @@
 | `pricing_mode` / `local_state` | 精算模式 / 后台同步与新鲜度策略 | `rpc` / 见示例 |
 | `split` | 可选拆单的服务预算；请求仍需 `split=true` | 4 分支 / 4 候选池 / 20 段 / 1024 次 / 8000 ms |
 | `token_allowlist` | 覆盖内置主流币白名单 | 空（使用内置） |
-| `yield` | 远程收益发现：`enabled` / `refresh_secs` / `max_age_secs` / `hard_max_age_secs` / `registry_path` | 见 `configs/runtime.yaml` |
+| `yield` | 远程收益发现：`enabled` / `chain` / `refresh_secs` / `max_age_secs` / `hard_max_age_secs` / `registry_path` | 见 `configs/runtime.yaml` |
 
 ## Execution routing
 
-`swap.quote`、`yield.discover`、`yield.history` 和 `position.analyze` 固定使用 Eollo remote 服务；`swap.build`、`yield.build` 和 `yield.withdraw` 固定在 local runtime；`wallet.balance`、`wallet.allowance`、
+`swap.quote`、`yield.discover`、`yield.history` 和 `position.analyze` 固定使用 Eollo remote 服务，并按链选择实例：
+Ethereum 用 `configs/runtime.yaml`，BSC 用 `configs/bsc.yaml`；`swap.build`、`yield.build` 和 `yield.withdraw` 固定在 local runtime；`wallet.balance`、`wallet.allowance`、
 `transaction.inspect`、`transaction.simulate`、`transaction.send`、`signature.inspect`、`fourmeme.agent-tokens` 和 `fourmeme.token` 固定在 local runtime；`wallet.assets` 和 `wallet.collectibles` 是 local verification +
 remote candidate discovery 的 hybrid capability。`wallet.connect` / `wallet.status` /
 `wallet.disconnect` / `wallet.sign` / `wallet.send` 固定在 local，负责 WalletConnect session；`wallet.agent-id` 是
@@ -51,7 +55,8 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 
 | 环境变量 | 默认 | 含义 |
 |---|---|---|
-| `EOLLO_REMOTE_URL` | 无（必须设置） | remote 服务地址；发行版可内置默认值 |
+| `EOLLO_REMOTE_URL` | 无（必须设置） | Ethereum remote 服务地址；BSC 未单独配置时也作为回退 |
+| `EOLLO_BSC_REMOTE_URL` | 空 | BSC remote 服务地址；设置后 `--chain bsc` 使用它 |
 | `EOLLO_API_KEY` | 空 | 静态 remote 认证 token；设置后不再自动注册 |
 | `EOLLO_REQUIRE_AUTH` | 空 | remote server 设为 `1` 时 `/quote` 需要安装 token |
 | `EOLLO_URL` | `http://127.0.0.1:8080` | 本地 runtime 地址，供 `start/status/serve` 和未来 wallet/execute |

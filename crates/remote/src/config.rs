@@ -85,6 +85,7 @@ pub struct V3DeploymentConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct YieldConfig {
     pub enabled: bool,
+    pub chain: String,
     pub refresh_secs: u64,
     pub max_age_secs: u64,
     pub hard_max_age_secs: u64,
@@ -95,6 +96,7 @@ impl Default for YieldConfig {
     fn default() -> Self {
         Self {
             enabled: false,
+            chain: "ethereum".to_string(),
             refresh_secs: 300,
             max_age_secs: 900,
             hard_max_age_secs: 3600,
@@ -117,6 +119,9 @@ pub struct Config {
     pub max_hops: usize,
     pub top_k: usize,
     pub max_pools: usize,
+    /// Maximum subgraph pages to scan per deployment. A narrow token allowlist
+    /// can otherwise page through the whole subgraph at startup.
+    pub discovery_max_pages: usize,
     pub min_liquidity: u128,
     pub min_volume_24h: u128,
     pub min_pool_age_days: u64,
@@ -179,6 +184,7 @@ impl Default for Config {
             max_hops: 3,
             top_k: 8,
             max_pools: 10_000,
+            discovery_max_pages: 20,
             min_liquidity: 10_000,
             min_volume_24h: 0,
             min_pool_age_days: 0,
@@ -223,6 +229,11 @@ impl Config {
     pub fn validate(&self) -> Result<(), ConfigError> {
         SplitOptimizer::new(self.split.clone()).map_err(ConfigError::Invalid)?;
         self.local_state.validate().map_err(ConfigError::Invalid)?;
+        if self.discovery_max_pages == 0 {
+            return Err(ConfigError::Invalid(
+                "discovery_max_pages must be positive".into(),
+            ));
+        }
         let mut contracts = std::collections::HashSet::new();
         for conversion in &self.protocol_conversions {
             if conversion.contract == Address::ZERO

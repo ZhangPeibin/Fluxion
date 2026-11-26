@@ -3,7 +3,8 @@
     {
       "action": "quote",
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "docs": "docs/capabilities/swap/README.md",
       "domain": "swap",
@@ -13,7 +14,7 @@
       "sideEffects": "read_only",
       "skill": "skills/swap/SKILL.md",
       "status": "stable",
-      "summary": "Exact-in swap quote on Ethereum.",
+      "summary": "Exact-in swap quote on Ethereum and BSC.",
       "transports": [
         "mcp",
         "cli",
@@ -23,7 +24,8 @@
     {
       "action": "build",
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "docs": "docs/capabilities/swap/README.md",
       "domain": "swap",
@@ -35,7 +37,7 @@
       "sideEffects": "prepares_calldata",
       "skill": "skills/swap/SKILL.md",
       "status": "stable",
-      "summary": "Build V2 swap calldata from a quote.",
+      "summary": "Build swap calldata from a quote for V2 or all-V3 routes.",
       "transports": [
         "mcp",
         "cli"
@@ -387,7 +389,8 @@
     {
       "action": "discover",
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "docs": "docs/capabilities/yield/README.md",
       "domain": "yield",
@@ -397,7 +400,7 @@
       "sideEffects": "read_only",
       "skill": "skills/yield/SKILL.md",
       "status": "experimental",
-      "summary": "Discover curated ETH staking and lending opportunities.",
+      "summary": "Discover curated native-asset staking and lending opportunities (ETH or BNB).",
       "transports": [
         "mcp",
         "cli",
@@ -407,7 +410,8 @@
     {
       "action": "build",
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "docs": "docs/capabilities/yield/README.md",
       "domain": "yield",
@@ -428,7 +432,8 @@
     {
       "action": "history",
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "docs": "docs/capabilities/yield/README.md",
       "domain": "yield",
@@ -448,7 +453,8 @@
     {
       "action": "withdraw",
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "docs": "docs/capabilities/yield/README.md",
       "domain": "yield",
@@ -469,7 +475,8 @@
     {
       "action": "analyze",
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "docs": "docs/capabilities/position/README.md",
       "domain": "position",
@@ -479,7 +486,7 @@
       "sideEffects": "read_only",
       "skill": "skills/position/SKILL.md",
       "status": "experimental",
-      "summary": "Analyze curated ETH yield positions for a wallet.",
+      "summary": "Analyze curated native-asset yield positions for a wallet.",
       "transports": [
         "mcp",
         "cli",
@@ -487,12 +494,13 @@
       ]
     }
   ],
-  "updated": "2026-11-22",
+  "updated": "2026-11-26",
   "version": 2,
   "workflows": [
     {
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "gaps": [
         "swap.build supports one Uniswap V2 allocation only",
@@ -516,7 +524,8 @@
     },
     {
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "gaps": [
         "approval sequencing is not a shared helper",
@@ -557,7 +566,8 @@
     },
     {
       "chains": [
-        "ethereum"
+        "ethereum",
+        "bsc"
       ],
       "gaps": [
         "position.analyze is Ethereum-only",

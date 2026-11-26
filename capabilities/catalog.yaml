@@ -1,5 +1,5 @@
 version: 2
-updated: "2026-11-22"
+updated: "2026-11-26"
 envelope: v1
 
 capabilities:
@@ -7,11 +7,11 @@ capabilities:
     domain: swap
     action: quote
     status: stable
-    summary: Exact-in swap quote on Ethereum.
+    summary: Exact-in swap quote on Ethereum and BSC.
     envelope: v2
     execution: remote
     transports: [mcp, cli, http]
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     default_chain: ethereum
     side_effects: read_only
     requires: []
@@ -29,11 +29,11 @@ capabilities:
     domain: swap
     action: build
     status: stable
-    summary: Build V2 swap calldata from a quote.
+    summary: Build swap calldata from a quote for V2 or all-V3 routes.
     envelope: v2
     execution: local
     transports: [mcp, cli]
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     default_chain: ethereum
     side_effects: prepares_calldata
     requires: [swap.quote]
@@ -392,11 +392,11 @@ capabilities:
     domain: yield
     action: discover
     status: experimental
-    summary: Discover curated ETH staking and lending opportunities.
+    summary: Discover curated native-asset staking and lending opportunities (ETH or BNB).
     envelope: v2
     execution: remote
     transports: [mcp, cli, http]
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     default_chain: ethereum
     side_effects: read_only
     requires: []
@@ -417,7 +417,7 @@ capabilities:
     envelope: v2
     execution: local
     transports: [mcp, cli]
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     default_chain: ethereum
     side_effects: prepares_calldata
     requires: [yield.discover]
@@ -437,7 +437,7 @@ capabilities:
     envelope: v2
     execution: remote
     transports: [mcp, cli, http]
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     default_chain: ethereum
     side_effects: read_only
     requires: []
@@ -457,7 +457,7 @@ capabilities:
     envelope: v2
     execution: local
     transports: [mcp, cli]
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     default_chain: ethereum
     side_effects: prepares_calldata
     requires: [position.analyze]
@@ -473,11 +473,11 @@ capabilities:
     domain: position
     action: analyze
     status: experimental
-    summary: Analyze curated ETH yield positions for a wallet.
+    summary: Analyze curated native-asset yield positions for a wallet.
     envelope: v2
     execution: remote
     transports: [mcp, cli, http]
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     default_chain: ethereum
     side_effects: read_only
     requires: []
@@ -503,7 +503,7 @@ workflows:
   - id: swap
     summary: Quote, build, inspect, and execute a swap.
     status: experimental
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     steps:
       - swap.quote
       - swap.build
@@ -523,7 +523,7 @@ workflows:
   - id: yield-deposit
     summary: Discover a curated yield opportunity, deposit, and analyze the position.
     status: experimental
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     steps:
       - yield.discover
       - yield.build
@@ -558,7 +558,7 @@ workflows:
   - id: portfolio
     summary: Summarize wallet holdings and curated yield positions.
     status: experimental
-    chains: [ethereum]
+    chains: [ethereum, bsc]
     steps:
       - wallet.balance
       - wallet.assets

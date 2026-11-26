@@ -168,13 +168,23 @@ pub async fn discover_pools(
 }
 
 pub fn pricing_source(config: &Config, rpc: RpcClient) -> (Arc<CachingSource>, Arc<StateCache>) {
+    pricing_source_with_deployments(config, rpc, &config.v3_deployment_map())
+}
+
+/// Same as `pricing_source` but with an explicit V3 deployment set, so
+/// request-local pinned sources keep non-default venues such as Pancake V3.
+pub fn pricing_source_with_deployments(
+    config: &Config,
+    rpc: RpcClient,
+    deployments: &crate::model::V3Deployments,
+) -> (Arc<CachingSource>, Arc<StateCache>) {
     let ttl = Duration::from_secs(config.refresh_interval_secs.max(1));
     let state = Arc::new(StateCache::new(rpc.clone(), ttl));
     let source = Dispatcher::new(
         Box::new(UniswapV2::new(state.clone())),
         Some(Box::new(UniswapV3::with_deployments(
             rpc.clone(),
-            &config.v3_deployment_map(),
+            deployments,
         ))),
         Some(Box::new(Curve::new(rpc.clone()))),
     )

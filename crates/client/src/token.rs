@@ -28,7 +28,12 @@ static BSC_TOKENS: &[TokenInfo] = &[
     token!("WBNB", "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", 18),
     token!("USDT", "0x55d398326f99059ff775485246999027b3197955", 18),
     token!("USDC", "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", 18),
+    token!("BUSD", "0xe9e7cea3dedca5984780bafc599bd69add087d56", 18),
     token!("CAKE", "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82", 18),
+    token!("ETH", "0x2170ed0880ac9a755fd29b2688956bd959f933f8", 18),
+    token!("BTCB", "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c", 18),
+    token!("DAI", "0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3", 18),
+    token!("FDUSD", "0xc5f0f7b66764f6ec8c8dff7ba683102295e16409", 18),
 ];
 
 static TOKENS: &[TokenInfo] = &[
@@ -80,11 +85,17 @@ pub fn list_for_chain(chain_id: u64) -> &'static [TokenInfo] {
 pub fn decimals_for(address: Address) -> Option<u8> {
     TOKENS
         .iter()
+        .chain(BSC_TOKENS.iter())
         .find(|token| token.address.parse::<Address>().ok() == Some(address))
         .map(|token| token.decimals)
 }
 
 pub fn resolve(input: &str, decimals_override: Option<u8>) -> Result<TokenRef, CapabilityError> {
+    let input = if input.trim().eq_ignore_ascii_case("ETH") {
+        "WETH"
+    } else {
+        input
+    };
     resolve_from(TOKENS, input, decimals_override)
 }
 
@@ -94,6 +105,11 @@ pub fn resolve_for_chain(
     chain_id: u64,
 ) -> Result<TokenRef, CapabilityError> {
     if chain_id == 56 {
+        let input = if input.trim().eq_ignore_ascii_case("BNB") {
+            "WBNB"
+        } else {
+            input
+        };
         resolve_from(BSC_TOKENS, input, decimals_override)
     } else {
         resolve(input, decimals_override)
@@ -129,11 +145,9 @@ fn resolve_from(
         return Ok(TokenRef::new(symbol, address, decimals));
     }
 
-    let upper = input.to_ascii_uppercase();
-    let symbol = if upper == "ETH" { "WETH" } else { input };
     let token = tokens
         .iter()
-        .find(|token| token.symbol.eq_ignore_ascii_case(symbol))
+        .find(|token| token.symbol.eq_ignore_ascii_case(input))
         .ok_or_else(|| {
             CapabilityError::invalid_argument(format!("unknown token symbol: {input}"))
         })?;
@@ -200,6 +214,20 @@ mod tests {
         assert_eq!(usdc.decimals, 6);
         assert!(resolve("0x0000000000000000000000000000000000000001", None).is_err());
         assert_eq!(resolve_for_chain("USDT", None, 56).unwrap().decimals, 18);
+        assert_eq!(
+            resolve_for_chain("BNB", None, 56)
+                .unwrap()
+                .symbol
+                .as_deref(),
+            Some("WBNB")
+        );
+        assert_eq!(
+            resolve_for_chain("ETH", None, 56)
+                .unwrap()
+                .symbol
+                .as_deref(),
+            Some("ETH")
+        );
         assert!(resolve_for_chain("CAKE", None, 1).is_err());
         assert_eq!(
             resolve("0x0000000000000000000000000000000000000001", Some(18))

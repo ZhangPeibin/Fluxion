@@ -2,8 +2,8 @@
 
 English · [中文](README.zh.md)
 
-`swap.quote` is Eollo's first capability: an exact-in swap quote on Ethereum mainnet. It returns
-amounts, split allocations, hop paths and state provenance. `swap.build` turns a single V2
+`swap.quote` is an exact-in swap quote on Ethereum and BSC. It returns
+amounts, split allocations, hop paths and state provenance. `swap.build` builds calldata from a single
 allocation into router calldata. Both are read-only and never sign, approve, or broadcast.
 
 ## `swap.build`
@@ -15,13 +15,13 @@ eollo swap quote --in USDC --out WETH --amount 100 --json > /tmp/quote.json
 eollo swap build --quote /tmp/quote.json --recipient 0x... --slippage-bps 50 --json
 ```
 
-- Ethereum only in the first slice.
+- Ethereum and BSC. BSC venues are PancakeSwap V2 and V3.
 - Requires exactly one allocation with no nested `sources` / `children`.
 - Supports `uniswap-v2` hops only.
 - Builds `swapExactTokensForTokens(uint256,uint256,address[],address,uint256)` against
   `0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D`.
 - `amount_out_min` is computed from quote `amount_out` and `slippage_bps`.
-- Rejects split routes, V3, Curve, aggregators and disconnected hops.
+- Rejects split routes, mixed V2/V3 routes, Curve, aggregators and disconnected hops.
 - Does not sign, broadcast or verify quote freshness beyond returning `quote_block`.
 
 Schema: [`schemas/swap_build.v2.json`](../../../schemas/swap_build.v2.json).
@@ -68,7 +68,7 @@ flowchart TB
         Snapshot["Immutable snapshot<br/>block · hash · pools · prices"]
     end
 
-    Chain["Ethereum<br/>RPC · subgraphs"]
+    Chain["Ethereum / BSC<br/>RPC · subgraphs"]
 
     Agent -->|MCP stdio| MCP
     MCP -->|swap_quote| CapRouter

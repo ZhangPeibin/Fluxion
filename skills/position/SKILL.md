@@ -1,11 +1,11 @@
 ---
 name: position
-description: Use when the user asks what yield positions a wallet holds, wants ETH value, APY, estimated annual yield, withdrawal conditions or PnL for Lido/Rocket Pool/Aave/SparkLend/Morpho positions, or uses the Eollo position_analyze tool. Read-only; never deposits, signs or broadcasts.
+description: Use when the user asks what yield positions a wallet holds, wants native-asset value, APY, estimated annual yield, withdrawal conditions or PnL for Ethereum protocols or Venus on BSC, or uses the Eollo position_analyze tool. Read-only; never deposits, signs or broadcasts.
 ---
 
 # position.analyze
 
-Use this capability to inspect a wallet's curated ETH yield positions at a pinned Ethereum block.
+Use this capability to inspect a wallet's curated yield positions at a pinned block. Use `chain: "bsc"` for Venus positions on BSC.
 It combines on-chain receipt-token balances with the current `yield.discover` APY and risk context.
 
 Human-facing documentation is in
@@ -36,7 +36,7 @@ eollo position analyze --owner 0x... --cost-basis lido-steth=10 --json
 - `data.yield_data_as_of`: APY/risk snapshot time; check envelope `warnings` if it is old.
 - `positions[]`: receipt balance, estimated `value_eth`, APY, estimated annual yield, withdrawal
   conditions and risk factors.
-- `value_eth` may be omitted for rsETH/ezETH because exchange-rate conversion is not implemented.
+- `value_eth` may be omitted for rsETH/ezETH because exchange-rate conversion is not implemented. On BSC the field name is historical; it carries the native (BNB) value.
   Do not treat a missing value as zero.
 - `cost_basis_eth`, `pnl_eth` and `pnl_percent` are present only when the caller supplies cost
   basis. Never invent a principal or PnL.

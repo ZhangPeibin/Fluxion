@@ -218,7 +218,12 @@ async fn run_server(config_path: String) {
         SplitOptimizer::new(config.split.clone()).expect("validated split configuration");
     let app = match local_store {
         Some(store) => api::app_with_local_state(state, optimizer, store),
-        None => api::app_with_split(state, optimizer, refresher.is_some()),
+        None => api::app_with_split_venues(
+            state,
+            optimizer,
+            refresher.is_some(),
+            config.v3_deployment_map(),
+        ),
     }
     .route(
         "/info",
@@ -240,6 +245,7 @@ async fn run_server(config_path: String) {
             registry,
             YieldProvider::new(rpc.clone()),
             YieldOptions {
+                chain: config.yield_config.chain.clone(),
                 refresh_secs: config.yield_config.refresh_secs,
                 max_age_secs: config.yield_config.max_age_secs,
                 hard_max_age_secs: config.yield_config.hard_max_age_secs,

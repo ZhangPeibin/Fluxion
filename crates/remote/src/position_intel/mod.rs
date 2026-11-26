@@ -19,6 +19,7 @@ const CONVERT_TO_ASSETS: &str = "07a2d13a";
 const RETH_RATE: &str = "e6aa216c";
 const CBETH_RATE: &str = "3ba0b9a9";
 const WEETH_RATE: &str = "679aefce";
+const VENUS_EXCHANGE_RATE: &str = "182df0f5";
 const ONE: U256 = U256::from_limbs([1_000_000_000_000_000_000, 0, 0, 0]);
 const DISCLAIMER: &str = "Positions are read at a pinned block. Values are estimates; PnL requires a supplied cost basis.";
 
@@ -54,10 +55,14 @@ pub async fn analyze(
             "owner must not be the zero address".to_string(),
         ));
     }
-    if !request.chain.eq_ignore_ascii_case("ethereum") {
-        return Err(PositionError::Invalid(
-            "position.analyze currently supports chain=ethereum only".to_string(),
-        ));
+    if !matches!(
+        request.chain.to_ascii_lowercase().as_str(),
+        "ethereum" | "bsc" | "bnb"
+    ) {
+        return Err(PositionError::Invalid(format!(
+            "position.analyze does not support chain={}",
+            request.chain
+        )));
     }
     let selected = select_entries(registry, request)?;
     let costs = parse_costs(request)?;
@@ -133,7 +138,7 @@ pub async fn analyze(
         schema_version: eollo_protocol::capability::SCHEMA_VERSION,
         capability: "position.analyze".to_string(),
         request_id: request_id(),
-        chain: "ethereum".to_string(),
+        chain: request.chain.clone(),
         owner: request.owner,
         block_number: header.number,
         block_hash: header.hash,
@@ -144,7 +149,7 @@ pub async fn analyze(
         coverage: "curated-universe+onchain+yield-snapshot".to_string(),
         sources: vec![
             AssetSource {
-                name: "ethereum-rpc".to_string(),
+                name: format!("{}-rpc", request.chain.to_ascii_lowercase()),
                 scope: "receipt-balances".to_string(),
                 block: Some(header.number),
             },
@@ -163,8 +168,14 @@ fn select_entries(
     registry: &Registry,
     request: &PositionAnalyzeRequest,
 ) -> Result<Vec<RegistryEntry>, PositionError> {
+    let on_chain = |entry: &&RegistryEntry| entry.chain.eq_ignore_ascii_case(&request.chain);
     if request.opportunity_ids.is_empty() {
-        return Ok(registry.entries().to_vec());
+        return Ok(registry
+            .entries()
+            .iter()
+            .filter(on_chain)
+            .cloned()
+            .collect());
     }
     let mut entries = Vec::new();
     for id in &request.opportunity_ids {
@@ -173,6 +184,12 @@ fn select_entries(
             .iter()
             .find(|entry| entry.id == *id)
             .ok_or_else(|| PositionError::Invalid(format!("unknown opportunity_id: {id}")))?;
+        if !entry.chain.eq_ignore_ascii_case(&request.chain) {
+            return Err(PositionError::Invalid(format!(
+                "{} is on chain={}, not {}",
+                entry.id, entry.chain, request.chain
+            )));
+        }
         entries.push(entry.clone());
     }
     Ok(entries)
@@ -210,7 +227,7 @@ async fn convert_value(
     let Some(conversion) = conversion(&entry.id) else {
         if !balance.is_zero() {
             warnings.push(format!(
-                "ETH conversion is not implemented for {}; receipt balance is reported without value",
+                "underlying conversion is not implemented for {}; receipt balance is reported without value",
                 entry.id
             ));
         }
@@ -249,6 +266,7 @@ fn conversion(id: &str) -> Option<Conversion> {
         "rocket-pool-reth" => Some(Conversion::Rate(RETH_RATE)),
         "cbeth" => Some(Conversion::Rate(CBETH_RATE)),
         "etherfi-weeth" => Some(Conversion::Rate(WEETH_RATE)),
+        "venus-vbnb" | "venus-vusdt" => Some(Conversion::Rate(VENUS_EXCHANGE_RATE)),
         "morpho-steakhouse-eth" | "morpho-gauntlet-weth" => Some(Conversion::ConvertToAssets),
         "kelp-rseth" | "renzo-ezeth" => None,
         _ => None,

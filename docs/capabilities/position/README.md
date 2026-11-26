@@ -1,7 +1,7 @@
 # position.analyze
 
-Read-only analysis of a wallet's curated ETH yield positions on Ethereum mainnet. It reads receipt
-token balances at a pinned block, estimates ETH value, attaches the current `yield.discover` APY and
+Read-only analysis of a wallet's curated native-asset yield positions on Ethereum or BSC. It reads receipt
+token balances at a pinned block, estimates native-asset value, attaches the current `yield.discover` APY and
 risk context, and optionally computes PnL from a supplied cost basis.
 
 `position.analyze` runs on the remote Eollo service; agents and users do not choose local or
@@ -28,7 +28,7 @@ MCP tool: `position_analyze`.
 | Field | Required | Description |
 |---|---|---|
 | `owner` | yes | Wallet address to analyze |
-| `chain` | no | Must be `ethereum`; default `ethereum` |
+| `chain` | no | `ethereum` or `bsc`; default `ethereum` |
 | `opportunity_ids` | no | Subset of curated opportunity IDs; default all |
 | `include_zero` | no | Include positions with zero receipt balance; default `false` |
 | `cost_basis` | no | Per-opportunity ETH cost basis for PnL |
@@ -47,7 +47,7 @@ Cost basis example:
 
 ## Response
 
-- `block` / `as_of`: the pinned Ethereum block and observation time on the envelope.
+- `block` / `as_of`: the pinned chain block and observation time on the envelope.
 - `data.yield_data_as_of`: the `yield.discover` snapshot used for APY and risk context.
 - `positions`: receipt balance, underlying asset, estimated ETH value, optional cost basis/PnL,
   APY, estimated annual yield, withdrawal conditions, risk factors, data confidence and status.
@@ -64,8 +64,9 @@ Cost basis example:
 | Rocket Pool rETH | `getExchangeRate()` |
 | cbETH | `exchangeRate()` |
 | ether.fi weETH | `getRate()` |
+| Venus vBNB / vUSDT | `exchangeRateStored()` |
 | Morpho vaults | ERC4626 `convertToAssets(shares)` |
-| Kelp rsETH / Renzo ezETH | not implemented; receipt balance is returned without an ETH value |
+| Kelp rsETH / Renzo ezETH | not implemented; receipt balance is returned without a native-asset value |
 
 A missing value is explicit (`value_eth` omitted + warning), never silently zero.
 
@@ -81,14 +82,14 @@ and estimated annual yield by default. Supply `cost_basis` to get `cost_basis_et
 |---|---|---|
 | `INVALID_ARGUMENT` | 400 | Unsupported chain, unknown opportunity id, invalid cost basis |
 | `RATE_LIMITED` | 429 | Too many requests |
-| `RPC_ERROR` (`PositionUnavailable`) | 502 | Ethereum RPC or yield snapshot unavailable |
+| `RPC_ERROR` (`PositionUnavailable`) | 502 | Chain RPC or yield snapshot unavailable |
 | `STALE_STATE` | 503 | Yield snapshot is not ready |
 | `INTERNAL` | 500 | Internal error |
 
 ## Boundaries
 
 - Read-only; no approvals, signatures, deposits or withdrawals.
-- Ethereum mainnet only in this slice.
+- Ethereum and BSC. BSC positions are Venus Core Pool markets. The `value_eth` field name is historical and carries the native value on BSC.
 - Values are estimates at one pinned block; they are not a portfolio valuation for tax or
   accounting purposes.
 - APY comes from the `yield.discover` snapshot and may be older than the position block.

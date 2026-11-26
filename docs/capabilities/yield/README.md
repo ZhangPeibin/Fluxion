@@ -1,6 +1,6 @@
 # Yield capabilities
 
-ETH yield discovery, local entry/exit calldata and historical APY on Ethereum mainnet.
+Native-asset yield discovery, local entry/exit calldata and historical APY. ETH on Ethereum; BNB on BSC with Venus.
 `yield.discover` ranks curated staking and lending markets by a safety tier and a normalized APY;
 `yield.build` returns deposit calldata; `yield.withdraw` returns exit calldata; `yield.history`
 returns a historical APY series.
@@ -19,6 +19,7 @@ Schemas: [`discover`](../../../schemas/yield_discover.v2.json) · [`build`](../.
 
 ```bash
 eollo yield discover --asset ETH --amount 10 --json
+eollo yield discover --asset BNB --chain bsc --amount 10 --risk aggressive --json
 eollo yield discover --asset ETH --amount 10 --risk balanced --json
 eollo yield discover --asset ETH --amount 10 --min-tvl-usd 1000000000 --json
 eollo yield discover --asset ETH --amount 10 --protocols lido,aave-v3 --json
@@ -33,8 +34,8 @@ compose `wallet.balance` locally first if the amount should come from the wallet
 
 | Field | Required | Description |
 |---|---|---|
-| `chain` | no | Must be `ethereum`; default `ethereum` |
-| `asset` | yes | Must be `ETH` in the first slice |
+| `chain` | no | `ethereum` or `bsc`; default `ethereum` |
+| `asset` | yes | `ETH` on Ethereum, `BNB` on BSC |
 | `amount` | no | Human amount, e.g. `10`; used for estimated annual yield |
 | `risk_profile` | no | `conservative` (default), `balanced`, or `aggressive` |
 | `min_tvl_usd` | no | Override the profile's market-TVL floor |
@@ -78,7 +79,7 @@ Tiers are curated, not inferred from APY or TVL alone.
 
 | Tier | Rules |
 |---|---|
-| `core` | >=3 years in production, >=2 audits, no unresolved loss-of-funds incident in the last 2 years, protocol TVL >= $1B, direct ETH exposure, no reward-token dependency, withdrawal <=7 days, reviewed admin/upgrade path |
+| `core` | >=3 years in production, >=2 audits, no unresolved loss-of-funds incident in the last 2 years, protocol TVL >= $1B, direct native-asset exposure, no reward-token dependency, withdrawal <=7 days, reviewed admin/upgrade path |
 | `established` | >=1 year, >=2 audits, TVL >= $250M, documented withdrawal path; may include LST/restaking or reward components |
 | `experimental` | Newer, smaller, reward-heavy, restaking/LRT, or custodial/off-chain entry |
 | excluded | No audits, unverified contract, unresolved incident, or conflicting provider data |
@@ -91,7 +92,7 @@ returned as evidence; the tier itself is not a provider field.
 - DefiLlama `/pools` for APY, base/reward split, TVL, 30-day mean and outlier flags.
 - DefiLlama `/protocols` for protocol TVL, audits, category and listing age.
 - DefiLlama `/hacks` for historical incident counts.
-- Ethereum RPC for `eth_getCode` and receipt-token `symbol`/`decimals` verification.
+- Chain RPC for `eth_getCode` and receipt-token `symbol`/`decimals` verification.
 - A versioned curated registry for the whitelist, tier, market addresses, withdrawal conditions
   and risk notes.
 
@@ -125,7 +126,7 @@ APY or a tier when data is missing.
 ## Boundaries
 
 - Read-only discovery; no deposit calldata, approvals, signatures or broadcasting.
-- Ethereum ETH only in the first slice; no stablecoins, LP, leverage or cross-chain.
+- Curated ETH and BNB markets only; no arbitrary stablecoins, LP, leverage or cross-chain.
 - The curated universe is intentionally small; a missing protocol is not a safety judgment.
 - `safety_tier` is a curated confidence label, not a guarantee. APY is variable.
 - Not financial advice.
@@ -141,10 +142,10 @@ eollo yield build --opportunity aave-v3-weth --amount 10 --recipient 0x... --fun
 
 - Returns `steps`: `wrap`, `approve`, `stake`, `supply`, or `deposit`.
 - Returns `approvals` for ERC20 approvals; the caller must still sign each step.
-- `funding_asset` defaults to `ETH`; pass `WETH` only if the sender already holds WETH.
+- `funding_asset` defaults to the chain native asset (`ETH` or `BNB`); pass the wrapped symbol only if the sender already holds it.
 - `recipient` is the receipt/position owner. For Lido and Rocket Pool the receipt is minted to
   the transaction sender, so the recipient must be the sender.
-- Supported in this slice: Lido, Rocket Pool, Aave V3 WETH, SparkLend WETH and the two curated
+- Supported in this slice: Lido, Rocket Pool, Aave V3 WETH, SparkLend WETH, Venus vBNB/vUSDT and the two curated
   Morpho vaults.
 - LRT and cbETH entries are discoverable but return `UNSUPPORTED` from `yield.build` until their
   protocol-specific deposit contracts are implemented.
@@ -181,11 +182,11 @@ eollo yield withdraw --opportunity morpho-steakhouse-eth --amount 5 --recipient 
 ```
 
 - One `steps` entry: `withdraw` for Aave/Spark, `redeem` for Morpho, `burn` for Rocket Pool.
-- Supported: Aave V3 WETH, SparkLend WETH, curated Morpho vaults, Rocket Pool rETH.
-- `amount=max` is supported for Aave/Spark only. Morpho requires an exact vault-share amount; Rocket Pool requires an exact rETH amount.
+- Supported: Aave V3 WETH, SparkLend WETH, Venus vBNB/vUSDT, curated Morpho vaults, Rocket Pool rETH.
+- `amount=max` is supported for Aave/Spark only. Morpho requires an exact vault-share amount, Rocket Pool an exact rETH amount, and Venus an exact vToken amount.
 - `owner` is the position owner/signer and defaults to `recipient`.
 - Rocket Pool burn uses the transaction sender and may require a withdrawal delay.
-- Lido stETH and LRT/cbETH exits return `UNSUPPORTED` until their queue/off-chain paths are implemented.
+- Lido stETH and LRT/cbETH exits return `UNSUPPORTED` until their queue/off-chain paths are implemented. Venus uses `redeem(uint256)`.
 - No approvals are returned; the position owner signs the exit directly.
 - Never signs or broadcasts. Simulate and inspect the step before signing.
 

@@ -10,6 +10,7 @@ use crate::token;
 use crate::yield_build::{deposit_asset, hex_data, receipt_asset, word_address, word_u256};
 
 const AAVE_WITHDRAW: &str = "69328dec";
+const VENUS_REDEEM: &str = "db006a75";
 const ERC4626_REDEEM: &str = "ba087652";
 const ROCKET_BURN: &str = "42966c68";
 const DISCLAIMER: &str =
@@ -110,6 +111,23 @@ pub fn withdraw(request: &YieldWithdrawRequest) -> Result<YieldWithdrawResponse,
                 ),
             )
         }
+        "venus-vbnb" | "venus-vusdt" => {
+            let raw = amount.ok_or_else(|| {
+                CapabilityError::invalid_argument(
+                    "Venus redeems require an exact receipt amount; max is not supported yet",
+                )
+            })?;
+            step(
+                "redeem",
+                &entry,
+                hex_data(VENUS_REDEEM, &[word_u256(raw)]),
+                Some(raw),
+                format!(
+                    "Redeem {} {} from {}",
+                    request.amount, entry.receipt_asset_symbol, entry.market_name
+                ),
+            )
+        }
         "rocket-pool-reth" => {
             let raw = amount.ok_or_else(|| {
                 CapabilityError::invalid_argument(
@@ -140,7 +158,7 @@ pub fn withdraw(request: &YieldWithdrawRequest) -> Result<YieldWithdrawResponse,
         schema_version: SCHEMA_VERSION,
         capability: "yield.withdraw".to_string(),
         request_id: crate::client::request_id(),
-        chain: "ethereum".to_string(),
+        chain: entry.chain.clone(),
         opportunity_id: entry.id.clone(),
         action: entry.action,
         amount: amount.map(|value| Amount::from_raw(value, entry.receipt_decimals)),
@@ -221,6 +239,14 @@ mod tests {
         let response = withdraw(&request("rocket-pool-reth")).unwrap();
         assert_eq!(response.steps[0].kind, "burn");
         assert!(response.steps[0].data.starts_with("0x42966c68"));
+    }
+
+    #[test]
+    fn builds_venus_redeem() {
+        let response = withdraw(&request("venus-vbnb")).unwrap();
+        assert_eq!(response.chain, "bsc");
+        assert_eq!(response.steps[0].kind, "redeem");
+        assert!(response.steps[0].data.starts_with("0xdb006a75"));
     }
 
     #[test]

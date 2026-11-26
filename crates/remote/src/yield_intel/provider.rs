@@ -70,10 +70,17 @@ pub struct LlamaProtocol {
     pub tvl: Option<f64>,
     #[serde(default)]
     pub audits: Option<Value>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "vec_or_null")]
     pub audit_links: Vec<String>,
     #[serde(default, rename = "listedAt")]
     pub listed_at: Option<u64>,
+}
+
+fn vec_or_null<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Option::<Vec<String>>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -147,7 +154,7 @@ impl YieldProvider {
     pub fn new(rpc: RpcClient) -> Self {
         Self {
             http: reqwest::Client::builder()
-                .timeout(Duration::from_secs(15))
+                .timeout(Duration::from_secs(180))
                 .build()
                 .expect("yield provider HTTP client"),
             pools_url: std::env::var("EOLLO_YIELD_POOLS_URL")

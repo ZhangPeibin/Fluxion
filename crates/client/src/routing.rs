@@ -38,7 +38,27 @@ pub fn resolve(
 }
 
 pub fn from_env(remote_url: Option<&str>) -> Result<RemoteBackend, CapabilityError> {
-    let env_url = env::var("EOLLO_REMOTE_URL").ok();
+    from_env_for_chain("ethereum", remote_url)
+}
+
+/// Resolve the remote endpoint for a chain. BSC uses `EOLLO_BSC_REMOTE_URL`
+/// when set, otherwise it falls back to `EOLLO_REMOTE_URL` for single-instance
+/// development. Ethereum always uses `EOLLO_REMOTE_URL`.
+pub fn from_env_for_chain(
+    chain: &str,
+    remote_url: Option<&str>,
+) -> Result<RemoteBackend, CapabilityError> {
+    let is_bsc = matches!(
+        chain.trim().to_ascii_lowercase().as_str(),
+        "bsc" | "bnb" | "binance" | "56"
+    );
+    let env_url = if is_bsc {
+        env::var("EOLLO_BSC_REMOTE_URL")
+            .ok()
+            .or_else(|| env::var("EOLLO_REMOTE_URL").ok())
+    } else {
+        env::var("EOLLO_REMOTE_URL").ok()
+    };
     let api_key = env::var("EOLLO_API_KEY").ok();
     resolve(remote_url.or(env_url.as_deref()), api_key.as_deref())
 }

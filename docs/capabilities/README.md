@@ -10,8 +10,8 @@ its execution location is an internal Eollo decision.
 <!-- catalog-table:start -->
 | Capability | Status | Chains | Side effects | Docs |
 |---|---|---|---|---|
-| `swap.quote` | stable | ethereum | read_only | [swap](swap/README.md) |
-| `swap.build` | stable | ethereum | prepares_calldata | [swap](swap/README.md) |
+| `swap.quote` | stable | ethereum, bsc | read_only | [swap](swap/README.md) |
+| `swap.build` | stable | ethereum, bsc | prepares_calldata | [swap](swap/README.md) |
 | `wallet.balance` | stable | ethereum, bsc | read_only | [wallet](wallet/README.md) |
 | `wallet.assets` | stable | ethereum, bsc | read_only | [wallet](wallet/README.md) |
 | `wallet.allowance` | stable | ethereum, bsc | read_only | [wallet](wallet/README.md) |
@@ -29,11 +29,11 @@ its execution location is an internal Eollo decision.
 | `signature.inspect` | stable | ethereum, bsc | read_only | [signature](signature/README.md) |
 | `fourmeme.agent-tokens` | experimental | bsc | read_only | [fourmeme](fourmeme/README.md) |
 | `fourmeme.token` | experimental | bsc | read_only | [fourmeme](fourmeme/README.md) |
-| `yield.discover` | experimental | ethereum | read_only | [yield](yield/README.md) |
-| `yield.build` | experimental | ethereum | prepares_calldata | [yield](yield/README.md) |
-| `yield.history` | experimental | ethereum | read_only | [yield](yield/README.md) |
-| `yield.withdraw` | experimental | ethereum | prepares_calldata | [yield](yield/README.md) |
-| `position.analyze` | experimental | ethereum | read_only | [position](position/README.md) |
+| `yield.discover` | experimental | ethereum, bsc | read_only | [yield](yield/README.md) |
+| `yield.build` | experimental | ethereum, bsc | prepares_calldata | [yield](yield/README.md) |
+| `yield.history` | experimental | ethereum, bsc | read_only | [yield](yield/README.md) |
+| `yield.withdraw` | experimental | ethereum, bsc | prepares_calldata | [yield](yield/README.md) |
+| `position.analyze` | experimental | ethereum, bsc | read_only | [position](position/README.md) |
 <!-- catalog-table:end -->
 
 ## Contract vs execution

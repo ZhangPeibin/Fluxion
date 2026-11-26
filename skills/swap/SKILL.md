@@ -1,11 +1,11 @@
 ---
 name: swap
-description: Use when the user asks for an exact-in swap quote on Ethereum (for example LDO to ETH), needs amount_out, route allocations, price impact or quote freshness, wants to build V2 swap calldata from a quote, or uses the Eollo swap_quote or swap_build MCP tools. Do not use for signing, wallet or transaction execution.
+description: Use when the user asks for an exact-in swap quote on Ethereum or BSC (for example LDO to ETH or BNB to USDT), needs amount_out, route allocations, price impact or quote freshness, wants to build swap calldata from a quote, or uses the Eollo swap_quote or swap_build MCP tools. Do not use for signing, wallet or transaction execution.
 ---
 
 # swap.quote
 
-Use this capability when an agent needs an **exact-in swap quote** on Ethereum before deciding
+Use this capability when an agent needs an **exact-in swap quote** on Ethereum or BSC before deciding
 whether to build or execute a transaction. It is read-only: it returns amounts, routes and state
 provenance, and never signs, approves, or broadcasts.
 
@@ -45,7 +45,8 @@ Build local Uniswap V2 calldata from a saved quote:
 eollo swap build --quote quote.json --recipient 0x... --slippage-bps 50 --json
 ```
 
-- Ethereum only; one `uniswap-v2` allocation; no split/nested/V3/Curve routes.
+- One allocation built from all-V2 hops or all-V3 hops on one venue. Split, mixed V2/V3, and Curve routes return `UNSUPPORTED`.
+- Ethereum uses the Uniswap V2/V3 routers; BSC uses PancakeSwap V2/V3.
 - Returns `router`, `data`, `value`, `amount_out_min`, `deadline`, `path`, `hops`.
 - Never signs or broadcasts.
 
@@ -56,7 +57,7 @@ Use this recipe only when the user wants to execute a swap, not merely quote it.
 transaction.send → transaction.verify`.
 
 Required inputs: `token_in`, `token_out`, `amount`, `recipient`, `slippage_bps`, and an optional
-policy. The chain is Ethereum.
+policy. Pass `chain: "bsc"` for BSC; the default is Ethereum.
 
 Checkpoints:
 
@@ -78,6 +79,7 @@ block, or user rejection stops the workflow. Never skip a failed step or sign si
 eollo capability describe swap.quote --json
 eollo capability describe swap.build --json
 eollo swap quote --in LDO --out ETH --amount 100 --json
+eollo swap bnb-usdt 1 --chain bsc --json
 eollo swap build --quote quote.json --recipient 0x... --json
 eollo ldo-eth 100 --json
 ```

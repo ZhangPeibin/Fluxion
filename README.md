@@ -34,10 +34,12 @@ cargo install --path crates/client
 
 ```bash
 EOLLO_REMOTE_URL=http://127.0.0.1:8080 eollo swap ldo-eth 100
+EOLLO_BSC_REMOTE_URL=http://127.0.0.1:8081 eollo swap bnb-usdt 1 --chain bsc
 ```
 
-Local wallet, transaction inspection, and simulation default to BSC; use `--chain ethereum` for
-Ethereum.
+`configs/bsc.yaml` is the BSC swap and yield profile. Run it as a second remote instance on port
+8081. Local wallet, transaction inspection, and simulation default to BSC; use `--chain ethereum`
+for Ethereum.
 
 ## Quick start
 
@@ -99,7 +101,7 @@ returns capability envelope v2 with `meta`, `chain`, `block`, `as_of`, `provenan
 
 | Capability | Status | CLI | Description |
 |---|---|---|---|
-| `swap.quote` | stable | `eollo swap ldo-eth 100` | Ethereum mainnet exact-in quotes, multi-hop, split allocation |
+| `swap.quote` | stable | `eollo swap ldo-eth 100` | Ethereum and BSC exact-in quotes, multi-hop, split allocation |
 | `swap.build` | stable | `eollo swap build --quote quote.json --recipient 0x...` | Build V2 swap calldata from a quote |
 
 #### 2. Wallet
@@ -143,7 +145,7 @@ returns capability envelope v2 with `meta`, `chain`, `block`, `as_of`, `provenan
 
 | Capability | Status | CLI | Description |
 |---|---|---|---|
-| `yield.discover` | experimental | `eollo yield discover --asset ETH --amount 10` | Ethereum ETH staking/lending: safety tier, APY, TVL, withdrawal conditions, recommendation |
+| `yield.discover` | experimental | `eollo yield discover --asset ETH --amount 10` | ETH or BNB staking/lending: safety tier, APY, TVL, withdrawal conditions, recommendation |
 | `yield.build` | experimental | `eollo yield build --opportunity lido-steth --amount 10 --recipient 0x...` | Local stake/supply/deposit calldata and approval steps |
 | `yield.history` | experimental | `eollo yield history --opportunity lido-steth --days 30` | Historical APY, base/reward split, TVL and stability summary |
 | `yield.withdraw` | experimental | `eollo yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x...` | Local withdraw/redeem/burn exit calldata |
@@ -161,13 +163,14 @@ capabilities. They are listed in the catalog's `surfaces` list.
 
 #### `swap.quote`
 
-`swap.quote` returns exact-in quotes on Ethereum mainnet with multi-hop routing and split
+`swap.quote` returns exact-in quotes on Ethereum and BSC with multi-hop routing and split
 allocation. It returns `amountOut`, price impact, path, and per-hop allocation. It does not build
-calldata or execute a swap.
+calldata or execute a swap. BSC quotes use PancakeSwap V2 and V3.
 
 ```bash
 eollo swap ldo-eth 100
 eollo swap quote --in LDO --out WETH --amount 100 --json
+eollo swap bnb-usdt 1 --chain bsc --json
 ```
 
 Ask the agent:
@@ -182,13 +185,15 @@ Skill: [swap](skills/swap/SKILL.md) · Docs: [swap.quote](docs/capabilities/swap
 
 #### `yield.discover`
 
-`yield.discover` reads ETH-denominated staking and lending opportunities on Ethereum. It returns a
+`yield.discover` reads native-asset staking and lending opportunities. Use ETH on Ethereum and BNB
+on BSC with `--chain bsc`. It returns a
 curated safety tier, APY components, TVL, withdrawal conditions, risk factors, and evidence, plus
 one recommendation with tradeoffs. It never builds, signs, or executes a transaction.
 
 ```bash
 eollo yield discover --asset ETH --amount 10 --json
 eollo yield discover --asset ETH --amount 10 --risk balanced --json
+eollo yield discover --asset BNB --chain bsc --amount 10 --risk aggressive --json
 eollo yield build --opportunity lido-steth --amount 10 --recipient 0x... --json
 eollo yield history --opportunity lido-steth --days 30 --json
 eollo yield withdraw --opportunity aave-v3-weth --amount 10 --recipient 0x... --json
@@ -585,7 +590,9 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 
 ### Runtime and configuration
 
-- `EOLLO_REMOTE_URL`: remote quote service. Without it, `swap.quote` returns an explicit error.
+- `EOLLO_REMOTE_URL`: remote service for Ethereum quotes, yield, and positions.
+- `EOLLO_BSC_REMOTE_URL`: remote service for BSC quotes, yield, and positions. Falls back to
+  `EOLLO_REMOTE_URL` for single-instance development.
 - `EOLLO_RPC_URL` / `RPC_URL`: Ethereum RPC.
 - `EOLLO_BSC_RPC_URL`: BSC RPC; default chain for local capabilities.
 - `FOURMEME_API_URL`: Four.meme REST API; defaults to `https://four.meme/meme-api/v1`.
@@ -622,8 +629,9 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 
 ## Status and boundaries
 
-Eollo is pre-1.0. Local wallet, transaction, and signature capabilities support BSC (default) and
-Ethereum; `swap.quote` remains Ethereum mainnet.
+Eollo is pre-1.0. Wallet, transaction, signature, swap, yield, and position capabilities support
+BSC and Ethereum. `swap.quote`, `yield.*`, and `position.analyze` need the matching remote instance:
+`configs/runtime.yaml` for Ethereum and `configs/bsc.yaml` for BSC.
 
 - `wallet.sign` signs messages and EIP-712 only; `wallet.send` sends native/ERC20/BEP-20 transfers
   only.

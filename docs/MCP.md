@@ -113,6 +113,8 @@ MCP documentation if a snippet is rejected.
 - `eollo mcp` keeps the MCP process alive and reuses one remote client.
 - `swap.quote`, `yield.discover`, `yield.history` and `position.analyze` use the remote service; the
   remote server owns discovery and snapshot warmup. `yield.build` and `yield.withdraw` are local.
+- Remote tools accept `chain: "bsc"` or `chain: "ethereum"`. BSC uses `EOLLO_BSC_REMOTE_URL` when
+  set, otherwise `EOLLO_REMOTE_URL`. `yield_discover` takes `asset: "BNB"` on BSC.
 - Local wallet and transaction tools default to BSC; pass `chain: "ethereum"` for Ethereum.
 - `wallet_sign` uses the stored session and waits for explicit phone confirmation. A rejection
   returns `USER_REJECTED`; it does not retry automatically.

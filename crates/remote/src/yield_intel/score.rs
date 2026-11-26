@@ -259,7 +259,7 @@ fn find_pool<'a>(
     if let Some(id) = &entry.defillama_pool
         && let Some(pool) = pools
             .iter()
-            .find(|pool| pool.pool == *id && pool.chain.eq_ignore_ascii_case("ethereum"))
+            .find(|pool| pool.pool == *id && pool.chain.eq_ignore_ascii_case(&entry.chain))
     {
         return Some(PoolMatch {
             pool,
@@ -269,7 +269,7 @@ fn find_pool<'a>(
     pools
         .iter()
         .filter(|pool| {
-            pool.chain.eq_ignore_ascii_case("ethereum")
+            pool.chain.eq_ignore_ascii_case(&entry.chain)
                 && pool.project.eq_ignore_ascii_case(&entry.defillama_project)
                 && pool.symbol.eq_ignore_ascii_case(&entry.defillama_symbol)
                 && entry
@@ -351,6 +351,9 @@ pub fn discover(
         ));
     }
     for item in &snapshot.opportunities {
+        if !item.entry.chain.eq_ignore_ascii_case(&request.chain) {
+            continue;
+        }
         if let Some(reason) = exclusion_reason(
             item,
             profile,
@@ -413,9 +416,9 @@ pub fn discover(
         schema_version: SCHEMA_VERSION,
         capability: "yield.discover".to_string(),
         request_id: request_id(),
-        chain: "ethereum".to_string(),
+        chain: request.chain.clone(),
         asset: YieldAsset {
-            symbol: "ETH".to_string(),
+            symbol: request.asset.to_ascii_uppercase(),
             address: "native".to_string(),
             decimals: 18,
         },
@@ -436,15 +439,20 @@ pub fn discover(
 }
 
 fn validate_request(request: &YieldDiscoverRequest) -> Result<(), YieldError> {
-    if !request.chain.eq_ignore_ascii_case("ethereum") {
-        return Err(YieldError::Invalid(
-            "yield.discover currently supports chain=ethereum only".to_string(),
-        ));
-    }
-    if !request.asset.eq_ignore_ascii_case("ETH") {
-        return Err(YieldError::Invalid(
-            "yield.discover currently supports asset=ETH only".to_string(),
-        ));
+    let native_asset = match request.chain.to_ascii_lowercase().as_str() {
+        "ethereum" => "ETH",
+        "bsc" | "bnb" => "BNB",
+        other => {
+            return Err(YieldError::Invalid(format!(
+                "yield.discover does not support chain={other}"
+            )));
+        }
+    };
+    if !request.asset.eq_ignore_ascii_case(native_asset) {
+        return Err(YieldError::Invalid(format!(
+            "yield.discover on chain={} requires asset={native_asset}",
+            request.chain
+        )));
     }
     if !(1..=20).contains(&request.limit) {
         return Err(YieldError::Invalid(

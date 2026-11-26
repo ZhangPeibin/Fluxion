@@ -373,8 +373,9 @@ impl Router {
         let mut routes = Vec::new();
         let mut refined = refine.buffer_unordered(16);
         while let Some(result) = refined.next().await {
-            if let Ok(route) = result {
-                routes.push(route);
+            match result {
+                Ok(route) => routes.push(route),
+                Err(error) => tracing::debug!(%error, "candidate refine failed"),
             }
         }
         routes.sort_by_key(|route| std::cmp::Reverse(route.amount_out));

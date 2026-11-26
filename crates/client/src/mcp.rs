@@ -138,6 +138,7 @@ fn tools_list() -> Value {
                         "token_in": {"type": "string", "description": "Input token symbol or address"},
                         "token_out": {"type": "string", "description": "Output token symbol or address"},
                         "amount": {"type": "string", "description": "Human amount, e.g. 100 or 0.5"},
+                        "chain": {"type": "string", "enum": ["bsc", "ethereum"], "default": "ethereum"},
                         "decimals_in": {"type": "integer", "minimum": 0, "maximum": 38},
                         "decimals_out": {"type": "integer", "minimum": 0, "maximum": 38},
                         "split": {"type": "boolean", "default": true},
@@ -416,11 +417,12 @@ fn tools_list() -> Value {
             },
             {
                 "name": "yield_discover",
-                "description": "Find safe, high-APY ETH staking and lending opportunities on Ethereum from a curated universe. Returns safety tiers, APY components, TVL, withdrawal conditions, evidence and one recommendation with tradeoffs. Read-only; never deposits, signs or broadcasts.",
+                "description": "Find safe, high-APY native-asset staking and lending opportunities from a curated universe. ETH on Ethereum, BNB on BSC. Returns safety tiers, APY components, TVL, withdrawal conditions, evidence and one recommendation with tradeoffs. Read-only; never deposits, signs or broadcasts.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
-                        "asset": {"type": "string", "description": "Currently ETH", "default": "ETH"},
+                        "asset": {"type": "string", "description": "ETH on ethereum or BNB on bsc", "default": "ETH"},
+                        "chain": {"type": "string", "enum": ["ethereum", "bsc"], "default": "ethereum"},
                         "amount": {"type": "string", "description": "Optional human amount, e.g. 10"},
                         "risk_profile": {"type": "string", "enum": ["conservative", "balanced", "aggressive"], "default": "conservative"},
                         "min_tvl_usd": {"type": "integer", "minimum": 0},
@@ -453,6 +455,7 @@ fn tools_list() -> Value {
                     "type": "object",
                     "properties": {
                         "opportunity_id": {"type": "string", "description": "ID from yield_discover, e.g. lido-steth"},
+                        "chain": {"type": "string", "enum": ["ethereum", "bsc"], "default": "ethereum"},
                         "days": {"type": "integer", "minimum": 1, "maximum": 365, "default": 30},
                         "max_points": {"type": "integer", "minimum": 1, "maximum": 2000, "default": 500}
                     },
@@ -461,7 +464,7 @@ fn tools_list() -> Value {
             },
             {
                 "name": "yield_withdraw",
-                "description": "Build local exit calldata for a curated yield position. Supports Aave V3, SparkLend, curated Morpho vaults and Rocket Pool burn; Lido and LRT exits are not implemented yet. Read-only; never signs or broadcasts.",
+                "description": "Build local exit calldata for a curated yield position. Supports Aave V3, SparkLend, Venus, curated Morpho vaults and Rocket Pool burn; Lido and LRT exits are not implemented yet. Read-only; never signs or broadcasts.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -475,12 +478,12 @@ fn tools_list() -> Value {
             },
             {
                 "name": "position_analyze",
-                "description": "Read a wallet's curated ETH yield positions at a pinned Ethereum block, including receipt balances, estimated ETH value, APY, withdrawal conditions and risk factors. Optional cost basis enables PnL. Read-only; never signs or broadcasts.",
+                "description": "Read a wallet's curated native-asset yield positions at a pinned block, including receipt balances, estimated native value, APY, withdrawal conditions and risk factors. Optional cost basis enables PnL. Read-only; never signs or broadcasts.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "owner": {"type": "string", "description": "Wallet address to analyze"},
-                        "chain": {"type": "string", "enum": ["ethereum"], "default": "ethereum"},
+                        "chain": {"type": "string", "enum": ["ethereum", "bsc"], "default": "ethereum"},
                         "opportunity_ids": {"type": "array", "items": {"type": "string"}, "description": "Optional subset of yield opportunity IDs"},
                         "include_zero": {"type": "boolean", "default": false},
                         "cost_basis": {
@@ -1084,12 +1087,24 @@ async fn yield_discover_tool(
     arguments: &Value,
     backend: &Result<RuntimeClient, CapabilityError>,
 ) -> Result<Value, CapabilityError> {
-    let backend = backend.as_ref().map_err(Clone::clone)?;
+    let chain = match arguments.get("chain").and_then(Value::as_str) {
+        Some(value) => Chain::parse(value)?,
+        None => Chain::Ethereum,
+    };
+    let owned_client;
+    let client: &RuntimeClient = match chain {
+        Chain::Ethereum => backend.as_ref().map_err(Clone::clone)?,
+        Chain::Bsc => {
+            let route = crate::routing::from_env_for_chain("bsc", None)?;
+            owned_client = RuntimeClient::with_api_key(route.base_url, route.api_key);
+            &owned_client
+        }
+    };
     let asset = arguments
         .get("asset")
         .and_then(Value::as_str)
-        .unwrap_or("ETH")
-        .to_string();
+        .map(str::to_string)
+        .unwrap_or_else(|| chain.native_symbol().to_string());
     let amount = arguments
         .get("amount")
         .and_then(Value::as_str)
@@ -1136,9 +1151,9 @@ async fn yield_discover_tool(
             "limit must be between 1 and 20",
         ));
     }
-    let response = backend
+    let response = client
         .yield_discover(&YieldDiscoverRequest {
-            chain: "ethereum".to_string(),
+            chain: chain.as_str().to_string(),
             asset,
             amount,
             risk_profile,
@@ -1175,7 +1190,19 @@ async fn yield_history_tool(
     arguments: &Value,
     backend: &Result<RuntimeClient, CapabilityError>,
 ) -> Result<Value, CapabilityError> {
-    let backend = backend.as_ref().map_err(Clone::clone)?;
+    let chain = match arguments.get("chain").and_then(Value::as_str) {
+        Some(value) => Chain::parse(value)?,
+        None => Chain::Ethereum,
+    };
+    let owned_client;
+    let client: &RuntimeClient = match chain {
+        Chain::Ethereum => backend.as_ref().map_err(Clone::clone)?,
+        Chain::Bsc => {
+            let route = crate::routing::from_env_for_chain("bsc", None)?;
+            owned_client = RuntimeClient::with_api_key(route.base_url, route.api_key);
+            &owned_client
+        }
+    };
     let opportunity_id = string_arg(arguments, "opportunity_id")?.to_string();
     let days = arguments
         .get("days")
@@ -1189,7 +1216,7 @@ async fn yield_history_tool(
         .unwrap_or(500)
         .try_into()
         .map_err(|_| CapabilityError::invalid_argument("invalid max_points"))?;
-    let response = backend
+    let response = client
         .yield_history(&YieldHistoryRequest {
             opportunity_id,
             days,
@@ -1203,15 +1230,22 @@ async fn position_analyze_tool(
     arguments: &Value,
     backend: &Result<RuntimeClient, CapabilityError>,
 ) -> Result<Value, CapabilityError> {
-    let backend = backend.as_ref().map_err(Clone::clone)?;
     let owner = string_arg(arguments, "owner")?
         .parse::<alloy_primitives::Address>()
         .map_err(|_| CapabilityError::invalid_argument("invalid owner address"))?;
-    let chain = arguments
-        .get("chain")
-        .and_then(Value::as_str)
-        .unwrap_or("ethereum")
-        .to_string();
+    let chain = match arguments.get("chain").and_then(Value::as_str) {
+        Some(value) => Chain::parse(value)?,
+        None => Chain::Ethereum,
+    };
+    let owned_client;
+    let client: &RuntimeClient = match chain {
+        Chain::Ethereum => backend.as_ref().map_err(Clone::clone)?,
+        Chain::Bsc => {
+            let route = crate::routing::from_env_for_chain("bsc", None)?;
+            owned_client = RuntimeClient::with_api_key(route.base_url, route.api_key);
+            &owned_client
+        }
+    };
     let opportunity_ids = arguments
         .get("opportunity_ids")
         .and_then(Value::as_array)
@@ -1252,10 +1286,10 @@ async fn position_analyze_tool(
         })
         .transpose()?
         .unwrap_or_default();
-    let response = backend
+    let response = client
         .position_analyze(&PositionAnalyzeRequest {
             owner,
-            chain,
+            chain: chain.as_str().to_string(),
             opportunity_ids,
             include_zero,
             cost_basis,
@@ -1396,12 +1430,32 @@ async fn quote_tool(
     arguments: &Value,
     backend: &Result<RuntimeClient, CapabilityError>,
 ) -> Result<Value, CapabilityError> {
-    let client = backend.as_ref().map_err(|error| error.clone())?;
+    let chain = match arguments.get("chain").and_then(Value::as_str) {
+        Some(value) => Chain::parse(value)?,
+        None => Chain::Ethereum,
+    };
+    let owned_client;
+    let client: &RuntimeClient = match chain {
+        Chain::Ethereum => backend.as_ref().map_err(|error| error.clone())?,
+        Chain::Bsc => {
+            let route = crate::routing::from_env_for_chain(chain.as_str(), None)?;
+            owned_client = RuntimeClient::with_api_key(route.base_url, route.api_key);
+            &owned_client
+        }
+    };
     let token_in = string_arg(arguments, "token_in")?;
     let token_out = string_arg(arguments, "token_out")?;
     let amount = string_arg(arguments, "amount")?;
-    let token_in = token::resolve(&token_in, optional_u8(arguments, "decimals_in")?)?;
-    let token_out = token::resolve(&token_out, optional_u8(arguments, "decimals_out")?)?;
+    let token_in = token::resolve_for_chain(
+        &token_in,
+        optional_u8(arguments, "decimals_in")?,
+        chain.chain_id(),
+    )?;
+    let token_out = token::resolve_for_chain(
+        &token_out,
+        optional_u8(arguments, "decimals_out")?,
+        chain.chain_id(),
+    )?;
     let amount_in = token::parse_amount(&amount, token_in.decimals)?;
     let request = QuoteRequest {
         token_in: token_in.address,
@@ -1416,7 +1470,7 @@ async fn quote_tool(
         split_max_branches: optional_usize(arguments, "split_max_branches")?,
     };
     let response = client
-        .swap_quote(&request, token_in, token_out, "ethereum", "remote")
+        .swap_quote(&request, token_in, token_out, chain.as_str(), "remote")
         .await?;
     Ok(serde_json::to_value(response).unwrap_or(Value::Null))
 }

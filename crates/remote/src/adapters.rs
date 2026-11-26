@@ -132,7 +132,7 @@ impl V3Quoter {
     }
 
     pub fn with_deployments(rpc: RpcClient, deployments: &V3Deployments) -> Self {
-        let quoters = if deployments.is_empty() {
+        let quoters: HashMap<V3Venue, Address> = if deployments.is_empty() {
             V3Deployments::uniswap_default()
                 .iter()
                 .map(|deployment| (deployment.venue, deployment.quoter))
@@ -143,6 +143,7 @@ impl V3Quoter {
                 .map(|deployment| (deployment.venue, deployment.quoter))
                 .collect()
         };
+        tracing::debug!(count = quoters.len(), "configured v3 quoters");
         Self { rpc, quoters }
     }
 
@@ -186,8 +187,18 @@ impl QuoteSource for V3Quoter {
         amount_in: U256,
     ) -> Result<U256, QuoteError> {
         let fee = Self::fee(pool)?;
-        let venue = pool.kind.v3_venue().ok_or(QuoteError::UnknownPool)?;
-        let quoter = *self.quoters.get(&venue).ok_or(QuoteError::UnknownPool)?;
+        let venue = pool.kind.v3_venue().ok_or_else(|| {
+            tracing::debug!(kind = pool.kind.name(), "v3 pool has no venue");
+            QuoteError::UnknownPool
+        })?;
+        let quoter = *self.quoters.get(&venue).ok_or_else(|| {
+            tracing::debug!(
+                venue = venue.name(),
+                quoters = self.quoters.len(),
+                "v3 quoter is not configured"
+            );
+            QuoteError::UnknownPool
+        })?;
         let (token_in, token_out) = match (i, j) {
             (0, 1) => (pool.coins[0], pool.coins[1]),
             (1, 0) => (pool.coins[1], pool.coins[0]),

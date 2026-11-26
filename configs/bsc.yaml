@@ -1,0 +1,65 @@
+# BSC swap universe for the remote Eollo service.
+# Start: GRAPH_API_KEY=... cargo run -p eollo-remote --release -- serve --config configs/bsc.yaml
+# Point the client at it: EOLLO_BSC_REMOTE_URL=http://127.0.0.1:8081 eollo swap bnb-usdt 1 --chain bsc
+host: 127.0.0.1
+port: 8081
+rpc_url: "https://bsc-rpc.publicnode.com"
+enabled_platforms: [pancake-v3]
+max_pools: 10000
+# One page of top-volume Pancake V3 pools covers every allowlisted pair.
+discovery_max_pages: 1
+# PancakeSwap V2 has no reliable BSC subgraph, so V2 pools come from the
+# factory. The factory path only ranks by reserves when a liquidity anchor is
+# configured, so keep the threshold at zero and rely on the allowlist below.
+min_liquidity: 0
+max_hops: 3
+top_k: 8
+reserve_ratio_k: 0
+request_timeout_ms: 10000
+universe_refresh_secs: 300
+# RPC pricing avoids the Ethereum-tuned local snapshot reorg/lag window.
+pricing_mode: rpc
+# BSC majors only, so both sides of every pool stay liquid.
+token_allowlist:
+  - "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c" # WBNB
+  - "0x55d398326f99059ff775485246999027b3197955" # USDT
+  - "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d" # USDC
+  - "0xe9e7cea3dedca5984780bafc599bd69add087d56" # BUSD
+  - "0x40af3827f39d0eacbf4a168f8d4ee67c121d11c9" # TUSD
+  - "0xc5f0f7b66764f6ec8c8dff7ba683102295e16409" # FDUSD
+  - "0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3" # DAI
+  - "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82" # CAKE
+  - "0x2170ed0880ac9a755fd29b2688956bd959f933f8" # ETH
+  - "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c" # BTCB
+# wstETH conversion is Ethereum-only.
+protocol_conversions: []
+v2_forks:
+  - name: pancakeswap-v2
+    factory: "0xCA143Ce32Fe78f1f7019d7d551a6402fC5350c73"
+v3_deployments:
+  - venue: pancake-v3
+    factory: "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865"
+    quoter: "0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"
+    subgraph_id: "Hv1GncLY5docZoGtXjo4kwbTvxm3MAhVZqBZE4sUT9eZ"
+split:
+  max_branches: 8
+  max_quote_calls: 4096
+local_state:
+  sync_timeout_ms: 300000
+  batch_size: 400
+  max_age_secs: 60
+  max_lag_blocks: 3
+  v3_bitmap_radius: 16
+  v3_full_range: true
+  v3_max_loaded_ticks: 250000
+  sync_mode: incremental
+  poll_interval_ms: 1000
+  full_reload_interval_secs: 900
+  max_incremental_gap_blocks: 64
+  v3_log_chunk_blocks: 5000
+yield:
+  enabled: true
+  chain: bsc
+  refresh_secs: 300
+  max_age_secs: 900
+  hard_max_age_secs: 3600

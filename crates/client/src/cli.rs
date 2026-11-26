@@ -117,7 +117,7 @@ eollo swap ldo-eth 100                Shorthand quote\n  \
 eollo ldo-eth 100                     Top-level shorthand alias\n  \
 eollo capability list                  List capabilities\n  \
 eollo capability describe NAME        Show capability and execution details\n  \
-eollo swap quote --in TOKEN --out TOKEN --amount AMOUNT [options]\n  \
+eollo swap quote --in TOKEN --out TOKEN --amount AMOUNT [--chain bsc|ethereum] [options]\n  \
 eollo swap build --quote FILE --recipient ADDRESS [--slippage-bps N]\n  \
 eollo wallet balance ADDRESS [--tokens LIST] [--chain bsc|ethereum]\n  \
 eollo wallet assets ADDRESS [--include-unknown] [--chain bsc|ethereum]\n  \
@@ -148,7 +148,8 @@ eollo tokens                          List built-in token symbols\n  \
 eollo --help\n\n\
 Quote options:\n  \
 --json                    Print the swap.quote JSON response\n  \
---url URL                 Remote service override (default EOLLO_REMOTE_URL)\n  \
+--chain bsc|ethereum      Chain to quote on (default ethereum)\n  \
+--url URL                 Remote service override (default EOLLO_REMOTE_URL or EOLLO_BSC_REMOTE_URL)\n  \
 --no-split                Disable split allocation\n  \
 --max-hops N              Maximum hops\n  \
 --split-max-branches N    Maximum split branches\n  \
@@ -174,6 +175,7 @@ struct QuoteArgs {
     amount: String,
     json: bool,
     url: Option<String>,
+    chain: Chain,
     split: bool,
     max_hops: Option<usize>,
     split_max_branches: Option<usize>,
@@ -187,6 +189,7 @@ fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
     let mut amount = None;
     let mut json = false;
     let mut url = None;
+    let mut chain = Chain::Ethereum;
     let mut split = true;
     let mut max_hops = None;
     let mut split_max_branches = None;
@@ -203,6 +206,7 @@ fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
             "--out" => token_out = Some(value(raw, &mut index, "--out")?),
             "--amount" => amount = Some(value(raw, &mut index, "--amount")?),
             "--url" => url = Some(value(raw, &mut index, "--url")?),
+            "--chain" => chain = Chain::parse(&value(raw, &mut index, "--chain")?)?,
             "--max-hops" => {
                 max_hops = Some(parse_number(
                     "--max-hops",
@@ -245,6 +249,7 @@ fn parse_quote_args(raw: &[String]) -> Result<QuoteArgs, CapabilityError> {
         amount: amount.ok_or_else(|| CapabilityError::invalid_argument("missing --amount"))?,
         json,
         url,
+        chain,
         split,
         max_hops,
         split_max_branches,
@@ -337,14 +342,17 @@ async fn run_swap_build(raw: &[String]) -> i32 {
     };
     let quote: QuoteResponse = match serde_json::from_str(&text) {
         Ok(quote) => quote,
-        Err(error) => {
-            let error = CapabilityError::invalid_argument(format!(
-                "invalid quote file {}: {error}",
-                args.quote
-            ));
-            report_error_as("swap.build", &error, args.json);
-            return exit_code(error.code);
-        }
+        Err(error) => match quote_from_envelope(&text) {
+            Ok(quote) => quote,
+            Err(envelope_error) => {
+                let error = CapabilityError::invalid_argument(format!(
+                    "invalid quote file {}: {error}; envelope: {envelope_error}",
+                    args.quote
+                ));
+                report_error_as("swap.build", &error, args.json);
+                return exit_code(error.code);
+            }
+        },
     };
     let recipient = match args.recipient.parse::<alloy_primitives::Address>() {
         Ok(address) => address,
@@ -391,6 +399,58 @@ async fn run_swap_build(raw: &[String]) -> i32 {
             exit_code(error.code)
         }
     }
+}
+
+/// Accept a raw `QuoteResponse` or the capability envelope that `--json` prints.
+fn quote_from_envelope(text: &str) -> Result<QuoteResponse, String> {
+    let envelope: serde_json::Value =
+        serde_json::from_str(text).map_err(|error| error.to_string())?;
+    let data = envelope
+        .get("data")
+        .and_then(serde_json::Value::as_object)
+        .cloned()
+        .ok_or_else(|| "missing data object".to_string())?;
+    let meta = envelope
+        .get("meta")
+        .cloned()
+        .ok_or_else(|| "missing meta".to_string())?;
+    let chain = envelope
+        .get("chain")
+        .and_then(|chain| chain.get("name"))
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "missing chain name".to_string())?
+        .to_string();
+    let block = envelope
+        .get("block")
+        .and_then(|block| block.get("number"))
+        .and_then(serde_json::Value::as_u64);
+    let provenance = envelope.get("provenance");
+    let pricing_mode = provenance
+        .and_then(|value| value.get("pricing_mode"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("local_snapshot");
+    let state_age_secs = provenance
+        .and_then(|value| value.get("age_secs"))
+        .and_then(serde_json::Value::as_u64);
+    let mut object = data;
+    // `CapabilityMeta` is flattened in `QuoteResponse`, so restore its fields
+    // at the top level rather than nesting them under `meta`.
+    if let Some(meta) = meta.as_object() {
+        for (key, value) in meta {
+            object.insert(key.clone(), value.clone());
+        }
+    }
+    object.insert("chain".to_string(), serde_json::Value::String(chain));
+    object.insert(
+        "provenance".to_string(),
+        serde_json::json!({
+            "execution": "remote",
+            "pricing_mode": pricing_mode,
+            "quote_block": block,
+            "state_age_secs": state_age_secs,
+        }),
+    );
+    serde_json::from_value(serde_json::Value::Object(object)).map_err(|error| error.to_string())
 }
 
 fn parse_build_args(raw: &[String]) -> Result<BuildArgs, CapabilityError> {
@@ -481,14 +541,15 @@ async fn run_quote(raw: &[String]) -> i32 {
             return exit_code(error.code);
         }
     };
-    let token_in = match token::resolve(&args.token_in, args.decimals_in) {
+    let chain_id = args.chain.chain_id();
+    let token_in = match token::resolve_for_chain(&args.token_in, args.decimals_in, chain_id) {
         Ok(token) => token,
         Err(error) => {
             report_error(&error, args.json);
             return exit_code(error.code);
         }
     };
-    let token_out = match token::resolve(&args.token_out, args.decimals_out) {
+    let token_out = match token::resolve_for_chain(&args.token_out, args.decimals_out, chain_id) {
         Ok(token) => token,
         Err(error) => {
             report_error(&error, args.json);
@@ -511,7 +572,8 @@ async fn run_quote(raw: &[String]) -> i32 {
         split: args.split,
         split_max_branches: args.split_max_branches,
     };
-    let backend = match crate::routing::from_env(args.url.as_deref()) {
+    let backend = match crate::routing::from_env_for_chain(args.chain.as_str(), args.url.as_deref())
+    {
         Ok(backend) => backend,
         Err(error) => {
             report_error(&error, args.json);
@@ -520,7 +582,7 @@ async fn run_quote(raw: &[String]) -> i32 {
     };
     let client = RuntimeClient::with_api_key(backend.base_url.clone(), backend.api_key.clone());
     match client
-        .swap_quote(&request, token_in, token_out, "ethereum", "remote")
+        .swap_quote(&request, token_in, token_out, args.chain.as_str(), "remote")
         .await
     {
         Ok(response) => {
@@ -3093,6 +3155,7 @@ fn exit_code(code: CapabilityErrorCode) -> i32 {
 
 #[derive(Debug)]
 struct YieldArgs {
+    chain: Chain,
     asset: String,
     amount: Option<String>,
     risk_profile: RiskProfile,
@@ -3105,7 +3168,7 @@ struct YieldArgs {
     json: bool,
 }
 
-const YIELD_USAGE: &str = "Usage:\n  eollo yield discover --asset ETH [--amount 10] [--risk conservative|balanced|aggressive]\n    [--min-tvl-usd N] [--max-lockup-days N] [--include-reward-apy]\n    [--protocols lido,aave-v3] [--limit N] [--url URL] [--json]\n  eollo yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH] [--json]\n  eollo yield history --opportunity ID [--days 30] [--max-points 500] [--url URL] [--json]\n  eollo yield withdraw --opportunity ID --amount 10|max --recipient ADDRESS [--owner ADDRESS] [--json]";
+const YIELD_USAGE: &str = "Usage:\n  eollo yield discover --asset ETH|BNB [--chain bsc|ethereum] [--amount 10]\n    [--risk conservative|balanced|aggressive] [--min-tvl-usd N] [--max-lockup-days N]\n    [--include-reward-apy] [--protocols lido,aave-v3] [--limit N] [--url URL] [--json]\n  eollo yield build --opportunity ID --amount 10 --recipient ADDRESS [--funding-asset ETH|WETH] [--json]\n  eollo yield history --opportunity ID [--days 30] [--max-points 500] [--url URL] [--json]\n  eollo yield withdraw --opportunity ID --amount 10|max --recipient ADDRESS [--owner ADDRESS] [--json]";
 
 async fn run_yield(raw: &[String]) -> i32 {
     let Some(command) = raw.first().map(String::as_str) else {
@@ -3142,15 +3205,16 @@ async fn run_yield_discover(raw: &[String]) -> i32 {
             return exit_code(error.code);
         }
     };
-    let controller = match crate::routing::from_env(args.url.as_deref()) {
-        Ok(backend) => RuntimeClient::with_api_key(backend.base_url, backend.api_key),
-        Err(error) => {
-            report_error_as("yield.discover", &error, args.json);
-            return exit_code(error.code);
-        }
-    };
+    let controller =
+        match crate::routing::from_env_for_chain(args.chain.as_str(), args.url.as_deref()) {
+            Ok(backend) => RuntimeClient::with_api_key(backend.base_url, backend.api_key),
+            Err(error) => {
+                report_error_as("yield.discover", &error, args.json);
+                return exit_code(error.code);
+            }
+        };
     let request = YieldDiscoverRequest {
-        chain: "ethereum".to_string(),
+        chain: args.chain.as_str().to_string(),
         asset: args.asset,
         amount: args.amount,
         risk_profile: args.risk_profile,
@@ -3253,14 +3317,14 @@ fn parse_yield_build_args(
 
 async fn run_yield_history(raw: &[String]) -> i32 {
     let json = raw.iter().any(|arg| arg == "--json");
-    let (opportunity_id, days, max_points, url) = match parse_yield_history_args(raw) {
+    let (opportunity_id, days, max_points, url, chain) = match parse_yield_history_args(raw) {
         Ok(args) => args,
         Err(error) => {
             report_error_as("yield.history", &error, json);
             return exit_code(error.code);
         }
     };
-    let controller = match crate::routing::from_env(url.as_deref()) {
+    let controller = match crate::routing::from_env_for_chain(chain.as_str(), url.as_deref()) {
         Ok(backend) => RuntimeClient::with_api_key(backend.base_url, backend.api_key),
         Err(error) => {
             report_error_as("yield.history", &error, json);
@@ -3292,11 +3356,12 @@ async fn run_yield_history(raw: &[String]) -> i32 {
 
 fn parse_yield_history_args(
     raw: &[String],
-) -> Result<(String, u32, usize, Option<String>), CapabilityError> {
+) -> Result<(String, u32, usize, Option<String>, Chain), CapabilityError> {
     let mut opportunity_id = None;
     let mut days = 30u32;
     let mut max_points = 500usize;
     let mut url = None;
+    let mut chain = Chain::Ethereum;
     let mut index = 0;
     while index < raw.len() {
         match raw[index].as_str() {
@@ -3313,6 +3378,7 @@ fn parse_yield_history_args(
                     .parse()
                     .map_err(|_| CapabilityError::invalid_argument("invalid --max-points"))?;
             }
+            "--chain" => chain = Chain::parse(&value(raw, &mut index, "--chain")?)?,
             "--url" => url = Some(value(raw, &mut index, "--url")?),
             "--json" => {}
             other => {
@@ -3328,7 +3394,7 @@ fn parse_yield_history_args(
             "--opportunity is required",
         ));
     };
-    Ok((opportunity_id, days, max_points, url))
+    Ok((opportunity_id, days, max_points, url, chain))
 }
 
 fn print_yield_build_human(response: &YieldBuildResponse) {
@@ -3482,7 +3548,8 @@ fn print_yield_withdraw_human(response: &YieldWithdrawResponse) {
 }
 
 fn parse_yield_args(raw: &[String]) -> Result<YieldArgs, CapabilityError> {
-    let mut asset = "ETH".to_string();
+    let mut chain = Chain::Ethereum;
+    let mut asset = None;
     let mut amount = None;
     let mut risk_profile = RiskProfile::Conservative;
     let mut min_tvl_usd = None;
@@ -3495,7 +3562,8 @@ fn parse_yield_args(raw: &[String]) -> Result<YieldArgs, CapabilityError> {
     let mut index = 0;
     while index < raw.len() {
         match raw[index].as_str() {
-            "--asset" => asset = value(raw, &mut index, "--asset")?,
+            "--chain" => chain = Chain::parse(&value(raw, &mut index, "--chain")?)?,
+            "--asset" => asset = Some(value(raw, &mut index, "--asset")?),
             "--amount" => amount = Some(value(raw, &mut index, "--amount")?),
             "--risk" | "--risk-profile" => {
                 let text = value(raw, &mut index, "--risk")?;
@@ -3546,7 +3614,9 @@ fn parse_yield_args(raw: &[String]) -> Result<YieldArgs, CapabilityError> {
         }
         index += 1;
     }
+    let asset = asset.unwrap_or_else(|| chain.native_symbol().to_string());
     Ok(YieldArgs {
+        chain,
         asset,
         amount,
         risk_profile,
@@ -3650,7 +3720,7 @@ async fn run_position_analyze(raw: &[String]) -> i32 {
             return exit_code(error.code);
         }
     };
-    let controller = match crate::routing::from_env(args.url.as_deref()) {
+    let controller = match crate::routing::from_env_for_chain(&args.chain, args.url.as_deref()) {
         Ok(backend) => RuntimeClient::with_api_key(backend.base_url, backend.api_key),
         Err(error) => {
             report_error_as("position.analyze", &error, json);

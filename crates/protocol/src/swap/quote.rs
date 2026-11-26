@@ -56,6 +56,9 @@ pub struct HopResponse {
     pub pool: String,
     pub i: usize,
     pub j: usize,
+    /// Concentrated-liquidity fee tier in hundredths of a bip, for V3 hops.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fee: Option<u32>,
     pub token_in: String,
     pub token_out: String,
     pub amount_in: Amount,
