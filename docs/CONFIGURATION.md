@@ -58,7 +58,8 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 | `EOLLO_REMOTE_URL` | 无（必须设置） | Ethereum remote 服务地址；BSC 未单独配置时也作为回退 |
 | `EOLLO_BSC_REMOTE_URL` | 空 | BSC remote 服务地址；设置后 `--chain bsc` 使用它 |
 | `EOLLO_API_KEY` | 空 | 静态 remote 认证 token；设置后不再自动注册 |
-| `EOLLO_REQUIRE_AUTH` | 空 | remote server 设为 `1` 时 `/quote` 需要安装 token |
+| `EOLLO_REQUIRE_AUTH` | 空 | remote server 设为 `1` 时 `/quote`、yield、position 需要安装 token；非 loopback 部署必须开启 |
+| `EOLLO_RATE_LIMIT_PER_SEC` | `1000` | remote 进程级每秒请求上限，不是 per-IP；公开部署建议在前面加 per-IP 限流 |
 | `EOLLO_URL` | `http://127.0.0.1:8080` | 本地 runtime 地址，供 `start/status/serve` 和未来 wallet/execute |
 | `EOLLO_RPC_URL` / `RPC_URL` | `https://eth.drpc.org` | 本地 Ethereum RPC；Ethereum 需显式 `--chain ethereum` |
 | `ONEINCH_API_KEY` | 空 | `wallet.assets` 的候选发现；缺失时回退 registry-only |
@@ -87,6 +88,8 @@ SPACE ID API + BSC 校验的 hybrid capability。Agent 和用户都不选择 loc
 CLI/MCP 的 `--url` 覆盖 remote endpoint。没有配置 remote endpoint 时，`swap.quote` 返回
 明确的 `RPC_ERROR`，不会回落 local。启用 `EOLLO_REQUIRE_AUTH=1` 后，local client 首次调用
 会自动 `POST /register` 并保存安装 token 到 `~/.eollo/auth.json`。
+
+公开部署必须设置 `EOLLO_REQUIRE_AUTH=1`，并在前面加 TLS 和 per-IP 限流。服务在非 loopback host 上未开启 auth 时会打印 warning。完整边界与部署清单见 [SECURITY](SECURITY.md)。
 
 `GRAPH_API_KEY` 只放在 **gitignored 的 `.env`** 里，不进版本库。
 转换实例字段为 `kind`、`contract`、`underlying`、`wrapped`、`enabled`、`wrap`、`unwrap`；

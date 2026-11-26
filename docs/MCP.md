@@ -4,7 +4,8 @@ Eollo exposes its capabilities to agents over **MCP stdio**. MCP is the project-
 transport: it is not a capability, and client registration is not capability-specific.
 
 Capability contracts live in [docs/capabilities/](capabilities/README.md). This page covers
-installation, registration, the remote service, lifecycle and troubleshooting.
+installation, registration, the remote service, lifecycle and troubleshooting. Security
+boundaries and the deployment checklist are in [SECURITY.md](SECURITY.md).
 
 ## Install
 

@@ -426,6 +426,7 @@ capabilities:
     docs: docs/capabilities/yield/README.md
     tests:
       - crates/client/src/yield_build.rs
+      - tests/bsc_yield_mainnet.rs
     workflows: [yield-deposit]
     coverage_dimensions: [data]
 

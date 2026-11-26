@@ -197,6 +197,7 @@ const BUILTIN_SELECTORS: &[&str] = &[
     "0x5c11d795",
     "0xb6f9de95",
     "0x791ac947",
+    "0xc04b8d59",
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -818,6 +819,207 @@ fn decode_swap_v2(
     }
 }
 
+fn decode_swap_v3(selector: &str, payload: &[u8]) -> DecodedIntent {
+    let signature = "exactInput((bytes,address,uint256,uint256,uint256))";
+    let name = "exactInput";
+    let Some(tuple_offset) = payload.get(..32).and_then(word_to_usize) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap tuple offset is invalid".to_string(),
+        );
+    };
+    let Some(tuple) = payload.get(tuple_offset..) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap tuple offset points outside calldata".to_string(),
+        );
+    };
+    let Some(head) = tuple.get(..5 * 32) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap tuple is truncated".to_string(),
+        );
+    };
+    let Some(path_offset) = word_to_usize(&head[..32]) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path offset is invalid".to_string(),
+        );
+    };
+    let Some(recipient) = decode_address(&head[32..64]).ok() else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap recipient is invalid".to_string(),
+        );
+    };
+    let deadline = U256::from_be_slice(&head[64..96]).to_string();
+    let amount_in = U256::from_be_slice(&head[96..128]).to_string();
+    let amount_out_min = U256::from_be_slice(&head[128..160]).to_string();
+    let Some(path_pos) = tuple_offset.checked_add(path_offset) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path offset overflow".to_string(),
+        );
+    };
+    let Some(length_end) = path_pos.checked_add(32) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path length offset overflow".to_string(),
+        );
+    };
+    let Some(path_len) = payload.get(path_pos..length_end).and_then(word_to_usize) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path length is invalid".to_string(),
+        );
+    };
+    if path_len < 20 || (path_len - 20) % 23 != 0 {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "packed V3 path has an invalid length".to_string(),
+        );
+    }
+    let hops = (path_len - 20) / 23;
+    if hops > 8 {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "packed V3 path has too many hops".to_string(),
+        );
+    }
+    let Some(path_start) = path_pos.checked_add(32) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path start overflow".to_string(),
+        );
+    };
+    let Some(path_end) = path_start.checked_add(path_len) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap path length overflow".to_string(),
+        );
+    };
+    let Some(path_bytes) = payload.get(path_start..path_end) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "packed V3 path exceeds calldata".to_string(),
+        );
+    };
+
+    let token = |bytes: &[u8]| Address::from_slice(bytes).to_string();
+    let mut tokens = Vec::with_capacity(hops + 1);
+    let mut fees = Vec::with_capacity(hops);
+    tokens.push(token(&path_bytes[..20]));
+    let mut pos = 20;
+    for _ in 0..hops {
+        fees.push(u32::from_be_bytes([
+            0,
+            path_bytes[pos],
+            path_bytes[pos + 1],
+            path_bytes[pos + 2],
+        ]));
+        pos += 3;
+        tokens.push(token(&path_bytes[pos..pos + 20]));
+        pos += 20;
+    }
+
+    let args = vec![
+        TransactionInspectArg {
+            name: "amountIn".to_string(),
+            kind: "uint256".to_string(),
+            value: amount_in,
+        },
+        TransactionInspectArg {
+            name: "amountOutMin".to_string(),
+            kind: "uint256".to_string(),
+            value: amount_out_min,
+        },
+        TransactionInspectArg {
+            name: "path".to_string(),
+            kind: "address[]".to_string(),
+            value: format!(
+                "[{}]",
+                tokens
+                    .iter()
+                    .map(|address| format!("\"{address}\""))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        },
+        TransactionInspectArg {
+            name: "fees".to_string(),
+            kind: "uint24[]".to_string(),
+            value: format!(
+                "[{}]",
+                fees.iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        },
+        TransactionInspectArg {
+            name: "to".to_string(),
+            kind: "address".to_string(),
+            value: recipient,
+        },
+        TransactionInspectArg {
+            name: "deadline".to_string(),
+            kind: "uint256".to_string(),
+            value: deadline,
+        },
+    ];
+
+    let mut warnings = Vec::new();
+    // `bytes path` is padded to the next 32-byte word; that padding is expected.
+    let padded_end = path_end.saturating_add(31) / 32 * 32;
+    if payload.len() > padded_end {
+        warnings.push(format!(
+            "{} trailing bytes after swap path",
+            payload.len() - padded_end
+        ));
+    }
+    DecodedIntent {
+        intent: TransactionInspectIntent {
+            selector: selector.to_string(),
+            signature: Some(signature.to_string()),
+            name: Some(name.to_string()),
+            args,
+        },
+        decode_coverage: if warnings.is_empty() {
+            "complete"
+        } else {
+            "partial"
+        },
+        unknowns: Vec::new(),
+        warnings,
+    }
+}
+
 struct PolicyEvaluation {
     findings: Vec<TransactionInspectFinding>,
     coverage: &'static str,
@@ -1232,11 +1434,10 @@ fn detect_swap(
     intent: &TransactionInspectIntent,
     request: &InspectRequest,
 ) -> Vec<TransactionInspectFinding> {
-    if !intent
-        .name
-        .as_deref()
-        .is_some_and(|name| name.starts_with("swapExact"))
-    {
+    let is_swap = intent.name.as_deref().is_some_and(|name| {
+        name.starts_with("swapExact") || name == "exactInput" || name == "exactInputSingle"
+    });
+    if !is_swap {
         return Vec::new();
     }
     let mut findings = Vec::new();
@@ -1307,6 +1508,8 @@ fn is_known_swap_router(address: Address) -> bool {
     [
         "0x10ED43C718714eb63d5aA57B78B54704E256024E",
         "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+        "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+        "0x1b81D678ffb9C0263b24A97847620C99d213eB14",
     ]
     .iter()
     .filter_map(|value| parse_address(value))
@@ -3175,6 +3378,7 @@ fn decode_intent(data: &str) -> Result<DecodedIntent, CapabilityError> {
                 true,
             ));
         }
+        "0xc04b8d59" => return Ok(decode_swap_v3(&selector, payload)),
         "0xac9650d8" => return Ok(decode_multicall(&selector, payload)),
         _ => {
             return Ok(DecodedIntent {
@@ -4427,6 +4631,114 @@ mod tests {
         let findings = detect_swap(&decoded.intent, &request);
         assert!(findings.iter().any(|finding| finding.id == "SWAP-001"));
         assert!(!findings.iter().any(|finding| finding.id == "SWAP-007"));
+    }
+
+    fn v3_exact_input_data(
+        amount_in: u64,
+        amount_out_min: u64,
+        recipient: &str,
+        token_in: &str,
+        fee: u32,
+        token_out: &str,
+    ) -> String {
+        let packed = format!(
+            "{}{:06x}{}",
+            token_in.trim_start_matches("0x"),
+            fee,
+            token_out.trim_start_matches("0x")
+        );
+        let path_padded = format!("{packed:0<128}");
+        format!(
+            "0xc04b8d59{}{}{}{}{}{}{}{}",
+            uint_word(32),
+            uint_word(160),
+            address_word(recipient),
+            uint_word(u64::MAX),
+            uint_word(amount_in),
+            uint_word(amount_out_min),
+            uint_word(43),
+            path_padded
+        )
+    }
+
+    #[test]
+    fn decodes_v3_exact_input_path_and_fees() {
+        let data = v3_exact_input_data(
+            1000,
+            0,
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000010",
+            500,
+            "0x0000000000000000000000000000000000000020",
+        );
+        let decoded = decode_intent(&data).unwrap();
+        assert_eq!(decoded.decode_coverage, "complete");
+        assert_eq!(decoded.intent.name.as_deref(), Some("exactInput"));
+        assert!(
+            decoded
+                .intent
+                .args
+                .iter()
+                .any(|arg| arg.name == "amountIn" && arg.value == "1000")
+        );
+        assert!(
+            decoded
+                .intent
+                .args
+                .iter()
+                .any(|arg| arg.name == "amountOutMin" && arg.value == "0")
+        );
+        let path = decoded
+            .intent
+            .args
+            .iter()
+            .find(|arg| arg.name == "path")
+            .expect("path arg");
+        assert!(
+            path.value
+                .contains("0x0000000000000000000000000000000000000010")
+        );
+        assert!(
+            path.value
+                .contains("0x0000000000000000000000000000000000000020")
+        );
+        let fees = decoded
+            .intent
+            .args
+            .iter()
+            .find(|arg| arg.name == "fees")
+            .expect("fees arg");
+        assert_eq!(fees.value, "[500]");
+
+        let mut request = flow_request();
+        request.to = "0x1b81D678ffb9C0263b24A97847620C99d213eB14"
+            .parse()
+            .unwrap();
+        let findings = detect_swap(&decoded.intent, &request);
+        assert!(findings.iter().any(|finding| finding.id == "SWAP-001"));
+        assert!(!findings.iter().any(|finding| finding.id == "SWAP-007"));
+    }
+
+    #[test]
+    fn rejects_v3_swap_with_malformed_packed_path() {
+        let data = v3_exact_input_data(
+            1000,
+            1,
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000010",
+            500,
+            "0x0000000000000000000000000000000000000020",
+        );
+        let malformed = data.replacen(&uint_word(43), &uint_word(42), 1);
+        let decoded = decode_intent(&malformed).unwrap();
+        assert_eq!(decoded.decode_coverage, "partial");
+        assert!(decoded.intent.args.is_empty());
+        assert!(
+            decoded
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("invalid length"))
+        );
     }
 
     #[test]

@@ -16,7 +16,7 @@ eollo transaction inspect --to 0x... --data 0x... --policy policy.json --json
 - Default chain is BSC; use `--chain ethereum` for Ethereum.
 - Empty `data` is a native transfer.
 - `multicall(bytes[])` is expanded into `call[i]` arguments; nested approvals are checked.
-- Built-in selectors decode signature, name and static arguments.
+- Built-in selectors decode signature, name and static arguments, including Uniswap/Pancake V2 swaps and V3 `exactInput`.
 - Unknown selectors return `signature: null`, `name: null` and an unknown entry.
 - The block is pinned and returned as `block.number` / `block.hash`.
 - `target` distinguishes EOA/contract and detects EIP-1967, EIP-1822, EIP-1167 minimal

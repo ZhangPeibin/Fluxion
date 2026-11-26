@@ -205,11 +205,24 @@ async fn run_server(config_path: String) {
     let info_config = config.clone();
     let info_store = local_store.clone();
     let info_graph = graph.clone();
+    let rate_limit = std::env::var("EOLLO_RATE_LIMIT_PER_SEC")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(1000);
+    let auth_enabled = std::env::var("EOLLO_REQUIRE_AUTH").as_deref() == Ok("1");
+    let loopback = matches!(config.host.as_str(), "127.0.0.1" | "localhost" | "::1");
+    if !loopback && !auth_enabled {
+        tracing::warn!(
+            host = %config.host,
+            "remote is bound to a non-loopback host without EOLLO_REQUIRE_AUTH=1; enable auth or place it behind an authenticated proxy"
+        );
+    }
     let state = Arc::new(AppState {
         graph,
         source: cached,
         router,
-        limiter: RateLimiter::new(1000, Duration::from_secs(1)),
+        limiter: RateLimiter::new(rate_limit, Duration::from_secs(1)),
         rpc: Some(rpc.clone()),
         request_timeout: Duration::from_millis(config.request_timeout_ms.max(1)),
     });
@@ -256,7 +269,7 @@ async fn run_server(config_path: String) {
     } else {
         app
     };
-    let app = if std::env::var("EOLLO_REQUIRE_AUTH").as_deref() == Ok("1") {
+    let app = if auth_enabled {
         let auth = Arc::new(AuthStore::new());
         tracing::info!(
             "installation-token auth enabled for /quote, /yield/discover, /yield/history and /position/analyze"

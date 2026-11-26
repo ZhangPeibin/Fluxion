@@ -1,5 +1,11 @@
 # HTTP API
 
+## 认证与限流
+
+`EOLLO_REQUIRE_AUTH=1` 时，`/quote`、`/yield/discover`、`/yield/history`、`/position/analyze`
+需要安装 token。`EOLLO_RATE_LIMIT_PER_SEC` 控制进程级每秒请求上限，默认 1000，不是 per-IP。
+公开部署需在前面加 TLS 和 per-IP 限流。详见 [SECURITY](SECURITY.md)。
+
 ## `POST /quote`
 
 请求：

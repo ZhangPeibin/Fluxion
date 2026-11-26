@@ -3,7 +3,8 @@
 This document defines the rule catalog, severity calibration, evidence model, coverage semantics,
 and test boundary for `transaction.inspect` and `signature.inspect`.
 
-It is not an audit report and does not claim complete exploit coverage.
+It is not an audit report and does not claim complete exploit coverage. Deployment and
+operational boundaries are in [SECURITY](../../SECURITY.md).
 
 ## Assurance object
 
