@@ -72,12 +72,16 @@ skill 列表和版本固定见 [`skills/README.md`](skills/README.md)。然后�
 
 ```text
 把 100 LDO 换成 ETH，给我最佳报价
+在 BSC 上把 1 个 BNB 换成 USDT，给我最优路线
 查一下 0x... 的 BNB 和 USDT
+看一下这个地址在 BSC 上的 Venus 仓位
 签名前检查这笔 calldata
 检查这个 Permit2 typed data
+验证这笔 BSC 交易
 ```
 
-每个能力下面的“对 Agent 说”示例都可以直接使用。
+每个能力下面的“对 Agent 说”示例都可以直接使用。完整的中英示例见
+[Agent 示例](docs/AGENT-EXAMPLES.md)。
 
 ## 能力
 
@@ -578,6 +582,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 ## 文档
 
 - 接入：[MCP](docs/MCP.md)
+- 示例：[Agent 示例](docs/AGENT-EXAMPLES.md)
 - 能力：[swap.quote](docs/capabilities/swap/README.md) · [wallet](docs/capabilities/wallet/README.md) · [transaction](docs/capabilities/transaction/README.md) · [signature](docs/capabilities/signature/README.md)
 - 架构：[产品架构](docs/PRODUCT-ARCHITECTURE.md) · [引擎架构](docs/ARCHITECTURE.md) · [本地状态](docs/LOCAL-STATE.md)
 - 运维：[HTTP API](docs/API.md) · [配置](docs/CONFIGURATION.md) · [开发](docs/DEVELOPMENT.md)
@@ -588,8 +593,9 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 
 ## 状态与边界
 
-Pre-1.0。本地 wallet / transaction / signature 支持 BSC（默认）和 Ethereum；`swap.quote` 仍是
-Ethereum 主网。
+Pre-1.0。Wallet、transaction、signature、swap、yield、position 支持 BSC 和 Ethereum。
+`swap.quote`、`yield.*` 和 `position.analyze` 需要对应的 remote 实例：Ethereum 用
+`configs/runtime.yaml`，BSC 用 `configs/bsc.yaml`。
 
 - `wallet.sign` 只签名消息和 EIP-712；`wallet.send` 只发送原生/ERC20/BEP-20 transfer。
 - `transaction.inspect` / `signature.inspect` 是 advisory，不构成安全保证。
@@ -599,7 +605,7 @@ Ethereum 主网。
   `coverage` 和 `warnings` 说明。
 - 非 Enumerable ERC721 只返回数量；ERC1155 枚举依赖 indexer。
 - 不提供 USD 估值。
-- `swap.quote` 需要单独部署 remote 服务。
+- `swap.quote`、`yield.*` 和 `position.analyze` 需要对应链的 remote 服务。
 
 下一步：统一的授权步骤与工作流稳定化。
 

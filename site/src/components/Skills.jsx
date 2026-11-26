@@ -114,6 +114,17 @@ export default function Skills({ t }) {
               copyLabel={t.captions.copy}
               copiedLabel={t.captions.copied}
             />
+            <a
+              className="prompt-more"
+              href={`${GITHUB_URL}/blob/master/docs/AGENT-EXAMPLES.md`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t.skills.examplesLink}
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                <path d="M4 12 12 4M6 4h6v6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </a>
           </Reveal>
         </div>
 

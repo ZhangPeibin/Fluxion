@@ -8,6 +8,11 @@ description: Use when the user wants to inspect, simulate, send or verify BSC or
 `transaction.inspect` is a deterministic pre-sign report. `transaction.simulate` executes only an
 `eth_call`. Neither signs or broadcasts.
 
+Prompt examples (bilingual): [docs/AGENT-EXAMPLES.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/AGENT-EXAMPLES.md).
+
+- "Verify this BSC transaction: did it succeed, and what actually moved?"
+- "Simulate this BSC transaction, tell me if it reverts, and estimate gas."
+
 ## transaction.inspect
 
 ```json

@@ -8,6 +8,10 @@ description: Use when the user wants to inspect EIP-712 typed data, a Permit2 si
 Inspect non-calldata authorization before the user signs. Default chain is BSC; pass
 `chain: "ethereum"` for Ethereum.
 
+Prompt examples (bilingual): [docs/AGENT-EXAMPLES.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/AGENT-EXAMPLES.md).
+
+- "Inspect this Permit2 request: are the spender, amount, expiration and chain ID correct?"
+
 - Human docs: [`docs/capabilities/signature`](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/signature/README.md)
 - Schema: [`signature_inspect`](https://eollo.xyz/schemas/signature_inspect.v2.json)
 

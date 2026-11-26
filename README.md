@@ -78,10 +78,15 @@ agent:
 
 ```text
 Quote 100 LDO to ETH and show the best route
+Quote 1 BNB to USDT on BSC and show the best route
 Show the BNB and USDT balances for 0x...
+Show this address's Venus position on BSC
 Inspect this calldata before I sign
 Inspect this Permit2 typed data
+Verify this BSC transaction
 ```
+
+See [agent examples](docs/AGENT-EXAMPLES.md) for the full bilingual list.
 
 ## Capabilities
 
@@ -619,6 +624,7 @@ CLI/MCP -> local RPC -> decode/metadata/simulate/verify/trace/source -> report
 ## Documentation
 
 - Integration: [MCP](docs/MCP.md)
+- Examples: [agent examples](docs/AGENT-EXAMPLES.md)
 - Capabilities: [swap.quote](docs/capabilities/swap/README.md) · [wallet](docs/capabilities/wallet/README.md) · [transaction](docs/capabilities/transaction/README.md) · [signature](docs/capabilities/signature/README.md)
 - Architecture: [product architecture](docs/PRODUCT-ARCHITECTURE.md) · [engine architecture](docs/ARCHITECTURE.en.md) · [local state](docs/LOCAL-STATE.md)
 - Operations: [HTTP API](docs/API.md) · [configuration](docs/CONFIGURATION.md) · [development](docs/DEVELOPMENT.md)
@@ -643,7 +649,7 @@ BSC and Ethereum. `swap.quote`, `yield.*`, and `position.analyze` need the match
 - Non-enumerable ERC721 collections return a count but no token ids; ERC1155 enumeration needs an
   indexer.
 - There is no USD valuation.
-- `swap.quote` needs a separately deployed remote service.
+- `swap.quote`, `yield.*`, and `position.analyze` need the remote instance for their chain.
 
 Next: add a shared approval helper and close the workflow gaps listed in the catalog.
 

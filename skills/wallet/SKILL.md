@@ -10,6 +10,11 @@ message/EIP-712 signing, and native/ERC20/BEP-20 transfers. Local wallet tools d
 pass `chain: "ethereum"` for Ethereum. These capabilities never ask for or handle
 private keys, and a balance or allowance response is never authorization to transact.
 
+Prompt examples (bilingual): [docs/AGENT-EXAMPLES.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/AGENT-EXAMPLES.md).
+
+- "Show the BNB, USDT and CAKE balances for this BSC address."
+- "Connect my BSC wallet, show the QR first, then poll the session status."
+
 - Human docs: [`docs/capabilities/wallet`](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/wallet/README.md)
 - Schemas:
   [`wallet_balance v2`](https://eollo.xyz/schemas/wallet_balances.v2.json),
@@ -350,7 +355,7 @@ Checkpoints:
    provider or the fallback registry.
 2. `wallet.collectibles`: NFT discovery is best-effort; non-enumerable collections may report only
    a count.
-3. `position.analyze`: Ethereum only. BSC portfolios stop before this step and say so.
+3. `position.analyze`: supports Ethereum and BSC. BSC portfolios use the Venus markets in the curated registry.
 
 Failure handling: provider unavailable → return registry results with warnings; unknown tokens stay
 unknown; a position failure is reported separately and does not invalidate wallet balances. Never

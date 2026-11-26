@@ -163,6 +163,8 @@ catalog-generated output. The wallet read tools (`wallet_balance`, `wallet_asset
 and the wallet tools already return capability envelope v2. All catalog capabilities now use
 envelope v2; read each catalog entry for its schema and chain support.
 
+Natural-language prompt examples: [AGENT-EXAMPLES.md](AGENT-EXAMPLES.md).
+
 | Capability | Tool | Contract |
 |---|---|---|
 | `swap.quote` | `swap_quote` | [capabilities/swap](capabilities/swap/README.md) |

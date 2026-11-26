@@ -8,6 +8,10 @@ description: Use when the user asks what yield positions a wallet holds, wants n
 Use this capability to inspect a wallet's curated yield positions at a pinned block. Use `chain: "bsc"` for Venus positions on BSC.
 It combines on-chain receipt-token balances with the current `yield.discover` APY and risk context.
 
+Prompt examples (bilingual): [docs/AGENT-EXAMPLES.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/AGENT-EXAMPLES.md).
+
+- "Show this address's Venus position on BSC: what is it worth in BNB, and what is the APY?"
+
 Human-facing documentation is in
 [docs/capabilities/position/README.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/position/README.md); the JSON contract
 is [schemas/position_analyze.v2.json](https://eollo.xyz/schemas/position_analyze.v2.json).

@@ -9,6 +9,11 @@ Use this capability when an agent needs to compare **native-asset staking and le
 opportunities. Use ETH on Ethereum and BNB on BSC. It returns a safety tier, APY components, TVL, withdrawal conditions,
 evidence and one recommendation with tradeoffs.
 
+Prompt examples (bilingual): [docs/AGENT-EXAMPLES.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/AGENT-EXAMPLES.md).
+
+- "I have 10 BNB on BSC. Find a lending market with a reasonable APY and explain the exit conditions."
+- "Show the last 30 days of Venus vBNB APY and TVL."
+
 Human-facing capability documentation is in
 [docs/capabilities/yield/README.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/yield/README.md); the JSON contract is
 [schemas/yield_discover.v2.json](https://eollo.xyz/schemas/yield_discover.v2.json).

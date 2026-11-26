@@ -9,6 +9,11 @@ Use this capability when an agent needs an **exact-in swap quote** on Ethereum o
 whether to build or execute a transaction. It is read-only: it returns amounts, routes and state
 provenance, and never signs, approves, or broadcasts.
 
+Prompt examples (bilingual): [docs/AGENT-EXAMPLES.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/AGENT-EXAMPLES.md).
+
+- "Swap 1 BNB to USDT on BSC and show the best route."
+- "Build signable calldata from that quote at 0.5% slippage."
+
 Human-facing capability documentation is in
 [docs/capabilities/swap/README.md](https://github.com/ZhangPeibin/eollo/blob/master/docs/capabilities/swap/README.md); the JSON contract is
 [schemas/swap_quote.v2.json](https://eollo.xyz/schemas/swap_quote.v2.json).
