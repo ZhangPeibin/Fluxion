@@ -28,6 +28,7 @@ const DECIMALS: &str = "313ce567";
 const SYMBOL: &str = "95d89b41";
 const ALLOWANCE: &str = "dd62ed3e";
 const SUPPORTS_INTERFACE: &str = "01ffc9a7";
+const MAX_UNKNOWN_TOKENS_TO_RESOLVE: usize = 50;
 const ERC721_INTERFACE: &str = "80ac58cd";
 const ERC1155_INTERFACE: &str = "d9b67a26";
 const ERC721_ENUMERABLE: &str = "780e9d63";
@@ -192,18 +193,31 @@ pub async fn assets(
 
     let mut unknown_count = unknown.len();
     if request.include_unknown && !unknown.is_empty() {
-        let addresses = unknown.keys().copied().collect::<Vec<_>>();
+        let mut addresses = unknown.keys().copied().collect::<Vec<_>>();
+        let total_unknown = addresses.len();
+        addresses.truncate(MAX_UNKNOWN_TOKENS_TO_RESOLVE);
         let resolved = resolve_unknown_tokens(&rpc, &addresses, &tag).await;
+        let mut resolved_count = 0;
         for (address, token) in resolved {
             match token {
-                Ok(token) => known.push(token),
+                Ok(token) => {
+                    known.push(token);
+                    resolved_count += 1;
+                }
                 Err(error) => warnings.push(format!(
                     "skipped unknown token {address}: {}",
                     error.message
                 )),
             }
         }
-        unknown_count = 0;
+        unknown_count = total_unknown.saturating_sub(resolved_count);
+        if total_unknown > addresses.len() {
+            warnings.push(format!(
+                "resolved the first {} of {total_unknown} unknown tokens; {} remain unknown",
+                addresses.len(),
+                total_unknown - addresses.len()
+            ));
+        }
     }
     let _ = native_seen; // The provider only identifies candidates; native is re-read locally.
     let (native, mut balances) = verify_tokens(

@@ -91,7 +91,7 @@ Discover what ERC20 tokens an account holds, then verify every balance locally.
 
 - Default result: native ETH + known-registry tokens with nonzero balances.
 - `unknown_count` reports unknown nonzero tokens that were hidden.
-- `include_unknown: true` expands unknown tokens; metadata is read from the token contract.
+- `include_unknown: true` expands unknown tokens; metadata is read from the token contract. At most 50 are resolved per request; the rest stay in `unknown_count` with a warning.
 - Returns envelope v2; balances are under `data`, and discovery sources are under
   `provenance.sources`.
 - Always inspect `warnings` and `unknowns` before claiming the result is complete.

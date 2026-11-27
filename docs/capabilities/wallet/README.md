@@ -49,7 +49,7 @@ Defaults:
 
 - native BNB/ETH + built-in chain registry tokens
 - unknown nonzero tokens are summarized in `unknown_count`
-- `--include-unknown` expands unknown tokens (metadata is read from the token contract)
+- `--include-unknown` expands unknown tokens (metadata is read from the token contract). At most 50 are resolved per request; the rest stay counted in `unknown_count` with a warning.
 - if the discovery provider is unavailable, falls back to registry-only discovery and reports
   a warning; local balance verification still sets `coverage.dimensions.data` to `complete`
 - Returns envelope v2; balances are under `data`, and sources are under `provenance.sources`
