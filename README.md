@@ -261,6 +261,8 @@ Show the BNB and USDT balances for 0x... at the latest block.
 
 `wallet.assets` discovers token holdings and verifies each balance locally. Without a provider it
 uses the built-in registry and reports what it could not check in `coverage` and `warnings`.
+`--include-unknown` resolves at most 50 unknown tokens per request; the rest stay counted in
+`unknown_count`.
 
 ```bash
 eollo wallet assets 0x...
@@ -488,7 +490,8 @@ Inspect this Permit2 typed data: check the amount, expiration, spender, and chai
 Skill: [fourmeme](skills/fourmeme/SKILL.md) · Docs: [fourmeme](docs/capabilities/fourmeme/README.md)
 
 `fourmeme.agent-tokens` discovers Four.meme tokens using the `Binance Agent ID Exclusive` template
-(`presetId=1778027615735`) and optionally checks Agent ID eligibility. An `aiCreator` label or `.ai`
+(on-chain preset `1778027615733`, API template `1778027615735`) and optionally checks Agent ID
+eligibility. An `aiCreator` label or `.ai`
 tag is not sufficient.
 
 ```bash

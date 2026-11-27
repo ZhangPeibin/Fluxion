@@ -465,8 +465,8 @@ eollo signature inspect --user-operation userop.json
 
 Skill：[fourmeme](skills/fourmeme/SKILL.md) · 文档：[fourmeme](docs/capabilities/fourmeme/README.md)
 
-发现 Four.meme 上使用 `Binance Agent ID Exclusive` 模板（`presetId=1778027615735`）的近期
-token，并可检查钱包是否持有 Agent ID。`aiCreator` 或 `.ai` 标签不等于该模板。
+发现 Four.meme 上使用 `Binance Agent ID Exclusive` 模板（链上 preset `1778027615733`，
+API template `1778027615735`）的近期 token，并可检查钱包是否持有 Agent ID。`aiCreator` 或 `.ai` 标签不等于该模板。
 
 ```bash
 eollo fourmeme agent-tokens --json
