@@ -44,7 +44,9 @@ Both capabilities use envelope v2:
 `fourmeme.agent-tokens` data:
 
 - `mode`, `scanned`, `lookback_blocks`, `from_block`, `to_block`, `tokens[]`.
-- `template_id` must be `1778027615735`; `.ai` tag or `aiCreator` alone is not enough.
+- `template_id` is the on-chain preset `1778027615733`; the Four.meme API template is
+  `1778027615735`. `agent_id_exclusive` is true when the matching source confirms it. `.ai` tag or
+  `aiCreator` alone is not enough.
 - `phase`: `bonding` requires an Agent wallet; `graduated` is open to everyone.
 - `wallet_eligible`: `true`, `false`, or omitted when `AgentIdentifier` is unavailable.
 - `lookback_blocks` bounds the scan; discovery is not complete history.

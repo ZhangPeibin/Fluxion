@@ -26,8 +26,9 @@ const OPENFOUR_CORE: Address =
     alloy_primitives::address!("ebe7b6C1089D9F72aD07f34E36d898e44E5e27f3");
 const TOKEN_CREATED_TOPIC: &str =
     "0x7dae4dcd1b20eb0445e7cc1d02b3e2e7f32fa63081a0e764732c269f2b8f228f";
+const AGENT_PRESET_ID: &str = "1778027615733";
 const AGENT_PRESET_TOPIC: &str =
-    "0x0000000000000000000000000000000000000000000000000000019dfab455f7";
+    "0x0000000000000000000000000000000000000000000000000000019dfab455f5";
 const AGENT_TEMPLATE_ID: &str = "1778027615735";
 const AGENT_IDENTIFIER: Address =
     alloy_primitives::address!("09B44A633de9F9EBF6FB9Bdd5b5629d3DD2cef13");
@@ -164,7 +165,10 @@ pub async fn agent_tokens(
             match get_detail(config, created.address).await {
                 Ok(detail) => {
                     details_used = true;
-                    if template_id(&detail).as_deref() != Some(AGENT_TEMPLATE_ID) {
+                    if !template_id(&detail)
+                        .as_deref()
+                        .is_some_and(|id| id == AGENT_TEMPLATE_ID || id == AGENT_PRESET_ID)
+                    {
                         warnings.push(format!(
                             "{} detail does not match Agent preset; using log metadata",
                             created.address
@@ -273,7 +277,7 @@ pub async fn agent_tokens(
                 .and_then(|value| value.get("image"))
                 .and_then(Value::as_str)
                 .map(str::to_string),
-            template_id: AGENT_TEMPLATE_ID.to_string(),
+            template_id: AGENT_PRESET_ID.to_string(),
             phase,
             progress: detail
                 .as_ref()
@@ -298,7 +302,7 @@ pub async fn agent_tokens(
     }
     let mut sources = vec![AssetSource {
         name: "bsc-logs".to_string(),
-        scope: format!("token-created:{AGENT_TEMPLATE_ID}"),
+        scope: format!("token-created:{AGENT_PRESET_ID}"),
         block: Some(latest),
     }];
     if details_used {
@@ -356,7 +360,7 @@ pub async fn token(
     let template_id = template_id(&detail);
     let agent_id_exclusive = match template_id.as_deref() {
         Some(id) => {
-            let exclusive = id == AGENT_TEMPLATE_ID;
+            let exclusive = id == AGENT_TEMPLATE_ID || id == AGENT_PRESET_ID;
             if !exclusive {
                 warnings.push(format!(
                     "template {id} is not the Agent ID Exclusive preset"
@@ -742,7 +746,7 @@ async fn onchain_fallback(
     let (agent_id_exclusive, template_id, template_name) =
         match state.as_ref().and_then(|state| state.preset_id.as_deref()) {
             Some(preset) => {
-                let exclusive = preset == AGENT_TEMPLATE_ID;
+                let exclusive = preset == AGENT_PRESET_ID;
                 (
                     Some(exclusive),
                     Some(preset.to_string()),
@@ -1257,13 +1261,28 @@ async fn get_detail(config: &FourMemeConfig, address: Address) -> Result<Value, 
         .send()
         .await
         .map_err(|error| api_error(format!("Four.meme token detail failed: {error}")))?;
-    if !response.status().is_success() {
+    let status = response.status();
+    if !status.is_success() {
         return Err(api_error(format!(
-            "Four.meme detail API returned HTTP {} (region restriction or rate limit)",
-            response.status()
+            "Four.meme detail API returned HTTP {status} (region restriction or rate limit)"
         )));
     }
-    let response = response.json::<Value>().await.map_err(|error| {
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    let text = response
+        .text()
+        .await
+        .map_err(|error| api_error(format!("Four.meme token detail body failed: {error}")))?;
+    if content_type.contains("text/html") || text.trim_start().starts_with('<') {
+        return Err(api_error(
+            "Four.meme detail API returned non-JSON content (region restriction or block page)",
+        ));
+    }
+    let response: Value = serde_json::from_str(&text).map_err(|error| {
         api_error(format!(
             "Four.meme token detail returned invalid JSON: {error}"
         ))
@@ -1341,6 +1360,26 @@ mod tests {
             bytes.push(0);
         }
         format!("{}{}", word(length as u64), HEXLOWER.encode(&bytes))
+    }
+
+    #[test]
+    fn agent_preset_topic_matches_onchain_preset_id() {
+        let expected = format!("0x{:064x}", AGENT_PRESET_ID.parse::<u64>().unwrap());
+        assert_eq!(expected, AGENT_PRESET_TOPIC);
+        assert_ne!(AGENT_PRESET_ID, AGENT_TEMPLATE_ID);
+    }
+
+    #[test]
+    fn detail_api_unavailable_covers_region_blocks() {
+        assert!(detail_api_unavailable(
+            "Four.meme detail API returned non-JSON content (region restriction or block page)"
+        ));
+        assert!(detail_api_unavailable(
+            "Four.meme detail API returned HTTP 403"
+        ));
+        assert!(!detail_api_unavailable(
+            "token detail returned invalid JSON"
+        ));
     }
 
     #[test]

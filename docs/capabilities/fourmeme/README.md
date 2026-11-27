@@ -122,7 +122,8 @@ GET /api/token/<address>    detail + optional wallet eligibility
 
 ## Semantics
 
-- Discovery scans OpenFour Core `TokenCreated` logs and filters on `presetId=1778027615735`.
+- Discovery scans OpenFour Core `TokenCreated` logs and filters on the on-chain
+  `presetId=1778027615733`. The Four.meme API template id is `1778027615735`.
   Template id / preset is the source of truth; `aiCreator` and `.ai` tag are **not** sufficient.
 - `PUBLISH` / `PUBLISHED` is treated as bonding; `TRADE` as graduated.
 - On-chain fallback maps vault phase `Created/Trading/SoldOut` to `bonding`, `MigratePending/Migrated`
