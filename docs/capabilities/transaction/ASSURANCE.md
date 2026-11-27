@@ -75,6 +75,7 @@ Every `transaction.inspect` response includes:
 | `SWAP-001` | high | `amountOutMin == 0` | minOut |
 | `SWAP-004` | high | Swap recipient differs from sender | sender, recipient |
 | `SWAP-007` | medium | Unknown router | router |
+| `SWAP-008` | high | Exact-output swap has no input cap (`amountInMax == U256::MAX`) | amountInMax |
 | `POLICY-001` | high | Chain outside policy | chain |
 | `POLICY-002` | high | Native spend exceeds cap | value, max |
 | `POLICY-003` | high | Token spend exceeds cap | token, observed, max |

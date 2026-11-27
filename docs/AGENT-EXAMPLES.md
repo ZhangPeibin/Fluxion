@@ -59,6 +59,6 @@ transfers.
   safety tier is `established`.
 - `yield_discover` on Ethereum uses ETH. Example: "I have 10 ETH. Find the safest yield at a
   reasonable APY under conservative."
-- `transaction.inspect` decodes Uniswap/Pancake V3 `exactInput` with its token and fee path.
-  `exactInputSingle` and `exactOutput` are not decoded yet.
+- `transaction.inspect` decodes Uniswap/Pancake V3 `exactInput`, `exactInputSingle`, and
+  `exactOutput` with their token and fee paths.
 - `transaction.inspect` and `signature.inspect` are advisory. They do not sign or guarantee safety.

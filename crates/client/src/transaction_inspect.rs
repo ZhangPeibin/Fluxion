@@ -198,6 +198,8 @@ const BUILTIN_SELECTORS: &[&str] = &[
     "0xb6f9de95",
     "0x791ac947",
     "0xc04b8d59",
+    "0x414bf389",
+    "0xf28c0498",
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -819,9 +821,23 @@ fn decode_swap_v2(
     }
 }
 
-fn decode_swap_v3(selector: &str, payload: &[u8]) -> DecodedIntent {
-    let signature = "exactInput((bytes,address,uint256,uint256,uint256))";
-    let name = "exactInput";
+#[derive(Clone, Copy)]
+enum V3Kind {
+    ExactInput,
+    ExactOutput,
+}
+
+fn decode_swap_v3(selector: &str, payload: &[u8], kind: V3Kind) -> DecodedIntent {
+    let (signature, name) = match kind {
+        V3Kind::ExactInput => (
+            "exactInput((bytes,address,uint256,uint256,uint256))",
+            "exactInput",
+        ),
+        V3Kind::ExactOutput => (
+            "exactOutput((bytes,address,uint256,uint256,uint256))",
+            "exactOutput",
+        ),
+    };
     let Some(tuple_offset) = payload.get(..32).and_then(word_to_usize) else {
         return known_but_partial(
             selector,
@@ -863,8 +879,8 @@ fn decode_swap_v3(selector: &str, payload: &[u8]) -> DecodedIntent {
         );
     };
     let deadline = U256::from_be_slice(&head[64..96]).to_string();
-    let amount_in = U256::from_be_slice(&head[96..128]).to_string();
-    let amount_out_min = U256::from_be_slice(&head[128..160]).to_string();
+    let amount_a = U256::from_be_slice(&head[96..128]).to_string();
+    let amount_b = U256::from_be_slice(&head[128..160]).to_string();
     let Some(path_pos) = tuple_offset.checked_add(path_offset) else {
         return known_but_partial(
             selector,
@@ -950,14 +966,22 @@ fn decode_swap_v3(selector: &str, payload: &[u8]) -> DecodedIntent {
 
     let args = vec![
         TransactionInspectArg {
-            name: "amountIn".to_string(),
+            name: match kind {
+                V3Kind::ExactInput => "amountIn",
+                V3Kind::ExactOutput => "amountOut",
+            }
+            .to_string(),
             kind: "uint256".to_string(),
-            value: amount_in,
+            value: amount_a,
         },
         TransactionInspectArg {
-            name: "amountOutMin".to_string(),
+            name: match kind {
+                V3Kind::ExactInput => "amountOutMin",
+                V3Kind::ExactOutput => "amountInMax",
+            }
+            .to_string(),
             kind: "uint256".to_string(),
-            value: amount_out_min,
+            value: amount_b,
         },
         TransactionInspectArg {
             name: "path".to_string(),
@@ -1001,6 +1025,110 @@ fn decode_swap_v3(selector: &str, payload: &[u8]) -> DecodedIntent {
         warnings.push(format!(
             "{} trailing bytes after swap path",
             payload.len() - padded_end
+        ));
+    }
+    DecodedIntent {
+        intent: TransactionInspectIntent {
+            selector: selector.to_string(),
+            signature: Some(signature.to_string()),
+            name: Some(name.to_string()),
+            args,
+        },
+        decode_coverage: if warnings.is_empty() {
+            "complete"
+        } else {
+            "partial"
+        },
+        unknowns: Vec::new(),
+        warnings,
+    }
+}
+
+fn decode_exact_input_single(selector: &str, payload: &[u8]) -> DecodedIntent {
+    let signature =
+        "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))";
+    let name = "exactInputSingle";
+    let Some(head) = payload.get(..8 * 32) else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap tuple is truncated".to_string(),
+        );
+    };
+    let Some(token_in) = decode_address(&head[..32]).ok() else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap tokenIn is invalid".to_string(),
+        );
+    };
+    let Some(token_out) = decode_address(&head[32..64]).ok() else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap tokenOut is invalid".to_string(),
+        );
+    };
+    let Some(recipient) = decode_address(&head[96..128]).ok() else {
+        return known_but_partial(
+            selector,
+            signature,
+            name,
+            "swap recipient is invalid".to_string(),
+        );
+    };
+    let fee = U256::from_be_slice(&head[64..96]).to_string();
+    let deadline = U256::from_be_slice(&head[128..160]).to_string();
+    let amount_in = U256::from_be_slice(&head[160..192]).to_string();
+    let amount_out_min = U256::from_be_slice(&head[192..224]).to_string();
+    let sqrt_price_limit = U256::from_be_slice(&head[224..256]).to_string();
+
+    let args = vec![
+        TransactionInspectArg {
+            name: "amountIn".to_string(),
+            kind: "uint256".to_string(),
+            value: amount_in,
+        },
+        TransactionInspectArg {
+            name: "amountOutMin".to_string(),
+            kind: "uint256".to_string(),
+            value: amount_out_min,
+        },
+        TransactionInspectArg {
+            name: "path".to_string(),
+            kind: "address[]".to_string(),
+            value: format!("[\"{token_in}\",\"{token_out}\"]"),
+        },
+        TransactionInspectArg {
+            name: "fees".to_string(),
+            kind: "uint24[]".to_string(),
+            value: format!("[{fee}]"),
+        },
+        TransactionInspectArg {
+            name: "to".to_string(),
+            kind: "address".to_string(),
+            value: recipient,
+        },
+        TransactionInspectArg {
+            name: "deadline".to_string(),
+            kind: "uint256".to_string(),
+            value: deadline,
+        },
+        TransactionInspectArg {
+            name: "sqrtPriceLimitX96".to_string(),
+            kind: "uint160".to_string(),
+            value: sqrt_price_limit,
+        },
+    ];
+
+    let mut warnings = Vec::new();
+    if payload.len() > 8 * 32 {
+        warnings.push(format!(
+            "{} trailing bytes after swap tuple",
+            payload.len() - 8 * 32
         ));
     }
     DecodedIntent {
@@ -1435,7 +1563,10 @@ fn detect_swap(
     request: &InspectRequest,
 ) -> Vec<TransactionInspectFinding> {
     let is_swap = intent.name.as_deref().is_some_and(|name| {
-        name.starts_with("swapExact") || name == "exactInput" || name == "exactInputSingle"
+        name.starts_with("swapExact")
+            || name == "exactInput"
+            || name == "exactInputSingle"
+            || name == "exactOutput"
     });
     if !is_swap {
         return Vec::new();
@@ -1451,6 +1582,19 @@ fn detect_swap(
             "Zero minimum output",
             "The swap accepts any output amount, exposing the transaction to slippage and MEV.",
             [("amountOutMin", amount_out_min.to_string())],
+        ));
+    }
+    if intent.name.as_deref() == Some("exactOutput")
+        && let Some(amount_in_max) = arg_value(intent, "amountInMax")
+            .and_then(|value| parse_decimal_u256(&value))
+            .filter(|value| *value == U256::MAX)
+    {
+        findings.push(swap_finding(
+            "SWAP-008",
+            "high",
+            "Unbounded input for exact-output swap",
+            "The swap sets amountInMax to the maximum U256, so the router may spend any amount of the input token.",
+            [("amountInMax", amount_in_max.to_string())],
         ));
     }
     if let (Some(from), Some(recipient)) = (request.from, arg_value(intent, "to"))
@@ -3378,7 +3522,9 @@ fn decode_intent(data: &str) -> Result<DecodedIntent, CapabilityError> {
                 true,
             ));
         }
-        "0xc04b8d59" => return Ok(decode_swap_v3(&selector, payload)),
+        "0xc04b8d59" => return Ok(decode_swap_v3(&selector, payload, V3Kind::ExactInput)),
+        "0x414bf389" => return Ok(decode_exact_input_single(&selector, payload)),
+        "0xf28c0498" => return Ok(decode_swap_v3(&selector, payload, V3Kind::ExactOutput)),
         "0xac9650d8" => return Ok(decode_multicall(&selector, payload)),
         _ => {
             return Ok(DecodedIntent {
@@ -4738,6 +4884,132 @@ mod tests {
                 .warnings
                 .iter()
                 .any(|warning| warning.contains("invalid length"))
+        );
+    }
+
+    fn v3_exact_input_single_data(
+        amount_in: u64,
+        amount_out_min: u64,
+        recipient: &str,
+        token_in: &str,
+        fee: u32,
+        token_out: &str,
+    ) -> String {
+        format!(
+            "0x414bf389{}{}{}{}{}{}{}{}",
+            address_word(token_in),
+            address_word(token_out),
+            uint_word(fee as u64),
+            address_word(recipient),
+            uint_word(u64::MAX),
+            uint_word(amount_in),
+            uint_word(amount_out_min),
+            uint_word(0)
+        )
+    }
+
+    fn v3_exact_output_data(
+        amount_out: u64,
+        amount_in_max: &str,
+        recipient: &str,
+        token_in: &str,
+        fee: u32,
+        token_out: &str,
+    ) -> String {
+        let packed = format!(
+            "{}{:06x}{}",
+            token_in.trim_start_matches("0x"),
+            fee,
+            token_out.trim_start_matches("0x")
+        );
+        let path_padded = format!("{packed:0<128}");
+        format!(
+            "0xf28c0498{}{}{}{}{}{}{}{}",
+            uint_word(32),
+            uint_word(160),
+            address_word(recipient),
+            uint_word(u64::MAX),
+            uint_word(amount_out),
+            amount_in_max,
+            uint_word(43),
+            path_padded
+        )
+    }
+
+    #[test]
+    fn decodes_v3_exact_input_single() {
+        let data = v3_exact_input_single_data(
+            1000,
+            0,
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000010",
+            500,
+            "0x0000000000000000000000000000000000000020",
+        );
+        let decoded = decode_intent(&data).unwrap();
+        assert_eq!(decoded.decode_coverage, "complete");
+        assert_eq!(decoded.intent.name.as_deref(), Some("exactInputSingle"));
+        assert!(
+            decoded
+                .intent
+                .args
+                .iter()
+                .any(|arg| arg.name == "amountIn" && arg.value == "1000")
+        );
+        let fees = decoded
+            .intent
+            .args
+            .iter()
+            .find(|arg| arg.name == "fees")
+            .expect("fees arg");
+        assert_eq!(fees.value, "[500]");
+
+        let mut request = flow_request();
+        request.to = "0x1b81D678ffb9C0263b24A97847620C99d213eB14"
+            .parse()
+            .unwrap();
+        let findings = detect_swap(&decoded.intent, &request);
+        assert!(findings.iter().any(|finding| finding.id == "SWAP-001"));
+        assert!(!findings.iter().any(|finding| finding.id == "SWAP-007"));
+    }
+
+    #[test]
+    fn decodes_v3_exact_output_and_flags_unbounded_input() {
+        let data = v3_exact_output_data(
+            1000,
+            &"f".repeat(64),
+            "0x0000000000000000000000000000000000000001",
+            "0x0000000000000000000000000000000000000010",
+            500,
+            "0x0000000000000000000000000000000000000020",
+        );
+        let decoded = decode_intent(&data).unwrap();
+        assert_eq!(decoded.decode_coverage, "complete");
+        assert_eq!(decoded.intent.name.as_deref(), Some("exactOutput"));
+        assert!(
+            decoded
+                .intent
+                .args
+                .iter()
+                .any(|arg| arg.name == "amountOut" && arg.value == "1000")
+        );
+        assert!(
+            decoded
+                .intent
+                .args
+                .iter()
+                .any(|arg| arg.name == "amountInMax" && arg.value == U256::MAX.to_string())
+        );
+
+        let mut request = flow_request();
+        request.to = "0x1b81D678ffb9C0263b24A97847620C99d213eB14"
+            .parse()
+            .unwrap();
+        let findings = detect_swap(&decoded.intent, &request);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.id == "SWAP-008" && finding.severity == "high")
         );
     }
 

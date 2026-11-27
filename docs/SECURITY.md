@@ -94,8 +94,8 @@ Not covered:
   cover every state read.
 - Local binary integrity is not verified. A tampered `eollo` binary can change the result.
 - Rate limiting is per process, not per client. Use a reverse proxy for per-IP limits.
-- `transaction.inspect` decodes Uniswap/Pancake V2 swaps and V3 `exactInput`. `exactInputSingle`,
-  `exactOutput`, and mixed V2/V3 routes are not decoded yet.
+- `transaction.inspect` decodes Uniswap/Pancake V2 swaps and V3 `exactInput`, `exactInputSingle`,
+  and `exactOutput`. Mixed V2/V3 routes and other aggregators are not decoded yet.
 - BSC Venus calldata uses standard Compound v2 ABIs, with contract code, symbol, decimals and
   exchange rate checked on-chain. It has not been exercised with real funds.
 - Firmware, OS, and browser wallet security are outside the project's control.

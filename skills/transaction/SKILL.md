@@ -55,9 +55,10 @@ Prompt examples (bilingual): [docs/AGENT-EXAMPLES.md](https://github.com/ZhangPe
   `nested_call` evidence. Malformed nested calls reduce decode coverage to `partial`.
 - Address findings cover zero/burn recipients (`ADDR-001`, `ADDR-002`) and self-targets
   (`ADDR-005`, low). Allowlist/session checks wait for policy/session context.
-- Known Uniswap/Pancake V2 swap selectors and Uniswap/Pancake V3 `exactInput` decode path,
-  minOut, recipient and deadline. V3 also reports fee tiers. Current findings: zero minOut
-  (`SWAP-001`), recipient mismatch (`SWAP-004`), unknown router (`SWAP-007`).
+- Known Uniswap/Pancake V2 swap selectors and Uniswap/Pancake V3 `exactInput`,
+  `exactInputSingle` and `exactOutput` decode path, amounts, recipient and deadline. V3 also
+  reports fee tiers. Current findings: zero minOut (`SWAP-001`), recipient mismatch (`SWAP-004`),
+  unknown router (`SWAP-007`), unbounded exact-output input (`SWAP-008`).
 - EIP-2612 `permit` calldata: unlimited value (`SIG-003`) and zero deadline (`SIG-002`). Typed-data,
   Permit2, 7702 and 4337 authorization inspection is tracked separately in #97.
 - Optional `policy` object: `mode`, `chains`, `max_native_spend`, `max_token_spend`,
